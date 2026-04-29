@@ -1,0 +1,8 @@
+{
+  "agent_id": "uar.agent.verifier.v1",
+  "name": "verifier",
+  "version": "0.1.0",
+  "capabilities": ["verify", "compare"],
+  "input_types": ["uor-object"],
+  "output_types": ["verification-report"]
+}
