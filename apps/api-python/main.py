@@ -8,7 +8,7 @@ import sqlite3
 import time
 import uuid
 
-app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.2.0")
+app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.2.1")
 
 DB_PATH = "uar.sqlite3"
 ObjectMode = Literal["immutable", "mutable", "collection"]
@@ -40,7 +40,14 @@ ALLOWED_BUILTINS = {
     "round": round,
     "sorted": sorted,
 }
-ALLOWED_NAMES = {"inputs", "parameters", "contents", "attributes", *ALLOWED_BUILTINS.keys()}
+ALLOWED_NAMES = {
+    "inputs",
+    "parameters",
+    "contents",
+    "values",
+    "attributes",
+    *ALLOWED_BUILTINS.keys(),
+}
 ALLOWED_AST_NODES = (
     ast.Expression,
     ast.Call,
@@ -85,15 +92,9 @@ def db() -> sqlite3.Connection:
 
 def init_db() -> None:
     with db() as conn:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS objects (digest TEXT PRIMARY KEY, record_json TEXT NOT NULL)"
-        )
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS lineage (digest TEXT NOT NULL, event_json TEXT NOT NULL)"
-        )
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS runtime_registry (name TEXT PRIMARY KEY, digest TEXT NOT NULL)"
-        )
+        conn.execute("CREATE TABLE IF NOT EXISTS objects (digest TEXT PRIMARY KEY, record_json TEXT NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS lineage (digest TEXT NOT NULL, event_json TEXT NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS runtime_registry (name TEXT PRIMARY KEY, digest TEXT NOT NULL)")
         conn.commit()
 
 
@@ -155,6 +156,18 @@ def get_obj(digest: str) -> dict[str, Any]:
     if digest not in STORE:
         raise HTTPException(status_code=404, detail=f"Object not found: {digest}")
     return STORE[digest]
+
+
+def object_value(obj: dict[str, Any]) -> Any:
+    """Return the operational value for runtime chaining.
+
+    Plain input objects use their content directly. Execution outputs are wrapped as
+    {"result": value}; for workflow chaining, expose that inner result as the value.
+    """
+    content = obj.get("content")
+    if isinstance(content, dict) and set(content.keys()) == {"result"}:
+        return content["result"]
+    return content
 
 
 def create_record(
@@ -231,6 +244,7 @@ def run_code(code: str, input_objects: list[dict[str, Any]], parameters: dict[st
         "inputs": input_objects,
         "parameters": parameters,
         "contents": [obj.get("content") for obj in input_objects],
+        "values": [object_value(obj) for obj in input_objects],
         "attributes": [obj.get("attributes", {}) for obj in input_objects],
     }
     try:
@@ -278,11 +292,12 @@ def register_runtime_object(
 
 def seed_standard_runtimes() -> dict[str, str]:
     seeds = {
-        "sum_contents": "sum(contents)",
+        "sum_contents": "sum(values)",
         "count_inputs": "len(inputs)",
-        "max_contents": "max(contents)",
-        "min_contents": "min(contents)",
-        "sort_contents": "sorted(contents)",
+        "max_contents": "max(values)",
+        "min_contents": "min(values)",
+        "sort_contents": "sorted(values)",
+        "identity_value": "values[0]",
     }
     for name, code in seeds.items():
         if name not in RUNTIME_REGISTRY:
@@ -460,8 +475,8 @@ def startup_init():
 def root():
     return {
         "status": "UAR running",
-        "version": "0.2.0",
-        "loop": "create -> register-runtime -> workflow-chain -> lineage -> persistence",
+        "version": "0.2.1",
+        "loop": "create -> register-runtime -> workflow-chain -> normalized-values -> persistence",
         "registered_runtimes": list(RUNTIME_REGISTRY.keys()),
         "object_count": len(STORE),
     }
@@ -479,7 +494,7 @@ def list_agents():
             {
                 "agent_id": f"uar.agent.{name}.v1",
                 "name": name,
-                "version": "0.2.0",
+                "version": "0.2.1",
                 "capabilities": capabilities,
             }
             for name, capabilities in AGENTS.items()
