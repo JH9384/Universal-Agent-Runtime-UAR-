@@ -6,17 +6,20 @@ import json
 import time
 import uuid
 
-app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.1.1")
+app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.1.2")
 
 ObjectMode = Literal["immutable", "mutable", "collection"]
 
 STORE: dict[str, dict[str, Any]] = {}
 LINEAGE: dict[str, list[dict[str, Any]]] = {}
+RUNTIME_REGISTRY: dict[str, str] = {}
+
 AGENTS: dict[str, list[str]] = {
     "locator": ["query"],
     "verifier": ["verify", "compare"],
     "composer": ["compose"],
-    "execution": ["run", "run_object"],
+    "execution": ["run", "run_object", "run_registered"],
+    "runtime_registry": ["register", "list", "get", "seed"],
     "lineage": ["trace"],
     "constraint": ["check"],
     "bridge": ["ingest"],
@@ -94,6 +97,17 @@ def extract_runtime_code(runtime_obj: dict[str, Any]) -> str:
     )
 
 
+def resolve_runtime(runtime_name: str | None, runtime_object: str | None) -> tuple[str, dict[str, Any]]:
+    if runtime_name:
+        if runtime_name not in RUNTIME_REGISTRY:
+            raise HTTPException(status_code=404, detail=f"Runtime not registered: {runtime_name}")
+        digest = RUNTIME_REGISTRY[runtime_name]
+        return digest, get_obj(digest)
+    if runtime_object:
+        return runtime_object, get_obj(runtime_object)
+    raise HTTPException(status_code=400, detail="Provide runtimeName, runtimeObject, or parameters.code")
+
+
 def run_code(code: str, input_objects: list[dict[str, Any]], parameters: dict[str, Any]) -> Any:
     local_scope = {
         "inputs": input_objects,
@@ -107,12 +121,74 @@ def run_code(code: str, input_objects: list[dict[str, Any]], parameters: dict[st
         raise HTTPException(status_code=400, detail=f"Execution failed: {exc}") from exc
 
 
+def register_runtime_object(
+    *,
+    name: str,
+    code: str,
+    description: str = "",
+    tags: list[str] | None = None,
+    attributes: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not name.strip():
+        raise HTTPException(status_code=400, detail="Runtime name is required")
+    runtime_attributes = {
+        "schema": "uar.schema.runtime.v1",
+        "type": "runtime",
+        "runtimeName": name,
+        "description": description,
+        "tags": tags or [],
+        **(attributes or {}),
+    }
+    record = create_record(
+        mediaType="application/vnd.uar.runtime+json",
+        mode="immutable",
+        attributes=runtime_attributes,
+        links=[],
+        content={"code": code},
+    )
+    RUNTIME_REGISTRY[name] = record["digest"]
+    LINEAGE[record["digest"]].append({
+        "event": "registered_runtime",
+        "agent": "runtime_registry",
+        "runtimeName": name,
+        "timestamp": timestamp(),
+    })
+    return record
+
+
+def seed_standard_runtimes() -> dict[str, str]:
+    seeds = {
+        "sum_contents": "sum(contents)",
+        "count_inputs": "len(inputs)",
+        "max_contents": "max(contents)",
+        "min_contents": "min(contents)",
+        "sort_contents": "sorted(contents)",
+    }
+    for name, code in seeds.items():
+        if name not in RUNTIME_REGISTRY:
+            register_runtime_object(
+                name=name,
+                code=code,
+                description=f"Standard runtime: {name}",
+                tags=["standard", "math"],
+            )
+    return RUNTIME_REGISTRY
+
+
 class UORObjectIn(BaseModel):
     mediaType: str = "application/json"
     mode: ObjectMode = "immutable"
     attributes: dict[str, Any] = Field(default_factory=dict)
     links: list[dict[str, Any]] = Field(default_factory=list)
     content: Any
+
+
+class RuntimeRegisterReq(BaseModel):
+    name: str
+    code: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class QueryReq(BaseModel):
@@ -137,6 +213,7 @@ class ComposeReq(BaseModel):
 
 
 class ExecuteReq(BaseModel):
+    runtimeName: str | None = None
     runtimeObject: str | None = None
     inputs: list[str] = Field(default_factory=list)
     parameters: dict[str, Any] = Field(default_factory=dict)
@@ -167,12 +244,18 @@ class DelegationReq(BaseModel):
     allowedAgents: list[str] = Field(default_factory=list)
 
 
+@app.on_event("startup")
+def startup_seed_runtimes():
+    seed_standard_runtimes()
+
+
 @app.get("/")
 def root():
     return {
         "status": "UAR running",
-        "version": "0.1.1",
-        "loop": "create -> verify -> locate -> execute-from-object -> lineage",
+        "version": "0.1.2",
+        "loop": "create -> register-runtime -> execute-by-name -> lineage",
+        "registered_runtimes": list(RUNTIME_REGISTRY.keys()),
     }
 
 
@@ -188,7 +271,7 @@ def list_agents():
             {
                 "agent_id": f"uar.agent.{name}.v1",
                 "name": name,
-                "version": "0.1.1",
+                "version": "0.1.2",
                 "capabilities": capabilities,
             }
             for name, capabilities in AGENTS.items()
@@ -210,6 +293,46 @@ def create_object(obj: UORObjectIn):
 @app.get("/objects")
 def read_object(digest: str = Query(..., description="Object digest, e.g. sha256:<hash>")):
     return get_obj(digest)
+
+
+@app.post("/runtimes/register")
+def register_runtime(req: RuntimeRegisterReq):
+    record = register_runtime_object(
+        name=req.name,
+        code=req.code,
+        description=req.description,
+        tags=req.tags,
+        attributes=req.attributes,
+    )
+    return {"name": req.name, "runtimeObject": record["digest"], "record": record}
+
+
+@app.get("/runtimes")
+def list_runtimes():
+    return {
+        "runtimes": [
+            {
+                "name": name,
+                "digest": digest,
+                "attributes": get_obj(digest).get("attributes", {}),
+            }
+            for name, digest in sorted(RUNTIME_REGISTRY.items())
+        ]
+    }
+
+
+@app.get("/runtimes/{name}")
+def get_runtime(name: str):
+    if name not in RUNTIME_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Runtime not registered: {name}")
+    digest = RUNTIME_REGISTRY[name]
+    return {"name": name, "digest": digest, "record": get_obj(digest)}
+
+
+@app.post("/runtimes/seed")
+def seed_runtimes():
+    seed_standard_runtimes()
+    return {"seeded": list(RUNTIME_REGISTRY.keys())}
 
 
 @app.post("/agents/locator/query")
@@ -282,15 +405,14 @@ def composer_compose(req: ComposeReq):
 def execution_run(req: ExecuteReq):
     input_objects = [get_obj(digest) for digest in req.inputs]
 
-    if req.runtimeObject:
-        runtime_obj = get_obj(req.runtimeObject)
+    if req.runtimeName or req.runtimeObject:
+        runtime_digest, runtime_obj = resolve_runtime(req.runtimeName, req.runtimeObject)
         code = extract_runtime_code(runtime_obj)
-        runtime_digest = runtime_obj["digest"]
     elif isinstance(req.parameters.get("code"), str):
         code = req.parameters["code"]
         runtime_digest = None
     else:
-        raise HTTPException(status_code=400, detail="Provide runtimeObject or parameters.code")
+        raise HTTPException(status_code=400, detail="Provide runtimeName, runtimeObject, or parameters.code")
 
     result = run_code(code, input_objects, req.parameters)
 
@@ -315,6 +437,8 @@ def execution_run(req: ExecuteReq):
         content={
             "execution_id": str(uuid.uuid4()),
             "status": "completed",
+            "runtimeName": req.runtimeName,
+            "runtimeObject": runtime_digest,
             "parameters": req.parameters,
             "timestamp": timestamp(),
         },
@@ -324,6 +448,7 @@ def execution_run(req: ExecuteReq):
         "event": "executed",
         "agent": "execution",
         "inputs": req.inputs,
+        "runtimeName": req.runtimeName,
         "runtimeObject": runtime_digest,
         "executionRecord": execution_record["digest"],
         "timestamp": timestamp(),
@@ -341,6 +466,8 @@ def execution_run(req: ExecuteReq):
         "status": "completed",
         "output": output["digest"],
         "executionRecord": execution_record["digest"],
+        "runtimeName": req.runtimeName,
+        "runtimeObject": runtime_digest,
         "result": result,
     }
 
