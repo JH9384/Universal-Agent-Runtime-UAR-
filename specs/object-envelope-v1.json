@@ -1,0 +1,9 @@
+{
+  "digest": "sha256:<hash>",
+  "mediaType": "application/json",
+  "mode": "immutable",
+  "schema": "uor.schema.object.v1",
+  "attributes": {},
+  "links": [],
+  "content": {}
+}
