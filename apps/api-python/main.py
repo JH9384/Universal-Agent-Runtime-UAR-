@@ -1,13 +1,16 @@
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Any, Literal
+import ast
 import hashlib
 import json
+import sqlite3
 import time
 import uuid
 
-app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.1.2")
+app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.2.0")
 
+DB_PATH = "uar.sqlite3"
 ObjectMode = Literal["immutable", "mutable", "collection"]
 
 STORE: dict[str, dict[str, Any]] = {}
@@ -20,6 +23,7 @@ AGENTS: dict[str, list[str]] = {
     "composer": ["compose"],
     "execution": ["run", "run_object", "run_registered"],
     "runtime_registry": ["register", "list", "get", "seed"],
+    "workflow": ["run"],
     "lineage": ["trace"],
     "constraint": ["check"],
     "bridge": ["ingest"],
@@ -36,6 +40,106 @@ ALLOWED_BUILTINS = {
     "round": round,
     "sorted": sorted,
 }
+ALLOWED_NAMES = {"inputs", "parameters", "contents", "attributes", *ALLOWED_BUILTINS.keys()}
+ALLOWED_AST_NODES = (
+    ast.Expression,
+    ast.Call,
+    ast.Name,
+    ast.Load,
+    ast.Constant,
+    ast.List,
+    ast.Tuple,
+    ast.Dict,
+    ast.Subscript,
+    ast.Slice,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.BoolOp,
+    ast.Compare,
+    ast.IfExp,
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.FloorDiv,
+    ast.Mod,
+    ast.Pow,
+    ast.USub,
+    ast.UAdd,
+    ast.And,
+    ast.Or,
+    ast.Eq,
+    ast.NotEq,
+    ast.Lt,
+    ast.LtE,
+    ast.Gt,
+    ast.GtE,
+)
+
+
+def db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db() -> None:
+    with db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS objects (digest TEXT PRIMARY KEY, record_json TEXT NOT NULL)"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS lineage (digest TEXT NOT NULL, event_json TEXT NOT NULL)"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_registry (name TEXT PRIMARY KEY, digest TEXT NOT NULL)"
+        )
+        conn.commit()
+
+
+def load_db() -> None:
+    STORE.clear()
+    LINEAGE.clear()
+    RUNTIME_REGISTRY.clear()
+    with db() as conn:
+        for row in conn.execute("SELECT digest, record_json FROM objects"):
+            STORE[row["digest"]] = json.loads(row["record_json"])
+        for row in conn.execute("SELECT digest, event_json FROM lineage"):
+            LINEAGE.setdefault(row["digest"], []).append(json.loads(row["event_json"]))
+        for row in conn.execute("SELECT name, digest FROM runtime_registry"):
+            RUNTIME_REGISTRY[row["name"]] = row["digest"]
+
+
+def persist_object(record: dict[str, Any]) -> None:
+    with db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO objects (digest, record_json) VALUES (?, ?)",
+            (record["digest"], json.dumps(record, sort_keys=True)),
+        )
+        conn.commit()
+
+
+def persist_lineage(digest: str, event: dict[str, Any]) -> None:
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO lineage (digest, event_json) VALUES (?, ?)",
+            (digest, json.dumps(event, sort_keys=True)),
+        )
+        conn.commit()
+
+
+def persist_runtime(name: str, digest: str) -> None:
+    with db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO runtime_registry (name, digest) VALUES (?, ?)",
+            (name, digest),
+        )
+        conn.commit()
+
+
+def add_lineage(digest: str, event: dict[str, Any]) -> None:
+    LINEAGE.setdefault(digest, []).append(event)
+    persist_lineage(digest, event)
 
 
 def canonical_digest(payload: Any) -> str:
@@ -77,12 +181,25 @@ def create_record(
         **envelope,
     }
     STORE[digest] = record
-    LINEAGE.setdefault(digest, []).append({
-        "event": "created",
-        "agent": "system",
-        "timestamp": timestamp(),
-    })
+    persist_object(record)
+    add_lineage(digest, {"event": "created", "agent": "system", "timestamp": timestamp()})
     return record
+
+
+def validate_code(code: str) -> None:
+    try:
+        tree = ast.parse(code, mode="eval")
+    except SyntaxError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid runtime syntax: {exc}") from exc
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ALLOWED_AST_NODES):
+            raise HTTPException(status_code=400, detail=f"Disallowed syntax: {type(node).__name__}")
+        if isinstance(node, ast.Name) and node.id not in ALLOWED_NAMES:
+            raise HTTPException(status_code=400, detail=f"Disallowed name: {node.id}")
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name) or node.func.id not in ALLOWED_BUILTINS:
+                raise HTTPException(status_code=400, detail="Only approved builtin calls are allowed")
 
 
 def extract_runtime_code(runtime_obj: dict[str, Any]) -> str:
@@ -109,6 +226,7 @@ def resolve_runtime(runtime_name: str | None, runtime_object: str | None) -> tup
 
 
 def run_code(code: str, input_objects: list[dict[str, Any]], parameters: dict[str, Any]) -> Any:
+    validate_code(code)
     local_scope = {
         "inputs": input_objects,
         "parameters": parameters,
@@ -131,6 +249,7 @@ def register_runtime_object(
 ) -> dict[str, Any]:
     if not name.strip():
         raise HTTPException(status_code=400, detail="Runtime name is required")
+    validate_code(code)
     runtime_attributes = {
         "schema": "uar.schema.runtime.v1",
         "type": "runtime",
@@ -147,7 +266,8 @@ def register_runtime_object(
         content={"code": code},
     )
     RUNTIME_REGISTRY[name] = record["digest"]
-    LINEAGE[record["digest"]].append({
+    persist_runtime(name, record["digest"])
+    add_lineage(record["digest"], {
         "event": "registered_runtime",
         "agent": "runtime_registry",
         "runtimeName": name,
@@ -173,6 +293,78 @@ def seed_standard_runtimes() -> dict[str, str]:
                 tags=["standard", "math"],
             )
     return RUNTIME_REGISTRY
+
+
+def execute_runtime(
+    *,
+    runtime_name: str | None,
+    runtime_object: str | None,
+    inputs: list[str],
+    parameters: dict[str, Any],
+) -> dict[str, Any]:
+    input_objects = [get_obj(digest) for digest in inputs]
+
+    if runtime_name or runtime_object:
+        runtime_digest, runtime_obj = resolve_runtime(runtime_name, runtime_object)
+        code = extract_runtime_code(runtime_obj)
+    elif isinstance(parameters.get("code"), str):
+        code = parameters["code"]
+        runtime_digest = None
+    else:
+        raise HTTPException(status_code=400, detail="Provide runtimeName, runtimeObject, or parameters.code")
+
+    result = run_code(code, input_objects, parameters)
+    output = create_record(
+        mediaType="application/vnd.uar.execution-output+json",
+        mode="immutable",
+        attributes={"agent": "execution", "kind": "execution-output"},
+        links=[{"rel": "used", "target": digest} for digest in inputs]
+        + ([{"rel": "runtime", "target": runtime_digest}] if runtime_digest else []),
+        content={"result": result},
+    )
+    execution_record = create_record(
+        mediaType="application/vnd.uar.execution-record+json",
+        mode="immutable",
+        attributes={"agent": "execution", "kind": "execution-record"},
+        links=[
+            *[{"rel": "input", "target": digest} for digest in inputs],
+            *([{"rel": "runtime", "target": runtime_digest}] if runtime_digest else []),
+            {"rel": "output", "target": output["digest"]},
+        ],
+        content={
+            "execution_id": str(uuid.uuid4()),
+            "status": "completed",
+            "runtimeName": runtime_name,
+            "runtimeObject": runtime_digest,
+            "parameters": parameters,
+            "timestamp": timestamp(),
+        },
+    )
+    add_lineage(output["digest"], {
+        "event": "executed",
+        "agent": "execution",
+        "inputs": inputs,
+        "runtimeName": runtime_name,
+        "runtimeObject": runtime_digest,
+        "executionRecord": execution_record["digest"],
+        "timestamp": timestamp(),
+    })
+    if runtime_digest:
+        add_lineage(runtime_digest, {
+            "event": "used_as_runtime",
+            "agent": "execution",
+            "output": output["digest"],
+            "executionRecord": execution_record["digest"],
+            "timestamp": timestamp(),
+        })
+    return {
+        "status": "completed",
+        "output": output["digest"],
+        "executionRecord": execution_record["digest"],
+        "runtimeName": runtime_name,
+        "runtimeObject": runtime_digest,
+        "result": result,
+    }
 
 
 class UORObjectIn(BaseModel):
@@ -219,6 +411,19 @@ class ExecuteReq(BaseModel):
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkflowStep(BaseModel):
+    runtimeName: str | None = None
+    runtimeObject: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    usePreviousOutput: bool = True
+
+
+class WorkflowRunReq(BaseModel):
+    name: str = "adhoc-workflow"
+    inputs: list[str] = Field(default_factory=list)
+    steps: list[WorkflowStep]
+
+
 class ConstraintReq(BaseModel):
     action: str
     agent: str
@@ -245,7 +450,9 @@ class DelegationReq(BaseModel):
 
 
 @app.on_event("startup")
-def startup_seed_runtimes():
+def startup_init():
+    init_db()
+    load_db()
     seed_standard_runtimes()
 
 
@@ -253,15 +460,16 @@ def startup_seed_runtimes():
 def root():
     return {
         "status": "UAR running",
-        "version": "0.1.2",
-        "loop": "create -> register-runtime -> execute-by-name -> lineage",
+        "version": "0.2.0",
+        "loop": "create -> register-runtime -> workflow-chain -> lineage -> persistence",
         "registered_runtimes": list(RUNTIME_REGISTRY.keys()),
+        "object_count": len(STORE),
     }
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "universal-agent-runtime"}
+    return {"ok": True, "service": "universal-agent-runtime", "db": DB_PATH}
 
 
 @app.get("/agents")
@@ -271,7 +479,7 @@ def list_agents():
             {
                 "agent_id": f"uar.agent.{name}.v1",
                 "name": name,
-                "version": "0.1.2",
+                "version": "0.2.0",
                 "capabilities": capabilities,
             }
             for name, capabilities in AGENTS.items()
@@ -392,7 +600,7 @@ def composer_compose(req: ComposeReq):
         links=[{"rel": "contains", "target": digest} for digest in req.inputs],
         content={"items": req.inputs},
     )
-    LINEAGE[created["digest"]].append({
+    add_lineage(created["digest"], {
         "event": "composed",
         "agent": "composer",
         "inputs": req.inputs,
@@ -403,72 +611,61 @@ def composer_compose(req: ComposeReq):
 
 @app.post("/agents/execution/run")
 def execution_run(req: ExecuteReq):
-    input_objects = [get_obj(digest) for digest in req.inputs]
-
-    if req.runtimeName or req.runtimeObject:
-        runtime_digest, runtime_obj = resolve_runtime(req.runtimeName, req.runtimeObject)
-        code = extract_runtime_code(runtime_obj)
-    elif isinstance(req.parameters.get("code"), str):
-        code = req.parameters["code"]
-        runtime_digest = None
-    else:
-        raise HTTPException(status_code=400, detail="Provide runtimeName, runtimeObject, or parameters.code")
-
-    result = run_code(code, input_objects, req.parameters)
-
-    output = create_record(
-        mediaType="application/vnd.uar.execution-output+json",
-        mode="immutable",
-        attributes={"agent": "execution", "kind": "execution-output"},
-        links=[{"rel": "used", "target": digest} for digest in req.inputs]
-        + ([{"rel": "runtime", "target": runtime_digest}] if runtime_digest else []),
-        content={"result": result},
+    return execute_runtime(
+        runtime_name=req.runtimeName,
+        runtime_object=req.runtimeObject,
+        inputs=req.inputs,
+        parameters=req.parameters,
     )
 
-    execution_record = create_record(
-        mediaType="application/vnd.uar.execution-record+json",
+
+@app.post("/workflows/run")
+def workflow_run(req: WorkflowRunReq):
+    if not req.steps:
+        raise HTTPException(status_code=400, detail="Workflow requires at least one step")
+    current_inputs = list(req.inputs)
+    step_results = []
+    workflow_id = str(uuid.uuid4())
+
+    for index, step in enumerate(req.steps, start=1):
+        step_inputs = current_inputs if step.usePreviousOutput or index == 1 else list(req.inputs)
+        result = execute_runtime(
+            runtime_name=step.runtimeName,
+            runtime_object=step.runtimeObject,
+            inputs=step_inputs,
+            parameters={**step.parameters, "workflow_id": workflow_id, "step": index},
+        )
+        step_results.append({"step": index, **result})
+        current_inputs = [result["output"]]
+
+    workflow_record = create_record(
+        mediaType="application/vnd.uar.workflow-record+json",
         mode="immutable",
-        attributes={"agent": "execution", "kind": "execution-record"},
+        attributes={"agent": "workflow", "kind": "workflow-record", "workflowName": req.name},
         links=[
-            *[{"rel": "input", "target": digest} for digest in req.inputs],
-            *([{"rel": "runtime", "target": runtime_digest}] if runtime_digest else []),
-            {"rel": "output", "target": output["digest"]},
+            *[{"rel": "initial_input", "target": digest} for digest in req.inputs],
+            *[{"rel": "step_output", "target": item["output"]} for item in step_results],
         ],
         content={
-            "execution_id": str(uuid.uuid4()),
-            "status": "completed",
-            "runtimeName": req.runtimeName,
-            "runtimeObject": runtime_digest,
-            "parameters": req.parameters,
+            "workflow_id": workflow_id,
+            "name": req.name,
+            "steps": step_results,
+            "final_output": step_results[-1]["output"],
             "timestamp": timestamp(),
         },
     )
-
-    LINEAGE[output["digest"]].append({
-        "event": "executed",
-        "agent": "execution",
-        "inputs": req.inputs,
-        "runtimeName": req.runtimeName,
-        "runtimeObject": runtime_digest,
-        "executionRecord": execution_record["digest"],
+    add_lineage(workflow_record["digest"], {
+        "event": "workflow_completed",
+        "agent": "workflow",
+        "workflow_id": workflow_id,
+        "final_output": step_results[-1]["output"],
         "timestamp": timestamp(),
     })
-    if runtime_digest:
-        LINEAGE.setdefault(runtime_digest, []).append({
-            "event": "used_as_runtime",
-            "agent": "execution",
-            "output": output["digest"],
-            "executionRecord": execution_record["digest"],
-            "timestamp": timestamp(),
-        })
-
     return {
         "status": "completed",
-        "output": output["digest"],
-        "executionRecord": execution_record["digest"],
-        "runtimeName": req.runtimeName,
-        "runtimeObject": runtime_digest,
-        "result": result,
+        "workflowRecord": workflow_record["digest"],
+        "finalOutput": step_results[-1]["output"],
+        "steps": step_results,
     }
 
 
