@@ -1,0 +1,12 @@
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+
+  --color-bg: #0b0f14;
+  --color-surface: #111827;
+  --color-primary: #2563eb;
+  --color-text: #e5e7eb;
+  --color-muted: #6b7280;
+}
