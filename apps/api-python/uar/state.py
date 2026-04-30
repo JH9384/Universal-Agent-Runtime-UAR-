@@ -1,0 +1,3 @@
+STORE = {}
+LINEAGE = {}
+RUNTIME_REGISTRY = {}
