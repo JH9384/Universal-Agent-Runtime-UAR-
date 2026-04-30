@@ -17,16 +17,20 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
+        working-directory: apps/api-python
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pytest
+          pip install fastapi uvicorn pytest requests
 
       - name: Run unit tests
-        run: pytest apps/api-python/tests || true
+        working-directory: apps/api-python
+        run: pytest tests
 
-      - name: Smoke test (import app)
+      - name: Smoke test app import
+        working-directory: apps/api-python
         run: |
           python - << 'EOF'
-          from apps.api-python.main import app
+          import main
+          assert main.app is not None
           print("App import OK")
           EOF
