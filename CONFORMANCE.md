@@ -1,16 +1,24 @@
-# UAR Conformance v0.2.1
+# UAR Conformance v0.2.2
+
+## Stabilization Mode
+
+UAR is currently under Architect stabilization. `apps/api-python/main.py` is the canonical runtime until modular parity is proven by tests.
 
 ## Guarantees
 
 ### Object Layer
 - Deterministic digest via canonical JSON
 - Immutable objects stored and retrievable
+- Created objects receive lineage events
 
 ### Runtime Layer
 - Runtime code must pass AST validation
-- Only approved builtins allowed
+- Only approved builtins are allowed
+- Runtime registry is persisted in SQLite
 
 ### Execution Layer
+- Execution runs in a subprocess
+- Execution is bounded by timeout and memory parameters
 - Execution produces:
   - output object
   - execution record
@@ -18,19 +26,22 @@
 
 ### Workflow Layer
 - Steps execute sequentially
-- Outputs feed forward
-- Values normalized for chaining
+- Outputs feed forward into later steps
+- Values are normalized for chaining via `values`
 
 ### Persistence
-- Objects, lineage, runtimes stored in SQLite
-- Survive restart
+- Objects, lineage, and runtimes are stored in SQLite
+- Runtime registry survives reload
 
 ## Known Gaps
 - No DAG execution
 - No concurrency safety
-- Sandbox is logical, not OS-isolated
+- Sandbox is process/resource constrained, not full OS/container isolation
+- Modular extraction is partial and not canonical yet
 
 ## Pass Criteria
-- Smoke test runs successfully
+- `pytest tests/` passes
 - Workflow returns valid output digest
 - Lineage trace contains execution events
+- Runtime registry persists across reload
+- Partial modules do not replace canonical `main.py` until parity is proven
