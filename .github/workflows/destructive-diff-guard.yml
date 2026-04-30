@@ -1,0 +1,59 @@
+name: Destructive Diff Guard
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  destructive-diff-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check protected-file deletions
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_REF="origin/${{ github.base_ref }}"
+          git fetch origin "${{ github.base_ref }}" --depth=1
+
+          PROTECTED_FILES=(
+            "apps/api-python/main.py"
+            "apps/api-python/sandbox.py"
+            "apps/api-python/runtime.py"
+            "apps/api-python/objects.py"
+            "apps/api-python/lineage.py"
+            "apps/api-python/llm.py"
+            "apps/api-python/uor_bridge.py"
+            "apps/api-python/schema.py"
+            "apps/api-python/proof_objects.py"
+            "apps/web/src/lib/uar.ts"
+            "apps/web/src/hooks/useCanvasGraph.ts"
+          )
+
+          WARN_THRESHOLD=100
+          FAIL_THRESHOLD=250
+          FAILED=0
+
+          for file in "${PROTECTED_FILES[@]}"; do
+            if git diff --name-only "$BASE_REF"...HEAD | grep -qx "$file"; then
+              deleted=$(git diff --numstat "$BASE_REF"...HEAD -- "$file" | awk '{print $2}')
+              deleted=${deleted:-0}
+              if [[ "$deleted" == "-" ]]; then
+                echo "::error file=$file::Binary or full-file deletion detected in protected file"
+                FAILED=1
+              elif (( deleted >= FAIL_THRESHOLD )); then
+                echo "::error file=$file::Protected file deleted $deleted lines. Threshold is $FAIL_THRESHOLD."
+                FAILED=1
+              elif (( deleted >= WARN_THRESHOLD )); then
+                echo "::warning file=$file::Protected file deleted $deleted lines. Manual review required."
+              else
+                echo "$file deleted $deleted lines: OK"
+              fi
+            fi
+          done
+
+          exit $FAILED
