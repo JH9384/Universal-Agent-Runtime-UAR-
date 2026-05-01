@@ -59,6 +59,15 @@ export async function traceObject(digest: string) {
   return readJson(response);
 }
 
+export async function verifyObject(digest: string) {
+  const response = await fetch(`${API}/agents/verifier/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ object: digest, expectedDigest: digest }),
+  });
+  return readJson(response);
+}
+
 export async function health() {
   const response = await fetch(`${API}/health`);
   return readJson(response);
