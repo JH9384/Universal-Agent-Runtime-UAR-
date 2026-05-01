@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Any, Literal
 import ast
@@ -13,6 +14,17 @@ import time
 import uuid
 
 app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.2.2")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 DB_PATH = "uar.sqlite3"
 DEFAULT_TIMEOUT_SECONDS = 2.0
