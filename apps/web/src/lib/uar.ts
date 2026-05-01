@@ -40,6 +40,14 @@ export async function createNumber(value: number): Promise<UarObject> {
   return createObject(value, { type: "number", label: value });
 }
 
+export async function createMarkdown(markdown: string, label = "Markdown document"): Promise<UarObject> {
+  return createObject(markdown, {
+    type: "markdown",
+    label,
+    schema: "uor.schema.markdown.v1",
+  });
+}
+
 export async function listRuntimes() {
   const response = await fetch(`${API}/runtimes`);
   return readJson(response);
