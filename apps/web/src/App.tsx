@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createNumber, createMarkdown, listRuntimes, runRuntime, traceObject, verifyObject } from "./lib/uar";
+import { parseMarkdownToGraph } from "./lib/markdownParser";
 
 type Node = {
   id: string;
@@ -66,26 +67,74 @@ export default function App() {
 
   async function onAddMarkdown() {
     if (!markdownInput.trim()) return;
-    const firstHeading = markdownInput.split("\n").find((line) => line.trim().startsWith("#"));
-    const label = firstHeading ? firstHeading.replace(/^#+\s*/, "").trim() : "Markdown document";
-    const obj = await createMarkdown(markdownInput, label || "Markdown document");
-    setNodes((current) => [
-      ...current,
-      {
+
+    const parsed = parseMarkdownToGraph(markdownInput);
+    const idMap = new Map<string, string>();
+    const createdNodes: Node[] = [];
+    const batchOffset = nodes.length * 18;
+
+    for (const parsedNode of parsed.nodes) {
+      if (parsedNode.kind === "number") {
+        const obj = await createNumber(Number(parsedNode.value));
+        idMap.set(parsedNode.localId, obj.id);
+        createdNodes.push({
+          ...obj,
+          label: parsedNode.label,
+          kind: "number",
+          x: parsedNode.x + batchOffset,
+          y: parsedNode.y,
+        });
+        continue;
+      }
+
+      if (parsedNode.kind === "runtime") {
+        const id = `runtime:${String(parsedNode.value)}:${Date.now()}:${createdNodes.length}`;
+        idMap.set(parsedNode.localId, id);
+        createdNodes.push({
+          id,
+          label: parsedNode.label,
+          value: parsedNode.value,
+          kind: "runtime",
+          x: parsedNode.x + batchOffset,
+          y: parsedNode.y,
+        });
+        continue;
+      }
+
+      const obj = await createMarkdown(String(parsedNode.value), parsedNode.label);
+      idMap.set(parsedNode.localId, obj.id);
+      createdNodes.push({
         ...obj,
-        x: 120 + current.length * 30,
-        y: 160 + current.length * 26,
-      },
-    ]);
+        label: parsedNode.label,
+        kind: parsedNode.kind,
+        x: parsedNode.x + batchOffset,
+        y: parsedNode.y,
+      });
+    }
+
+    const createdEdges: Edge[] = parsed.edges
+      .map((edge) => {
+        const from = idMap.get(edge.from);
+        const to = idMap.get(edge.to);
+        if (!from || !to) return null;
+        return { id: `${from}-${to}`, from, to, label: edge.label };
+      })
+      .filter((edge): edge is Edge => edge !== null);
+
+    setNodes((current) => [...current, ...createdNodes]);
+    setEdges((current) => [...current, ...createdEdges]);
+    setSelected(createdNodes.map((node) => node.id));
     setMarkdownInput("");
   }
 
   async function onRun() {
     if (!activeRuntime || selected.length === 0) return;
-    const runInputs = [...selected];
+    const runInputs = selected.filter((id) => !id.startsWith("runtime:"));
+    if (runInputs.length === 0) return;
     const res = await runRuntime(activeRuntime, runInputs);
-    const centerX = selectedNodes.length ? selectedNodes.reduce((s, n) => s + n.x, 0) / selectedNodes.length : 200;
-    const maxY = selectedNodes.length ? Math.max(...selectedNodes.map((n) => n.y)) : 120;
+    const inputNodes = nodes.filter((n) => runInputs.includes(n.id));
+    const centerX = inputNodes.length ? inputNodes.reduce((s, n) => s + n.x, 0) / inputNodes.length : 200;
+    const maxY = inputNodes.length ? Math.max(...inputNodes.map((n) => n.y)) : 120;
     const newNode: Node = {
       id: res.output,
       label: "result",
@@ -103,12 +152,13 @@ export default function App() {
   }
 
   async function onTrace() {
-    if (!selected[0]) return;
+    if (!selected[0] || selected[0].startsWith("runtime:")) return;
     const t = await traceObject(selected[0]);
     setTrace(t);
   }
 
   async function runVerify(id: string) {
+    if (id.startsWith("runtime:")) return;
     const res = await verifyObject(id);
     setVerification((current) => ({ ...current, [id]: res }));
   }
@@ -149,12 +199,12 @@ export default function App() {
         <div style={{ marginTop: 12 }}>
           <textarea
             value={markdownInput}
-            placeholder="Paste markdown..."
+            placeholder={'Paste markdown...\nExample:\n5\n10\nsum'}
             onChange={(e) => setMarkdownInput(e.target.value)}
-            style={{ width: "100%", height: 90, boxSizing: "border-box", resize: "vertical" }}
+            style={{ width: "100%", height: 110, boxSizing: "border-box", resize: "vertical" }}
           />
           <button onClick={onAddMarkdown} style={{ marginTop: 6, width: "100%" }}>
-            Add Markdown
+            Parse Markdown to Graph
           </button>
         </div>
         <h4>Objects</h4>
@@ -186,7 +236,7 @@ export default function App() {
             key={n.id}
             onMouseDown={(e) => setDragging({ id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y })}
             onClick={(e) => toggleSelect(n.id, e.shiftKey)}
-            onDoubleClick={() => traceObject(n.id).then(setTrace)}
+            onDoubleClick={() => !n.id.startsWith("runtime:") && traceObject(n.id).then(setTrace)}
             style={{
               position: "absolute",
               left: n.x,
@@ -194,7 +244,7 @@ export default function App() {
               width: 170,
               padding: 12,
               borderRadius: 14,
-              background: n.kind === "result" ? "#eef2ff" : n.kind === "markdown" ? "#fff8e1" : "#fff",
+              background: n.kind === "result" ? "#eef2ff" : n.kind === "markdown" || n.kind === "text" ? "#fff8e1" : n.kind === "runtime" ? "#e8f0fe" : "#fff",
               border: selected.includes(n.id) ? "2px solid #1a73e8" : "1px solid #dadce0",
               boxShadow: "0 6px 18px rgba(60,64,67,0.12)",
               cursor: "grab",
@@ -219,7 +269,7 @@ export default function App() {
             </select>
             <button onClick={onRun}>Run</button>
             <button onClick={onTrace}>Trace</button>
-            <button disabled={!selected[0]} onClick={() => selected[0] && runVerify(selected[0])}>Verify</button>
+            <button disabled={!selected[0] || selected[0].startsWith("runtime:")} onClick={() => selected[0] && runVerify(selected[0])}>Verify</button>
           </div>
         )}
       </main>
@@ -227,10 +277,10 @@ export default function App() {
       <aside style={{ width: 320, borderLeft: "1px solid #e0e0e0", padding: 14, background: "#fff", overflowY: "auto" }}>
         <h4>Inspector</h4>
         {selected[0] ? <div style={{ fontSize: 12, color: "#5f6368", overflowWrap: "anywhere" }}>Selected: {selected[0]}</div> : <p>Select a node.</p>}
-        {selected[0] && <button onClick={() => runVerify(selected[0])}>Verify Integrity</button>}
+        {selected[0] && !selected[0].startsWith("runtime:") && <button onClick={() => runVerify(selected[0])}>Verify Integrity</button>}
         {selected[0] && verification[selected[0]] && <pre style={{ whiteSpace: "pre-wrap", fontSize: 11 }}>{JSON.stringify(verification[selected[0]], null, 2)}</pre>}
         <h4>Trace</h4>
-        {trace ? <pre style={{ whiteSpace: "pre-wrap", fontSize: 11 }}>{JSON.stringify(trace, null, 2)}</pre> : <p style={{ color: "#5f6368" }}>Double-click a node or press Trace.</p>}
+        {trace ? <pre style={{ whiteSpace: "pre-wrap", fontSize: 11 }}>{JSON.stringify(trace, null, 2)}</pre> : <p style={{ color: "#5f6368" }}>Double-click a persisted node or press Trace.</p>}
       </aside>
     </div>
   );
