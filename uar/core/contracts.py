@@ -10,12 +10,23 @@ class GoalSpec:
     constraints: List[str] = field(default_factory=list)
     success_criteria: List[str] = field(default_factory=list)
     required_skills: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class StrategySpec:
     goal_id: str
     ordered_skills: List[str]
+
+
+@dataclass
+class PipelineContext:
+    goal: GoalSpec
+    data: Dict[str, Any] = field(default_factory=dict)
+    events: List[Dict[str, Any]] = field(default_factory=list)
+
+    def emit(self, event_type: str, payload: Dict[str, Any]) -> None:
+        self.events.append({"type": event_type, "payload": payload})
 
 
 @dataclass
@@ -26,3 +37,5 @@ class RunRecord:
     outputs: List[Any] = field(default_factory=list)
     status: str = "pending"
     errors: List[str] = field(default_factory=list)
+    events: List[Dict[str, Any]] = field(default_factory=list)
+    final_context: Dict[str, Any] = field(default_factory=dict)
