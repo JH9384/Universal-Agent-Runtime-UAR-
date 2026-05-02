@@ -2,7 +2,7 @@ import json
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
@@ -10,6 +10,15 @@ from uar.core.llm_planner import LLMPlanner
 from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
 from uar.memory.json_store import JsonRunStore
+
+# product layer
+from uar.product.templates import (
+    list_templates,
+    get_template,
+    validate_inputs,
+    build_goal,
+    user_message,
+)
 
 # register skills
 import uar.skills.section_sum  # noqa
@@ -27,6 +36,11 @@ class RunRequest(BaseModel):
     skills: Optional[List[str]] = None
     input_path: Optional[str] = None
     planner: Optional[str] = "simple"
+
+
+class ProductRunRequest(BaseModel):
+    template_id: str
+    inputs: Dict[str, Any] = {}
 
 
 def _select_planner(mode: str):
@@ -48,6 +62,49 @@ def _build_goal(req: RunRequest) -> GoalSpec:
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# -----------------
+# Product endpoints
+# -----------------
+
+
+@app.get("/api/v1/product/templates")
+def api_list_templates():
+    return list_templates()
+
+
+@app.post("/api/v1/product/run")
+def api_product_run(req: ProductRunRequest):
+    template = get_template(req.template_id)
+    errors = validate_inputs(template, req.inputs)
+    if errors:
+        return {"status": "error", "errors": errors}
+
+    goal_text = build_goal(template, req.inputs)
+
+    run_req = RunRequest(
+        goal=goal_text,
+        skills=template.skills,
+        planner=template.planner,
+        input_path=req.inputs.get("input_path"),
+    )
+
+    result = _run_goal_impl(run_req)
+
+    failure = result.final_context.get("failure") if hasattr(result, "final_context") else None
+
+    return {
+        "status": result.status,
+        "message": user_message(result.status, failure),
+        "result": result.outputs,
+        "meta": result.final_context,
+    }
+
+
+# -----------------
+# Core runtime
+# -----------------
 
 
 def _run_goal_impl(req: RunRequest):
