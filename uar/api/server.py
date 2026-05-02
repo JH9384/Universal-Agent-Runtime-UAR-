@@ -6,7 +6,6 @@ from typing import List, Optional
 
 from uar.core.contracts import GoalSpec, PipelineContext, RunRecord
 from uar.core.planner import SimplePlanner
-from uar.core.executor import Executor
 from uar.core.registry import registry
 from uar.memory.json_store import JsonRunStore
 
@@ -41,6 +40,8 @@ def run_goal(req: RunRequest):
     goal = _build_goal(req)
     planner = SimplePlanner()
     strategy = planner.plan(goal)
+
+    from uar.core.executor import Executor
 
     executor = Executor()
     result = executor.run(strategy, goal)
@@ -84,7 +85,7 @@ def stream_goal(req: RunRequest):
                 store.append(run)
                 return
 
-        if "sum_review" in registry.list():
+        if "sum_review" in registry.list() and "sum_review" not in strategy.ordered_skills:
             yield emit("skill_start", {"skill": "sum_review"})
             summary = registry.get("sum_review")(ctx)
             run.outputs.append({"sum_review": summary})
