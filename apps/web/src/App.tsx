@@ -22,6 +22,10 @@ function shortId(id: string) {
   return id.length > 18 ? `${id.slice(0, 12)}…` : id;
 }
 
+function isPersistedObject(id: string) {
+  return !id.startsWith("runtime:");
+}
+
 export default function App() {
   const [input, setInput] = useState("");
   const [markdownInput, setMarkdownInput] = useState("");
@@ -143,7 +147,7 @@ export default function App() {
 
   async function onRun() {
     if (!activeRuntime || selected.length === 0) return;
-    const runInputs = selected.filter((id) => !id.startsWith("runtime:"));
+    const runInputs = selected.filter(isPersistedObject);
     if (runInputs.length === 0) return;
     const res = await runRuntime(activeRuntime, runInputs);
     const inputNodes = nodes.filter((n) => runInputs.includes(n.id));
@@ -165,14 +169,56 @@ export default function App() {
     setSelected([res.output]);
   }
 
+  async function onRunSections() {
+    const sectionNodes = nodes.filter((node) => node.kind === "section");
+    if (sectionNodes.length === 0) return;
+
+    const newNodes: Node[] = [];
+    const newEdges: Edge[] = [];
+
+    for (const section of sectionNodes) {
+      const children = edges
+        .filter((edge) => edge.from === section.id && edge.label === "contains")
+        .map((edge) => nodeById(edge.to))
+        .filter((node): node is Node => Boolean(node));
+
+      const runtimeNode = children.find((node) => node.kind === "runtime");
+      const inputIds = children
+        .filter((node) => node.kind === "number" && isPersistedObject(node.id))
+        .map((node) => node.id);
+
+      if (!runtimeNode || inputIds.length === 0) continue;
+
+      const runtimeName = String(runtimeNode.value || runtimeNode.label);
+      const res = await runRuntime(runtimeName, inputIds);
+      const resultNode: Node = {
+        id: res.output,
+        label: `${section.label}: ${res.result}`,
+        value: res.result,
+        kind: "result",
+        x: section.x + 420,
+        y: section.y,
+      };
+
+      newNodes.push(resultNode);
+      newEdges.push({ id: `${section.id}-${res.output}`, from: section.id, to: res.output, label: "section-result" });
+      newEdges.push(...inputIds.map((id) => ({ id: `${id}-${res.output}`, from: id, to: res.output, label: runtimeName })));
+    }
+
+    if (newNodes.length === 0) return;
+    setNodes((current) => [...current, ...newNodes]);
+    setEdges((current) => [...current, ...newEdges]);
+    setSelected(newNodes.map((node) => node.id));
+  }
+
   async function onTrace() {
-    if (!selected[0] || selected[0].startsWith("runtime:")) return;
+    if (!selected[0] || !isPersistedObject(selected[0])) return;
     const t = await traceObject(selected[0]);
     setTrace(t);
   }
 
   async function runVerify(id: string) {
-    if (id.startsWith("runtime:")) return;
+    if (!isPersistedObject(id)) return;
     const res = await verifyObject(id);
     setVerification((current) => ({ ...current, [id]: res }));
   }
@@ -221,12 +267,15 @@ export default function App() {
           {fileName && <div style={{ fontSize: 11, color: "#5f6368", marginBottom: 4 }}>Loaded: {fileName}</div>}
           <textarea
             value={markdownInput}
-            placeholder={'Paste markdown or load a .md/.txt file...\nExample:\n5\n10\nsum'}
+            placeholder={'Paste markdown or load a .md/.txt file...\nExample:\n# Finance\n5\n10\nsum\n\n# Ops\n3\n4\nsum'}
             onChange={(e) => setMarkdownInput(e.target.value)}
             style={{ width: "100%", height: 110, boxSizing: "border-box", resize: "vertical" }}
           />
           <button onClick={onAddMarkdown} style={{ marginTop: 6, width: "100%" }}>
             Parse Markdown to Graph
+          </button>
+          <button onClick={onRunSections} style={{ marginTop: 6, width: "100%" }}>
+            Run Sections
           </button>
         </div>
         <h4>Objects</h4>
@@ -258,7 +307,7 @@ export default function App() {
             key={n.id}
             onMouseDown={(e) => setDragging({ id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y })}
             onClick={(e) => toggleSelect(n.id, e.shiftKey)}
-            onDoubleClick={() => !n.id.startsWith("runtime:") && traceObject(n.id).then(setTrace)}
+            onDoubleClick={() => isPersistedObject(n.id) && traceObject(n.id).then(setTrace)}
             style={{
               position: "absolute",
               left: n.x,
@@ -266,7 +315,7 @@ export default function App() {
               width: 170,
               padding: 12,
               borderRadius: 14,
-              background: n.kind === "result" ? "#eef2ff" : n.kind === "markdown" || n.kind === "text" ? "#fff8e1" : n.kind === "runtime" ? "#e8f0fe" : "#fff",
+              background: n.kind === "result" ? "#eef2ff" : n.kind === "markdown" || n.kind === "text" || n.kind === "section" ? "#fff8e1" : n.kind === "runtime" ? "#e8f0fe" : "#fff",
               border: selected.includes(n.id) ? "2px solid #1a73e8" : "1px solid #dadce0",
               boxShadow: "0 6px 18px rgba(60,64,67,0.12)",
               cursor: "grab",
@@ -291,7 +340,7 @@ export default function App() {
             </select>
             <button onClick={onRun}>Run</button>
             <button onClick={onTrace}>Trace</button>
-            <button disabled={!selected[0] || selected[0].startsWith("runtime:")} onClick={() => selected[0] && runVerify(selected[0])}>Verify</button>
+            <button disabled={!selected[0] || !isPersistedObject(selected[0])} onClick={() => selected[0] && runVerify(selected[0])}>Verify</button>
           </div>
         )}
       </main>
@@ -299,7 +348,7 @@ export default function App() {
       <aside style={{ width: 320, borderLeft: "1px solid #e0e0e0", padding: 14, background: "#fff", overflowY: "auto" }}>
         <h4>Inspector</h4>
         {selected[0] ? <div style={{ fontSize: 12, color: "#5f6368", overflowWrap: "anywhere" }}>Selected: {selected[0]}</div> : <p>Select a node.</p>}
-        {selected[0] && !selected[0].startsWith("runtime:") && <button onClick={() => runVerify(selected[0])}>Verify Integrity</button>}
+        {selected[0] && isPersistedObject(selected[0]) && <button onClick={() => runVerify(selected[0])}>Verify Integrity</button>}
         {selected[0] && verification[selected[0]] && <pre style={{ whiteSpace: "pre-wrap", fontSize: 11 }}>{JSON.stringify(verification[selected[0]], null, 2)}</pre>}
         <h4>Trace</h4>
         {trace ? <pre style={{ whiteSpace: "pre-wrap", fontSize: 11 }}>{JSON.stringify(trace, null, 2)}</pre> : <p style={{ color: "#5f6368" }}>Double-click a persisted node or press Trace.</p>}
