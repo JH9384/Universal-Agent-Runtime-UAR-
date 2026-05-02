@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import ReactFlow, { Background } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -8,10 +8,13 @@ export function UARPanel() {
   const [graph, setGraph] = useState<any>(null)
 
   const runStream = async () => {
+    setEvents([])
+    setGraph(null)
+
     const res = await fetch('/api/uar/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, skills: ['doc_ingest','dependency_map','sum_review'], input_path: './' })
+      body: JSON.stringify({ goal, skills: ['doc_ingest', 'dependency_map', 'sum_review'], input_path: './' })
     })
 
     const reader = res.body?.getReader()
@@ -37,6 +40,10 @@ export function UARPanel() {
             const json = JSON.parse(line.replace('data: ', ''))
             setEvents((prev) => [...prev, json])
 
+            if (json.type === 'orchestration_plan' && json.payload?.graph) {
+              setGraph(json.payload.graph)
+            }
+
             if (json.run?.final_context?.dependency_map) {
               setGraph(json.run.final_context.dependency_map)
             }
@@ -46,22 +53,23 @@ export function UARPanel() {
     }
   }
 
-  const buildFlow = () => {
+  const { nodes, edges } = useMemo(() => {
     if (!graph) return { nodes: [], edges: [] }
 
-    const nodeIndex = new Map()
+    const nodeIndex = new Map<string, string>()
 
-    const nodes = graph.nodes.map((n, i) => {
-      nodeIndex.set(n.id, String(i))
+    const nodes = (graph.nodes || []).map((n: any, i: number) => {
+      const nodeId = n.id || n.skill || String(i)
+      nodeIndex.set(nodeId, String(i))
       return {
         id: String(i),
-        data: { label: n.id.split('/').pop(), type: n.type },
-        position: { x: (i % 5) * 150, y: Math.floor(i / 5) * 100 }
+        data: { label: n.skill || String(nodeId).split('/').pop(), type: n.type || 'skill' },
+        position: { x: (i % 5) * 180, y: Math.floor(i / 5) * 120 }
       }
     })
 
-    const edges = graph.edges
-      .map((e, i) => {
+    const edges = (graph.edges || [])
+      .map((e: any, i: number) => {
         const source = nodeIndex.get(e.from)
         const target = nodeIndex.get(e.to)
         if (!source || !target) return null
@@ -74,14 +82,12 @@ export function UARPanel() {
       .filter(Boolean)
 
     return { nodes, edges }
-  }
-
-  const { nodes, edges } = buildFlow()
+  }, [graph])
 
   return (
     <div>
       <h3>UAR Live System</h3>
-      <input value={goal} onChange={(e) => setGoal(e.target.value)} />
+      <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Enter a goal" />
       <button onClick={runStream}>Run Stream</button>
 
       <div>
@@ -90,7 +96,7 @@ export function UARPanel() {
       </div>
 
       <div style={{ height: 400 }}>
-        <ReactFlow nodes={nodes} edges={edges}>
+        <ReactFlow nodes={nodes} edges={edges} fitView>
           <Background />
         </ReactFlow>
       </div>
