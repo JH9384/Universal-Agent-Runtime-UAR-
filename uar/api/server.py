@@ -7,6 +7,7 @@ from typing import List, Optional
 from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
 from uar.core.replay import run_record_from_events
+from uar.core.orchestrator import build_orchestration_plan
 from uar.memory.json_store import JsonRunStore
 
 # register skills
@@ -55,6 +56,8 @@ def stream_goal(req: RunRequest):
     goal = _build_goal(req)
     strategy = SimplePlanner().plan(goal)
 
+    plan = build_orchestration_plan(strategy)
+
     from uar.core.executor import Executor
 
     executor = Executor()
@@ -64,6 +67,19 @@ def stream_goal(req: RunRequest):
 
     def generate():
         events = []
+
+        # emit orchestration graph first
+        yield emit({
+            "schema_version": "uar.event.v1",
+            "type": "orchestration_plan",
+            "run_id": "pending",
+            "goal_id": strategy.goal_id,
+            "skill": None,
+            "timestamp": 0,
+            "payload": {"graph": plan.to_graph()},
+            "error": None,
+        })
+
         for event in executor.iter_events(strategy, goal):
             events.append(event)
             yield emit(event)
