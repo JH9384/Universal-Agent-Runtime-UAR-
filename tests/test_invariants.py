@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP_PATH = ROOT / "apps" / "api-python" / "main.py"
+CI_STABLE_TIMEOUT = 5.0
 
 
 def load_app_module(tmp_path):
@@ -99,7 +100,11 @@ def test_execution_produces_output_and_execution_record(uar):
 
     res = client.post(
         "/agents/execution/run",
-        json={"runtimeName": "sum_contents", "inputs": [a["digest"], b["digest"]]},
+        json={
+            "runtimeName": "sum_contents",
+            "inputs": [a["digest"], b["digest"]],
+            "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT},
+        },
     )
     assert res.status_code == 200, res.text
     body = res.json()
@@ -115,7 +120,11 @@ def test_lineage_records_execution_event(uar):
     b = create_object(client, 2)
     run = client.post(
         "/agents/execution/run",
-        json={"runtimeName": "sum_contents", "inputs": [a["digest"], b["digest"]]},
+        json={
+            "runtimeName": "sum_contents",
+            "inputs": [a["digest"], b["digest"]],
+            "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT},
+        },
     ).json()
 
     trace = client.get("/agents/lineage/trace", params={"digest": run["output"]})
@@ -136,8 +145,8 @@ def test_workflow_chaining_uses_normalized_values(uar):
             "name": "chain-normalization",
             "inputs": [a["digest"], b["digest"]],
             "steps": [
-                {"runtimeName": "sum_contents"},
-                {"runtimeName": "identity_value"},
+                {"runtimeName": "sum_contents", "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT}},
+                {"runtimeName": "identity_value", "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT}},
             ],
         },
     )
