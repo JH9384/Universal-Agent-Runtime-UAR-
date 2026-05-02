@@ -1,9 +1,10 @@
 import subprocess
+import sys
 
 
 def test_cli_runs():
     result = subprocess.run(
-        ["python", "-m", "uar.cli.run", "--goal", "test"],
+        [sys.executable, "-m", "uar.cli.run", "--goal", "test"],
         capture_output=True,
         text=True,
     )
