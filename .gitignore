@@ -2,7 +2,15 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
-uar.sqlite3
-*.sqlite3
 .DS_Store
 .pytest_cache/
+
+# UAR runtime artifacts
+runs/
+uar.sqlite3
+*.sqlite3
+
+# Web artifacts
+node_modules/
+dist/
+build/
