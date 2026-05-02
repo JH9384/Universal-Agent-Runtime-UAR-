@@ -9,6 +9,7 @@ import httpx
 from uar.core.contracts import GoalSpec, StrategySpec
 from uar.core.registry import registry
 from uar.core.planner import SimplePlanner
+from uar.memory.strategy_memory import get_best_strategies
 
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
@@ -34,6 +35,7 @@ def call_ollama(prompt: str) -> str:
 class LLMPlanner:
     def plan(self, goal: GoalSpec, feedback: dict[str, Any] | None = None) -> StrategySpec:
         skills = registry.describe()
+        prior_strategies = get_best_strategies(goal.objective)
         feedback_block = ""
         if feedback:
             feedback_block = f"""
@@ -41,6 +43,15 @@ Previous evaluation feedback:
 {json.dumps(feedback, indent=2)}
 
 Adapt the next skill plan to address the failed reasons, but still use only listed skills.
+"""
+
+        memory_block = ""
+        if prior_strategies:
+            memory_block = f"""
+Previously successful or high-scoring strategies for similar goals:
+{json.dumps(prior_strategies, indent=2)}
+
+You may reuse these patterns if they fit the current goal.
 """
 
         prompt = f"""
@@ -52,6 +63,7 @@ Goal:
 Available skills:
 {json.dumps(skills, indent=2)}
 
+{memory_block}
 {feedback_block}
 Rules:
 - Return ONLY a JSON array of skill names in execution order.
@@ -70,5 +82,10 @@ Rules:
                 return StrategySpec(goal_id=goal.id, ordered_skills=valid)
         except Exception:
             pass
+
+        if prior_strategies:
+            remembered = [s for s in prior_strategies[0].get("skills", []) if s in registry.list()]
+            if remembered:
+                return StrategySpec(goal_id=goal.id, ordered_skills=remembered[:MAX_PLANNER_SKILLS])
 
         return SimplePlanner().plan(goal)
