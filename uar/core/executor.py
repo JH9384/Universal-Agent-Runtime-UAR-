@@ -1,10 +1,16 @@
 import uuid
+import signal
 from .contracts import StrategySpec, RunRecord, PipelineContext
 from .registry import registry
 
+class TimeoutException(Exception):
+    pass
+
+def _timeout_handler(signum, frame):
+    raise TimeoutException("Skill execution timed out")
 
 class Executor:
-    def run(self, strategy: StrategySpec, goal) -> RunRecord:
+    def run(self, strategy: StrategySpec, goal, timeout_seconds=5) -> RunRecord:
         run = RunRecord(
             run_id=str(uuid.uuid4()),
             goal_id=strategy.goal_id,
@@ -16,17 +22,24 @@ class Executor:
 
         for skill_name in strategy.ordered_skills:
             try:
+                signal.signal(signal.SIGALRM, _timeout_handler)
+                signal.alarm(timeout_seconds)
+
                 fn = registry.get(skill_name)
                 result = fn(ctx)
+
+                signal.alarm(0)
+
                 ctx.data[skill_name] = result
                 ctx.emit("skill_executed", {"skill": skill_name})
                 run.outputs.append({skill_name: result})
+
             except Exception as e:
                 run.errors.append(str(e))
                 run.status = "failed"
+                signal.alarm(0)
                 return run
 
-        # SUM review pass if available and not already included in the explicit pipeline.
         if "sum_review" in registry.list() and "sum_review" not in strategy.ordered_skills:
             try:
                 sum_fn = registry.get("sum_review")
