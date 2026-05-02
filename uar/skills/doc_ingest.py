@@ -3,18 +3,19 @@ from typing import List, Dict
 
 from uar.core.registry import register_skill
 
+ALLOWED_ROOT = Path('.').resolve()
 
 @register_skill("doc_ingest")
 def doc_ingest(ctx):
-    """Ingest plain-text/markdown documents from a file or directory.
-
-    Input path is provided through goal.metadata['input_path'].
-    """
     input_path = ctx.goal.metadata.get("input_path")
     if not input_path:
         return {"documents": [], "warning": "No input_path provided"}
 
-    path = Path(input_path)
+    path = Path(input_path).resolve()
+
+    if not str(path).startswith(str(ALLOWED_ROOT)):
+        return {"documents": [], "error": "Path outside allowed root"}
+
     documents: List[Dict[str, str]] = []
 
     if path.is_file():
