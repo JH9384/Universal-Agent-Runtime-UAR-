@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import List
+from typing import Any, List
 
 import httpx
 
@@ -32,8 +32,16 @@ def call_ollama(prompt: str) -> str:
 
 
 class LLMPlanner:
-    def plan(self, goal: GoalSpec) -> StrategySpec:
+    def plan(self, goal: GoalSpec, feedback: dict[str, Any] | None = None) -> StrategySpec:
         skills = registry.describe()
+        feedback_block = ""
+        if feedback:
+            feedback_block = f"""
+Previous evaluation feedback:
+{json.dumps(feedback, indent=2)}
+
+Adapt the next skill plan to address the failed reasons, but still use only listed skills.
+"""
 
         prompt = f"""
 You are a planning assistant for UAR.
@@ -44,6 +52,7 @@ Goal:
 Available skills:
 {json.dumps(skills, indent=2)}
 
+{feedback_block}
 Rules:
 - Return ONLY a JSON array of skill names in execution order.
 - Use only listed skills.
