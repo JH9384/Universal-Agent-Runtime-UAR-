@@ -1,0 +1,16 @@
+[project]
+name = "universal-agent-runtime"
+version = "0.1.0"
+description = "Universal Agnostic Runtime for modular goal-driven agent execution."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
