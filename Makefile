@@ -46,17 +46,7 @@ version:
 	@cat $(VERSION_FILE)
 
 sync-version:
-	@VERSION=$$(cat $(VERSION_FILE)); \
-	$(PYTHON) - <<'PY'
-from pathlib import Path
-import re
-version = Path('VERSION').read_text().strip()
-path = Path('pyproject.toml')
-text = path.read_text()
-text = re.sub(r'^version = ".*"', f'version = "{version}"', text, flags=re.MULTILINE)
-path.write_text(text)
-print(f"Synced pyproject.toml to version {version}")
-PY
+	@$(PYTHON) -c "from pathlib import Path; import re; version=Path('VERSION').read_text().strip(); path=Path('pyproject.toml'); text=path.read_text(); text=re.sub(r'^version = \".*\"', f'version = \"{version}\"', text, flags=re.MULTILINE); path.write_text(text); print(f'Synced pyproject.toml to version {version}')"
 
 release: validate sync-version
 	@VERSION=$$(cat $(VERSION_FILE)); \
