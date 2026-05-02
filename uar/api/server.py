@@ -64,6 +64,15 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/ready")
+def ready():
+    return {
+        "status": "ready",
+        "api": "ok",
+        "templates": len(list_templates()),
+    }
+
+
 # -----------------
 # Product endpoints
 # -----------------
