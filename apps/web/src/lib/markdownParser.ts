@@ -1,7 +1,7 @@
 export type ParsedMarkdownNode = {
   localId: string;
   label: string;
-  kind: "number" | "runtime" | "markdown" | "text";
+  kind: "number" | "runtime" | "markdown" | "text" | "section";
   value: unknown;
   x: number;
   y: number;
@@ -29,6 +29,12 @@ const RUNTIME_ALIASES: Record<string, string> = {
   identity: "identity_value",
 };
 
+type MarkdownSection = {
+  title: string;
+  level: number;
+  body: string[];
+};
+
 function isNumericLine(line: string) {
   return /^-?\d+(\.\d+)?$/.test(line.trim());
 }
@@ -42,31 +48,78 @@ function cleanLine(line: string) {
   return line.replace(/^[-*]\s+/, "").trim();
 }
 
-export function parseMarkdownToGraph(markdown: string): ParsedMarkdownGraph {
-  const lines = markdown
-    .split("\n")
-    .map(cleanLine)
-    .filter((line) => line.length > 0 && !line.startsWith("#"));
+function headingFor(line: string) {
+  const match = /^(#{1,6})\s+(.+)$/.exec(line.trim());
+  if (!match) return null;
+  return { level: match[1].length, title: match[2].trim() };
+}
 
+export function chunkMarkdownSections(markdown: string): MarkdownSection[] {
+  const sections: MarkdownSection[] = [];
+  let current: MarkdownSection | null = null;
+
+  for (const rawLine of markdown.split("\n")) {
+    const heading = headingFor(rawLine);
+    if (heading) {
+      current = { title: heading.title, level: heading.level, body: [] };
+      sections.push(current);
+      continue;
+    }
+
+    if (!current) {
+      current = { title: "Document", level: 0, body: [] };
+      sections.push(current);
+    }
+
+    if (rawLine.trim()) current.body.push(rawLine);
+  }
+
+  return sections.filter((section) => section.title !== "Document" || section.body.length > 0);
+}
+
+export function parseMarkdownToGraph(markdown: string): ParsedMarkdownGraph {
+  const sections = chunkMarkdownSections(markdown);
   const nodes: ParsedMarkdownNode[] = [];
   const edges: ParsedMarkdownEdge[] = [];
   const pendingValueNodes: string[] = [];
+  let activeSectionId: string | null = null;
 
-  for (const line of lines) {
-    const runtimeName = runtimeNameFor(line);
+  const addSectionNode = (section: MarkdownSection, index: number) => {
+    const localId = `md-section-${index}`;
+    nodes.push({
+      localId,
+      label: section.title,
+      kind: "section",
+      value: {
+        title: section.title,
+        level: section.level,
+        body: section.body.join("\n"),
+      },
+      x: 80,
+      y: 100 + nodes.length * 92,
+    });
+    return localId;
+  };
 
-    if (isNumericLine(line)) {
+  const parseContentLine = (line: string, sectionId: string | null) => {
+    const cleaned = cleanLine(line);
+    if (!cleaned) return;
+
+    const runtimeName = runtimeNameFor(cleaned);
+
+    if (isNumericLine(cleaned)) {
       const localId = `md-number-${nodes.length}`;
       nodes.push({
         localId,
-        label: line,
+        label: cleaned,
         kind: "number",
-        value: Number(line),
-        x: 120 + nodes.length * 40,
-        y: 140 + nodes.length * 26,
+        value: Number(cleaned),
+        x: 260 + nodes.length * 28,
+        y: 140 + nodes.length * 34,
       });
       pendingValueNodes.push(localId);
-      continue;
+      if (sectionId) edges.push({ id: `${sectionId}-${localId}`, from: sectionId, to: localId, label: "contains" });
+      return;
     }
 
     if (runtimeName) {
@@ -76,9 +129,10 @@ export function parseMarkdownToGraph(markdown: string): ParsedMarkdownGraph {
         label: runtimeName,
         kind: "runtime",
         value: runtimeName,
-        x: 220,
-        y: 220 + nodes.length * 28,
+        x: 420,
+        y: 180 + nodes.length * 34,
       });
+      if (sectionId) edges.push({ id: `${sectionId}-${localId}`, from: sectionId, to: localId, label: "contains" });
 
       for (const source of pendingValueNodes.slice(-2)) {
         edges.push({
@@ -88,18 +142,27 @@ export function parseMarkdownToGraph(markdown: string): ParsedMarkdownGraph {
           label: "input",
         });
       }
-      continue;
+      return;
     }
 
     const localId = `md-text-${nodes.length}`;
     nodes.push({
       localId,
-      label: line.length > 24 ? `${line.slice(0, 24)}…` : line,
+      label: cleaned.length > 24 ? `${cleaned.slice(0, 24)}…` : cleaned,
       kind: "text",
-      value: line,
-      x: 120 + nodes.length * 30,
-      y: 160 + nodes.length * 24,
+      value: cleaned,
+      x: 260 + nodes.length * 24,
+      y: 160 + nodes.length * 30,
     });
+    if (sectionId) edges.push({ id: `${sectionId}-${localId}`, from: sectionId, to: localId, label: "contains" });
+  };
+
+  for (const [sectionIndex, section] of sections.entries()) {
+    activeSectionId = section.title === "Document" && section.level === 0 ? null : addSectionNode(section, sectionIndex);
+
+    for (const line of section.body) {
+      parseContentLine(line, activeSectionId);
+    }
   }
 
   if (nodes.length === 0 && markdown.trim()) {
