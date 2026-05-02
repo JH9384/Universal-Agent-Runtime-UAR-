@@ -25,6 +25,7 @@ function shortId(id: string) {
 export default function App() {
   const [input, setInput] = useState("");
   const [markdownInput, setMarkdownInput] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -63,6 +64,18 @@ export default function App() {
       },
     ]);
     setInput("");
+  }
+
+  async function onLoadMarkdownFile(file: File | null) {
+    if (!file) return;
+    const allowed = file.name.endsWith(".md") || file.name.endsWith(".markdown") || file.name.endsWith(".txt");
+    if (!allowed) {
+      alert("Please choose a .md, .markdown, or .txt file.");
+      return;
+    }
+    const text = await file.text();
+    setFileName(file.name);
+    setMarkdownInput(text);
   }
 
   async function onAddMarkdown() {
@@ -125,6 +138,7 @@ export default function App() {
     setEdges((current) => [...current, ...createdEdges]);
     setSelected(createdNodes.map((node) => node.id));
     setMarkdownInput("");
+    setFileName(null);
   }
 
   async function onRun() {
@@ -197,9 +211,17 @@ export default function App() {
           <button onClick={onAdd}>Add</button>
         </div>
         <div style={{ marginTop: 12 }}>
+          <label style={{ display: "block", fontSize: 12, color: "#5f6368", marginBottom: 4 }}>Markdown / text ingestion</label>
+          <input
+            type="file"
+            accept=".md,.markdown,.txt,text/markdown,text/plain"
+            onChange={(e) => onLoadMarkdownFile(e.target.files?.[0] ?? null)}
+            style={{ width: "100%", fontSize: 12, marginBottom: 6 }}
+          />
+          {fileName && <div style={{ fontSize: 11, color: "#5f6368", marginBottom: 4 }}>Loaded: {fileName}</div>}
           <textarea
             value={markdownInput}
-            placeholder={'Paste markdown...\nExample:\n5\n10\nsum'}
+            placeholder={'Paste markdown or load a .md/.txt file...\nExample:\n5\n10\nsum'}
             onChange={(e) => setMarkdownInput(e.target.value)}
             style={{ width: "100%", height: 110, boxSizing: "border-box", resize: "vertical" }}
           />
