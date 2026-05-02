@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react'
 import ReactFlow, { Background } from 'reactflow'
 import 'reactflow/dist/style.css'
 
+const nodeTypes = {}
+const edgeTypes = {}
+
 export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [events, setEvents] = useState<any[]>([])
@@ -96,7 +99,7 @@ export function UARPanel() {
       </div>
 
       <div style={{ height: 400 }}>
-        <ReactFlow nodes={nodes} edges={edges} fitView>
+        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} fitView>
           <Background />
         </ReactFlow>
       </div>
