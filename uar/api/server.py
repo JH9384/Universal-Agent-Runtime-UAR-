@@ -4,8 +4,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
-from uar.core.contracts import GoalSpec, RunRecord
+from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
+from uar.core.replay import run_record_from_events
 from uar.memory.json_store import JsonRunStore
 
 # register skills
@@ -67,22 +68,7 @@ def stream_goal(req: RunRequest):
             events.append(event)
             yield emit(event)
 
-        # build RunRecord without re-executing
-        start_event = events[0]
-        final_event = events[-1]
-        payload = final_event.get("payload", {})
-
-        record = RunRecord(
-            run_id=start_event["run_id"],
-            goal_id=strategy.goal_id,
-            skills=strategy.ordered_skills,
-            outputs=payload.get("outputs", []),
-            status=payload.get("status", "failed"),
-            errors=payload.get("errors", []),
-            events=events,
-            final_context=payload.get("final_context", {}),
-        )
-
+        record = run_record_from_events(events, strategy.ordered_skills)
         store.append(record)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
