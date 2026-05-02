@@ -19,20 +19,27 @@ export function UARPanel() {
 
     if (!reader) return
 
+    let buffer = ''
+
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
 
-      const chunk = decoder.decode(value)
-      const lines = chunk.split('\n')
+      buffer += decoder.decode(value, { stream: true })
 
-      for (const line of lines) {
-        if (line.startsWith('data:')) {
-          const json = JSON.parse(line.replace('data: ', ''))
-          setEvents((prev) => [...prev, json])
+      const parts = buffer.split('\n\n')
+      buffer = parts.pop() || ''
 
-          if (json.run?.final_context?.dependency_map) {
-            setGraph(json.run.final_context.dependency_map)
+      for (const part of parts) {
+        const lines = part.split('\n')
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            const json = JSON.parse(line.replace('data: ', ''))
+            setEvents((prev) => [...prev, json])
+
+            if (json.run?.final_context?.dependency_map) {
+              setGraph(json.run.final_context.dependency_map)
+            }
           }
         }
       }
@@ -42,17 +49,29 @@ export function UARPanel() {
   const buildFlow = () => {
     if (!graph) return { nodes: [], edges: [] }
 
-    const nodes = graph.nodes.slice(0, 20).map((n, i) => ({
-      id: String(i),
-      data: { label: n.id.split('/').pop() },
-      position: { x: (i % 5) * 150, y: Math.floor(i / 5) * 100 }
-    }))
+    const nodeIndex = new Map()
 
-    const edges = graph.edges.slice(0, 20).map((e, i) => ({
-      id: String(i),
-      source: '0',
-      target: String(i % nodes.length)
-    }))
+    const nodes = graph.nodes.map((n, i) => {
+      nodeIndex.set(n.id, String(i))
+      return {
+        id: String(i),
+        data: { label: n.id.split('/').pop(), type: n.type },
+        position: { x: (i % 5) * 150, y: Math.floor(i / 5) * 100 }
+      }
+    })
+
+    const edges = graph.edges
+      .map((e, i) => {
+        const source = nodeIndex.get(e.from)
+        const target = nodeIndex.get(e.to)
+        if (!source || !target) return null
+        return {
+          id: String(i),
+          source,
+          target
+        }
+      })
+      .filter(Boolean)
 
     return { nodes, edges }
   }
