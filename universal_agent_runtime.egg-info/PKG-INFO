@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: universal-agent-runtime
+Version: 0.1.0
+Summary: Universal Agnostic Runtime for modular goal-driven agent execution.
+Requires-Python: >=3.10
+Requires-Dist: fastapi<1.0,>=0.110
+Requires-Dist: uvicorn<1.0,>=0.27
+Provides-Extra: dev
+Requires-Dist: pytest<9.0,>=8.0; extra == "dev"
+Requires-Dist: httpx<1.0,>=0.27; extra == "dev"

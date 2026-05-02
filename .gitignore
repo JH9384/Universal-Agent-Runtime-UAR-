@@ -14,3 +14,4 @@ uar.sqlite3
 node_modules/
 dist/
 build/
+.copilot-specs-cache/
