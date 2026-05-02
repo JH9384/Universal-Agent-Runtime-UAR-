@@ -1,0 +1,8 @@
+{
+  "name": "section_sum",
+  "intent": "sum numeric values in a document section",
+  "runtime": "sum_contents",
+  "input_selector": "section.number_nodes",
+  "output_kind": "section.result",
+  "version": "0.1.0"
+}
