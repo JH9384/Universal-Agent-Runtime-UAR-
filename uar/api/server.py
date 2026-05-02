@@ -4,9 +4,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
-from uar.core.contracts import GoalSpec, PipelineContext, RunRecord
+from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
-from uar.core.registry import registry
 from uar.memory.json_store import JsonRunStore
 
 # register skills
@@ -55,47 +54,24 @@ def stream_goal(req: RunRequest):
     goal = _build_goal(req)
     strategy = SimplePlanner().plan(goal)
 
-    def emit(event: str, payload: dict) -> str:
-        return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+    from uar.core.executor import Executor
+
+    executor = Executor()
+
+    def emit(event: dict) -> str:
+        return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
 
     def generate():
-        ctx = PipelineContext(goal=goal)
-        run = RunRecord(
-            run_id="stream-run",
-            goal_id=strategy.goal_id,
-            skills=strategy.ordered_skills,
-            status="running",
+        events = []
+        for event in executor.iter_events(strategy, goal):
+            events.append(event)
+            yield emit(event)
+
+        # persist final run record from last event
+        final = events[-1]
+        store.append(
+            executor.run(strategy, goal)
         )
-
-        yield emit("start", {"goal": goal.objective, "skills": strategy.ordered_skills})
-
-        for skill_name in strategy.ordered_skills:
-            yield emit("skill_start", {"skill": skill_name})
-            try:
-                fn = registry.get(skill_name)
-                result = fn(ctx)
-                ctx.data[skill_name] = result
-                ctx.emit("skill_executed", {"skill": skill_name})
-                run.outputs.append({skill_name: result})
-                yield emit("skill_complete", {"skill": skill_name, "result": result})
-            except Exception as e:
-                run.errors.append(str(e))
-                run.status = "failed"
-                yield emit("error", {"skill": skill_name, "error": str(e)})
-                store.append(run)
-                return
-
-        if "sum_review" in registry.list() and "sum_review" not in strategy.ordered_skills:
-            yield emit("skill_start", {"skill": "sum_review"})
-            summary = registry.get("sum_review")(ctx)
-            run.outputs.append({"sum_review": summary})
-            yield emit("skill_complete", {"skill": "sum_review", "result": summary})
-
-        run.status = "completed"
-        run.events = ctx.events
-        run.final_context = ctx.data
-        store.append(run)
-        yield emit("complete", {"run": run.__dict__})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
