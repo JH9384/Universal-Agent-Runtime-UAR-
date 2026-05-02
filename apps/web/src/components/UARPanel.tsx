@@ -18,10 +18,31 @@ type StructuredResult = {
   sections: { label: string; content: string }[]
 }
 
+type RunHistoryItem = {
+  workflow: string
+  status: RunStatus
+  message: string
+  timestamp: string
+}
+
+const cardStyle = { border: '1px solid #ddd', borderRadius: 16, padding: 18, marginBottom: 20, background: '#fff' }
+const muted = { color: '#666' }
+
 function valueToText(value: unknown) {
   if (value === undefined || value === null) return ''
   if (typeof value === 'string') return value
   return JSON.stringify(value, null, 2)
+}
+
+function statusBadge(status: RunStatus) {
+  const styles: Record<RunStatus, { label: string; bg: string; color: string }> = {
+    idle: { label: 'Idle', bg: '#f2f2f2', color: '#333' },
+    running: { label: 'Running', bg: '#eef5ff', color: '#064f9e' },
+    completed: { label: 'Completed', bg: '#eefaf0', color: '#146b2e' },
+    failed: { label: 'Needs attention', bg: '#fff0f0', color: '#9a2222' }
+  }
+  const s = styles[status]
+  return <span style={{ background: s.bg, color: s.color, padding: '5px 10px', borderRadius: 999, fontWeight: 700 }}>{s.label}</span>
 }
 
 function downloadFile(filename: string, content: string, type: string) {
@@ -82,10 +103,10 @@ function formatResult(templateId: string | undefined, result: any, meta: any): S
 
   if (!result) {
     return {
-      title: 'No result yet',
+      title: 'Ready when you are',
       confidence: confidence.label,
       confidenceDetail: confidence.detail,
-      sections: [{ label: '👋 Start here', content: 'Choose a workflow, provide input, and run it to see structured results here.' }]
+      sections: [{ label: '👋 Start here', content: 'Choose a task, provide input, and run it to see structured results here.' }]
     }
   }
 
@@ -150,6 +171,7 @@ export function UARPanel() {
   const [meta, setMeta] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [history, setHistory] = useState<RunHistoryItem[]>([])
 
   useEffect(() => {
     async function loadTemplates() {
@@ -222,10 +244,16 @@ export function UARPanel() {
         return
       }
 
-      setStatus(data.status === 'completed' ? 'completed' : 'failed')
-      setMessage(data.message || 'Workflow finished.')
+      const nextStatus = data.status === 'completed' ? 'completed' : 'failed'
+      const nextMessage = data.message || 'Workflow finished.'
+      setStatus(nextStatus)
+      setMessage(nextMessage)
       setResult(data.result)
       setMeta(data.meta)
+      setHistory((prev) => [
+        { workflow: selectedTemplate.name, status: nextStatus, message: nextMessage, timestamp: new Date().toLocaleTimeString() },
+        ...prev
+      ].slice(0, 5))
     } catch (err) {
       setStatus('failed')
       setMessage('The workflow could not be completed.')
@@ -270,108 +298,129 @@ export function UARPanel() {
         : 'Run Workflow'
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 1100, margin: '0 auto', padding: 20 }}>
-      <header style={{ marginBottom: 20 }}>
-        <h2 style={{ marginBottom: 4 }}>UAR Tasks</h2>
-        <p style={{ marginTop: 0, color: '#555' }}>Pick what you want to do. UAR handles the runtime underneath.</p>
-      </header>
+    <div style={{ fontFamily: 'system-ui, sans-serif', background: '#fafafa', minHeight: '100vh', padding: 24 }}>
+      <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <header style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 30 }}>UAR Tasks</h2>
+              <p style={{ margin: '6px 0 0', color: '#555' }}>Pick what you want to do. UAR handles the runtime underneath.</p>
+            </div>
+            {statusBadge(status)}
+          </div>
+        </header>
 
-      <section style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16, marginBottom: 20 }}>
-        <h3 style={{ marginTop: 0 }}>1. Choose task</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-          {templates.map((template) => (
-            <button
-              key={template.id}
-              onClick={() => selectTemplate(template)}
-              style={{
-                textAlign: 'left',
-                padding: 12,
-                borderRadius: 10,
-                border: selectedTemplateId === template.id ? '2px solid #333' : '1px solid #ccc',
-                background: selectedTemplateId === template.id ? '#f7f7f7' : 'white'
-              }}
-            >
-              <strong>{template.name}</strong>
-              <div style={{ color: '#666', marginTop: 6, fontSize: 13 }}>{template.description}</div>
-              <div style={{ color: '#777', marginTop: 8, fontSize: 12 }}>
-                Planner: {template.planner} · Skills: {template.skills?.length ? template.skills.join(' → ') : 'adaptive'}
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {selectedTemplate && (
-        <section style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16, marginBottom: 20 }}>
-          <h3 style={{ marginTop: 0 }}>2. Provide input</h3>
-          <div style={{ display: 'grid', gap: 12 }}>
-            {selectedTemplate.required_inputs.map((input) => (
-              <label key={input}>
-                <strong>{labelForInput(input)}</strong>
-                <textarea
-                  value={inputs[input] || ''}
-                  onChange={(e) => setInputs((prev) => ({ ...prev, [input]: e.target.value }))}
-                  placeholder={placeholderForInput(input)}
-                  rows={input === 'input_path' ? 1 : 4}
-                  style={{ width: '100%', marginTop: 6 }}
-                />
-              </label>
+        <section style={cardStyle}>
+          <h3 style={{ marginTop: 0 }}>1. Choose task</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                onClick={() => selectTemplate(template)}
+                style={{
+                  textAlign: 'left',
+                  padding: 14,
+                  borderRadius: 14,
+                  border: selectedTemplateId === template.id ? '2px solid #222' : '1px solid #ddd',
+                  background: selectedTemplateId === template.id ? '#f5f5f5' : 'white',
+                  boxShadow: selectedTemplateId === template.id ? '0 6px 18px rgba(0,0,0,0.06)' : 'none'
+                }}
+              >
+                <strong>{template.name}</strong>
+                <div style={{ color: '#666', marginTop: 6, fontSize: 13 }}>{template.description}</div>
+                <div style={{ color: '#777', marginTop: 8, fontSize: 12 }}>
+                  Planner: {template.planner} · Skills: {template.skills?.length ? template.skills.join(' → ') : 'adaptive'}
+                </div>
+              </button>
             ))}
           </div>
         </section>
-      )}
 
-      <section style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-        <button onClick={runProductTemplate} disabled={!selectedTemplate || status === 'running'} style={{ padding: '10px 16px' }}>
-          {status === 'running' ? 'Running...' : actionLabel}
-        </button>
-        <span>Status: <strong>{status}</strong></span>
-        {status === 'running' && <span>⚙️ Running your workflow...</span>}
-      </section>
-
-      {error && (
-        <section style={{ border: '1px solid #d66', background: '#fff4f4', borderRadius: 12, padding: 16, marginBottom: 20 }}>
-          <h3 style={{ marginTop: 0 }}>Needs attention</h3>
-          <pre style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{error}</pre>
-        </section>
-      )}
-
-      <section style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16, marginBottom: 20 }}>
-        <h3 style={{ marginTop: 0 }}>{structuredResult.title}</h3>
-        <p style={{ color: status === 'failed' ? '#9a2222' : '#333' }}>{message}</p>
-        <div style={{ border: '1px solid #eee', borderRadius: 10, padding: 10, marginBottom: 14 }}>
-          <strong>{structuredResult.confidence}</strong>
-          <div style={{ color: '#666', marginTop: 4 }}>{structuredResult.confidenceDetail}</div>
-        </div>
-        <div style={{ display: 'grid', gap: 12 }}>
-          {structuredResult.sections.map((section) => (
-            <div key={section.label} style={{ borderTop: '1px solid #eee', paddingTop: 10 }}>
-              <h4 style={{ margin: '0 0 6px' }}>{section.label}</h4>
-              <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{section.content}</pre>
+        {selectedTemplate && (
+          <section style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>2. Provide input</h3>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {selectedTemplate.required_inputs.map((input) => (
+                <label key={input}>
+                  <strong>{labelForInput(input)}</strong>
+                  <textarea
+                    value={inputs[input] || ''}
+                    onChange={(e) => setInputs((prev) => ({ ...prev, [input]: e.target.value }))}
+                    placeholder={placeholderForInput(input)}
+                    rows={input === 'input_path' ? 1 : 4}
+                    style={{ width: '100%', marginTop: 6, borderRadius: 10, border: '1px solid #ccc', padding: 10 }}
+                  />
+                </label>
+              ))}
             </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button onClick={() => navigator.clipboard.writeText(exportMarkdown)} disabled={!result}>Copy Markdown</button>
-          <button onClick={() => downloadFile('uar-product-run.md', exportMarkdown, 'text/markdown')} disabled={!result}>Download Markdown</button>
-          <button onClick={() => downloadFile('uar-product-run.json', JSON.stringify({ template: selectedTemplate, inputs, status, message, structuredResult, result, meta }, null, 2), 'application/json')} disabled={!result}>Download JSON</button>
-        </div>
-      </section>
-
-      <section style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16 }}>
-        <button onClick={() => setShowAdvanced((value) => !value)}>
-          {showAdvanced ? 'Hide Details' : 'View Details'}
-        </button>
-        {showAdvanced && (
-          <div style={{ marginTop: 12 }}>
-            <h3>Runtime Details</h3>
-            <p style={{ color: '#666' }}>Developer-facing metadata for evaluation, failure taxonomy, and runtime inspection.</p>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{valueToText(meta || {})}</pre>
-            <h3>Raw Result</h3>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{valueToText(result || {})}</pre>
-          </div>
+          </section>
         )}
-      </section>
+
+        <section style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
+          <button onClick={runProductTemplate} disabled={!selectedTemplate || status === 'running'} style={{ padding: '11px 18px', borderRadius: 999, border: '1px solid #222', fontWeight: 700 }}>
+            {status === 'running' ? 'Running...' : actionLabel}
+          </button>
+          {status === 'running' && <span style={muted}>⚙️ Running your workflow...</span>}
+        </section>
+
+        {error && (
+          <section style={{ ...cardStyle, border: '1px solid #d66', background: '#fff4f4' }}>
+            <h3 style={{ marginTop: 0 }}>Needs attention</h3>
+            <pre style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{error}</pre>
+          </section>
+        )}
+
+        <section style={cardStyle}>
+          <h3 style={{ marginTop: 0, fontSize: 24 }}>{structuredResult.title}</h3>
+          <p style={{ color: status === 'failed' ? '#9a2222' : '#333' }}>{message}</p>
+          <div style={{ border: '1px solid #eee', borderRadius: 12, padding: 12, marginBottom: 16, background: '#fcfcfc' }}>
+            <strong>{structuredResult.confidence}</strong>
+            <div style={{ color: '#666', marginTop: 4 }}>{structuredResult.confidenceDetail}</div>
+          </div>
+          <div style={{ display: 'grid', gap: 14 }}>
+            {structuredResult.sections.map((section) => (
+              <div key={section.label} style={{ borderTop: '1px solid #eee', paddingTop: 12 }}>
+                <h4 style={{ margin: '0 0 8px' }}>{section.label}</h4>
+                <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.5 }}>{section.content}</pre>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <button onClick={() => navigator.clipboard.writeText(exportMarkdown)} disabled={!result}>Copy Markdown</button>
+            <button onClick={() => downloadFile('uar-product-run.md', exportMarkdown, 'text/markdown')} disabled={!result}>Download Markdown</button>
+            <button onClick={() => downloadFile('uar-product-run.json', JSON.stringify({ template: selectedTemplate, inputs, status, message, structuredResult, result, meta }, null, 2), 'application/json')} disabled={!result}>Download JSON</button>
+          </div>
+        </section>
+
+        {history.length > 0 && (
+          <section style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>Recent runs</h3>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {history.map((item, index) => (
+                <div key={`${item.workflow}-${item.timestamp}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, borderTop: index ? '1px solid #eee' : 'none', paddingTop: index ? 8 : 0 }}>
+                  <span><strong>{item.workflow}</strong> — {item.message}</span>
+                  <span style={muted}>{item.timestamp}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section style={cardStyle}>
+          <button onClick={() => setShowAdvanced((value) => !value)}>
+            {showAdvanced ? 'Hide Details' : 'View Details'}
+          </button>
+          {showAdvanced && (
+            <div style={{ marginTop: 12 }}>
+              <h3>Runtime Details</h3>
+              <p style={{ color: '#666' }}>Developer-facing metadata for evaluation, failure taxonomy, and runtime inspection.</p>
+              <pre style={{ whiteSpace: 'pre-wrap' }}>{valueToText(meta || {})}</pre>
+              <h3>Raw Result</h3>
+              <pre style={{ whiteSpace: 'pre-wrap' }}>{valueToText(result || {})}</pre>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
