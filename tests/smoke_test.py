@@ -1,21 +1,30 @@
-import requests
+"""Manual smoke test for legacy/live-server workflow endpoints.
 
-BASE = "http://localhost:8000"
+This file is intentionally not part of default CI validation.
+Run manually only when a compatible server is running on localhost:8000.
+"""
 
-# create objects
-obj1 = requests.post(f"{BASE}/objects", json={"content": 10}).json()["digest"]
-obj2 = requests.post(f"{BASE}/objects", json={"content": 20}).json()["digest"]
 
-# run workflow
-workflow = {
-    "name": "smoke",
-    "inputs": [obj1, obj2],
-    "steps": [
-        {"runtimeName": "sum_contents"},
-        {"runtimeName": "max_contents"}
-    ]
-}
+def main():
+    import requests
 
-res = requests.post(f"{BASE}/workflows/run", json=workflow).json()
+    base = "http://localhost:8000"
 
-print("FINAL:", res)
+    obj1 = requests.post(f"{base}/objects", json={"content": 10}).json()["digest"]
+    obj2 = requests.post(f"{base}/objects", json={"content": 20}).json()["digest"]
+
+    workflow = {
+        "name": "smoke",
+        "inputs": [obj1, obj2],
+        "steps": [
+            {"runtimeName": "sum_contents"},
+            {"runtimeName": "max_contents"},
+        ],
+    }
+
+    res = requests.post(f"{base}/workflows/run", json=workflow).json()
+    print("FINAL:", res)
+
+
+if __name__ == "__main__":
+    main()
