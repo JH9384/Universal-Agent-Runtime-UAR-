@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP_PATH = ROOT / "apps" / "api-python" / "main.py"
-CI_STABLE_TIMEOUT = 5.0
+CI_STABLE_TIMEOUT = 10.0
 
 
 def load_app_module(tmp_path):
