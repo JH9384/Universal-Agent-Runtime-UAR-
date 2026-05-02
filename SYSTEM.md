@@ -19,6 +19,7 @@ Deferred until after stabilization:
 - richer orchestration intelligence
 - advanced graph animation
 - production database backends beyond JSONL
+- tool-agnostic export surfaces for Markdown, JSON, and graph data
 
 ## Versioning
 
@@ -304,13 +305,28 @@ Current purpose:
 - submit goals
 - consume SSE events
 - render execution/orchestration graph
-- display event log
+- display result-first run output
+- keep raw events under an Advanced toggle
 
 Production stance:
 
 - UI must not control runtime semantics.
 - UI consumes API/stream contracts only.
 - UI can be staged separately from runtime foundation if TypeScript build is not release-ready.
+
+## Export Scope
+
+Export should remain tool-agnostic.
+
+Future export surfaces may include:
+
+- Markdown outline
+- JSON RunRecord
+- JSON RuntimeEvent stream
+- portable graph data
+- SVG/PNG visualization output
+
+Export must not assume a specific notes app, editor, graph renderer, or knowledge base. External tools should be treated as optional consumers of portable UAR artifacts.
 
 ## Memory Scope
 
@@ -427,6 +443,7 @@ curl -N -X POST http://localhost:8000/api/uar/stream \
 - Conformance tests are useful but do not block foundation release.
 - `make release` is intended to run from a clean git working tree.
 - A release tag is not valid unless CI has passed.
+- Export artifacts should be portable and tool-agnostic.
 
 ## Production Readiness Gate
 
