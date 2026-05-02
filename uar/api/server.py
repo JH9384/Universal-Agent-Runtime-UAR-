@@ -37,8 +37,7 @@ def _build_goal(req: RunRequest) -> GoalSpec:
     )
 
 
-@app.post("/api/uar/run")
-def run_goal(req: RunRequest):
+def _run_goal_impl(req: RunRequest):
     goal = _build_goal(req)
     planner = SimplePlanner()
     strategy = planner.plan(goal)
@@ -52,11 +51,9 @@ def run_goal(req: RunRequest):
     return result
 
 
-@app.post("/api/uar/stream")
-def stream_goal(req: RunRequest):
+def _stream_goal_impl(req: RunRequest):
     goal = _build_goal(req)
     strategy = SimplePlanner().plan(goal)
-
     plan = build_orchestration_plan(strategy)
 
     from uar.core.executor import Executor
@@ -69,7 +66,6 @@ def stream_goal(req: RunRequest):
     def generate():
         events = []
 
-        # emit orchestration graph first
         yield emit({
             "schema_version": "uar.event.v1",
             "type": "orchestration_plan",
@@ -91,6 +87,31 @@ def stream_goal(req: RunRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+@app.post("/api/uar/run")
+def run_goal(req: RunRequest):
+    return _run_goal_impl(req)
+
+
+@app.post("/api/v1/uar/run")
+def run_goal_v1(req: RunRequest):
+    return _run_goal_impl(req)
+
+
+@app.post("/api/uar/stream")
+def stream_goal(req: RunRequest):
+    return _stream_goal_impl(req)
+
+
+@app.post("/api/v1/uar/stream")
+def stream_goal_v1(req: RunRequest):
+    return _stream_goal_impl(req)
+
+
 @app.get("/api/uar/runs")
 def list_runs():
+    return store.list_records()
+
+
+@app.get("/api/v1/uar/runs")
+def list_runs_v1():
     return store.list_records()
