@@ -4,7 +4,7 @@
 
 UAR is currently in **Foundation → Platform roundout**.
 
-This branch establishes a modular runtime foundation with event-driven execution, replayable run records, API adapters, streaming, and a staged web control surface. The current priority is production stabilization, not feature expansion.
+This branch establishes a modular runtime foundation with event-driven execution, replayable run records, API adapters, streaming, release controls, environment configuration, and a staged web control surface. The current priority is production stabilization, not feature expansion.
 
 ## Production Posture
 
@@ -16,9 +16,77 @@ Deferred until after stabilization:
 
 - parallel executor expansion
 - replay timeline UI
-- advanced agent reasoning
 - richer orchestration intelligence
 - advanced graph animation
+- production database backends beyond JSONL
+
+## Versioning
+
+Versioning is controlled through the root `VERSION` file.
+
+Current release commands:
+
+```bash
+make version
+make sync-version
+make release
+```
+
+Rules:
+
+- `VERSION` is the release source of truth.
+- `pyproject.toml` must match `VERSION` before release.
+- `make sync-version` updates `pyproject.toml` from `VERSION`.
+- `make release` validates, syncs version, checks release docs for uncommitted drift, creates an annotated git tag, and pushes the tag.
+- Tags must use the form `vX.Y.Z`.
+
+## Environment Configuration
+
+Configuration is intentionally lightweight for the foundation release.
+
+See `.env.example`:
+
+```env
+API_HOST=127.0.0.1
+API_PORT=8000
+```
+
+Current runtime defaults:
+
+```text
+API_HOST=127.0.0.1
+API_PORT=8000
+```
+
+The Makefile supports overriding values:
+
+```bash
+API_HOST=0.0.0.0 API_PORT=8080 make up
+```
+
+Assumption: `.env` loading is not yet automatic. Operators may export variables in the shell or pass them into `make`. A future deployment pass may add a formal config loader if needed.
+
+## Dependency Policy
+
+### Python
+
+Python dependencies are declared in `pyproject.toml`.
+
+Current policy:
+
+- Python dependency ranges are acceptable during foundation development.
+- Release validation must pass with the dependency versions resolved by CI.
+- Future production hardening may pin exact versions or add a lockfile.
+
+### Node / UI
+
+The web UI is staged and non-blocking for the foundation release.
+
+Current policy:
+
+- UI build may remain a signal rather than a release gate.
+- Node dependencies should be pinned before UI becomes release-critical.
+- UI must consume API/stream contracts only and must not define runtime semantics.
 
 ## System Layers
 
@@ -42,7 +110,7 @@ L5 UI Control Surface
   React UARPanel, React Flow graph surface
 
 L6 Validation / Governance
-  pytest, CI, conformance split, production checklist
+  pytest, CI, conformance split, production checklist, release process
 ```
 
 ## Dependency Direction Rules
@@ -225,7 +293,6 @@ Deferred:
 
 - true parallel execution
 - dependency-aware scheduling
-- agent reasoning
 - dynamic replanning
 
 ## UI Scope
@@ -294,6 +361,32 @@ Excluded from foundation CI:
 
 Legacy/conformance tests live separately under `tests/conformance/`.
 
+## Launch Commands
+
+One-command local runtime launch:
+
+```bash
+make up
+```
+
+One-command full local launch with staged UI:
+
+```bash
+make up-full
+```
+
+Foundation validation:
+
+```bash
+make validate
+```
+
+GitHub one-click validation:
+
+```text
+Actions -> UAR Validation -> Run workflow
+```
+
 ## Local Development
 
 Install Python runtime:
@@ -324,6 +417,16 @@ curl -N -X POST http://localhost:8000/api/uar/stream \
   -H "Content-Type: application/json" \
   -d '{"goal":"stream test","skills":["section_sum"]}'
 ```
+
+## Explicit Foundation Assumptions
+
+- UAR 0.1.0 is single-node.
+- JSONL persistence is acceptable for local development and early audit logs.
+- UI is staged and not required for the core runtime release.
+- `uar.event.v1` is stable for the foundation release.
+- Conformance tests are useful but do not block foundation release.
+- `make release` is intended to run from a clean git working tree.
+- A release tag is not valid unless CI has passed.
 
 ## Production Readiness Gate
 
