@@ -30,7 +30,8 @@ def test_streaming_event_sequence():
         events = _read_sse_events(response)
 
     event_types = [event["type"] for event in events]
-    assert event_types[0] == "start"
+    assert event_types[0] == "orchestration_plan"
+    assert event_types[1] == "start"
     assert "skill_start" in event_types
     assert "skill_complete" in event_types
     assert event_types[-1] == "complete"
