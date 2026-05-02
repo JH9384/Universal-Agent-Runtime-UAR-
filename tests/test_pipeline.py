@@ -10,6 +10,6 @@ def test_pipeline():
     strategy = planner.plan(goal)
 
     executor = Executor()
-    result = executor.run(strategy)
+    result = executor.run(strategy, goal)
 
     assert result.status == "completed"
