@@ -1,6 +1,15 @@
 name: UAR Validation
 
 on:
+  workflow_dispatch:
+    inputs:
+      validation_scope:
+        description: 'Validation scope to run'
+        required: true
+        default: 'foundation'
+        type: choice
+        options:
+          - foundation
   push:
     branches:
       - main
@@ -11,6 +20,7 @@ on:
 
 jobs:
   python-tests:
+    name: Foundation Python Validation
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -30,6 +40,7 @@ jobs:
         run: pytest tests/test_*.py
 
   web-build:
+    name: Staged Web Build Signal
     runs-on: ubuntu-latest
     continue-on-error: true
     defaults:
@@ -47,5 +58,5 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build web app
+      - name: Build web app (non-blocking staged UI signal)
         run: npm run build
