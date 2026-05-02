@@ -26,8 +26,8 @@ class Executor:
                 run.status = "failed"
                 return run
 
-        # SUM review pass if available
-        if "sum_review" in registry.list():
+        # SUM review pass if available and not already included in the explicit pipeline.
+        if "sum_review" in registry.list() and "sum_review" not in strategy.ordered_skills:
             try:
                 sum_fn = registry.get("sum_review")
                 summary = sum_fn(ctx)
