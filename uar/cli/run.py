@@ -7,25 +7,34 @@ from uar.memory.json_store import JsonRunStore
 
 # ensure skills are registered
 import uar.skills.section_sum  # noqa
+import uar.skills.doc_ingest  # noqa
+import uar.skills.dependency_map  # noqa
+import uar.skills.sum_review  # noqa
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run a UAR goal")
     parser.add_argument("--goal", required=True, help="Goal objective text")
+    parser.add_argument("--skills", help="Comma-separated skill list")
+    parser.add_argument("--input", help="Path for doc ingestion")
 
     args = parser.parse_args()
+
+    required_skills = args.skills.split(",") if args.skills else []
 
     goal = GoalSpec(
         id="cli-run",
         user_intent=args.goal,
         objective=args.goal,
+        required_skills=required_skills,
+        metadata={"input_path": args.input} if args.input else {},
     )
 
     planner = SimplePlanner()
     strategy = planner.plan(goal)
 
     executor = Executor()
-    result = executor.run(strategy)
+    result = executor.run(strategy, goal)
 
     store = JsonRunStore()
     store.append(result)
