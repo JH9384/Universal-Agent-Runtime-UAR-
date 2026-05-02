@@ -8,22 +8,26 @@ const edgeTypes = {}
 const presets = [
   {
     label: 'Ask Ollama',
+    description: 'Use the local Ollama model for a plain-language answer.',
     goal: 'Explain gravity simply',
     skills: ['ollama_generate']
   },
   {
     label: 'Stream Test',
+    description: 'Validate the streaming event path.',
     goal: 'Stream test',
     skills: ['section_sum']
   },
   {
     label: 'Repo Map',
+    description: 'Run document ingestion and dependency mapping on the repo.',
     goal: 'Map this repository',
     skills: ['doc_ingest', 'dependency_map', 'sum_review'],
     input_path: './'
   },
   {
     label: 'Demo Run',
+    description: 'Run the simplest local runtime demonstration.',
     goal: 'Say hello from UAR',
     skills: ['section_sum']
   }
@@ -126,15 +130,23 @@ function eventsToStructure(events: any[], graph: any, result: any) {
 }
 
 function StructureTree({ node, depth = 0 }: { node: any; depth?: number }) {
+  const [open, setOpen] = useState(depth < 2)
+  const hasChildren = Boolean(node.children?.length)
+
   return (
     <div style={{ marginLeft: depth * 16, marginTop: 6 }}>
-      <div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {hasChildren && (
+          <button onClick={() => setOpen((value) => !value)} style={{ padding: '0 6px' }}>
+            {open ? '−' : '+'}
+          </button>
+        )}
         <strong>{node.title}</strong> <span style={{ color: '#777' }}>({node.kind})</span>
       </div>
       {node.value !== undefined && node.value !== null && node.value !== '' && (
         <pre style={{ whiteSpace: 'pre-wrap', margin: '4px 0 8px', color: '#333' }}>{valueToText(node.value)}</pre>
       )}
-      {(node.children || []).map((child: any, index: number) => (
+      {open && (node.children || []).map((child: any, index: number) => (
         <StructureTree key={`${child.title}-${index}`} node={child} depth={depth + 1} />
       ))}
     </div>
@@ -145,9 +157,11 @@ export function UARPanel() {
   const [goal, setGoal] = useState('Explain gravity simply')
   const [skills, setSkills] = useState<string[]>(['ollama_generate'])
   const [inputPath, setInputPath] = useState<string | undefined>(undefined)
+  const [activePreset, setActivePreset] = useState('Ask Ollama')
   const [events, setEvents] = useState<any[]>([])
   const [graph, setGraph] = useState<any>(null)
   const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -155,7 +169,9 @@ export function UARPanel() {
     setGoal(preset.goal)
     setSkills(preset.skills)
     setInputPath(preset.input_path)
+    setActivePreset(preset.label)
     setResult(null)
+    setError(null)
     setEvents([])
     setGraph(null)
     setStatus('idle')
@@ -165,65 +181,76 @@ export function UARPanel() {
     setEvents([])
     setGraph(null)
     setResult(null)
+    setError(null)
     setStatus('running')
 
-    const body: Record<string, unknown> = { goal, skills }
-    if (inputPath) body.input_path = inputPath
+    try {
+      const body: Record<string, unknown> = { goal, skills }
+      if (inputPath) body.input_path = inputPath
 
-    const res = await fetch('/api/uar/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
+      const res = await fetch('/api/v1/uar/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
 
-    const reader = res.body?.getReader()
-    const decoder = new TextDecoder()
+      if (!res.ok) {
+        throw new Error(`Request failed with HTTP ${res.status}`)
+      }
 
-    if (!reader) {
-      setStatus('failed')
-      return
-    }
+      const reader = res.body?.getReader()
+      const decoder = new TextDecoder()
 
-    let buffer = ''
+      if (!reader) {
+        throw new Error('No response stream was returned')
+      }
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+      let buffer = ''
 
-      buffer += decoder.decode(value, { stream: true })
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      const parts = buffer.split('\n\n')
-      buffer = parts.pop() || ''
+        buffer += decoder.decode(value, { stream: true })
 
-      for (const part of parts) {
-        const lines = part.split('\n')
-        for (const line of lines) {
-          if (line.startsWith('data:')) {
-            const json = JSON.parse(line.replace('data: ', ''))
-            setEvents((prev) => [...prev, json])
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
 
-            if (json.type === 'orchestration_plan' && json.payload?.graph) {
-              setGraph(json.payload.graph)
-            }
+        for (const part of parts) {
+          const lines = part.split('\n')
+          for (const line of lines) {
+            if (line.startsWith('data:')) {
+              const json = JSON.parse(line.replace('data: ', ''))
+              setEvents((prev) => [...prev, json])
 
-            if (json.type === 'skill_complete') {
-              setResult(json.payload?.result)
-            }
+              if (json.type === 'orchestration_plan' && json.payload?.graph) {
+                setGraph(json.payload.graph)
+              }
 
-            if (json.type === 'complete') {
-              setStatus(json.payload?.status === 'completed' ? 'completed' : 'failed')
-              const outputs = json.payload?.outputs || []
-              const lastOutput = outputs[outputs.length - 1]
-              if (lastOutput) setResult(lastOutput)
-            }
+              if (json.type === 'skill_complete') {
+                setResult(json.payload?.result)
+              }
 
-            if (json.type === 'skill_failed') {
-              setStatus('failed')
-              setResult({ error: json.error })
+              if (json.type === 'complete') {
+                setStatus(json.payload?.status === 'completed' ? 'completed' : 'failed')
+                const outputs = json.payload?.outputs || []
+                const lastOutput = outputs[outputs.length - 1]
+                if (lastOutput) setResult(lastOutput)
+                if (json.payload?.errors?.length) setError(json.payload.errors.join('\n'))
+              }
+
+              if (json.type === 'skill_failed') {
+                setStatus('failed')
+                setError(json.error || 'Skill failed')
+                setResult({ error: json.error })
+              }
             }
           }
         }
       }
+    } catch (err) {
+      setStatus('failed')
+      setError(err instanceof Error ? err.message : 'Unknown error')
     }
   }
 
@@ -259,11 +286,12 @@ export function UARPanel() {
   }, [graph])
 
   const resultText = useMemo(() => {
+    if (error) return error
     if (!result) return 'Run a preset or enter a goal to see results here.'
     if (typeof result === 'string') return result
     if (result.response) return result.response
     return JSON.stringify(result, null, 2)
-  }, [result])
+  }, [error, result])
 
   const markdownExport = useMemo(() => eventsToMarkdown(events, graph, result), [events, graph, result])
   const structureExport = useMemo(() => eventsToStructure(events, graph, result), [events, graph, result])
@@ -293,16 +321,21 @@ export function UARPanel() {
 
         <div>
           <strong>Presets</strong>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 8 }}>
             {presets.map((preset) => (
-              <button key={preset.label} onClick={() => applyPreset(preset)}>
-                {preset.label}
+              <button
+                key={preset.label}
+                onClick={() => applyPreset(preset)}
+                style={{ textAlign: 'left', padding: 10, border: activePreset === preset.label ? '2px solid #333' : '1px solid #ccc', borderRadius: 8 }}
+              >
+                <strong>{preset.label}</strong>
+                <div style={{ color: '#666', fontSize: 12, marginTop: 4 }}>{preset.description}</div>
               </button>
             ))}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button onClick={runStream} disabled={status === 'running'}>
             {status === 'running' ? 'Running...' : 'Run'}
           </button>
@@ -310,6 +343,13 @@ export function UARPanel() {
           <span>Skills: {skills.join(' → ')}</span>
         </div>
       </section>
+
+      {error && (
+        <section style={{ border: '1px solid #d66', background: '#fff4f4', borderRadius: 8, padding: 16, marginBottom: 20 }}>
+          <h3 style={{ marginTop: 0 }}>Something needs attention</h3>
+          <pre style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{error}</pre>
+        </section>
+      )}
 
       <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16, marginBottom: 20 }}>
         <h3 style={{ marginTop: 0 }}>Result</h3>
@@ -319,7 +359,7 @@ export function UARPanel() {
       <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16, marginBottom: 20 }}>
         <h3 style={{ marginTop: 0 }}>Structure</h3>
         <StructureTree node={structureExport} />
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           <button onClick={copyMarkdown} disabled={!events.length}>Copy Markdown</button>
           <button onClick={() => downloadFile('uar-run.md', markdownExport, 'text/markdown')} disabled={!events.length}>Download Markdown</button>
           <button onClick={() => downloadFile('uar-run.structure.json', JSON.stringify(structureExport, null, 2), 'application/json')} disabled={!events.length}>Download Structure JSON</button>
