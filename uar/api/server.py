@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
+from uar.core.llm_planner import LLMPlanner
 from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
 from uar.memory.json_store import JsonRunStore
@@ -25,6 +26,13 @@ class RunRequest(BaseModel):
     goal: str
     skills: Optional[List[str]] = None
     input_path: Optional[str] = None
+    planner: Optional[str] = "simple"  # simple | llm
+
+
+def _select_planner(mode: str):
+    if mode == "llm":
+        return LLMPlanner()
+    return SimplePlanner()
 
 
 def _build_goal(req: RunRequest) -> GoalSpec:
@@ -39,7 +47,7 @@ def _build_goal(req: RunRequest) -> GoalSpec:
 
 def _run_goal_impl(req: RunRequest):
     goal = _build_goal(req)
-    planner = SimplePlanner()
+    planner = _select_planner(req.planner or "simple")
     strategy = planner.plan(goal)
 
     from uar.core.executor import Executor
@@ -53,7 +61,8 @@ def _run_goal_impl(req: RunRequest):
 
 def _stream_goal_impl(req: RunRequest):
     goal = _build_goal(req)
-    strategy = SimplePlanner().plan(goal)
+    planner = _select_planner(req.planner or "simple")
+    strategy = planner.plan(goal)
     plan = build_orchestration_plan(strategy)
 
     from uar.core.executor import Executor
