@@ -26,7 +26,7 @@ class RunRequest(BaseModel):
     goal: str
     skills: Optional[List[str]] = None
     input_path: Optional[str] = None
-    planner: Optional[str] = "simple"  # simple | llm
+    planner: Optional[str] = "simple"
 
 
 def _select_planner(mode: str):
@@ -43,6 +43,11 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         required_skills=req.skills or [],
         metadata={"input_path": req.input_path} if req.input_path else {},
     )
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 def _run_goal_impl(req: RunRequest):
