@@ -14,7 +14,7 @@ def test_pipeline_with_memory(tmp_path):
     strategy = planner.plan(goal)
 
     executor = Executor()
-    result = executor.run(strategy)
+    result = executor.run(strategy, goal)
 
     store.append(result)
 
