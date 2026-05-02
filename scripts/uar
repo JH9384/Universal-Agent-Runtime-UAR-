@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+ROOT=~/Documents/Universal-Agent-Runtime-UAR-
+
+case "$1" in
+  dev)
+    bash "$ROOT/scripts/quickstart.sh"
+    ;;
+  run)
+    bash "$ROOT/scripts/run.sh"
+    ;;
+  *)
+    echo "Usage: uar [dev|run]"
+    ;;
+esac
