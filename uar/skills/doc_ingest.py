@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 from uar.core.registry import register_skill
 
 ALLOWED_ROOT = Path('.').resolve()
+
 
 @register_skill("doc_ingest")
 def doc_ingest(ctx):
@@ -13,7 +14,9 @@ def doc_ingest(ctx):
 
     path = Path(input_path).resolve()
 
-    if not str(path).startswith(str(ALLOWED_ROOT)):
+    try:
+        path.relative_to(ALLOWED_ROOT)
+    except Exception:
         return {"documents": [], "error": "Path outside allowed root"}
 
     documents: List[Dict[str, str]] = []
