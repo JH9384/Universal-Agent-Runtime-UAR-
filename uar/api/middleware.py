@@ -56,6 +56,12 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
+def reset_rate_limiter():
+    """Reset rate limiter state (for testing only)."""
+    with rate_limiter._lock:
+        rate_limiter.requests.clear()
+
+
 def _load_api_keys() -> Dict[str, Dict]:
     """Load API keys from environment variable.
     
@@ -111,7 +117,11 @@ def rate_limit_middleware(request: Request, credentials: Optional[HTTPAuthorizat
         logger.warning(f"Rate limit exceeded for {rate_limit_key}")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit exceeded. {limit} requests per {window} seconds allowed."
+            detail={
+                "error": "Rate limit exceeded",
+                "message": f"{limit} requests per {window} seconds allowed.",
+                "request_id": getattr(request.state, 'request_id', 'unknown')
+            }
         )
 
 def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
@@ -124,7 +134,10 @@ def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
         logger.warning(f"Invalid API key attempted: {credentials.credentials[:8]}...")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key"
+            detail={
+                "error": "Invalid API key",
+                "message": "The provided API key is not valid"
+            }
         )
     
     user_info = API_KEYS[credentials.credentials]

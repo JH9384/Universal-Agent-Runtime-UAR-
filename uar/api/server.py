@@ -6,12 +6,13 @@ from typing import List, Optional
 
 import pydantic
 from fastapi import FastAPI, HTTPException, Request, status, Depends
+from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, validator
 
 from uar.core.contracts import GoalSpec
-from uar.core.exceptions import UARError, ValidationError
+from uar.core.exceptions import UARError, ValidationError, PathSecurityError
 from uar.core.planner import SimplePlanner
 from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
@@ -45,6 +46,35 @@ store = JsonRunStore()
 
 # Apply middleware
 apply_middleware(app)
+
+
+# Custom exception handlers for UAR exceptions
+@app.exception_handler(ValidationError)
+async def validation_error_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "detail": {
+                "error": "Validation error",
+                "message": str(exc),
+                "field": getattr(exc, 'field', None)
+            }
+        }
+    )
+
+
+@app.exception_handler(PathSecurityError)
+async def path_security_error_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "detail": {
+                "error": "Path security violation",
+                "message": str(exc),
+                "field": "input_path"
+            }
+        }
+    )
 
 
 class RunRequest(BaseModel):

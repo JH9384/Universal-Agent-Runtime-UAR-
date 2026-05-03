@@ -48,4 +48,4 @@ EXPOSE 8000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Start the application
-CMD ["python", "-m", "uvicorn", "uar.api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "python -m uvicorn uar.api.server:app --host 0.0.0.0 --port ${API_PORT:-8000}"]
