@@ -51,6 +51,7 @@ AGENTS: dict[str, list[str]] = {
     "bridge": ["ingest"],
     "inference": ["analyze"],
     "delegation": ["plan"],
+    "atomic_lang_model": ["analyze", "generate", "verify"],
 }
 
 ALLOWED_BUILTINS = {
