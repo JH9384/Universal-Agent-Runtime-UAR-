@@ -1,4 +1,4 @@
-# Universal Agent Runtime (UAR)
+# Universal Agent Runtime (UAR) v1.0.0
 
 UOR-aligned agent execution layer for modular goal-driven agent workflows.
 
