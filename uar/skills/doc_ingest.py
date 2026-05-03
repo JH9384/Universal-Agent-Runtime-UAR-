@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, Generator
+from typing import Any, Generator
 import logging
 
 from uar.core.registry import register_skill
@@ -163,7 +163,7 @@ def _extract_dataframe(file_path: Path, kind: str) -> str:
     return info + head.to_csv(index=False)
 
 
-def _read_file_safely(file_path: Path, allowed_root: Path) -> Dict[str, str]:
+def _read_file_safely(file_path: Path, allowed_root: Path) -> dict[str, Any]:
     """Read a single file with proper resource management and security checks.
 
     Uses context manager to ensure file handle is closed even on errors.
@@ -246,7 +246,7 @@ def _read_file_safely(file_path: Path, allowed_root: Path) -> Dict[str, str]:
         }
 
 
-def _yield_documents(path: Path, allowed_root: Path) -> Generator[Dict[str, str], None, None]:
+def _yield_documents(path: Path, allowed_root: Path) -> Generator[dict[str, Any], None, None]:
     """Generator to yield documents one at a time to avoid loading all into memory."""
     file_count = 0
     total_size = 0

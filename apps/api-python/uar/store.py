@@ -1,5 +1,8 @@
-import json, sqlite3, hashlib, time
-from .state import STORE, LINEAGE
+import json
+import sqlite3
+import hashlib
+import time
+from .state import STORE
 from .config import DB_PATH
 
 def db():

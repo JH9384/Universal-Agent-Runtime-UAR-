@@ -4,7 +4,7 @@ import uuid
 from typing import Iterator
 
 from .contracts import PipelineContext, RunRecord, StrategySpec
-from .exceptions import SkillExecutionError, SkillNotFoundError, TimeoutError, ValidationError
+from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .registry import registry
 from .validation import validate_timeout
 
@@ -39,7 +39,7 @@ def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None,
 
 
 class Executor:
-    def iter_events(self, strategy: StrategySpec, goal, timeout_seconds=5) -> Iterator[dict]:
+    def iter_events(self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0) -> Iterator[dict]:
         """Execute strategy and yield events with proper error handling"""
         # Validate inputs
         timeout_seconds = validate_timeout(timeout_seconds)
@@ -187,7 +187,7 @@ class Executor:
             },
         )
 
-    def run(self, strategy: StrategySpec, goal, timeout_seconds=5) -> RunRecord:
+    def run(self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0) -> RunRecord:
         """Execute strategy and return RunRecord"""
         timeout_seconds = validate_timeout(timeout_seconds)
         events = list(self.iter_events(strategy, goal, timeout_seconds=timeout_seconds))

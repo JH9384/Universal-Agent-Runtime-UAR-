@@ -2,7 +2,7 @@ from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
 from uar.memory.json_store import JsonRunStore
-import uar.skills.section_sum  # register
+import uar.skills.section_sum  # register  # noqa: F401
 
 
 def test_pipeline_with_memory(tmp_path):

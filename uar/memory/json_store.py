@@ -4,7 +4,7 @@ import os
 import threading
 from dataclasses import asdict
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from uar.core.contracts import RunRecord
 
@@ -17,11 +17,12 @@ class JsonRunStore:
     Uses file locking for basic concurrency safety.
     """
 
-    def __init__(self, path: str = None):
+    def __init__(self, path: Optional[str] = None):
         # Use absolute path from environment or default to runs/ in project root
         if path is None:
             runs_dir = Path(os.getenv("RUNS_DIR", "runs")).resolve()
-            path = runs_dir / "uar_runs.jsonl"
+            default_path = runs_dir / "uar_runs.jsonl"
+            path = str(default_path)
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock_file = self.path.parent / ".uar_lock"

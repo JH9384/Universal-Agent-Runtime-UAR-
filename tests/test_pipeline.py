@@ -1,7 +1,7 @@
 from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
-import uar.skills.section_sum  # register skill
+import uar.skills.section_sum  # register skill  # noqa: F401
 
 
 def test_pipeline():

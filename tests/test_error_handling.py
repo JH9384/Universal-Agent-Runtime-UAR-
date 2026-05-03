@@ -2,10 +2,9 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 
 from uar.api.server import app
-from uar.core.exceptions import ValidationError, SkillNotFoundError
+from uar.core.exceptions import ValidationError
 from uar.core.validation import validate_goal, validate_skills, validate_input_path
 
 client = TestClient(app)
@@ -350,7 +349,6 @@ class TestConcurrentAccess:
     def test_concurrent_requests(self):
         """Test handling of concurrent requests"""
         import threading
-        import time
         
         results = []
         

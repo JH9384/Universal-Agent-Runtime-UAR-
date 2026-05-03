@@ -2,13 +2,11 @@ import json
 import logging
 import time
 import uuid
-from typing import List, Optional
+from typing import Any, List, Optional
 
-import pydantic
 from fastapi import FastAPI, HTTPException, Request, status, Depends, UploadFile, File
-from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, field_validator
 
 from uar.core.contracts import GoalSpec
@@ -133,7 +131,7 @@ def _build_goal(req: RunRequest) -> GoalSpec:
     """Build GoalSpec with proper validation and unique ID"""
     goal_id = f"api-{uuid.uuid4().hex[:8]}"
     
-    metadata = {}
+    metadata: dict[str, Any] = {}
     if req.input_path:
         metadata["input_path"] = req.input_path
     if req.timeout_seconds:
@@ -522,8 +520,10 @@ async def docs_upload(files: List[UploadFile] = File(...)):
                     size += len(chunk)
                     if size > MAX_UPLOAD_BYTES:
                         out.close()
-                        try: dest.unlink()
-                        except OSError: pass
+                        try:
+                            dest.unlink()
+                        except OSError:
+                            pass
                         rejected.append({
                             "name": safe_name,
                             "reason": f"file too large (>{MAX_UPLOAD_BYTES} bytes)",
@@ -533,8 +533,10 @@ async def docs_upload(files: List[UploadFile] = File(...)):
                     out.write(chunk)
         except Exception as e:
             logger.exception(f"[{request_id}] upload failed for {safe_name}")
-            try: dest.unlink()
-            except OSError: pass
+            try:
+                dest.unlink()
+            except OSError:
+                pass
             rejected.append({"name": safe_name, "reason": str(e)})
             continue
         finally:
@@ -559,7 +561,6 @@ async def docs_upload(files: List[UploadFile] = File(...)):
 @app.get("/api/uar/docs/library")
 async def docs_library():
     """List files in the default ingest library."""
-    from pathlib import Path
     library = _library_dir()
     entries = []
     total = 0

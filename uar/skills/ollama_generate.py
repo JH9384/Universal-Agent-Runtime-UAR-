@@ -36,7 +36,7 @@ def _build_context_block(docs: list) -> str:
     """Format documents into a model-friendly context block, truncated to limits."""
     if not docs:
         return ""
-    parts = []
+    parts: list[str] = []
     used = 0
     for d in docs:
         if not isinstance(d, dict):

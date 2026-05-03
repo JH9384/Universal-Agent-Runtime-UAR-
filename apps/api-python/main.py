@@ -14,7 +14,6 @@ try:
     _MP_CTX = mp.get_context("fork")
 except ValueError:  # pragma: no cover - platforms without fork
     _MP_CTX = mp.get_context()
-import os
 import queue
 import resource
 import sqlite3

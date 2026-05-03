@@ -30,6 +30,7 @@ dev = [
   "pytest-cov>=4.0,<5.0",
   "ruff>=0.1,<1.0",
   "mypy>=1.0,<2.0",
+  "types-requests>=2.31,<3.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -39,6 +40,11 @@ exclude = ["apps*", "tests*", "docs*", "specs*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["uar", "tests"]
+exclude = "apps/api-python/uar"
 
 [tool.ruff]
 line-length = 100

@@ -3,8 +3,6 @@
 import pytest
 from fastapi.testclient import TestClient
 from pathlib import Path
-import tempfile
-import os
 import shutil
 
 from uar.api.server import app
@@ -227,7 +225,7 @@ class TestRateLimitingProduction:
     def test_rate_limit_headers(self):
         """Test rate limit headers are included"""
         response = client.post("/api/uar/run", json={"goal": "test headers"})
-        
+        assert response is not None
         # Should include rate limit headers (if implemented)
         # This would require custom middleware to add headers
     
