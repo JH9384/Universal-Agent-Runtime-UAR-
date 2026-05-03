@@ -15,6 +15,20 @@ from uar.core.validation import validate_path_security
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def setup_api_keys():
+    """Set up test API keys for authenticated endpoints."""
+    import os
+    import importlib
+    
+    os.environ["API_KEYS"] = "dev-key-12345:developer:authenticated"
+    import uar.api.middleware as middleware
+    importlib.reload(middleware)
+    yield
+    del os.environ["API_KEYS"]
+    importlib.reload(middleware)
+
+
 @pytest.fixture
 def test_ingest_dir():
     """Create a test directory within project for doc ingest tests."""
