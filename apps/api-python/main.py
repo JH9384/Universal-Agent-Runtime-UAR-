@@ -6,9 +6,6 @@ import hashlib
 import json
 import multiprocessing as mp
 
-import multiprocessing as mp
-from typing import Any
-
 # Use an explicit "fork" context for child execution so worker processes
 # inherit the parent interpreter state (including ad-hoc test-loaded modules).
 # The default on macOS is "spawn", which re-imports this module by name and
