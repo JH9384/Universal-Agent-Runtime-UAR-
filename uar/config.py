@@ -60,14 +60,21 @@ class Config:
         """Check if running in production mode"""
         return not self.debug and os.getenv("ENVIRONMENT") == "production"
     
+    # Known placeholder values shipped in templates / docs that must never
+    # be accepted in production.
+    _PLACEHOLDER_SECRETS = {
+        "your-secret-key-here-must-be-changed-in-production",
+        "change-me",
+        "changeme",
+        "secret",
+    }
+
     def _is_default_secret_key(self) -> bool:
-        """Check if secret key appears to be auto-generated (development-only).
-        
-        This compares the current secret key against a freshly generated one.
-        In production, secret keys should be explicitly set and not match any generated key.
-        """
-        # Check if SECRET_KEY environment variable is explicitly set
-        return os.getenv("SECRET_KEY") is None
+        """Return True if SECRET_KEY is unset or a known placeholder."""
+        raw = os.getenv("SECRET_KEY")
+        if raw is None:
+            return True
+        return raw.strip().lower() in self._PLACEHOLDER_SECRETS
     
     @property
     def database_url(self) -> Optional[str]:

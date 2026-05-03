@@ -27,11 +27,11 @@ class JsonRunStore:
         self._lock_file = self.path.parent / ".uar_lock"
         self._thread_lock = threading.Lock()
 
-    def _acquire_lock(self):
-        """Acquire exclusive file lock for write operations."""
+    def _acquire_lock(self, shared: bool = False):
+        """Acquire file lock for read or write operations."""
         self._lock_file.touch(exist_ok=True)
         self._lock_fd = open(self._lock_file, "w")
-        fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_EX)
+        fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_SH if shared else fcntl.LOCK_EX)
 
     def _release_lock(self):
         """Release file lock."""
@@ -57,7 +57,7 @@ class JsonRunStore:
             return []
 
         with self._thread_lock:
-            self._acquire_lock()
+            self._acquire_lock(shared=True)
             try:
                 records = []
                 with self.path.open("r", encoding="utf-8") as f:

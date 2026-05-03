@@ -150,8 +150,15 @@ class Executor:
                 )
                 return
 
-        # Optional sum_review skill
-        if registry.is_registered("sum_review") and "sum_review" not in strategy.ordered_skills:
+        # Optional sum_review skill - only run when explicitly opted in via
+        # goal metadata, so implicit execution does not diverge from the
+        # requested skill list.
+        opt_in_review = bool(getattr(goal, "metadata", {}).get("auto_sum_review"))
+        if (
+            opt_in_review
+            and registry.is_registered("sum_review")
+            and "sum_review" not in strategy.ordered_skills
+        ):
             skill_name = "sum_review"
             yield _event("skill_start", run_id, strategy.goal_id, skill=skill_name)
             try:

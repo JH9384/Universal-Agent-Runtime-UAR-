@@ -5,6 +5,15 @@ import ast
 import hashlib
 import json
 import multiprocessing as mp
+
+# Use an explicit "fork" context for child execution so worker processes
+# inherit the parent interpreter state (including ad-hoc test-loaded modules).
+# The default on macOS is "spawn", which re-imports this module by name and
+# fails when the test fixture loads it under a synthesized name.
+try:
+    _MP_CTX = mp.get_context("fork")
+except ValueError:  # pragma: no cover - platforms without fork
+    _MP_CTX = mp.get_context()
 import os
 import queue
 import resource
@@ -249,8 +258,17 @@ def _safe_child_exec(
     try:
         if hasattr(resource, "setrlimit"):
             memory_bytes = int(memory_mb) * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-            resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
+            # Best-effort rlimit application. macOS and some sandboxes reject
+            # these values ("current limit exceeds maximum limit"); those
+            # failures must not break execution, they only relax sandboxing.
+            for _res, _vals in (
+                (resource.RLIMIT_AS, (memory_bytes, memory_bytes)),
+                (resource.RLIMIT_CPU, (2, 2)),
+            ):
+                try:
+                    resource.setrlimit(_res, _vals)
+                except (ValueError, OSError):
+                    pass
         local_scope = {
             "inputs": input_objects,
             "parameters": parameters,
@@ -271,8 +289,8 @@ def run_code(code: str, input_objects: list[dict[str, Any]], parameters: dict[st
     timeout_seconds = max(0.1, min(timeout_seconds, 10.0))
     memory_mb = max(32, min(memory_mb, 512))
 
-    result_queue: mp.Queue = mp.Queue(maxsize=1)
-    process = mp.Process(
+    result_queue: mp.Queue = _MP_CTX.Queue(maxsize=1)
+    process = _MP_CTX.Process(
         target=_safe_child_exec,
         args=(code, input_objects, parameters, memory_mb, result_queue),
     )

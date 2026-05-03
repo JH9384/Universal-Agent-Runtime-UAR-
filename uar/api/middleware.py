@@ -51,7 +51,24 @@ class RateLimiter:
                 return False
             
             request_times.append(now)
+
+            # Opportunistic cleanup: once the table grows, drop empty-window keys
+            # to prevent unbounded growth from many unique IPs.
+            if len(self.requests) > 1024:
+                for k in list(self.requests.keys()):
+                    if not self.requests[k]:
+                        del self.requests[k]
             return True
+
+    def evict_empty(self) -> int:
+        """Drop keys whose window is empty to bound memory over time."""
+        removed = 0
+        with self._lock:
+            for key in list(self.requests.keys()):
+                if not self.requests[key]:
+                    del self.requests[key]
+                    removed += 1
+        return removed
 
 rate_limiter = RateLimiter()
 

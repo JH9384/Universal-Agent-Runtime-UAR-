@@ -97,7 +97,10 @@ export function UARPanel() {
                   return  // Exit completely from generate() function
                 }
 
-                setEvents((prev) => [...prev, json])
+                setEvents((prev) => {
+                  const next = prev.length >= MAX_EVENTS ? prev.slice(1) : prev
+                  return [...next, json]
+                })
 
                 if (json.type === 'orchestration_plan' && json.payload?.graph) {
                   setGraph(json.payload.graph)
@@ -156,7 +159,7 @@ export function UARPanel() {
       .map((e: any, i: number) => {
         const source = nodeIndex.get(e.from)
         const target = nodeIndex.get(e.to)
-        if (!source || !target) return null
+        if (source === undefined || target === undefined) return null
         return {
           id: String(i),
           source,

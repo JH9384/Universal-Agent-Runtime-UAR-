@@ -89,8 +89,8 @@ def _yield_documents(path: Path, allowed_root: Path) -> Generator[Dict[str, str]
                 "error": f"Unsupported file type: {path.suffix}"
             }
     elif path.is_dir():
-        # Use scandir for better memory efficiency than rglob
-        for entry in sorted(path.rglob("*")):
+        # Stream entries lazily; do not materialize the full tree via sorted().
+        for entry in path.rglob("*"):
             if file_count >= MAX_FILES:
                 yield {
                     "path": "LIMIT_EXCEEDED", 
@@ -183,11 +183,6 @@ def doc_ingest(ctx):
             if "error" not in doc or doc["error"] == "":
                 total_size += doc.get("size", 0)
             
-            # Check total size limit
-            if total_size >= MAX_TOTAL_SIZE:
-                # Next iteration will yield SIZE_LIMIT_EXCEEDED
-                continue
-        
         return {
             "documents": documents,
             "document_count": len([d for d in documents if "error" not in d or d.get("error") == ""]),

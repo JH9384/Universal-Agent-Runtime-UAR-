@@ -285,6 +285,9 @@ async def stream_goal(
                     logger.info(f"[{request_id}] Stream completed and persisted: {record.run_id}")
                 except Exception as persist_error:
                     logger.error(f"[{request_id}] Failed to persist stream results: {str(persist_error)}")
+                    # Do not let the finally-block retry a reconstruction that
+                    # already failed deterministically (e.g. EventContractError).
+                    persisted = True
                     # Still emit completion but mark persistence failure
                     yield emit(create_event(
                         "error",

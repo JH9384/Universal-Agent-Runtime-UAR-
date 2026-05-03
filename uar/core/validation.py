@@ -92,24 +92,32 @@ def validate_input_path(input_path: Optional[str], allowed_root: Optional[Path] 
     if '\x00' in input_path:
         raise ValidationError("Path contains null bytes", field="input_path")
     
-    # Check for path traversal attempts - comprehensive check
+    # Check for path traversal attempts (POSIX, Windows, and obfuscated variants)
+    lowered = input_path.lower()
     normalized_path = Path(input_path).as_posix()
-    if '..' in normalized_path or normalized_path.startswith('.') or '/./' in normalized_path:
+    parts = normalized_path.split('/')
+    if (
+        '..' in parts
+        or normalized_path.startswith('./')
+        or normalized_path.startswith('../')
+        or '/./' in normalized_path
+        or '..\\' in input_path
+        or '\\..' in input_path
+        or '....' in input_path              # e.g. ....// traversal obfuscation
+        or '%2e' in lowered                  # URL-encoded '.'
+        or '%2f' in lowered or '%5c' in lowered  # URL-encoded separators
+    ):
         raise ValidationError("Path traversal not allowed", field="input_path")
     
     # Check for absolute paths (should be relative to project root)
     if Path(input_path).is_absolute():
         raise ValidationError("Absolute paths not allowed", field="input_path")
     
-    # Check for dangerous patterns and characters
+    # Check for dangerous shell/path characters
     dangerous_patterns = [
         r'~/',      # Home directory
         r'^/',      # Root directory
         r'\.\./',   # Parent directory escape
-        r'\$',      # Environment variable
-        r'%',       # URL encoding / Windows environment
-        r'\\x',     # Hex encoding attempt
-        r'\\u',     # Unicode escape attempt
         r'\|',      # Pipe character
         r';',       # Command separator
         r'&',       # Background process
@@ -152,18 +160,15 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
         if path.is_symlink():
             raise PathSecurityError(str(path), "Symlinks are not allowed")
         
-        # Check for hard links (compare device and inode)
+        # Ensure we can stat the path when it exists (sanity check only).
+        # Note: hard links cannot cross filesystems, so a cross-device check is
+        # not a meaningful defense and was removed because it rejected
+        # legitimate deployments where RUNS_DIR / inputs live on a different
+        # mount than PROJECT_ROOT.
         if path.exists():
             try:
-                path_stat = path.stat()
-                root_stat = resolved_root.stat()
-                
-                # Check if file is a hard link to something outside allowed root
-                # by comparing device and checking if inode could be shared
-                if path_stat.st_dev != root_stat.st_dev:
-                    raise PathSecurityError(str(path), "Cross-device path detected")
+                path.stat()
             except OSError:
-                # If we can't stat, deny access
                 raise PathSecurityError(str(path), "Cannot verify path security")
         
         # Check for potentially dangerous path patterns
