@@ -10,6 +10,8 @@ import uar.skills.section_sum  # noqa
 import uar.skills.doc_ingest  # noqa
 import uar.skills.dependency_map  # noqa
 import uar.skills.sum_review  # noqa
+import uar.skills.ollama_generate  # noqa
+import uar.skills.graphrag_skills  # noqa
 
 
 def main():

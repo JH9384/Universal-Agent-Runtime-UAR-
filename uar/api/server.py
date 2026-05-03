@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, status, Depends, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from uar.core.contracts import GoalSpec
 from uar.core.exceptions import UARError, ValidationError, PathSecurityError
@@ -36,6 +36,7 @@ import uar.skills.doc_ingest  # noqa
 import uar.skills.dependency_map  # noqa
 import uar.skills.sum_review  # noqa
 import uar.skills.ollama_generate  # noqa
+import uar.skills.graphrag_skills  # noqa
 
 app = FastAPI(
     title="UAR API",
@@ -82,20 +83,28 @@ class RunRequest(BaseModel):
     skills: Optional[List[str]] = None
     input_path: Optional[str] = None
     timeout_seconds: Optional[float] = None
+    metadata: Optional[dict] = None
 
-    @validator('goal')
+    @field_validator('goal')
+    @classmethod
     def validate_goal_field(cls, v):
         return validate_goal(v)
 
-    @validator('skills')
+    @field_validator('skills')
+    @classmethod
     def validate_skills_field(cls, v):
         return validate_skills(v)
 
-    @validator('input_path')
+    @field_validator('input_path')
+    @classmethod
     def validate_input_path_field(cls, v):
-        return validate_input_path(v)
+        from pathlib import Path
+        import os
+        root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
+        return validate_input_path(v, allowed_root=root)
 
-    @validator('timeout_seconds')
+    @field_validator('timeout_seconds')
+    @classmethod
     def validate_timeout_field(cls, v):
         if v is not None:
             from uar.core.validation import validate_timeout
@@ -129,6 +138,12 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         metadata["input_path"] = req.input_path
     if req.timeout_seconds:
         metadata["timeout_seconds"] = req.timeout_seconds
+    if req.metadata:
+        # User-supplied extras (e.g. graphrag_method, ollama_model); do not
+        # allow overriding the sanitized input_path/timeout.
+        extras = {k: v for k, v in req.metadata.items()
+                  if k not in {"input_path", "timeout_seconds"}}
+        metadata.update(extras)
     
     return GoalSpec(
         id=goal_id,

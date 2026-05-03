@@ -39,4 +39,4 @@ If tests fail, do not add features. Fix the failing invariant first.
 
 ## Canonical runtime status
 
-For now, `apps/api-python/main.py` is the canonical runtime. The `uar/` package is the target architecture but not fully authoritative until parity is proven.
+The `uar/` package is the authoritative runtime. `apps/api-python/main.py` is deprecated.

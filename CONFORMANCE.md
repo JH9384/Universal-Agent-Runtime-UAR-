@@ -2,7 +2,7 @@
 
 ## Stabilization Mode
 
-UAR is currently under Architect stabilization. `apps/api-python/main.py` is the canonical runtime until modular parity is proven by tests.
+UAR modular runtime (`uar/`) is authoritative. All conformance invariants pass (81/81). `apps/api-python/main.py` is deprecated and will be removed.
 
 ## Guarantees
 

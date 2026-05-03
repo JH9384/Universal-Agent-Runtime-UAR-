@@ -18,3 +18,4 @@ build/
 # Copilot cache
 .copilot-specs-cache/
 .uar_library/
+.uar_graphrag/

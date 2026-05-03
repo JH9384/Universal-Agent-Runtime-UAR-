@@ -12,6 +12,8 @@ const AVAILABLE_SKILLS = [
   { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize document sections' },
   { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of pipeline outputs' },
   { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
+  { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
+  { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
 ]
 
 const GOAL_TEMPLATES = [
@@ -20,6 +22,15 @@ const GOAL_TEMPLATES = [
   'Build a dependency map of the codebase',
   'Review and identify inconsistencies in docs',
   'Index all source files for retrieval',
+]
+
+type Recipe = { id: string; label: string; skills: string[]; hint: string }
+const RECIPES: Recipe[] = [
+  { id: 'review',    label: '🦙 Ollama review',   skills: ['doc_ingest', 'ollama_generate'], hint: 'Quick LLM review of library docs' },
+  { id: 'deps',      label: '🕸️ Dep map',          skills: ['doc_ingest', 'dependency_map', 'sum_review'], hint: 'Build a dependency graph' },
+  { id: 'gr_index',  label: '📚 GraphRAG index',  skills: ['graphrag_index'], hint: 'Build the knowledge graph (slow, one-time)' },
+  { id: 'gr_query',  label: '🔎 GraphRAG query',  skills: ['graphrag_query'], hint: 'Query an existing graph' },
+  { id: 'gr_full',   label: '⚡ Full pipeline',    skills: ['graphrag_index', 'graphrag_query'], hint: 'Index then query (very slow)' },
 ]
 
 type Preset = { name: string; path: string }
@@ -254,6 +265,9 @@ export function UARPanel() {
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // Advanced overrides
+  const [graphragMethod, setGraphragMethod] = useState<'local' | 'global'>('local')
+  const [ollamaModel, setOllamaModel] = useState<string>('')
 
   // Document management
   const [presets, setPresets] = useState<Preset[]>([])
@@ -412,6 +426,15 @@ export function UARPanel() {
 
     const body: any = { goal, skills: selectedSkills }
     if (inputPath.trim()) { body.input_path = inputPath.trim(); pushRecent(inputPath.trim()) }
+    const meta: any = {}
+    if (selectedSkills.includes('graphrag_query')) {
+      meta.graphrag_method = graphragMethod
+      meta.graphrag_query = goal
+    }
+    if (ollamaModel.trim() && selectedSkills.includes('ollama_generate')) {
+      meta.ollama_model = ollamaModel.trim()
+    }
+    if (Object.keys(meta).length) body.metadata = meta
 
     try {
       const res = await fetch('/api/uar/stream', {
@@ -712,6 +735,49 @@ export function UARPanel() {
           </div>
           <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
             Order: {selectedSkills.length ? selectedSkills.join(' → ') : '(none)'}
+          </div>
+
+          {/* Recipes */}
+          <div style={{ marginTop: 8 }}>
+            <label style={label}>Recipes</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {RECIPES.map((r) => (
+                <button key={r.id}
+                  title={r.hint}
+                  onClick={() => setSelectedSkills([...r.skills])}
+                  style={{ padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid #ddd', background: '#f8f9fa', cursor: 'pointer' }}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Advanced overrides */}
+          <div style={{ marginTop: 8, padding: 8, borderRadius: 4, background: '#f8f9fa', border: '1px solid #eee' }}>
+            <label style={{ ...label, marginBottom: 6 }}>Advanced</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {selectedSkills.includes('graphrag_query') && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                  GraphRAG method:
+                  <select value={graphragMethod} onChange={(e) => setGraphragMethod(e.target.value as any)} style={{ fontSize: 12, padding: 2 }}>
+                    <option value="local">local (entity)</option>
+                    <option value="global">global (thematic)</option>
+                  </select>
+                </label>
+              )}
+              {selectedSkills.includes('ollama_generate') && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                  Ollama model:
+                  <input type="text"
+                    value={ollamaModel}
+                    onChange={(e) => setOllamaModel(e.target.value)}
+                    placeholder="e.g. qwen2.5:7b"
+                    style={{ fontSize: 12, padding: '2px 6px', width: 140 }}
+                  />
+                </label>
+              )}
+            </div>
           </div>
         </div>
       </div>

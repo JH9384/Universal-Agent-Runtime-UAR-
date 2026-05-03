@@ -109,8 +109,14 @@ def validate_input_path(input_path: Optional[str], allowed_root: Optional[Path] 
     ):
         raise ValidationError("Path traversal not allowed", field="input_path")
     
-    # Check for absolute paths (should be relative to project root)
+    # Check for absolute paths — allow only if contained within allowed_root
     if Path(input_path).is_absolute():
+        if allowed_root:
+            try:
+                validate_path_security(Path(input_path), allowed_root)
+                return input_path
+            except PathSecurityError:
+                raise ValidationError("Absolute path outside allowed root", field="input_path")
         raise ValidationError("Absolute paths not allowed", field="input_path")
     
     # Check for dangerous shell/path characters

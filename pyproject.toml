@@ -19,6 +19,7 @@ dependencies = [
   "pandas>=2.0",
   "pyarrow>=14.0",
   "python-multipart>=0.0.9",
+  "graphrag>=1.0",
 ]
 
 [project.optional-dependencies]

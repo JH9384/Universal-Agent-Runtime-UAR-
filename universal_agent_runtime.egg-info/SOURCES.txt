@@ -28,6 +28,7 @@ uar/core/validation.py
 uar/memory/json_store.py
 uar/skills/dependency_map.py
 uar/skills/doc_ingest.py
+uar/skills/graphrag_skills.py
 uar/skills/ollama_generate.py
 uar/skills/section_sum.py
 uar/skills/sum_review.py
