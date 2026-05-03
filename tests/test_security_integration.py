@@ -68,29 +68,6 @@ class TestDocIngestSecurity:
         
         result = doc_ingest(ctx)
         
-        # Debug output
-        from uar.skills.doc_ingest import ALLOWED_ROOT, MAX_FILES
-        print(f"ALLOWED_ROOT: {ALLOWED_ROOT}")
-        print(f"MAX_FILES: {MAX_FILES}")
-        print(f"test_ingest_dir: {test_ingest_dir}")
-        print(f"Number of documents: {len(result['documents'])}")
-        print(f"Document count (successful): {result['document_count']}")
-        print(f"Last paths: {[d.get('path') for d in result['documents'][-5:]]}")
-        print(f"Errors: {result.get('errors', [])}")
-        # Check all unique path values
-        all_paths = [d.get('path') for d in result['documents']]
-        print(f"Unique paths count: {len(set(all_paths))}")
-        print(f"LIMIT_EXCEEDED in paths: {'LIMIT_EXCEEDED' in all_paths}")
-        if 'LIMIT_EXCEEDED' in all_paths:
-            limit_doc = [d for d in result['documents'] if d.get('path') == 'LIMIT_EXCEEDED'][0]
-            print(f"LIMIT_EXCEEDED doc: {limit_doc}")
-        
-        # Check error vs success count
-        error_docs = [d for d in result['documents'] if d.get('error')]
-        success_docs = [d for d in result['documents'] if not d.get('error')]
-        print(f"Docs with errors: {len(error_docs)}")
-        print(f"Docs without errors: {len(success_docs)}")
-        
         # Should limit file count (1000 files + 1 LIMIT_EXCEEDED marker)
         # Count only actual file documents (not the LIMIT_EXCEEDED marker)
         file_docs = [d for d in result["documents"] if d.get("path") not in ("LIMIT_EXCEEDED", "SIZE_LIMIT_EXCEEDED")]

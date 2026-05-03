@@ -149,15 +149,22 @@ def request_logging_middleware(request: Request, user_info: Optional[Dict]):
 def error_handler_middleware(func):
     """Error handling middleware with consistent error formatting"""
     @wraps(func)
-    async def wrapper(request: Request, *args, **kwargs):
+    async def wrapper(*args, **kwargs):
         try:
-            return await func(request, *args, **kwargs)
+            return await func(*args, **kwargs)
         except HTTPException:
             raise  # Re-raise HTTP exceptions (already properly formatted)
         except Exception as e:
             logger.error(f"Unhandled error in {func.__name__}: {str(e)}", exc_info=True)
-            # Get request_id from request state if available
-            request_id = getattr(request.state, 'request_id', 'unknown')
+            # Try to get request from args/kwargs for request_id
+            request_id = 'unknown'
+            for arg in args:
+                if isinstance(arg, Request):
+                    request_id = getattr(arg.state, 'request_id', 'unknown')
+                    break
+            if request_id == 'unknown' and 'request' in kwargs:
+                request_id = getattr(kwargs['request'].state, 'request_id', 'unknown')
+            
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
