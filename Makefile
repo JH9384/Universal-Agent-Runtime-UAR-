@@ -32,8 +32,8 @@ validate: install test
 api:
 	uvicorn uar.api.server:app --reload --host $(API_HOST) --port $(API_PORT)
 
-web:
-	cd $(WEB_DIR) && npm install && npm run dev
+web-build:
+	cd $(WEB_DIR) && npm install && npm run build
 
 up: install api
 
