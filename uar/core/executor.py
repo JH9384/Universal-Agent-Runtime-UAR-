@@ -10,13 +10,22 @@ from .validation import validate_timeout
 
 
 def _run_with_timeout(fn, ctx, timeout_seconds):
-    """Run a function with timeout using thread pool"""
+    """Run a function with timeout using thread pool with proper cleanup."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(fn, ctx)
         try:
             return future.result(timeout=timeout_seconds)
         except concurrent.futures.TimeoutError as exc:
+            # Cancel the future if possible
+            future.cancel()
+            # Wait for executor to finish any pending work
+            pool.shutdown(wait=False)
             raise TimeoutError(timeout_seconds) from exc
+        except Exception:
+            # Ensure proper cleanup on any exception
+            future.cancel()
+            pool.shutdown(wait=False)
+            raise
 
 
 def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None, error=None):

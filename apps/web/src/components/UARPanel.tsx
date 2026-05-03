@@ -85,16 +85,17 @@ export function UARPanel() {
               try {
                 const json = JSON.parse(line.replace('data: ', ''))
                 
-                // Limit events to prevent memory leaks
+                // Limit events to prevent memory leaks - enforce hard limit
                 eventCountRef.current++
                 if (eventCountRef.current > MAX_EVENTS) {
-                  setEvents((prev) => {
-                    const newEvents = [...prev, json]
-                    return newEvents.slice(-MAX_EVENTS) // Keep only the latest MAX_EVENTS
-                  })
-                } else {
-                  setEvents((prev) => [...prev, json])
+                  // Stop processing more events when limit reached
+                  console.warn(`Event limit reached (${MAX_EVENTS}), stopping stream`)
+                  abortControllerRef.current?.abort()
+                  setError(`Event limit reached (${MAX_EVENTS}). Stream stopped.`)
+                  break
                 }
+                
+                setEvents((prev) => [...prev, json])
 
                 if (json.type === 'orchestration_plan' && json.payload?.graph) {
                   setGraph(json.payload.graph)
@@ -115,6 +116,8 @@ export function UARPanel() {
               }
             }
           }
+          // Break outer loop if limit reached
+          if (eventCountRef.current > MAX_EVENTS) break
         }
       }
     } catch (err) {

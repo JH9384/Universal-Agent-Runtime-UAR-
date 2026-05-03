@@ -23,6 +23,10 @@ COPY pyproject.toml ./
 RUN python -m pip install --upgrade pip && \
     python -m pip install -e .
 
+# Copy entrypoint script first
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Copy application code
 COPY . .
 
@@ -39,6 +43,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Expose port
 EXPOSE 8000
+
+# Use entrypoint for validation
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Start the application
 CMD ["python", "-m", "uvicorn", "uar.api.server:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import uuid
 from typing import List, Optional
 
@@ -154,19 +155,32 @@ async def run_goal(
         logger.warning(f"[{request_id}] Validation error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": str(e), "field": e.field}
+            detail={
+                "error": "Validation error",
+                "message": str(e),
+                "field": e.field,
+                "request_id": request_id
+            }
         )
     except UARError as e:
         logger.error(f"[{request_id}] UAR error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": str(e)}
+            detail={
+                "error": "UAR error",
+                "message": str(e),
+                "request_id": request_id
+            }
         )
     except Exception as e:
         logger.error(f"[{request_id}] Unexpected error in run_goal: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Internal server error"}
+            detail={
+                "error": "Internal server error",
+                "message": "An unexpected error occurred",
+                "request_id": request_id
+            }
         )
 
 
@@ -205,52 +219,66 @@ async def stream_goal(
         def emit(event: dict) -> str:
             return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
 
+        def create_event(event_type: str, run_id: str, skill=None, payload=None, error=None):
+            """Create a properly formatted event following the uar.event.v1 schema."""
+            return {
+                "schema_version": "uar.event.v1",
+                "type": event_type,
+                "run_id": run_id,
+                "goal_id": strategy.goal_id,
+                "skill": skill,
+                "timestamp": time.time(),
+                "payload": payload or {},
+                "error": error,
+            }
+
         async def generate():
             events = []
+            persisted = False
             try:
                 # emit orchestration graph first
-                yield emit({
-                    "schema_version": "uar.event.v1",
-                    "type": "orchestration_plan",
-                    "run_id": "pending",
-                    "goal_id": strategy.goal_id,
-                    "skill": None,
-                    "timestamp": 0,
-                    "payload": {"graph": plan.to_graph()},
-                    "error": None,
-                })
+                yield emit(create_event(
+                    "orchestration_plan",
+                    run_id="pending",
+                    payload={"graph": plan.to_graph()}
+                ))
 
                 for event in executor.iter_events(strategy, goal, timeout_seconds=timeout):
                     events.append(event)
                     yield emit(event)
 
-                record = run_record_from_events(events, strategy.ordered_skills)
-                store.append(record)
-                
-                logger.info(f"[{request_id}] Stream completed successfully: {record.run_id}")
+                # Persist successful run
+                try:
+                    record = run_record_from_events(events, strategy.ordered_skills)
+                    store.append(record)
+                    persisted = True
+                    logger.info(f"[{request_id}] Stream completed and persisted: {record.run_id}")
+                except Exception as persist_error:
+                    logger.error(f"[{request_id}] Failed to persist stream results: {str(persist_error)}")
+                    # Still emit completion but mark persistence failure
+                    yield emit(create_event(
+                        "error",
+                        run_id="unknown",
+                        error=f"Execution completed but persistence failed: {str(persist_error)}"
+                    ))
                 
             except Exception as e:
                 logger.error(f"[{request_id}] Stream error: {str(e)}", exc_info=True)
                 # Emit error event to client
-                yield emit({
-                    "schema_version": "uar.event.v1",
-                    "type": "error",
-                    "run_id": "unknown",
-                    "goal_id": strategy.goal_id,
-                    "skill": None,
-                    "timestamp": 0,
-                    "payload": {},
-                    "error": str(e)
-                })
+                yield emit(create_event(
+                    "error",
+                    run_id="unknown",
+                    error=str(e)
+                ))
             finally:
-                # Ensure persistence even if client disconnects
-                if events:
+                # Ensure persistence even if client disconnects or error occurred
+                if events and not persisted:
                     try:
                         record = run_record_from_events(events, strategy.ordered_skills)
                         store.append(record)
-                        logger.info(f"[{request_id}] Stream persisted {len(events)} events")
+                        logger.info(f"[{request_id}] Stream persisted {len(events)} events (fallback)")
                     except Exception as e:
-                        logger.error(f"[{request_id}] Failed to persist stream events: {str(e)}")
+                        logger.error(f"[{request_id}] Failed to persist stream events in finally: {str(e)}")
 
         return StreamingResponse(generate(), media_type="text/event-stream")
         
@@ -258,19 +286,32 @@ async def stream_goal(
         logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": str(e), "field": e.field}
+            detail={
+                "error": "Validation error",
+                "message": str(e),
+                "field": e.field,
+                "request_id": request_id
+            }
         )
     except UARError as e:
         logger.error(f"[{request_id}] Stream UAR error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": str(e)}
+            detail={
+                "error": "UAR error",
+                "message": str(e),
+                "request_id": request_id
+            }
         )
     except Exception as e:
         logger.error(f"[{request_id}] Unexpected stream error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Internal server error"}
+            detail={
+                "error": "Internal server error",
+                "message": "An unexpected error occurred",
+                "request_id": request_id
+            }
         )
 
 
@@ -302,7 +343,11 @@ async def list_runs(
         logger.error(f"[{request_id}] Error listing runs: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Failed to retrieve runs"}
+            detail={
+                "error": "Internal server error",
+                "message": "Failed to retrieve runs",
+                "request_id": request_id
+            }
         )
 
 

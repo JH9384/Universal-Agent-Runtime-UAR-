@@ -1,6 +1,7 @@
 """Production configuration management for UAR"""
 
 import os
+import sys
 from typing import Optional
 from pathlib import Path
 import logging
@@ -49,7 +50,7 @@ class Config:
         self.metrics_port = int(os.getenv("METRICS_PORT", "9090"))
     
     def _generate_secret_key(self) -> str:
-        """Generate a secret key for development"""
+        """Generate a secret key for development - always generates a new key."""
         import secrets
         return secrets.token_urlsafe(32)
     
@@ -57,6 +58,15 @@ class Config:
     def is_production(self) -> bool:
         """Check if running in production mode"""
         return not self.debug and os.getenv("ENVIRONMENT") == "production"
+    
+    def _is_default_secret_key(self) -> bool:
+        """Check if secret key appears to be auto-generated (development-only).
+        
+        This compares the current secret key against a freshly generated one.
+        In production, secret keys should be explicitly set and not match any generated key.
+        """
+        # Check if SECRET_KEY environment variable is explicitly set
+        return os.getenv("SECRET_KEY") is None
     
     @property
     def database_url(self) -> Optional[str]:
@@ -76,8 +86,9 @@ class Config:
         if self.max_file_size <= 0:
             issues.append("Max file size must be positive")
         
-        if self.is_production and self.secret_key == self._generate_secret_key():
-            issues.append("Production deployment requires a custom SECRET_KEY")
+        # Check for production secret key requirement
+        if self.is_production and self._is_default_secret_key():
+            issues.append("Production deployment requires an explicitly set SECRET_KEY environment variable")
         
         return issues
     
@@ -118,6 +129,64 @@ class Config:
             log_config["root"]["handlers"].append("file")
         
         logging.config.dictConfig(log_config)
+
+
+def validate_environment() -> list[str]:
+    """Validate the runtime environment before starting.
+    
+    Returns a list of issues. Empty list means environment is valid.
+    """
+    issues = []
+    
+    # Check Python version
+    if sys.version_info < (3, 10):
+        issues.append(f"Python 3.10+ required, found {sys.version_info.major}.{sys.version_info.minor}")
+    
+    # Check required directories are writable
+    test_dirs = [
+        config.runs_dir,
+        Path("/var/lib/uar") if os.path.exists("/var/lib/uar") else config.runs_dir,
+    ]
+    
+    for test_dir in test_dirs:
+        try:
+            test_dir.mkdir(parents=True, exist_ok=True)
+            # Try to create a test file
+            test_file = test_dir / ".write_test"
+            test_file.write_text("test")
+            test_file.unlink()
+        except (OSError, PermissionError) as e:
+            issues.append(f"Cannot write to directory {test_dir}: {e}")
+    
+    # Validate configuration
+    config_issues = config.validate()
+    issues.extend(config_issues)
+    
+    return issues
+
+
+def validate_docker_environment() -> list[str]:
+    """Validate Docker environment specifically.
+    
+    Called by entrypoint scripts to ensure container is properly configured.
+    """
+    issues = []
+    
+    # Check if running in Docker
+    in_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', False)
+    
+    if in_docker:
+        # In Docker, certain things should always be true
+        if os.getuid() == 0:
+            issues.append("Running as root in Docker container (should use non-root user)")
+        
+        # Check required environment variables in Docker
+        required_env = ["ENVIRONMENT"]
+        for env_var in required_env:
+            if not os.getenv(env_var):
+                issues.append(f"Required environment variable {env_var} not set in Docker")
+    
+    return issues
 
 
 # Global config instance

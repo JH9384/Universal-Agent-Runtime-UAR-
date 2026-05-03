@@ -1,5 +1,7 @@
 """API middleware for rate limiting, authentication, and logging"""
 
+import os
+import threading
 import time
 import uuid
 from collections import defaultdict, deque
@@ -18,32 +20,54 @@ RATE_LIMITS = {
     "authenticated": {"requests": 100, "window": 60},  # 100 requests per minute for authenticated users
 }
 
-# Simple in-memory rate limiter (for production, use Redis)
+# Thread-safe in-memory rate limiter (for production, use Redis)
 class RateLimiter:
     def __init__(self):
         self.requests: Dict[str, deque] = defaultdict(deque)
+        self._lock = threading.Lock()
     
     def is_allowed(self, key: str, limit: int, window: int) -> bool:
         now = time.time()
-        request_times = self.requests[key]
         
-        # Remove old requests outside the window
-        while request_times and request_times[0] <= now - window:
-            request_times.popleft()
-        
-        if len(request_times) >= limit:
-            return False
-        
-        request_times.append(now)
-        return True
+        with self._lock:
+            request_times = self.requests[key]
+            
+            # Remove old requests outside the window
+            while request_times and request_times[0] <= now - window:
+                request_times.popleft()
+            
+            if len(request_times) >= limit:
+                return False
+            
+            request_times.append(now)
+            return True
 
 rate_limiter = RateLimiter()
 
-# Simple API key authentication (for production, use proper auth system)
-API_KEYS = {
-    "dev-key-12345": {"user": "developer", "tier": "authenticated"},
-    "prod-key-67890": {"user": "production", "tier": "authenticated"},
-}
+
+def _load_api_keys() -> Dict[str, Dict]:
+    """Load API keys from environment variable.
+    
+    Format: comma-separated key:user:tier pairs
+    Example: dev-key-12345:developer:authenticated,prod-key-67890:production:authenticated
+    """
+    api_keys_str = os.getenv("API_KEYS", "")
+    api_keys = {}
+    
+    if api_keys_str:
+        for key_entry in api_keys_str.split(","):
+            parts = key_entry.strip().split(":")
+            if len(parts) >= 2:
+                key = parts[0]
+                user = parts[1]
+                tier = parts[2] if len(parts) > 2 else "authenticated"
+                api_keys[key] = {"user": user, "tier": tier}
+    
+    return api_keys
+
+
+# Load API keys from environment (no hardcoded keys)
+API_KEYS = _load_api_keys()
 
 security = HTTPBearer(auto_error=False)
 
@@ -112,18 +136,21 @@ def request_logging_middleware(request: Request, user_info: Optional[Dict]):
     return request_id
 
 def error_handler_middleware(func):
-    """Error handling middleware"""
+    """Error handling middleware with consistent error formatting"""
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
         except HTTPException:
-            raise  # Re-raise HTTP exceptions
+            raise  # Re-raise HTTP exceptions (already properly formatted)
         except Exception as e:
             logger.error(f"Unhandled error in {func.__name__}: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error"
+                detail={
+                    "error": "Internal server error",
+                    "message": "An unexpected error occurred"
+                }
             ) from e
     return wrapper
 
@@ -145,8 +172,7 @@ def apply_middleware(app):
     async def log_requests(request: Request, call_next):
         start_time = time.time()
         
-        # Get user info from request state (set by auth middleware)
-        user_info = getattr(request.state, 'user_info', None)
+        # Get request ID from request state (set by auth middleware)
         request_id = getattr(request.state, 'request_id', 'unknown')
         
         response = await call_next(request)
