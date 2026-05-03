@@ -1,4 +1,4 @@
-# UAR Conformance v0.2.2
+# UAR Conformance v1.0.0
 
 ## Stabilization Mode
 

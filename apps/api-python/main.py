@@ -19,8 +19,16 @@ import resource
 import sqlite3
 import time
 import uuid
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="Universal Agent Runtime (UAR)", version="0.2.2")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    load_db()
+    seed_standard_runtimes()
+    yield
+
+app = FastAPI(title="Universal Agent Runtime (UAR)", version="1.0.0", lifespan=lifespan)
 
 DB_PATH = "uar.sqlite3"
 DEFAULT_TIMEOUT_SECONDS = 2.0
@@ -522,18 +530,11 @@ class DelegationReq(BaseModel):
     allowedAgents: list[str] = Field(default_factory=list)
 
 
-@app.on_event("startup")
-def startup_init():
-    init_db()
-    load_db()
-    seed_standard_runtimes()
-
-
 @app.get("/")
 def root():
     return {
         "status": "UAR running",
-        "version": "0.2.2",
+        "version": "1.0.0",
         "loop": "create -> register-runtime -> sandboxed-execution -> workflow-chain -> persistence",
         "registered_runtimes": list(RUNTIME_REGISTRY.keys()),
         "object_count": len(STORE),
@@ -557,7 +558,7 @@ def list_agents():
             {
                 "agent_id": f"uar.agent.{name}.v1",
                 "name": name,
-                "version": "0.2.2",
+                "version": "1.0.0",
                 "capabilities": capabilities,
             }
             for name, capabilities in AGENTS.items()
