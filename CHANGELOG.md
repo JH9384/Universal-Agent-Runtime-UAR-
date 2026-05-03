@@ -4,6 +4,39 @@ All notable changes to Universal Agent Runtime are documented here.
 
 This project uses semantic versioning for release tags.
 
+## [1.0.0] - Production Runtime Release
+
+### Added
+- Additional skill modules: ollama_generate, graphrag_skills
+- Document management API endpoints: upload, browse, library, presets
+- Security middleware: rate limiting, auth, request logging, error handling
+- Path security validation for file operations
+- Production hardening: timeout handling, memory limits, error recovery
+- Web UI enhancements: UARPanel component, design system tokens
+- Docker production image and compose configuration
+- Comprehensive test suite expansion (81 tests total)
+- Type safety improvements with Mypy integration
+- Code quality enforcement with Ruff linting
+
+### Changed
+- API server production-ready with middleware stack
+- Executor timeout handling improved with float precision
+- Memory store JSONL persistence with file locking
+- Skill return types standardized to Dict[str, Any]
+- Web dependencies pinned for reproducible builds
+
+### Fixed
+- Type annotation issues across codebase
+- Unused import cleanup
+- Inline code formatting for readability
+- Mypy configuration for multi-package structure
+- Node.js dependency version conflicts
+
+### Security
+- Input validation on all API endpoints
+- Path traversal protection
+- Safe file handling with size limits and extension checks
+
 ## [Unreleased]
 
 ### Planned / Deferred

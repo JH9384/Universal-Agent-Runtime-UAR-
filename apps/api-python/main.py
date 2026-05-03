@@ -6,12 +6,15 @@ import hashlib
 import json
 import multiprocessing as mp
 
+import multiprocessing as mp
+from typing import Any
+
 # Use an explicit "fork" context for child execution so worker processes
 # inherit the parent interpreter state (including ad-hoc test-loaded modules).
 # The default on macOS is "spawn", which re-imports this module by name and
 # fails when the test fixture loads it under a synthesized name.
 try:
-    _MP_CTX = mp.get_context("fork")
+    _MP_CTX: Any = mp.get_context("fork")
 except ValueError:  # pragma: no cover - platforms without fork
     _MP_CTX = mp.get_context()
 import queue

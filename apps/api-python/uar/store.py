@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 import time
 from .state import STORE
-from .config import DB_PATH
+from .config import DB_PATH  # type: ignore
 
 def db():
     conn = sqlite3.connect(DB_PATH)
