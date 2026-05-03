@@ -390,6 +390,95 @@ async def health_check():
     return {"status": "healthy", "version": "1.0.0"}
 
 
+@app.get("/api/uar/docs/presets", responses={
+    500: {"model": ErrorResponse, "description": "Internal server error"}
+})
+async def docs_presets():
+    """Return convenient preset document paths relative to project root."""
+    from pathlib import Path
+    import os
+    project_root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
+    candidates = ["docs", "specs", "tests", "apps/web/src", "uar"]
+    presets = []
+    for name in candidates:
+        p = project_root / name
+        if p.exists() and p.is_dir():
+            presets.append({"name": name, "path": str(p)})
+    return {"project_root": str(project_root), "presets": presets}
+
+
+@app.get("/api/uar/docs/browse", responses={
+    400: {"model": ErrorResponse, "description": "Validation error"},
+    500: {"model": ErrorResponse, "description": "Internal server error"}
+})
+async def docs_browse(path: str, limit: int = 100):
+    """
+    Preview files at the given path (validated). Returns file list, sizes,
+    extensions, and totals — lets the UI show what doc_ingest would pick up
+    without running a full pipeline.
+    """
+    from pathlib import Path
+    request_id = str(uuid.uuid4())
+    try:
+        safe_path = validate_input_path(path)
+        if safe_path is None:
+            raise ValidationError("Empty path", field="path")
+        p = Path(safe_path)
+        if not p.exists():
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Path not found", "message": safe_path, "request_id": request_id},
+            )
+        entries = []
+        total_bytes = 0
+        truncated = False
+        if p.is_file():
+            st = p.stat()
+            entries.append({
+                "name": p.name, "path": str(p), "size": st.st_size,
+                "ext": p.suffix.lower(), "is_dir": False,
+            })
+            total_bytes += st.st_size
+        else:
+            count = 0
+            for entry in p.rglob("*"):
+                if count >= limit:
+                    truncated = True
+                    break
+                try:
+                    if entry.is_file():
+                        st = entry.stat()
+                        entries.append({
+                            "name": entry.name, "path": str(entry),
+                            "size": st.st_size, "ext": entry.suffix.lower(),
+                            "is_dir": False,
+                        })
+                        total_bytes += st.st_size
+                        count += 1
+                except OSError:
+                    continue
+        by_ext: dict = {}
+        for e in entries:
+            by_ext[e["ext"] or "(none)"] = by_ext.get(e["ext"] or "(none)", 0) + 1
+        return {
+            "path": safe_path, "is_dir": p.is_dir(),
+            "file_count": len(entries), "total_bytes": total_bytes,
+            "truncated": truncated, "by_extension": by_ext,
+            "entries": entries,
+        }
+    except (ValidationError, PathSecurityError) as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid path", "message": str(e), "request_id": request_id},
+        )
+    except Exception as e:
+        logger.exception(f"[{request_id}] docs_browse failed")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error", "message": str(e), "request_id": request_id},
+        )
+
+
 @app.get("/api/status")
 async def get_status(
     request: Request,
