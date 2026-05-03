@@ -171,6 +171,11 @@ def doc_ingest(ctx):
         doc_count = 0
         
         for doc in _yield_documents(path, ALLOWED_ROOT):
+            # If we've already hit the limit, this doc should be LIMIT_EXCEEDED
+            if doc_count >= MAX_FILES:
+                documents.append(doc)  # This is the LIMIT_EXCEEDED marker
+                break
+            
             documents.append(doc)
             doc_count += 1
             
@@ -178,9 +183,10 @@ def doc_ingest(ctx):
             if "error" not in doc or doc["error"] == "":
                 total_size += doc.get("size", 0)
             
-            # Early termination if limits exceeded
-            if doc_count >= MAX_FILES or total_size >= MAX_TOTAL_SIZE:
-                break
+            # Check total size limit
+            if total_size >= MAX_TOTAL_SIZE:
+                # Next iteration will yield SIZE_LIMIT_EXCEEDED
+                continue
         
         return {
             "documents": documents,
