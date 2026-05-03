@@ -24,6 +24,7 @@ const GOAL_TEMPLATES = [
 
 type Preset = { name: string; path: string }
 type BrowseEntry = { name: string; path: string; size: number; ext: string; is_dir: boolean }
+type LibFile = { name: string; path: string; size: number; ext: string; mtime: number }
 type BrowseResult = {
   path: string
   parent: string | null
@@ -257,6 +258,12 @@ export function UARPanel() {
   // Document management
   const [presets, setPresets] = useState<Preset[]>([])
   const [projectRoot, setProjectRoot] = useState<string>('')
+  const [libraryPath, setLibraryPath] = useState<string>('')
+  const [library, setLibrary] = useState<LibFile[]>([])
+  const [libBusy, setLibBusy] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [recent, setRecent] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') } catch { return [] }
   })
@@ -274,12 +281,89 @@ export function UARPanel() {
 
   useEffect(() => cleanup, [cleanup])
 
+  const refreshLibrary = useCallback(async () => {
+    setLibBusy(true)
+    try {
+      const r = await fetch('/api/uar/docs/library')
+      const j = await r.json()
+      if (r.ok) {
+        setLibrary(j.entries || [])
+        setLibraryPath(j.library || '')
+      }
+    } catch { /* ignore */ }
+    finally { setLibBusy(false) }
+  }, [])
+
   useEffect(() => {
     fetch('/api/uar/docs/presets')
       .then((r) => r.json())
-      .then((d) => { setPresets(d.presets || []); setProjectRoot(d.project_root || '') })
+      .then((d) => {
+        setPresets(d.presets || [])
+        setProjectRoot(d.project_root || '')
+        if (d.library) {
+          setLibraryPath(d.library)
+          // Default input_path to the library on first load
+          setInputPath((cur) => cur || d.library)
+        }
+      })
       .catch(() => {})
-  }, [])
+    refreshLibrary()
+  }, [refreshLibrary])
+
+  const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList)
+    if (files.length === 0) return
+    setUploadMsg(`Uploading ${files.length} file(s)…`)
+    const fd = new FormData()
+    files.forEach((f) => fd.append('files', f, f.name))
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 60_000) // 60s safety
+    try {
+      const r = await fetch('/api/uar/docs/upload', {
+        method: 'POST', body: fd, signal: ctrl.signal,
+      })
+      clearTimeout(timer)
+      const j = await r.json()
+      if (!r.ok) {
+        setUploadMsg(`Upload failed: ${j.message || j.error || r.status}`)
+      } else {
+        const okN = (j.saved || []).length
+        const badN = (j.rejected || []).length
+        const rejNotes = (j.rejected || []).map((x: any) => `${x.name} (${x.reason})`).join(', ')
+        setUploadMsg(`Saved ${okN}${badN ? ` · rejected ${badN}: ${rejNotes}` : ''}`)
+        await refreshLibrary()
+        // If exactly one file uploaded, pre-select it
+        if (okN === 1) setInputPath(j.saved[0].path)
+        else if (okN > 0 && j.library) setInputPath(j.library)
+      }
+    } catch (e: any) {
+      setUploadMsg(`Upload error: ${e?.message || 'unknown'}`)
+    }
+  }, [refreshLibrary])
+
+  const deleteLibFile = async (name: string) => {
+    if (!confirm(`Delete "${name}" from library?`)) return
+    try {
+      const r = await fetch(`/api/uar/docs/library?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
+      if (r.ok) refreshLibrary()
+      else {
+        const j = await r.json().catch(() => ({}))
+        setUploadMsg(`Delete failed: ${j.message || r.status}`)
+      }
+    } catch (e: any) {
+      setUploadMsg(`Delete error: ${e?.message}`)
+    }
+  }
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    if (e.dataTransfer?.files?.length) uploadFiles(e.dataTransfer.files)
+  }, [uploadFiles])
+
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(true) }
+  const onDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(false) }
 
   // ESC closes picker
   useEffect(() => {
@@ -445,7 +529,7 @@ export function UARPanel() {
     <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
       <FilePicker
         open={pickerOpen}
-        initialPath={inputPath || projectRoot}
+        initialPath={inputPath || libraryPath || projectRoot}
         projectRoot={projectRoot}
         presets={presets}
         onClose={() => setPickerOpen(false)}
@@ -468,12 +552,89 @@ export function UARPanel() {
       <div style={box}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
           <strong>Documents</strong>
+          <span style={{ fontSize: 11, color: '#888', marginLeft: 12, fontFamily: 'monospace' }}>
+            library: {libraryPath}
+          </span>
           <button
             onClick={() => setPickerOpen(true)}
             disabled={isRunning}
             style={{ marginLeft: 'auto', padding: '6px 14px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 600 }}
             title="Open file picker"
           >📂 Pick…</button>
+        </div>
+
+        {/* Drop zone */}
+        <div
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onDragEnter={onDragOver}
+          onDragLeave={onDragLeave}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            border: `2px dashed ${dragActive ? '#0d6efd' : '#ced4da'}`,
+            borderRadius: 6,
+            padding: '18px 14px',
+            textAlign: 'center',
+            background: dragActive ? '#e7f1ff' : '#fafbfc',
+            color: '#555',
+            cursor: 'pointer',
+            transition: 'all .15s',
+            marginBottom: 10,
+          }}
+        >
+          <div style={{ fontSize: 24, marginBottom: 4 }}>{dragActive ? '⬇️' : '📥'}</div>
+          <div style={{ fontWeight: 600 }}>
+            {dragActive ? 'Drop here to add to library' : 'Drop files here, or click to choose'}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+            PDFs · DOCX · XLSX · IPYNB · Parquet · Markdown · Code · Data · max 50MB each
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            aria-label="Upload files to library"
+            style={{ display: 'none' }}
+            onChange={(e: any) => {
+              if (e.target.files?.length) uploadFiles(e.target.files)
+              e.target.value = ''
+            }}
+          />
+        </div>
+        {uploadMsg && <div style={{ fontSize: 12, color: '#0a4', marginBottom: 8 }}>{uploadMsg}</div>}
+
+        {/* Library list */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={label}>
+            📚 Library ({library.length}{libBusy && ' · refreshing…'})
+            <button onClick={refreshLibrary} style={{ marginLeft: 8, fontSize: 11, padding: '0 6px' }}>↻</button>
+            {libraryPath && (
+              <button onClick={() => onPick(libraryPath)} style={{ marginLeft: 4, fontSize: 11, padding: '0 6px' }} title="Use whole library as input_path">
+                use all
+              </button>
+            )}
+          </div>
+          {library.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#888' }}>(empty — drop files above)</div>
+          ) : (
+            <div style={{ maxHeight: 150, overflow: 'auto', border: '1px solid #eef', borderRadius: 4, fontFamily: 'monospace', fontSize: 12 }}>
+              {library.map((f) => (
+                <div key={f.path}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '3px 8px', borderBottom: '1px solid #f5f6f7',
+                    background: inputPath === f.path ? '#e7f1ff' : '#fff',
+                  }}
+                >
+                  <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => onPick(f.path)} title={f.path}>
+                    📄 {f.name}
+                  </span>
+                  <span style={{ color: '#888' }}>{human(f.size)}</span>
+                  <button onClick={() => deleteLibFile(f.name)} disabled={isRunning} style={{ padding: '0 6px', fontSize: 11, color: '#b00' }} title="Delete">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: 8 }}>

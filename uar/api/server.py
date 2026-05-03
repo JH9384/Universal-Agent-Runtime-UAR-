@@ -5,7 +5,7 @@ import uuid
 from typing import List, Optional
 
 import pydantic
-from fastapi import FastAPI, HTTPException, Request, status, Depends
+from fastapi import FastAPI, HTTPException, Request, status, Depends, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -396,6 +396,29 @@ def _docs_root():
     return Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
 
 
+def _library_dir():
+    """Default ingest library: <PROJECT_ROOT>/.uar_library (overridable)."""
+    from pathlib import Path
+    import os
+    custom = os.getenv("UAR_LIBRARY_DIR")
+    if custom:
+        p = Path(custom).resolve()
+    else:
+        p = _docs_root() / ".uar_library"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+# Upload limits
+MAX_UPLOAD_BYTES = int(__import__("os").getenv("UAR_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))  # 50MB
+ALLOWED_UPLOAD_EXTS = {
+    ".pdf", ".docx", ".xlsx", ".xlsm", ".ipynb", ".parquet", ".feather",
+    ".txt", ".md", ".rst", ".tex", ".bib", ".csv", ".tsv", ".json", ".jsonl",
+    ".yaml", ".yml", ".toml", ".html", ".htm", ".xml",
+    ".py", ".js", ".ts", ".tsx", ".r", ".jl", ".rmd", ".qmd",
+}
+
+
 def _resolve_docs_path(raw: str):
     """Resolve a user-provided path (relative or absolute) and require it be
     contained within PROJECT_ROOT. Raises PathSecurityError otherwise."""
@@ -423,13 +446,143 @@ def _resolve_docs_path(raw: str):
 async def docs_presets():
     """Return convenient preset document paths inside PROJECT_ROOT."""
     project_root = _docs_root()
+    library = _library_dir()
     candidates = ["docs", "specs", "tests", "apps/web/src", "uar"]
-    presets = []
+    presets = [{"name": "📚 library", "path": str(library)}]
     for name in candidates:
         p = project_root / name
         if p.exists() and p.is_dir():
             presets.append({"name": name, "path": str(p)})
-    return {"project_root": str(project_root), "presets": presets}
+    return {
+        "project_root": str(project_root),
+        "library": str(library),
+        "presets": presets,
+    }
+
+
+@app.post("/api/uar/docs/upload", responses={
+    400: {"model": ErrorResponse, "description": "Validation error"},
+    413: {"model": ErrorResponse, "description": "File too large"},
+    500: {"model": ErrorResponse, "description": "Internal server error"},
+})
+async def docs_upload(files: List[UploadFile] = File(...)):
+    """
+    Upload one or more files into the default library directory.
+    Filenames are sanitized; duplicates get a numeric suffix.
+    """
+    from pathlib import Path
+    request_id = str(uuid.uuid4())
+    library = _library_dir()
+    saved = []
+    rejected = []
+
+    for upload in files:
+        original = upload.filename or "upload.bin"
+        # Sanitize: keep only the basename, strip null bytes / path separators
+        safe_name = Path(original).name.replace("\x00", "")
+        if not safe_name or safe_name in (".", ".."):
+            rejected.append({"name": original, "reason": "invalid filename"})
+            continue
+        ext = Path(safe_name).suffix.lower()
+        if ext and ext not in ALLOWED_UPLOAD_EXTS:
+            rejected.append({"name": safe_name, "reason": f"extension not allowed: {ext}"})
+            continue
+
+        # Resolve dest with collision suffixing
+        dest = library / safe_name
+        i = 1
+        while dest.exists():
+            stem = Path(safe_name).stem
+            dest = library / f"{stem}.{i}{ext}"
+            i += 1
+
+        # Stream-copy with size cap
+        size = 0
+        try:
+            with open(dest, "wb") as out:
+                while True:
+                    chunk = await upload.read(1024 * 64)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > MAX_UPLOAD_BYTES:
+                        out.close()
+                        try: dest.unlink()
+                        except OSError: pass
+                        rejected.append({
+                            "name": safe_name,
+                            "reason": f"file too large (>{MAX_UPLOAD_BYTES} bytes)",
+                        })
+                        size = -1
+                        break
+                    out.write(chunk)
+        except Exception as e:
+            logger.exception(f"[{request_id}] upload failed for {safe_name}")
+            try: dest.unlink()
+            except OSError: pass
+            rejected.append({"name": safe_name, "reason": str(e)})
+            continue
+        finally:
+            await upload.close()
+
+        if size >= 0:
+            saved.append({
+                "name": dest.name,
+                "path": str(dest),
+                "size": size,
+                "ext": ext,
+            })
+
+    return {
+        "library": str(library),
+        "saved": saved,
+        "rejected": rejected,
+        "request_id": request_id,
+    }
+
+
+@app.get("/api/uar/docs/library")
+async def docs_library():
+    """List files in the default ingest library."""
+    from pathlib import Path
+    library = _library_dir()
+    entries = []
+    total = 0
+    for p in sorted(library.iterdir(), key=lambda x: x.name.lower()):
+        if not p.is_file():
+            continue
+        st = p.stat()
+        total += st.st_size
+        entries.append({
+            "name": p.name,
+            "path": str(p),
+            "size": st.st_size,
+            "ext": p.suffix.lower(),
+            "mtime": st.st_mtime,
+        })
+    return {"library": str(library), "count": len(entries), "total_bytes": total, "entries": entries}
+
+
+@app.delete("/api/uar/docs/library")
+async def docs_library_delete(name: str):
+    """Delete a single file from the library by its basename."""
+    from pathlib import Path
+    library = _library_dir()
+    safe_name = Path(name).name
+    if not safe_name or safe_name in (".", ".."):
+        return JSONResponse(status_code=400, content={"error": "Invalid name", "message": name})
+    target = (library / safe_name).resolve()
+    try:
+        target.relative_to(library)
+    except ValueError:
+        return JSONResponse(status_code=400, content={"error": "Invalid name", "message": name})
+    if not target.exists() or not target.is_file():
+        return JSONResponse(status_code=404, content={"error": "Not found", "message": str(target)})
+    try:
+        target.unlink()
+    except OSError as e:
+        return JSONResponse(status_code=500, content={"error": "Delete failed", "message": str(e)})
+    return {"deleted": str(target)}
 
 
 @app.get("/api/uar/docs/browse", responses={
