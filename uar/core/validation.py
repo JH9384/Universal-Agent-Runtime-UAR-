@@ -27,6 +27,10 @@ def validate_goal(goal: str) -> str:
         r'<script[^>]*>.*?</script>',  # Script tags
         r'javascript:',  # JavaScript URLs
         r'data:text/html',  # Data URLs
+        r'<[^>]+on\w+\s*=',  # HTML event handlers (onerror, onclick, etc.)
+        r'alert\s*\(',  # alert() function calls
+        r'eval\s*\(',  # eval() function calls
+        r'javascript:',  # JavaScript protocol
     ]
     
     for pattern in dangerous_patterns:
