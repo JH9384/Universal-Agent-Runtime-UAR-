@@ -1,4 +1,5 @@
 import json
+import os
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -9,6 +10,7 @@ from uar.core.planner import SimplePlanner
 from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
 from uar.memory.json_store import JsonRunStore
+from uar.skills.adapter import load_skill_directory
 
 # register skills
 import uar.skills.section_sum  # noqa
@@ -27,6 +29,10 @@ class RunRequest(BaseModel):
     input_path: Optional[str] = None
 
 
+class ExternalSkillRequest(BaseModel):
+    path: Optional[str] = None
+
+
 def _build_goal(req: RunRequest) -> GoalSpec:
     return GoalSpec(
         id="api-run",
@@ -35,6 +41,33 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         required_skills=req.skills or [],
         metadata={"input_path": req.input_path} if req.input_path else {},
     )
+
+
+def _default_skill_dir() -> str:
+    return os.getenv("UAR_EXTERNAL_SKILLS_DIR", os.path.expanduser("~/claude-skills"))
+
+
+@app.get("/api/uar/external-skills")
+def list_external_skills(path: Optional[str] = None):
+    """List safe imported external skills as UAR template data.
+
+    External skills are treated as data only. This endpoint does not execute skill
+    instructions or grant any additional runtime capabilities.
+    """
+    skill_dir = path or _default_skill_dir()
+    return {
+        "path": skill_dir,
+        "templates": load_skill_directory(skill_dir),
+    }
+
+
+@app.post("/api/uar/external-skills/preview")
+def preview_external_skills(req: ExternalSkillRequest):
+    skill_dir = req.path or _default_skill_dir()
+    return {
+        "path": skill_dir,
+        "templates": load_skill_directory(skill_dir),
+    }
 
 
 @app.post("/api/uar/run")
