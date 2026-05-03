@@ -13,8 +13,11 @@ def test_path_outside_root_blocked():
             "input_path": "/tmp",
         },
     )
+    # Path validation rejects absolute paths at the API level
+    assert response.status_code == 400
     data = response.json()
-    assert "error" in data["final_context"]["doc_ingest"]
+    assert "error" in data["detail"]
+    assert data["detail"]["field"] == "input_path"
 
 
 def test_relative_escape_blocked():
@@ -26,5 +29,8 @@ def test_relative_escape_blocked():
             "input_path": "../",
         },
     )
+    # Path validation rejects relative escape attempts at the API level
+    assert response.status_code == 400
     data = response.json()
-    assert "error" in data["final_context"]["doc_ingest"]
+    assert "error" in data["detail"]
+    assert data["detail"]["field"] == "input_path"
