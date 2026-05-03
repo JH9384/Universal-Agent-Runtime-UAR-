@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  uar-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=false
+      - LOG_LEVEL=info
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_ANONYMOUS=10
+      - RATE_LIMIT_AUTHENTICATED=100
+      - RATE_LIMIT_WINDOW=60
+    volumes:
+      - ./runs:/var/lib/uar/runs
+      - ./logs:/var/log/uar
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - uar-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - uar-api
+    restart: unless-stopped
+    networks:
+      - uar-network
+
+  # Optional: Redis for rate limiting (future enhancement)
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - uar-network
+    profiles:
+      - redis
+
+volumes:
+  redis-data:
+
+networks:
+  uar-network:
+    driver: bridge

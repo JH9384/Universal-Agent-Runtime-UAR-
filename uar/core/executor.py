@@ -4,20 +4,19 @@ import uuid
 from typing import Iterator
 
 from .contracts import PipelineContext, RunRecord, StrategySpec
+from .exceptions import SkillExecutionError, SkillNotFoundError, TimeoutError, ValidationError
 from .registry import registry
-
-
-class TimeoutException(Exception):
-    pass
+from .validation import validate_timeout
 
 
 def _run_with_timeout(fn, ctx, timeout_seconds):
+    """Run a function with timeout using thread pool"""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(fn, ctx)
         try:
             return future.result(timeout=timeout_seconds)
         except concurrent.futures.TimeoutError as exc:
-            raise TimeoutException("Skill execution timed out") from exc
+            raise TimeoutError(timeout_seconds) from exc
 
 
 def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None, error=None):
@@ -35,6 +34,18 @@ def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None,
 
 class Executor:
     def iter_events(self, strategy: StrategySpec, goal, timeout_seconds=5) -> Iterator[dict]:
+        """Execute strategy and yield events with proper error handling"""
+        # Validate inputs
+        timeout_seconds = validate_timeout(timeout_seconds)
+        
+        if not strategy.ordered_skills:
+            raise ValidationError("At least one skill must be specified", field="skills")
+        
+        # Validate all skills exist before execution
+        for skill_name in strategy.ordered_skills:
+            if not registry.is_registered(skill_name):
+                raise SkillNotFoundError(skill_name)
+        
         run_id = str(uuid.uuid4())
         ctx = PipelineContext(goal=goal)
         outputs = []
@@ -61,6 +72,38 @@ class Executor:
                     skill=skill_name,
                     payload={"result": result},
                 )
+            except TimeoutError as e:
+                message = str(e)
+                errors.append(message)
+                yield _event("skill_failed", run_id, strategy.goal_id, skill=skill_name, error=message)
+                yield _event(
+                    "complete",
+                    run_id,
+                    strategy.goal_id,
+                    payload={
+                        "status": "failed",
+                        "outputs": outputs,
+                        "errors": errors,
+                        "final_context": ctx.data,
+                    },
+                )
+                return
+            except SkillExecutionError as e:
+                message = str(e)
+                errors.append(message)
+                yield _event("skill_failed", run_id, strategy.goal_id, skill=skill_name, error=message)
+                yield _event(
+                    "complete",
+                    run_id,
+                    strategy.goal_id,
+                    payload={
+                        "status": "failed",
+                        "outputs": outputs,
+                        "errors": errors,
+                        "final_context": ctx.data,
+                    },
+                )
+                return
             except Exception as e:
                 message = str(e)
                 errors.append(message)
@@ -78,7 +121,8 @@ class Executor:
                 )
                 return
 
-        if "sum_review" in registry.list() and "sum_review" not in strategy.ordered_skills:
+        # Optional sum_review skill
+        if registry.is_registered("sum_review") and "sum_review" not in strategy.ordered_skills:
             skill_name = "sum_review"
             yield _event("skill_start", run_id, strategy.goal_id, skill=skill_name)
             try:
@@ -92,7 +136,8 @@ class Executor:
                     payload={"result": summary},
                 )
             except Exception as e:
-                errors.append(str(e))
+                # Review failures don't fail the entire execution
+                errors.append(f"Review failed: {str(e)}")
 
         yield _event(
             "complete",
@@ -107,7 +152,13 @@ class Executor:
         )
 
     def run(self, strategy: StrategySpec, goal, timeout_seconds=5) -> RunRecord:
+        """Execute strategy and return RunRecord"""
+        timeout_seconds = validate_timeout(timeout_seconds)
         events = list(self.iter_events(strategy, goal, timeout_seconds=timeout_seconds))
+        
+        if not events:
+            raise ValidationError("No events generated during execution")
+        
         start_event = events[0]
         complete_event = events[-1]
         payload = complete_event.get("payload", {})
