@@ -14,6 +14,7 @@ const AVAILABLE_SKILLS = [
   { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
   { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
   { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
+  { id: 'atomic_lang_model', label: 'atomic_lang_model', desc: 'Formal language model analysis, generation, and verification (requires ALM service)' },
 ]
 
 const GOAL_TEMPLATES = [

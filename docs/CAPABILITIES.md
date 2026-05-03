@@ -6,6 +6,7 @@
 - execution run
 - workflow chaining
 - lineage tracing
+- atomic language model analysis, generation, and verification
 
 ## Safety
 - AST validation

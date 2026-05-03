@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+import os
 
 class AtomicLanguageModelSkill:
     """
@@ -7,7 +8,9 @@ class AtomicLanguageModelSkill:
     UAR-native API, ensuring UAR remains agnostic to the underlying model's implementation (Rust/Coq).
     """
 
-    def __init__(self, base_url: str = "http://localhost:5001/api/v1"):
+    def __init__(self, base_url: str = None):
+        if base_url is None:
+            base_url = os.getenv("ALM_SERVICE_URL", "http://localhost:5001/api/v1")
         self.base_url = base_url
         # In a real scenario, this would handle connection pooling and retries.
 

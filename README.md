@@ -68,6 +68,7 @@ goal = {"goal": "Summarize this document", "input_path": "docs/README.md"}
 - `sum_review`: Summary review and validation
 - `ollama_generate`: Local AI generation via Ollama
 - `graphrag_skills`: Graph-based retrieval augmentation
+- `atomic_lang_model`: Formal language model analysis, generation, and verification
 
 ## Development
 

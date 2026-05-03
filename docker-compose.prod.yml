@@ -17,6 +17,7 @@ services:
       - RATE_LIMIT_ANONYMOUS=10
       - RATE_LIMIT_AUTHENTICATED=100
       - RATE_LIMIT_WINDOW=60
+      - ALM_SERVICE_URL=http://alm-service:5001/api/v1
     volumes:
       - ./runs:/var/lib/uar/runs
       - ./logs:/var/log/uar
