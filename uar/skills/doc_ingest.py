@@ -79,8 +79,8 @@ def _yield_documents(path: Path, allowed_root: Path) -> Generator[Dict[str, str]
     if path.is_file():
         if path.suffix.lower() in ALLOWED_EXTENSIONS:
             doc = _read_file_safely(path, allowed_root)
-            if "error" not in doc or doc["error"] == "":
-                yield doc
+            # Always yield the doc, even if it has an error (so caller knows what happened)
+            yield doc
         else:
             yield {
                 "path": str(path.relative_to(allowed_root)) if path.is_relative_to(allowed_root) else str(path),
