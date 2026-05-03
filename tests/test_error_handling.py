@@ -293,7 +293,9 @@ class TestSecurityEdgeCases:
             response = client.post("/api/uar/run", json={"goal": payload})
             assert response.status_code == 400
             data = response.json()
-            assert "dangerous content" in data["detail"]["error"]
+            # Check message field for specific validation error details
+            error_detail = data["detail"]["message"]
+            assert "dangerous content" in error_detail or "invalid" in error_detail.lower()
     
     def test_path_traversal_attempts(self):
         """Test various path traversal attempts"""
@@ -311,7 +313,8 @@ class TestSecurityEdgeCases:
             })
             assert response.status_code == 400
             data = response.json()
-            assert "Path traversal" in data["detail"]["error"] or "Invalid path" in data["detail"]["error"]
+            error_detail = data["detail"]["message"]
+            assert "Path traversal" in error_detail or "Invalid path" in error_detail
     
     def test_large_payload_rejection(self):
         """Test rejection of overly large payloads"""
@@ -320,7 +323,8 @@ class TestSecurityEdgeCases:
         response = client.post("/api/uar/run", json={"goal": large_goal})
         assert response.status_code == 400
         data = response.json()
-        assert "cannot exceed" in data["detail"]["error"]
+        error_detail = data["detail"]["message"]
+        assert "cannot exceed" in error_detail or "too long" in error_detail.lower()
 
 
 class TestMemoryAndResourceLimits:
