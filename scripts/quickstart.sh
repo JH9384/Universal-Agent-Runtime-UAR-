@@ -86,7 +86,22 @@ if command -v ollama >/dev/null 2>&1; then
   else
     echo "🧠 Starting Ollama in the background..."
     ollama serve >/tmp/uar-ollama.log 2>&1 &
-    sleep 3
+    OLLAMA_PID=$!
+    
+    # Wait for Ollama to be ready with timeout
+    echo "⏳ Waiting for Ollama to start..."
+    for i in {1..30}; do
+      if curl -fsS "${OLLAMA_HOST}/api/tags" >/dev/null 2>&1; then
+        echo "✅ Ollama is ready"
+        break
+      fi
+      if [ $i -eq 30 ]; then
+        echo "❌ Ollama failed to start within 30 seconds"
+        echo "Check logs: /tmp/uar-ollama.log"
+        exit 1
+      fi
+      sleep 1
+    done
   fi
   echo "📦 Ensuring Ollama model exists: ${OLLAMA_MODEL}"
   ollama pull "${OLLAMA_MODEL}" || true

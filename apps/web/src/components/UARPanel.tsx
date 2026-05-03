@@ -1,17 +1,21 @@
 import { useMemo, useState } from 'react'
 import ReactFlow, { Background } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { getApiUrl } from '../config'
 
 export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [events, setEvents] = useState<any[]>([])
   const [graph, setGraph] = useState<any>(null)
+  
+  // Limit events to prevent memory leaks
+  const MAX_EVENTS = 1000
 
   const runStream = async () => {
     setEvents([])
     setGraph(null)
 
-    const res = await fetch('/api/uar/stream', {
+    const res = await fetch(getApiUrl('/api/uar/stream'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goal, skills: ['doc_ingest', 'dependency_map', 'sum_review'], input_path: './' })
@@ -37,8 +41,15 @@ export function UARPanel() {
         const lines = part.split('\n')
         for (const line of lines) {
           if (line.startsWith('data:')) {
-            const json = JSON.parse(line.replace('data: ', ''))
-            setEvents((prev) => [...prev, json])
+            try {
+              const json = JSON.parse(line.replace('data: ', ''))
+              setEvents((prev) => {
+                const newEvents = [...prev, json]
+                // Keep only the last MAX_EVENTS events
+                return newEvents.length > MAX_EVENTS 
+                  ? newEvents.slice(-MAX_EVENTS) 
+                  : newEvents
+              })
 
             if (json.type === 'orchestration_plan' && json.payload?.graph) {
               setGraph(json.payload.graph)
@@ -46,6 +57,9 @@ export function UARPanel() {
 
             if (json.run?.final_context?.dependency_map) {
               setGraph(json.run.final_context.dependency_map)
+            }
+            } catch (error) {
+              console.error('Failed to parse streaming data:', error, 'Line:', line)
             }
           }
         }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PYTHON=${PYTHON:-python}
+PYTHON=${PYTHON:-python3.11}
 HOST=${API_HOST:-127.0.0.1}
 PORT=${API_PORT:-8000}
 

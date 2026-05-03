@@ -4,7 +4,7 @@ set -euo pipefail
 # UAR First Run Wizard
 # This script walks a new user from zero → running system → first result
 
-PYTHON=${PYTHON:-python}
+PYTHON=${PYTHON:-python3.11}
 API_HOST=${API_HOST:-127.0.0.1}
 API_PORT=${API_PORT:-8000}
 OLLAMA_HOST=${OLLAMA_HOST:-http://127.0.0.1:11434}
