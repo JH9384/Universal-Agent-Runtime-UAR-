@@ -47,15 +47,38 @@ class Executor:
         if not strategy.ordered_skills:
             raise ValidationError("At least one skill must be specified", field="skills")
         
-        # Validate all skills exist before execution
-        for skill_name in strategy.ordered_skills:
-            if not registry.is_registered(skill_name):
-                raise SkillNotFoundError(skill_name)
-        
         run_id = str(uuid.uuid4())
         ctx = PipelineContext(goal=goal)
         outputs = []
         errors = []
+
+        # Validate all skills exist before execution
+        missing_skills = []
+        for skill_name in strategy.ordered_skills:
+            if not registry.is_registered(skill_name):
+                missing_skills.append(skill_name)
+        
+        if missing_skills:
+            # Return failed run instead of raising
+            error_msg = f"Skill(s) not found: {', '.join(missing_skills)}"
+            yield _event(
+                "start",
+                run_id,
+                strategy.goal_id,
+                payload={"goal": goal.objective, "skills": strategy.ordered_skills},
+            )
+            yield _event(
+                "complete",
+                run_id,
+                strategy.goal_id,
+                payload={
+                    "status": "failed",
+                    "outputs": [],
+                    "errors": [error_msg],
+                    "final_context": {},
+                },
+            )
+            return
 
         yield _event(
             "start",
