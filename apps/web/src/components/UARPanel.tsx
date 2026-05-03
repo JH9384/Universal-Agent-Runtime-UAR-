@@ -43,10 +43,11 @@ export function UARPanel() {
       const res = await fetch('/api/uar/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          goal, 
-          skills: ['doc_ingest', 'dependency_map', 'sum_review'], 
-          input_path: './' 
+        body: JSON.stringify({
+          goal,
+          skills: ['doc_ingest', 'dependency_map', 'sum_review'],
+          // Note: input_path should be configured per deployment
+          // For demo purposes, no input_path is provided (skills use defaults)
         }),
         signal: abortControllerRef.current.signal
       })

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Dict, Generator
 import logging
@@ -8,7 +9,9 @@ from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_ROOT = Path('.').resolve()
+# Use absolute path from environment or resolve project root
+_ALLOWED_ROOT_STR = os.getenv("PROJECT_ROOT") or os.getenv("RUNS_DIR") or "."
+ALLOWED_ROOT = Path(_ALLOWED_ROOT_STR).resolve()
 ALLOWED_EXTENSIONS = {".txt", ".md", ".py", ".ts", ".tsx", ".json", ".js", ".jsx", ".yaml", ".yml"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_FILES = 1000
