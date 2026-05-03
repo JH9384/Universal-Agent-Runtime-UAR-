@@ -1,9 +1,5 @@
-import { UARPanel } from './components/UARPanel'
+import { UARPanelImproved } from './components/UARPanelImproved'
 
 export default function App() {
-  return (
-    <div style={{ padding: 20 }}>
-      <UARPanel />
-    </div>
-  )
+  return <UARPanelImproved />
 }
