@@ -6,7 +6,7 @@ import time
 import uuid
 from collections import defaultdict, deque
 from functools import wraps
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import logging
 from fastapi import HTTPException, Request, status
@@ -14,11 +14,22 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 logger = logging.getLogger(__name__)
 
-# Rate limiting configuration
-RATE_LIMITS = {
-    "default": {"requests": 10, "window": 60},  # 10 requests per minute
-    "authenticated": {"requests": 100, "window": 60},  # 100 requests per minute for authenticated users
-}
+def _load_rate_limits() -> Dict[str, Dict[str, int]]:
+    """Load rate limits from environment variables with safe defaults"""
+    return {
+        "default": {
+            "requests": int(os.getenv("RATE_LIMIT_ANONYMOUS", "10")),
+            "window": int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+        },
+        "authenticated": {
+            "requests": int(os.getenv("RATE_LIMIT_AUTHENTICATED", "100")),
+            "window": int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+        },
+    }
+
+
+# Rate limiting configuration (loaded from environment)
+RATE_LIMITS = _load_rate_limits()
 
 # Thread-safe in-memory rate limiter (for production, use Redis)
 class RateLimiter:
@@ -138,30 +149,39 @@ def request_logging_middleware(request: Request, user_info: Optional[Dict]):
 def error_handler_middleware(func):
     """Error handling middleware with consistent error formatting"""
     @wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(request: Request, *args, **kwargs):
         try:
-            return await func(*args, **kwargs)
+            return await func(request, *args, **kwargs)
         except HTTPException:
             raise  # Re-raise HTTP exceptions (already properly formatted)
         except Exception as e:
             logger.error(f"Unhandled error in {func.__name__}: {str(e)}", exc_info=True)
+            # Get request_id from request state if available
+            request_id = getattr(request.state, 'request_id', 'unknown')
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "error": "Internal server error",
-                    "message": "An unexpected error occurred"
+                    "message": "An unexpected error occurred",
+                    "request_id": request_id
                 }
             ) from e
     return wrapper
 
+def _get_cors_origins() -> List[str]:
+    """Get CORS origins from environment or use safe defaults"""
+    cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
+    return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
+
 def apply_middleware(app):
     """Apply all middleware to FastAPI app"""
     from fastapi.middleware.cors import CORSMiddleware
-    
-    # CORS middleware
+
+    # CORS middleware - uses environment variable with safe defaults
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Development origins
+        allow_origins=_get_cors_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -84,7 +84,7 @@ export function UARPanel() {
             if (line.startsWith('data:')) {
               try {
                 const json = JSON.parse(line.replace('data: ', ''))
-                
+
                 // Limit events to prevent memory leaks - enforce hard limit
                 eventCountRef.current++
                 if (eventCountRef.current > MAX_EVENTS) {
@@ -92,9 +92,10 @@ export function UARPanel() {
                   console.warn(`Event limit reached (${MAX_EVENTS}), stopping stream`)
                   abortControllerRef.current?.abort()
                   setError(`Event limit reached (${MAX_EVENTS}). Stream stopped.`)
-                  break
+                  setIsRunning(false)
+                  return  // Exit completely from generate() function
                 }
-                
+
                 setEvents((prev) => [...prev, json])
 
                 if (json.type === 'orchestration_plan' && json.payload?.graph) {
@@ -116,8 +117,6 @@ export function UARPanel() {
               }
             }
           }
-          // Break outer loop if limit reached
-          if (eventCountRef.current > MAX_EVENTS) break
         }
       }
     } catch (err) {

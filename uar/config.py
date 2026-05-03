@@ -5,6 +5,7 @@ import sys
 from typing import Optional
 from pathlib import Path
 import logging
+import logging.config
 
 
 class Config:

@@ -18,13 +18,10 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
         except concurrent.futures.TimeoutError as exc:
             # Cancel the future if possible
             future.cancel()
-            # Wait for executor to finish any pending work
-            pool.shutdown(wait=False)
             raise TimeoutError(timeout_seconds) from exc
         except Exception:
-            # Ensure proper cleanup on any exception
+            # Ensure future is cancelled on any exception
             future.cancel()
-            pool.shutdown(wait=False)
             raise
 
 
