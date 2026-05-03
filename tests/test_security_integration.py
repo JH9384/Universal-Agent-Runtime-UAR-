@@ -193,9 +193,13 @@ class TestAPIProductionFeatures:
     
     def test_cors_headers(self):
         """Test CORS headers are properly set"""
-        response = client.options("/api/uar/run")
-        assert response.status_code == 200
-        # Should have CORS headers
+        # CORS is handled by middleware; check POST with Origin header
+        response = client.post(
+            "/api/uar/run",
+            json={"goal": "test"},
+            headers={"Origin": "http://localhost:3000"}
+        )
+        assert "access-control-allow-origin" in response.headers
     
     def test_error_response_format(self):
         """Test error responses follow consistent format"""

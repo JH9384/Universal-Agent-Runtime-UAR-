@@ -1,6 +1,7 @@
 import fcntl
 import json
 import os
+import threading
 from dataclasses import asdict
 from pathlib import Path
 from typing import List
@@ -24,6 +25,7 @@ class JsonRunStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock_file = self.path.parent / ".uar_lock"
+        self._thread_lock = threading.Lock()
 
     def _acquire_lock(self):
         """Acquire exclusive file lock for write operations."""
@@ -39,32 +41,34 @@ class JsonRunStore:
 
     def append(self, record: RunRecord) -> None:
         """Append record to JSONL file with exclusive lock."""
-        self._acquire_lock()
-        try:
-            with self.path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(asdict(record), sort_keys=True) + "\n")
-                f.flush()
-                os.fsync(f.fileno())
-        finally:
-            self._release_lock()
+        with self._thread_lock:
+            self._acquire_lock()
+            try:
+                with self.path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(asdict(record), sort_keys=True) + "\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+            finally:
+                self._release_lock()
 
     def list_records(self) -> List[dict]:
         """List all records with shared lock for consistency."""
         if not self.path.exists():
             return []
 
-        self._acquire_lock()
-        try:
-            records = []
-            with self.path.open("r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                            records.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            # Skip corrupted lines
-                            continue
-            return records
-        finally:
-            self._release_lock()
+        with self._thread_lock:
+            self._acquire_lock()
+            try:
+                records = []
+                with self.path.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                records.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                # Skip corrupted lines
+                                continue
+                return records
+            finally:
+                self._release_lock()

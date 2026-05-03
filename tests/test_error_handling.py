@@ -254,27 +254,17 @@ class TestStreamingErrorHandling:
         assert "not found" in response_text.lower() or "failed" in response_text.lower()
     
     def test_stream_persistence_on_error(self):
-        """Test that stream persists events even if client disconnects"""
-        # Mock the executor to simulate an error mid-stream
-        with patch('uar.api.server.Executor') as mock_executor:
-            mock_instance = MagicMock()
-            mock_executor.iter_events.return_value = [
-                {"type": "start", "run_id": "test", "goal_id": "test"},
-                {"type": "skill_complete", "run_id": "test", "goal_id": "test"},
-            ]
-            mock_executor.return_value = mock_instance
-            
-            # Start stream
-            response = client.post("/api/uar/stream", json={
-                "goal": "test",
-                "skills": ["section_sum"]
-            }, timeout=1.0)  # Short timeout to simulate disconnect
-            
-            # Check that events were still persisted
-            runs_response = client.get("/api/uar/runs")
-            runs = runs_response.json()
-            # Should have at least one run from the stream attempt
-            assert len(runs) >= 0  # May be 0 if mock didn't persist
+        """Test that stream handles errors gracefully"""
+        # Start stream with an invalid skill - should still return 200
+        # with error events in the stream
+        response = client.post("/api/uar/stream", json={
+            "goal": "test",
+            "skills": ["nonexistent_skill"]
+        })
+        
+        # Stream returns 200 with error events
+        assert response.status_code == 200
+        assert "error" in response.text.lower() or "failed" in response.text.lower()
 
 
 class TestSecurityEdgeCases:
