@@ -4,6 +4,8 @@ import re
 from pathlib import Path
 from typing import Dict, Any
 
+from uar.security.skill_guard import validate_skill
+
 
 def parse_skill_md(path: Path) -> Dict[str, Any]:
     text = path.read_text(encoding="utf-8")
@@ -34,6 +36,10 @@ def convert_to_template(skill: Dict[str, Any]) -> Dict[str, Any]:
         "skills": [],
         "required_inputs": [],
         "planner": "llm",
+        "meta": {
+            "source": "external",
+            "safe": True,
+        },
     }
 
 
@@ -43,6 +49,8 @@ def load_skill_directory(path: str) -> list[Dict[str, Any]]:
 
     for skill_file in base.glob("**/SKILL.md"):
         parsed = parse_skill_md(skill_file)
-        templates.append(convert_to_template(parsed))
+
+        if validate_skill(parsed):
+            templates.append(convert_to_template(parsed))
 
     return templates
