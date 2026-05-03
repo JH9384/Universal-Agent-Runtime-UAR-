@@ -5,6 +5,21 @@ import ast
 import hashlib
 import json
 import multiprocessing as mp
+import sys
+import os
+import importlib.util
+
+# Import the AtomicLanguageModelSkill directly
+current_dir = os.path.dirname(os.path.abspath(__file__))
+uar_dir = os.path.join(current_dir, 'uar')
+skills_dir = os.path.join(uar_dir, 'skills')
+atomic_lang_model_path = os.path.join(skills_dir, 'atomic_lang_model.py')
+
+spec = importlib.util.spec_from_file_location("uar.skills.atomic_lang_model", atomic_lang_model_path)
+atomic_lang_model_module = importlib.util.module_from_spec(spec)
+sys.modules["uar.skills.atomic_lang_model"] = atomic_lang_model_module
+spec.loader.exec_module(atomic_lang_model_module)
+AtomicLanguageModelSkill = atomic_lang_model_module.AtomicLanguageModelSkill
 
 # Use an explicit "fork" context for child execution so worker processes
 # inherit the parent interpreter state (including ad-hoc test-loaded modules).
@@ -531,6 +546,19 @@ class DelegationReq(BaseModel):
     allowedAgents: list[str] = Field(default_factory=list)
 
 
+class AtomicLangModelAnalyzeReq(BaseModel):
+    grammar_spec: str = Field(..., description="Formal grammar specification (e.g., BNF, EBNF)")
+
+
+class AtomicLangModelGenerateReq(BaseModel):
+    prefix: str = Field(..., description="Starting text sequence for generation")
+    count: int = Field(5, description="Number of tokens to generate", ge=1, le=50)
+
+
+class AtomicLangModelVerifyReq(BaseModel):
+    text: str = Field(..., description="Text to validate for syntax and semantics")
+
+
 @app.get("/")
 def root():
     return {
@@ -806,3 +834,33 @@ def delegation_plan(req: DelegationReq):
         content={"plan": plan},
     )
     return {"plan": plan, "planObject": created["digest"]}
+
+
+@app.post("/agents/atomic_lang_model/analyze")
+def atomic_lang_model_analyze(req: AtomicLangModelAnalyzeReq):
+    """
+    Analyze a formal grammar specification using the Atomic Language Model.
+    """
+    skill = AtomicLanguageModelSkill()
+    result = skill.analyze_grammar(req.grammar_spec)
+    return result
+
+
+@app.post("/agents/atomic_lang_model/generate")
+def atomic_lang_model_generate(req: AtomicLangModelGenerateReq):
+    """
+    Generate a sequence of tokens based on a prefix using the Atomic Language Model.
+    """
+    skill = AtomicLanguageModelSkill()
+    result = skill.generate_sequence(req.prefix, req.count)
+    return {"generated": result, "prefix": req.prefix, "count": req.count}
+
+
+@app.post("/agents/atomic_lang_model/verify")
+def atomic_lang_model_verify(req: AtomicLangModelVerifyReq):
+    """
+    Verify syntax and semantics of text using the Atomic Language Model.
+    """
+    skill = AtomicLanguageModelSkill()
+    result = skill.verify_syntax(req.text)
+    return result
