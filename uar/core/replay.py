@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, List, Optional
 
 from uar.core.contracts import RunRecord
 
@@ -53,7 +53,7 @@ def validate_event_stream(events: Iterable[dict]) -> list[dict]:
     return event_list
 
 
-def run_record_from_events(events: Iterable[dict], skills: list[str] | None = None) -> RunRecord:
+def run_record_from_events(events: Iterable[dict], skills: Optional[List[str]] = None) -> RunRecord:
     event_list = validate_event_stream(events)
     start_event = event_list[0]
     final_event = event_list[-1]
