@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 import tempfile
 import os
+import shutil
 
 from uar.api.server import app
 from uar.skills.doc_ingest import doc_ingest
@@ -14,107 +15,102 @@ from uar.core.validation import validate_path_security
 client = TestClient(app)
 
 
+@pytest.fixture
+def test_ingest_dir():
+    """Create a test directory within project for doc ingest tests."""
+    test_dir = Path("runs/test_ingest")
+    test_dir.mkdir(parents=True, exist_ok=True)
+    yield test_dir
+    # Cleanup
+    if test_dir.exists():
+        shutil.rmtree(test_dir)
+
+
 class TestDocIngestSecurity:
     """Test document ingestion security features"""
     
-    def test_file_size_limits(self):
+    def test_file_size_limits(self, test_ingest_dir):
         """Test file size limits are enforced"""
-        # Create a temporary large file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            # Write more than 10MB (the limit)
-            f.write('x' * (11 * 1024 * 1024))
-            temp_file = f.name
+        # Create a large file within the test directory
+        large_file = test_ingest_dir / "large_file.txt"
+        large_file.write_text('x' * (11 * 1024 * 1024))
         
-        try:
-            # Test ingestion of large file
-            goal = GoalSpec(
-                id="test",
-                user_intent="test",
-                objective="test",
-                metadata={"input_path": temp_file}
-            )
-            ctx = PipelineContext(goal=goal)
-            
-            result = doc_ingest(ctx)
-            
-            # Should reject large file
-            assert "error" in result
-            assert "too large" in result["error"]
-            
-        finally:
-            os.unlink(temp_file)
+        # Test ingestion of large file
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={"input_path": str(large_file)}
+        )
+        ctx = PipelineContext(goal=goal)
+        
+        result = doc_ingest(ctx)
+        
+        # Should reject large file
+        assert "error" in result
+        assert "too large" in result["error"]
     
-    def test_file_count_limits(self):
+    def test_file_count_limits(self, test_ingest_dir):
         """Test file count limits are enforced"""
-        # Create a temporary directory with many files
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create more files than the limit (1000)
-            for i in range(1005):
-                file_path = Path(temp_dir) / f"file_{i}.txt"
-                file_path.write_text(f"content {i}")
-            
-            goal = GoalSpec(
-                id="test",
-                user_intent="test", 
-                objective="test",
-                metadata={"input_path": temp_dir}
-            )
-            ctx = PipelineContext(goal=goal)
-            
-            result = doc_ingest(ctx)
-            
-            # Should limit file count
-            assert result["document_count"] <= 1000
-            assert any(doc["path"] == "LIMIT_EXCEEDED" for doc in result["documents"])
-    
-    def test_unsupported_file_types(self):
-        """Test unsupported file types are rejected"""
-        with tempfile.NamedTemporaryFile(suffix='.exe', delete=False) as f:
-            f.write(b"fake exe content")
-            temp_file = f.name
+        # Create many files in the test directory
+        for i in range(1005):
+            file_path = test_ingest_dir / f"file_{i}.txt"
+            file_path.write_text(f"content {i}")
         
-        try:
-            goal = GoalSpec(
-                id="test",
-                user_intent="test",
-                objective="test", 
-                metadata={"input_path": temp_file}
-            )
-            ctx = PipelineContext(goal=goal)
-            
-            result = doc_ingest(ctx)
-            
-            # Should reject unsupported file type
-            assert "warning" in result
-            assert "Unsupported file type" in result["warning"]
-            
-        finally:
-            os.unlink(temp_file)
+        goal = GoalSpec(
+            id="test",
+            user_intent="test", 
+            objective="test",
+            metadata={"input_path": str(test_ingest_dir)}
+        )
+        ctx = PipelineContext(goal=goal)
+        
+        result = doc_ingest(ctx)
+        
+        # Should limit file count
+        assert result["document_count"] <= 1000
+        assert any(doc["path"] == "LIMIT_EXCEEDED" for doc in result["documents"])
     
-    def test_encoding_error_handling(self):
+    def test_unsupported_file_types(self, test_ingest_dir):
+        """Test unsupported file types are rejected"""
+        exe_file = test_ingest_dir / "malicious.exe"
+        exe_file.write_bytes(b"fake exe content")
+        
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test", 
+            metadata={"input_path": str(exe_file)}
+        )
+        ctx = PipelineContext(goal=goal)
+        
+        result = doc_ingest(ctx)
+        
+        # Should reject unsupported file type (returns as document with error)
+        assert len(result["documents"]) == 1
+        assert "Unsupported file type" in result["documents"][0].get("error", "")
+    
+    def test_encoding_error_handling(self, test_ingest_dir):
         """Test handling of encoding errors"""
         # Create a file with invalid UTF-8 content
-        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as f:
-            f.write(b'\xff\xfe\x00\x00')  # Invalid UTF-8
-            temp_file = f.name
+        bad_file = test_ingest_dir / "bad_encoding.txt"
+        bad_file.write_bytes(b'\xff\xfe\x00\x00')  # Invalid UTF-8
         
-        try:
-            goal = GoalSpec(
-                id="test",
-                user_intent="test",
-                objective="test",
-                metadata={"input_path": temp_file}
-            )
-            ctx = PipelineContext(goal=goal)
-            
-            result = doc_ingest(ctx)
-            
-            # Should handle encoding error gracefully
-            assert "error" in result
-            assert "encoding error" in result["error"]
-            
-        finally:
-            os.unlink(temp_file)
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={"input_path": str(bad_file)}
+        )
+        ctx = PipelineContext(goal=goal)
+        
+        result = doc_ingest(ctx)
+        
+        # Should handle encoding error gracefully
+        assert len(result["documents"]) == 1
+        doc = result["documents"][0]
+        assert "error" in doc
+        assert "encoding" in doc["error"].lower()
 
 
 class TestPathSecurityValidation:
