@@ -7,18 +7,30 @@ const RECENT_KEY = 'uar.recentPaths'
 const RECENT_MAX = 8
 
 const AVAILABLE_SKILLS = [
-  { id: 'doc_ingest',     label: 'doc_ingest',     desc: 'Read files from input_path' },
-  { id: 'dependency_map', label: 'dependency_map', desc: 'Build dependency graph' },
-  { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize sections' },
-  { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of run' },
+  { id: 'doc_ingest',     label: 'doc_ingest',     desc: 'Read files from input_path (.md .txt .py .ts .json …)' },
+  { id: 'dependency_map', label: 'dependency_map', desc: 'Build a dependency graph between artifacts' },
+  { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize document sections' },
+  { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of pipeline outputs' },
+  { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
+]
+
+const GOAL_TEMPLATES = [
+  'Summarize the project',
+  'Document the architecture',
+  'Build a dependency map of the codebase',
+  'Review and identify inconsistencies in docs',
+  'Index all source files for retrieval',
 ]
 
 type Preset = { name: string; path: string }
 type BrowseEntry = { name: string; path: string; size: number; ext: string; is_dir: boolean }
 type BrowseResult = {
   path: string
+  parent: string | null
   is_dir: boolean
+  recursive: boolean
   file_count: number
+  dir_count: number
   total_bytes: number
   truncated: boolean
   by_extension: Record<string, number>
@@ -31,6 +43,207 @@ function human(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
+// ============================================================
+// FilePicker modal
+// ============================================================
+function FilePicker(props: {
+  open: boolean
+  initialPath: string
+  projectRoot: string
+  presets: Preset[]
+  onClose: () => void
+  onPick: (path: string) => void
+}) {
+  const { open, initialPath, projectRoot, presets, onClose, onPick } = props
+  const [path, setPath] = useState(initialPath || projectRoot)
+  const [data, setData] = useState<BrowseResult | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [filter, setFilter] = useState('')
+
+  const load = useCallback(async (p: string, recursive = false) => {
+    setBusy(true); setErr(null)
+    try {
+      const r = await fetch(
+        `/api/uar/docs/browse?path=${encodeURIComponent(p)}&limit=500&recursive=${recursive}`,
+      )
+      const j = await r.json()
+      if (!r.ok) setErr(j.message || j.error || `HTTP ${r.status}`)
+      else { setData(j); setPath(j.path || p) }
+    } catch (e: any) {
+      setErr(e?.message || 'Browse failed')
+    } finally { setBusy(false) }
+  }, [])
+
+  useEffect(() => {
+    if (open) load(initialPath || projectRoot)
+  }, [open, initialPath, projectRoot, load])
+
+  if (!open) return null
+
+  // Breadcrumbs
+  const breadcrumbs: { label: string; path: string }[] = []
+  if (data) {
+    let acc = projectRoot
+    breadcrumbs.push({ label: 'project_root', path: projectRoot })
+    const rel = data.path.startsWith(projectRoot)
+      ? data.path.slice(projectRoot.length).replace(/^\/+/, '')
+      : data.path
+    if (rel) {
+      for (const part of rel.split('/').filter(Boolean)) {
+        acc = `${acc}/${part}`
+        breadcrumbs.push({ label: part, path: acc })
+      }
+    }
+  }
+
+  const filtered = (data?.entries || []).filter(
+    (e) => !filter || e.name.toLowerCase().includes(filter.toLowerCase()),
+  )
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e: any) => e.stopPropagation()}
+        style={{
+          width: 'min(820px, 92vw)', maxHeight: '86vh', background: '#fff',
+          borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e3e5e8', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <strong>Pick a folder or file</strong>
+          <span style={{ fontSize: 11, color: '#888' }}>(must be within PROJECT_ROOT)</span>
+          <button onClick={onClose} style={{ marginLeft: 'auto', padding: '4px 10px' }}>✕</button>
+        </div>
+
+        {/* Presets row */}
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f3f5', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <span style={{ fontSize: 12, color: '#666', alignSelf: 'center' }}>Quick:</span>
+          <button onClick={() => load(projectRoot)} style={{ padding: '2px 10px', fontSize: 12 }}>/ root</button>
+          {presets.map((p) => (
+            <button key={p.path} onClick={() => load(p.path)} style={{ padding: '2px 10px', fontSize: 12 }}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Breadcrumbs + nav */}
+        <div style={{ padding: '8px 16px', background: '#fafbfc', borderBottom: '1px solid #f1f3f5', fontSize: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+          <button
+            onClick={() => data?.parent && load(data.parent)}
+            disabled={!data?.parent || busy}
+            title="Parent"
+            style={{ padding: '2px 8px' }}
+          >⬆</button>
+          <button onClick={() => data && load(data.path, true)} disabled={busy || !data?.is_dir} style={{ padding: '2px 8px' }} title="Recursive listing">⤓</button>
+          <button onClick={() => data && load(data.path)} disabled={busy} style={{ padding: '2px 8px' }} title="Reload">⟳</button>
+          <span style={{ marginLeft: 6, color: '#666' }}>
+            {breadcrumbs.map((b, i) => (
+              <span key={b.path}>
+                <a
+                  onClick={() => load(b.path)}
+                  style={{ cursor: 'pointer', color: '#0366d6', textDecoration: 'underline' }}
+                >{b.label}</a>
+                {i < breadcrumbs.length - 1 && <span style={{ color: '#aaa' }}> / </span>}
+              </span>
+            ))}
+          </span>
+        </div>
+
+        {/* Filter + manual path */}
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f3f5', display: 'flex', gap: 8 }}>
+          <input
+            placeholder="Filter (filename contains…)"
+            value={filter}
+            onChange={(e: any) => setFilter(e.target.value)}
+            style={{ flex: 1, padding: 6, border: '1px solid #ccc', borderRadius: 4, fontSize: 13 }}
+          />
+          <input
+            placeholder="Or type a path and press Enter"
+            value={path}
+            onChange={(e: any) => setPath(e.target.value)}
+            onKeyDown={(e: any) => { if (e.key === 'Enter') load(path) }}
+            style={{ flex: 2, padding: 6, border: '1px solid #ccc', borderRadius: 4, fontSize: 13, fontFamily: 'monospace' }}
+          />
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 240 }}>
+          {err && <div style={{ padding: 12, color: '#b00', fontSize: 13 }}>Error: {err}</div>}
+          {busy && <div style={{ padding: 12, color: '#666', fontSize: 13 }}>Loading…</div>}
+          {!busy && !err && data && (
+            <>
+              <div style={{ padding: '4px 16px', fontSize: 11, color: '#666', background: '#fcfcfd' }}>
+                <strong>{data.dir_count}</strong> dirs · <strong>{data.file_count}</strong> files
+                {data.total_bytes > 0 && <> · <strong>{human(data.total_bytes)}</strong></>}
+                {data.truncated && <span style={{ color: '#b00' }}> · truncated</span>}
+                {data.recursive && <span style={{ color: '#17a2b8' }}> · recursive</span>}
+                {Object.keys(data.by_extension).length > 0 && (
+                  <span style={{ marginLeft: 8 }}>
+                    {Object.entries(data.by_extension).sort((a, b) => b[1] - a[1])
+                      .slice(0, 8).map(([k, v]) => `${k}:${v}`).join('  ')}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontFamily: 'monospace', fontSize: 13 }}>
+                {filtered.map((e) => (
+                  <div
+                    key={e.path}
+                    onClick={() => e.is_dir ? load(e.path) : onPick(e.path)}
+                    onDoubleClick={() => onPick(e.path)}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between',
+                      padding: '4px 16px', borderBottom: '1px solid #f5f6f7',
+                      cursor: 'pointer', background: e.is_dir ? '#fafbff' : '#fff',
+                    }}
+                    title={e.is_dir ? 'Click to open' : 'Click to select this file'}
+                    onMouseEnter={(ev: any) => ev.currentTarget.style.background = '#eef2ff'}
+                    onMouseLeave={(ev: any) => ev.currentTarget.style.background = e.is_dir ? '#fafbff' : '#fff'}
+                  >
+                    <span>
+                      {e.is_dir ? '📁 ' : '📄 '}
+                      <span style={{ fontWeight: e.is_dir ? 600 : 400 }}>{e.name}</span>
+                      {e.is_dir && '/'}
+                    </span>
+                    <span style={{ color: '#888' }}>{e.is_dir ? '' : human(e.size)}</span>
+                  </div>
+                ))}
+                {filtered.length === 0 && <div style={{ padding: 16, color: '#888' }}>(no entries)</div>}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '10px 16px', borderTop: '1px solid #e3e5e8', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#666', flex: 1, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Selected: {data?.path || '(none)'}
+          </span>
+          <button onClick={onClose} style={{ padding: '6px 14px' }}>Cancel</button>
+          <button
+            onClick={() => data && onPick(data.path)}
+            disabled={!data}
+            style={{ padding: '6px 14px', background: '#007bff', color: '#fff', border: 'none', borderRadius: 4 }}
+          >
+            Use this folder
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Main panel
+// ============================================================
 export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [inputPath, setInputPath] = useState('')
@@ -39,6 +252,7 @@ export function UARPanel() {
   const [graph, setGraph] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Document management
   const [presets, setPresets] = useState<Preset[]>([])
@@ -46,9 +260,6 @@ export function UARPanel() {
   const [recent, setRecent] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') } catch { return [] }
   })
-  const [browse, setBrowse] = useState<BrowseResult | null>(null)
-  const [browseBusy, setBrowseBusy] = useState(false)
-  const [browseError, setBrowseError] = useState<string | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const eventCountRef = useRef(0)
@@ -63,15 +274,18 @@ export function UARPanel() {
 
   useEffect(() => cleanup, [cleanup])
 
-  // Load presets once
   useEffect(() => {
     fetch('/api/uar/docs/presets')
       .then((r) => r.json())
-      .then((d) => {
-        setPresets(d.presets || [])
-        setProjectRoot(d.project_root || '')
-      })
+      .then((d) => { setPresets(d.presets || []); setProjectRoot(d.project_root || '') })
       .catch(() => {})
+  }, [])
+
+  // ESC closes picker
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPickerOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   const pushRecent = (p: string) => {
@@ -88,50 +302,32 @@ export function UARPanel() {
     try { localStorage.removeItem(RECENT_KEY) } catch {}
   }
 
-  const doBrowse = async (pathArg?: string) => {
-    const target = (pathArg ?? inputPath).trim()
-    if (!target) {
-      setBrowseError('Enter a path first')
-      return
-    }
-    setBrowseBusy(true)
-    setBrowseError(null)
-    setBrowse(null)
-    try {
-      const r = await fetch(`/api/uar/docs/browse?path=${encodeURIComponent(target)}&limit=200`)
-      const j = await r.json()
-      if (!r.ok) {
-        setBrowseError(j.message || j.error || `HTTP ${r.status}`)
-      } else {
-        setBrowse(j)
-        pushRecent(target)
-      }
-    } catch (e: any) {
-      setBrowseError(e?.message || 'Browse failed')
-    } finally {
-      setBrowseBusy(false)
-    }
-  }
-
   const toggleSkill = (id: string) => {
     setSelectedSkills((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     )
   }
 
+  const onPick = (p: string) => {
+    setInputPath(p)
+    pushRecent(p)
+    setPickerOpen(false)
+  }
+
+  const copyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(inputPath)
+    } catch {}
+  }
+
   const runStream = useCallback(async () => {
-    setEvents([])
-    setGraph(null)
-    setError(null)
+    setEvents([]); setGraph(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
 
     const body: any = { goal, skills: selectedSkills }
-    if (inputPath.trim()) {
-      body.input_path = inputPath.trim()
-      pushRecent(inputPath.trim())
-    }
+    if (inputPath.trim()) { body.input_path = inputPath.trim(); pushRecent(inputPath.trim()) }
 
     try {
       const res = await fetch('/api/uar/stream', {
@@ -183,12 +379,8 @@ export function UARPanel() {
         }
       }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.log('Stream aborted by user')
-      } else {
-        console.error('Stream error:', err)
-        setError(err instanceof Error ? err.message : 'Unknown error occurred')
-      }
+      if (err instanceof Error && err.name === 'AbortError') return
+      setError(err instanceof Error ? err.message : 'Unknown error occurred')
     } finally {
       setIsRunning(false)
       abortControllerRef.current = null
@@ -220,12 +412,8 @@ export function UARPanel() {
     return { nodes, edges }
   }, [graph])
 
-  const clearEvents = useCallback(() => {
-    setEvents([])
-    setError(null)
-  }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null) }, [])
 
-  // Ingested documents (from doc_ingest skill_complete payload)
   const ingested = useMemo(() => {
     const last = [...events].reverse().find(
       (e) => e?.type === 'skill_complete' && e?.skill === 'doc_ingest'
@@ -233,21 +421,41 @@ export function UARPanel() {
     return last?.payload?.result || null
   }, [events])
 
+  const ollama = useMemo(() => {
+    const last = [...events].reverse().find(
+      (e) => e?.type === 'skill_complete' && e?.skill === 'ollama_generate'
+    )
+    return last?.payload?.result || null
+  }, [events])
+
   const canRun = !isRunning && goal.trim().length > 0 && selectedSkills.length > 0
 
-  const box: any = { border: '1px solid #dee2e6', borderRadius: 4, padding: 12, marginBottom: 16, background: '#fff' }
+  const box: any = { border: '1px solid #dee2e6', borderRadius: 6, padding: 14, marginBottom: 16, background: '#fff' }
   const label: any = { display: 'block', fontSize: 12, color: '#555', marginBottom: 4 }
-  const chip = (active: boolean): any => ({
+  const chip = (active: boolean, disabled = false): any => ({
     display: 'inline-flex', alignItems: 'center', gap: 6,
     padding: '4px 10px', margin: '2px 4px 2px 0',
-    border: '1px solid #ccc', borderRadius: 999,
-    background: active ? '#e7f1ff' : '#fff',
-    fontFamily: 'monospace', fontSize: 12, cursor: isRunning ? 'not-allowed' : 'pointer',
+    border: '1px solid ' + (active ? '#3a7bd5' : '#ccc'), borderRadius: 999,
+    background: active ? '#e7f1ff' : '#fff', color: active ? '#0b3d91' : '#222',
+    fontFamily: 'monospace', fontSize: 12,
+    cursor: disabled ? 'not-allowed' : 'pointer',
   })
 
   return (
     <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
-      <h3 style={{ marginTop: 0 }}>UAR Live System</h3>
+      <FilePicker
+        open={pickerOpen}
+        initialPath={inputPath || projectRoot}
+        projectRoot={projectRoot}
+        presets={presets}
+        onClose={() => setPickerOpen(false)}
+        onPick={onPick}
+      />
+
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+        <h3 style={{ margin: 0 }}>UAR Live System</h3>
+        <span style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>{projectRoot}</span>
+      </div>
 
       {error && (
         <div style={{ background: '#fee', border: '1px solid #fcc', padding: 10, marginBottom: 16, borderRadius: 4 }}>
@@ -256,33 +464,28 @@ export function UARPanel() {
         </div>
       )}
 
-      {/* ========== DOCUMENT MANAGEMENT ========== */}
+      {/* DOCUMENTS */}
       <div style={box}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
           <strong>Documents</strong>
-          <span style={{ fontSize: 11, color: '#888' }}>
-            project_root: <code>{projectRoot || '(loading)'}</code>
-          </span>
+          <button
+            onClick={() => setPickerOpen(true)}
+            disabled={isRunning}
+            style={{ marginLeft: 'auto', padding: '6px 14px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 600 }}
+            title="Open file picker"
+          >📂 Pick…</button>
         </div>
 
-        {/* Presets */}
         <div style={{ marginBottom: 8 }}>
           <div style={label}>Presets</div>
-          {presets.length === 0 && <span style={{ fontSize: 12, color: '#888' }}>(none found)</span>}
+          {presets.length === 0 && <span style={{ fontSize: 12, color: '#888' }}>(loading…)</span>}
           {presets.map((p) => (
-            <button
-              key={p.path}
-              disabled={isRunning}
-              onClick={() => { setInputPath(p.path); doBrowse(p.path) }}
-              style={chip(inputPath === p.path)}
-              title={p.path}
-            >
+            <button key={p.path} disabled={isRunning} onClick={() => onPick(p.path)} style={chip(inputPath === p.path, isRunning)} title={p.path}>
               {p.name}
             </button>
           ))}
         </div>
 
-        {/* Recent */}
         {recent.length > 0 && (
           <div style={{ marginBottom: 8 }}>
             <div style={label}>
@@ -290,98 +493,58 @@ export function UARPanel() {
               <button onClick={clearRecent} style={{ marginLeft: 8, fontSize: 11, padding: '0 6px' }}>clear</button>
             </div>
             {recent.map((p) => (
-              <button
-                key={p}
-                disabled={isRunning}
-                onClick={() => { setInputPath(p); doBrowse(p) }}
-                style={chip(inputPath === p)}
-                title={p}
-              >
+              <button key={p} disabled={isRunning} onClick={() => onPick(p)} style={chip(inputPath === p, isRunning)} title={p}>
                 {p.length > 40 ? '…' + p.slice(-40) : p}
               </button>
             ))}
           </div>
         )}
 
-        {/* Path + Browse */}
-        <div style={{ marginBottom: 8 }}>
+        <div>
           <label style={label}>input_path</label>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={inputPath}
               onChange={(e: any) => setInputPath(e.target.value)}
-              onKeyDown={(e: any) => { if (e.key === 'Enter') doBrowse() }}
-              placeholder="e.g. docs  or  /abs/path/to/folder"
+              placeholder="(none — doc_ingest will warn)"
               disabled={isRunning}
-              style={{ flex: 1, padding: 8, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'monospace' }}
+              style={{ flex: 1, padding: 8, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'monospace', fontSize: 13 }}
             />
-            <button
-              onClick={() => doBrowse()}
-              disabled={browseBusy || isRunning || !inputPath.trim()}
-              style={{ padding: '8px 14px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: 4 }}
-            >
-              {browseBusy ? 'Browsing…' : 'Browse'}
-            </button>
-            <button
-              onClick={() => { setInputPath(''); setBrowse(null); setBrowseError(null) }}
-              disabled={isRunning}
-              style={{ padding: '8px 14px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4 }}
-            >
-              Clear
-            </button>
+            <button onClick={copyPath} disabled={!inputPath} style={{ padding: '6px 10px' }} title="Copy path">📋</button>
+            <button onClick={() => setInputPath('')} disabled={!inputPath || isRunning} style={{ padding: '6px 10px' }} title="Clear">✕</button>
           </div>
         </div>
-
-        {/* Browse result */}
-        {browseError && (
-          <div style={{ color: '#b00', fontSize: 13, marginTop: 6 }}>Browse error: {browseError}</div>
-        )}
-        {browse && (
-          <div style={{ marginTop: 8, border: '1px solid #e3e5e8', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ padding: '6px 10px', background: '#f8f9fa', fontSize: 12 }}>
-              <strong>{browse.file_count}</strong> files · <strong>{human(browse.total_bytes)}</strong>
-              {browse.truncated && <span style={{ color: '#b00' }}> · truncated</span>}
-              <span style={{ marginLeft: 10, color: '#666' }}>
-                {Object.entries(browse.by_extension).sort((a, b) => b[1] - a[1])
-                  .slice(0, 6).map(([k, v]) => `${k}:${v}`).join('  ')}
-              </span>
-            </div>
-            <div style={{ maxHeight: 180, overflow: 'auto', fontSize: 12, fontFamily: 'monospace' }}>
-              {browse.entries.map((e) => (
-                <div key={e.path} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 10px', borderBottom: '1px solid #f1f3f5' }}>
-                  <span>{e.name}</span>
-                  <span style={{ color: '#888' }}>{human(e.size)}</span>
-                </div>
-              ))}
-              {browse.entries.length === 0 && <div style={{ padding: 10, color: '#888' }}>(empty)</div>}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* ========== GOAL + SKILLS ========== */}
+      {/* GOAL + SKILLS */}
       <div style={box}>
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 12 }}>
           <label style={label}>Goal</label>
           <input
             value={goal}
             onChange={(e: any) => setGoal(e.target.value)}
-            placeholder="e.g. Summarize the project"
+            placeholder="What should UAR do?"
             disabled={isRunning}
+            list="goal-templates"
             style={{ padding: 8, width: '100%', border: '1px solid #ccc', borderRadius: 4 }}
           />
+          <datalist id="goal-templates">
+            {GOAL_TEMPLATES.map((g) => <option key={g} value={g} />)}
+          </datalist>
+          <div style={{ marginTop: 4 }}>
+            {GOAL_TEMPLATES.map((g) => (
+              <button key={g} onClick={() => setGoal(g)} disabled={isRunning} style={{ ...chip(goal === g, isRunning), fontSize: 11, padding: '2px 8px' }}>
+                {g.length > 30 ? g.slice(0, 30) + '…' : g}
+              </button>
+            ))}
+          </div>
         </div>
+
         <div>
-          <label style={label}>Skills (pipeline order)</label>
+          <label style={label}>Skills</label>
           <div>
             {AVAILABLE_SKILLS.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => toggleSkill(s.id)}
-                disabled={isRunning}
-                title={s.desc}
-                style={chip(selectedSkills.includes(s.id))}
-              >
+              <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} style={chip(selectedSkills.includes(s.id), isRunning)}>
                 {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
               </button>
             ))}
@@ -392,26 +555,26 @@ export function UARPanel() {
         </div>
       </div>
 
-      {/* ========== RUN CONTROLS ========== */}
+      {/* RUN */}
       <div style={{ marginBottom: 16 }}>
         <button
           onClick={runStream}
           disabled={!canRun}
           style={{
-            padding: '8px 16px', marginRight: 10,
-            background: !canRun ? '#ccc' : '#007bff', color: '#fff',
+            padding: '10px 20px', marginRight: 10, fontSize: 14, fontWeight: 600,
+            background: !canRun ? '#ccc' : '#28a745', color: '#fff',
             border: 'none', borderRadius: 4,
             cursor: !canRun ? 'not-allowed' : 'pointer',
           }}
         >
-          {isRunning ? 'Running...' : 'Run Stream'}
+          {isRunning ? '⏳ Running…' : '▶ Run Stream'}
         </button>
         {isRunning && (
-          <button onClick={stopStream} style={{ padding: '8px 16px', marginRight: 10, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4 }}>
-            Stop
+          <button onClick={stopStream} style={{ padding: '10px 16px', marginRight: 10, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4 }}>
+            ■ Stop
           </button>
         )}
-        <button onClick={clearEvents} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4 }}>
+        <button onClick={clearEvents} style={{ padding: '10px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4 }}>
           Clear Events
         </button>
       </div>
@@ -421,7 +584,6 @@ export function UARPanel() {
         {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
       </div>
 
-      {/* ========== INGESTED DOCS RESULT ========== */}
       {ingested && (
         <div style={box}>
           <strong>Ingested documents</strong>
@@ -430,11 +592,8 @@ export function UARPanel() {
             {(ingested.documents || []).map((d: any, i: number) => (
               <div key={i} style={{ padding: '4px 6px', borderBottom: '1px solid #f1f3f5' }}>
                 <div style={{ fontWeight: 600 }}>{d.path || d.name || `#${i}`}</div>
-                {d.error ? (
-                  <div style={{ color: '#b00' }}>error: {d.error}</div>
-                ) : (
-                  <div style={{ color: '#666' }}>{d.size ? human(d.size) : ''}{d.type ? ` · ${d.type}` : ''}</div>
-                )}
+                {d.error ? <div style={{ color: '#b00' }}>error: {d.error}</div>
+                  : <div style={{ color: '#666' }}>{d.size ? human(d.size) : ''}{d.type ? ` · ${d.type}` : ''}</div>}
               </div>
             ))}
             {(!ingested.documents || ingested.documents.length === 0) && !ingested.warning && (
@@ -444,7 +603,25 @@ export function UARPanel() {
         </div>
       )}
 
-      {/* ========== EVENT LOG ========== */}
+      {ollama && (
+        <div style={box}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <strong>🦙 Ollama response</strong>
+            <span style={{ fontSize: 11, color: '#666' }}>
+              {ollama.model} · status: {ollama.status}
+              {typeof ollama.documents_used === 'number' && <> · {ollama.documents_used} docs</>}
+              {typeof ollama.context_chars === 'number' && <> · {ollama.context_chars} chars context</>}
+            </span>
+          </div>
+          {ollama.error && <div style={{ color: '#b00', fontSize: 13, marginTop: 6 }}>Error: {ollama.error}</div>}
+          {ollama.response && (
+            <pre style={{ marginTop: 8, padding: 10, background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, maxHeight: 360, overflow: 'auto' }}>
+              {ollama.response}
+            </pre>
+          )}
+        </div>
+      )}
+
       <div style={box}>
         <strong>Events ({events.length})</strong>
         <div style={{ background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: 4, maxHeight: 280, overflow: 'auto', marginTop: 6 }}>
@@ -454,7 +631,6 @@ export function UARPanel() {
         </div>
       </div>
 
-      {/* ========== GRAPH ========== */}
       <div style={{ height: 400, border: '1px solid #dee2e6', borderRadius: 4 }}>
         <ReactFlow nodes={nodes} edges={edges} fitView>
           <Background />

@@ -390,14 +390,39 @@ async def health_check():
     return {"status": "healthy", "version": "1.0.0"}
 
 
+def _docs_root():
+    from pathlib import Path
+    import os
+    return Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
+
+
+def _resolve_docs_path(raw: str):
+    """Resolve a user-provided path (relative or absolute) and require it be
+    contained within PROJECT_ROOT. Raises PathSecurityError otherwise."""
+    from pathlib import Path
+    root = _docs_root()
+    raw = (raw or "").strip()
+    if not raw:
+        raise ValidationError("Empty path", field="path")
+    if "\x00" in raw:
+        raise PathSecurityError(raw, "Path contains null bytes")
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        raise PathSecurityError(str(resolved), f"Path is outside PROJECT_ROOT ({root})")
+    return resolved
+
+
 @app.get("/api/uar/docs/presets", responses={
     500: {"model": ErrorResponse, "description": "Internal server error"}
 })
 async def docs_presets():
-    """Return convenient preset document paths relative to project root."""
-    from pathlib import Path
-    import os
-    project_root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
+    """Return convenient preset document paths inside PROJECT_ROOT."""
+    project_root = _docs_root()
     candidates = ["docs", "specs", "tests", "apps/web/src", "uar"]
     presets = []
     for name in candidates:
@@ -411,19 +436,16 @@ async def docs_presets():
     400: {"model": ErrorResponse, "description": "Validation error"},
     500: {"model": ErrorResponse, "description": "Internal server error"}
 })
-async def docs_browse(path: str, limit: int = 100):
+async def docs_browse(path: str, limit: int = 200, recursive: bool = False):
     """
-    Preview files at the given path (validated). Returns file list, sizes,
-    extensions, and totals — lets the UI show what doc_ingest would pick up
-    without running a full pipeline.
+    Directory/file browser. When recursive=false (default), lists the
+    immediate children of a directory (navigable). When recursive=true,
+    lists all files under the path (doc_ingest preview).
     """
-    from pathlib import Path
     request_id = str(uuid.uuid4())
     try:
-        safe_path = validate_input_path(path)
-        if safe_path is None:
-            raise ValidationError("Empty path", field="path")
-        p = Path(safe_path)
+        p = _resolve_docs_path(path)
+        safe_path = str(p)
         if not p.exists():
             return JSONResponse(
                 status_code=404,
@@ -432,6 +454,7 @@ async def docs_browse(path: str, limit: int = 100):
         entries = []
         total_bytes = 0
         truncated = False
+        parent = str(p.parent) if p.parent != p else None
         if p.is_file():
             st = p.stat()
             entries.append({
@@ -440,30 +463,43 @@ async def docs_browse(path: str, limit: int = 100):
             })
             total_bytes += st.st_size
         else:
+            iterator = p.rglob("*") if recursive else p.iterdir()
             count = 0
-            for entry in p.rglob("*"):
+            for entry in iterator:
                 if count >= limit:
                     truncated = True
                     break
                 try:
-                    if entry.is_file():
-                        st = entry.stat()
-                        entries.append({
-                            "name": entry.name, "path": str(entry),
-                            "size": st.st_size, "ext": entry.suffix.lower(),
-                            "is_dir": False,
-                        })
+                    is_dir = entry.is_dir()
+                    st = entry.stat()
+                    entries.append({
+                        "name": entry.name,
+                        "path": str(entry),
+                        "size": 0 if is_dir else st.st_size,
+                        "ext": "" if is_dir else entry.suffix.lower(),
+                        "is_dir": is_dir,
+                    })
+                    if not is_dir:
                         total_bytes += st.st_size
-                        count += 1
+                    count += 1
                 except OSError:
                     continue
+            # Sort: dirs first, then name
+            entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
         by_ext: dict = {}
         for e in entries:
-            by_ext[e["ext"] or "(none)"] = by_ext.get(e["ext"] or "(none)", 0) + 1
+            if not e["is_dir"]:
+                by_ext[e["ext"] or "(none)"] = by_ext.get(e["ext"] or "(none)", 0) + 1
         return {
-            "path": safe_path, "is_dir": p.is_dir(),
-            "file_count": len(entries), "total_bytes": total_bytes,
-            "truncated": truncated, "by_extension": by_ext,
+            "path": safe_path,
+            "parent": parent,
+            "is_dir": p.is_dir(),
+            "recursive": recursive,
+            "file_count": sum(1 for e in entries if not e["is_dir"]),
+            "dir_count": sum(1 for e in entries if e["is_dir"]),
+            "total_bytes": total_bytes,
+            "truncated": truncated,
+            "by_extension": by_ext,
             "entries": entries,
         }
     except (ValidationError, PathSecurityError) as e:
