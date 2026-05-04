@@ -1,4 +1,5 @@
 import json
+import os
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -19,6 +20,9 @@ from uar.product.templates import (
     build_goal,
     user_message,
 )
+
+# external skills
+from uar.skills.adapter import load_skill_directory
 
 # register skills
 import uar.skills.section_sum  # noqa
@@ -43,6 +47,10 @@ class ProductRunRequest(BaseModel):
     inputs: Dict[str, Any] = {}
 
 
+class ExternalSkillRequest(BaseModel):
+    path: Optional[str] = None
+
+
 def _select_planner(mode: str):
     if mode == "llm":
         return LLMPlanner()
@@ -59,6 +67,10 @@ def _build_goal(req: RunRequest) -> GoalSpec:
     )
 
 
+def _default_skill_dir() -> str:
+    return os.getenv("UAR_EXTERNAL_SKILLS_DIR", os.path.expanduser("~/claude-skills"))
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -70,6 +82,29 @@ def ready():
         "status": "ready",
         "api": "ok",
         "templates": len(list_templates()),
+    }
+
+
+# -----------------
+# External skill endpoints
+# -----------------
+
+
+@app.get("/api/uar/external-skills")
+def list_external_skills(path: Optional[str] = None):
+    skill_dir = path or _default_skill_dir()
+    return {
+        "path": skill_dir,
+        "templates": load_skill_directory(skill_dir),
+    }
+
+
+@app.post("/api/uar/external-skills/preview")
+def preview_external_skills(req: ExternalSkillRequest):
+    skill_dir = req.path or _default_skill_dir()
+    return {
+        "path": skill_dir,
+        "templates": load_skill_directory(skill_dir),
     }
 
 
