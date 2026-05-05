@@ -27,8 +27,13 @@ from pathlib import Path
 
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
+from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
+
+# Resolve allowed root from environment or use current working directory
+_allowed_root_env = os.getenv("PROJECT_ROOT") or os.getenv("RUNS_DIR")
+ALLOWED_ROOT = Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
 
 _autonomi_cb = CircuitBreaker("autonomi", failure_threshold=3, recovery_timeout=60.0)
 
@@ -43,11 +48,19 @@ def _get_autonomi():
 
 
 def _resolve_input_path(ctx) -> Path | None:
-    """Resolve upload source from metadata or prior doc_ingest step."""
+    """Resolve upload source from metadata or prior doc_ingest step.
+    
+    Validates path security before returning.
+    """
     raw = ctx.goal.metadata.get("input_path")
     if raw:
         p = Path(raw).resolve()
-        return p if p.exists() else None
+        try:
+            validate_path_security(p, ALLOWED_ROOT)
+            return p if p.exists() else None
+        except Exception as e:
+            logger.warning(f"Path security validation failed for {raw}: {e}")
+            return None
 
     data = getattr(ctx, "data", None) or {}
     di = data.get("doc_ingest")
@@ -57,8 +70,13 @@ def _resolve_input_path(ctx) -> Path | None:
                 p = d.get("path")
                 if p:
                     resolved = Path(p).resolve()
-                    if resolved.exists():
-                        return resolved
+                    try:
+                        validate_path_security(resolved, ALLOWED_ROOT)
+                        if resolved.exists():
+                            return resolved
+                    except Exception as e:
+                        logger.warning(f"Path security validation failed for {p}: {e}")
+                        continue
     return None
 
 
@@ -207,9 +225,19 @@ def autonomi_download(ctx):
     # Destination -----------------------------------------------------------
     dest_raw = ctx.goal.metadata.get("autonomi_dest")
     if not dest_raw:
-        root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
-        dest_raw = str(root / ".uar_library" / "downloads" / Path(str(address)).name)
+        dest_raw = str(ALLOWED_ROOT / ".uar_library" / "downloads" / Path(str(address)).name)
     dest = Path(dest_raw).resolve()
+    
+    # Validate destination path security
+    try:
+        validate_path_security(dest, ALLOWED_ROOT)
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": f"Destination path security violation: {e}",
+            "address": address,
+        }
+    
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     timeout = float(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))

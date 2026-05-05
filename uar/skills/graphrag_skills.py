@@ -23,10 +23,30 @@ from pathlib import Path
 
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
+from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
 
+# Resolve allowed root from environment (strict - no fallback to cwd for security)
+_allowed_root_env = os.getenv("PROJECT_ROOT")
+if not _allowed_root_env:
+    raise RuntimeError("PROJECT_ROOT environment variable must be set for GraphRAG security")
+ALLOWED_ROOT = Path(_allowed_root_env).resolve()
+
 _graphrag_cb = CircuitBreaker("graphrag", failure_threshold=2, recovery_timeout=60.0)
+
+
+def _check_ollama_health() -> tuple[bool, str]:
+    """Check if Ollama is reachable. Returns (is_healthy, error_message)."""
+    import httpx
+    try:
+        ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+        r = httpx.get(f"{ollama_host.rstrip('/')}/api/tags", timeout=5.0)
+        if r.is_success:
+            return True, ""
+        return False, f"Ollama returned HTTP {r.status_code}"
+    except Exception as e:
+        return False, f"Ollama unreachable: {e}"
 
 SETTINGS_YAML = """\
 encoding_model: cl100k_base
@@ -133,7 +153,8 @@ global_search:
 
 
 def _project_root() -> Path:
-    return Path(os.getenv("PROJECT_ROOT") or os.getcwd()).resolve()
+    """Get the project root, using the pre-validated ALLOWED_ROOT."""
+    return ALLOWED_ROOT
 
 
 def _graphrag_root() -> Path:
@@ -248,10 +269,25 @@ def graphrag_index(ctx):
       input_path   : file or directory to index (default: library)
       timeout_sec  : max CLI run time (default 3600)
     """
+    # Pre-flight check: ensure Ollama is reachable
+    is_healthy, error_msg = _check_ollama_health()
+    if not is_healthy:
+        return {
+            "status": "failed",
+            "error": f"Ollama health check failed: {error_msg}. Ensure Ollama is running.",
+        }
+    
     root = _ensure_workspace()
     meta = ctx.goal.metadata or {}
     src = meta.get("input_path") or str(_project_root() / ".uar_library")
     source = Path(src).resolve()
+    
+    # Validate path security
+    try:
+        validate_path_security(source, ALLOWED_ROOT)
+    except Exception as e:
+        return {"status": "failed", "error": f"Path security violation: {e}"}
+    
     if not source.exists():
         return {"status": "failed", "error": f"input_path does not exist: {source}"}
 

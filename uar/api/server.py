@@ -309,6 +309,7 @@ async def stream_goal(
                 "goal_id": strategy.goal_id,
                 "skill": skill,
                 "timestamp": time.time(),
+                "correlation_id": cid,
                 "payload": payload or {},
                 "error": error,
             }
@@ -345,10 +346,12 @@ async def stream_goal(
                         run_id="unknown",
                         error=f"Execution completed but persistence failed: {str(persist_error)}"
                     ))
+                    # Re-raise to trigger outer exception handler for client notification
+                    raise persist_error
                 
             except Exception as e:
                 logger.error(f"[{request_id}] Stream error: {str(e)}", exc_info=True)
-                # Emit error event to client
+                # Emit error event to client (correlation_id included via create_event)
                 yield emit(create_event(
                     "error",
                     run_id="unknown",
@@ -596,13 +599,12 @@ async def docs_upload(files: List[UploadFile] = File(...)):
             rejected.append({"name": safe_name, "reason": f"extension not allowed: {ext}"})
             continue
 
-        # Resolve dest with collision suffixing
+        # Resolve dest with collision-free unique naming (UUID-based to avoid race conditions)
         dest = library / safe_name
-        i = 1
-        while dest.exists():
+        if dest.exists():
             stem = Path(safe_name).stem
-            dest = library / f"{stem}.{i}{ext}"
-            i += 1
+            unique_id = str(uuid.uuid4())[:8]
+            dest = library / f"{stem}.{unique_id}{ext}"
 
         # Stream-copy with size cap
         size = 0

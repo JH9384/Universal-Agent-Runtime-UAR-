@@ -37,9 +37,12 @@ RATE_LIMITS = _load_rate_limits()
 
 # Thread-safe in-memory rate limiter (for production, use Redis)
 class RateLimiter:
-    def __init__(self):
+    def __init__(self, cleanup_threshold: int = 1024, cleanup_interval: int = 100):
         self.requests: Dict[str, deque] = defaultdict(deque)
         self._lock = threading.Lock()
+        self._request_count = 0
+        self._cleanup_threshold = cleanup_threshold
+        self._cleanup_interval = cleanup_interval
     
     def is_allowed(self, key: str, limit: int, window: int) -> bool:
         now = time.time()
@@ -55,24 +58,29 @@ class RateLimiter:
                 return False
             
             request_times.append(now)
+            self._request_count += 1
 
-            # Opportunistic cleanup: once the table grows, drop empty-window keys
-            # to prevent unbounded growth from many unique IPs.
-            if len(self.requests) > 1024:
-                for k in list(self.requests.keys()):
-                    if not self.requests[k]:
-                        del self.requests[k]
+            # Periodic cleanup: only check every N requests to avoid overhead
+            # and use double-check pattern to avoid race conditions
+            if (self._request_count % self._cleanup_interval == 0 and 
+                len(self.requests) > self._cleanup_threshold):
+                self._evict_empty_unlocked()
             return True
+
+    def _evict_empty_unlocked(self) -> int:
+        """Drop empty keys - must be called while holding lock."""
+        removed = 0
+        # Double-check: verify still empty at deletion time
+        for k in list(self.requests.keys()):
+            if not self.requests.get(k):  # Double-check with .get() for safety
+                self.requests.pop(k, None)  # Use pop with default to avoid KeyError
+                removed += 1
+        return removed
 
     def evict_empty(self) -> int:
         """Drop keys whose window is empty to bound memory over time."""
-        removed = 0
         with self._lock:
-            for key in list(self.requests.keys()):
-                if not self.requests[key]:
-                    del self.requests[key]
-                    removed += 1
-        return removed
+            return self._evict_empty_unlocked()
 
 rate_limiter = RateLimiter()
 

@@ -10,9 +10,12 @@ def dependency_map(ctx):
     edges_by_id = {}
 
     for doc in documents:
+        # Validate document structure
+        if not isinstance(doc, dict):
+            continue
         path = doc.get("path")
         text = doc.get("text", "")
-        if not path:
+        if not path or not isinstance(path, str):
             continue
 
         nodes_by_id[path] = {"id": path, "type": "file"}

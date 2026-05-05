@@ -137,15 +137,29 @@ class Config:
             },
         }
         
-        # Add file logging in production
+        # Add file logging in production (if path is writable)
         if self.is_production:
-            log_config["handlers"]["file"] = {
-                "class": "logging.FileHandler",
-                "filename": "/var/log/uar/app.log",
-                "formatter": "json",
-                "level": self.log_level,
-            }
-            log_config["root"]["handlers"].append("file")
+            log_file_path = os.getenv("LOG_FILE_PATH", "/var/log/uar/app.log")
+            try:
+                # Ensure log directory exists
+                log_dir = Path(log_file_path).parent
+                log_dir.mkdir(parents=True, exist_ok=True)
+                # Test writability
+                test_file = log_dir / ".write_test"
+                test_file.write_text("test")
+                test_file.unlink()
+                
+                log_config["handlers"]["file"] = {
+                    "class": "logging.FileHandler",
+                    "filename": log_file_path,
+                    "formatter": "json",
+                    "level": self.log_level,
+                }
+                log_config["root"]["handlers"].append("file")
+            except (OSError, PermissionError):
+                # Log directory not writable, use stdout only
+                import sys
+                sys.stderr.write(f"Warning: Log directory not writable: {log_dir}. Using stdout only.\n")
         
         logging.config.dictConfig(log_config)
 

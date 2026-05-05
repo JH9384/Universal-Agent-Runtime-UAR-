@@ -14,7 +14,6 @@ const AVAILABLE_SKILLS = [
   { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
   { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
   { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
-  { id: 'atomic_lang_model', label: 'atomic_lang_model', desc: 'Formal language model analysis, generation, and verification (requires ALM service)' },
   { id: 'autonomi_upload',   label: 'autonomi_upload',   desc: 'Upload file/dir to Autonomi decentralized storage (requires autonomi package + wallet)' },
   { id: 'autonomi_download', label: 'autonomi_download', desc: 'Download a file from Autonomi by address (requires autonomi package)' },
   { id: 'autonomi_status',   label: 'autonomi_status',   desc: 'Check Autonomi client and wallet status' },

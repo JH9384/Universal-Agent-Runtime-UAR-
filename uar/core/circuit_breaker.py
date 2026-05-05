@@ -8,6 +8,8 @@ import threading
 import logging
 from enum import Enum
 
+from uar.core.exceptions import UARError, ErrorCode
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +31,7 @@ class CircuitBreaker:
         self._failures = 0
         self._last_failure_time = 0.0
         self._half_open_count = 0
+        self._pending_calls = 0
         self._lock = threading.Lock()
 
     @property
@@ -45,20 +48,33 @@ class CircuitBreaker:
                 logger.info(f"CircuitBreaker[{self.name}]: open → half_open")
 
     def call(self, fn, *args, **kwargs):
+        # Reserve slot under lock, execute outside lock, update atomically
         with self._lock:
             self._transition()
             if self._state == State.OPEN:
                 raise CircuitBreakerOpenError(self.name)
             if self._state == State.HALF_OPEN and self._half_open_count >= self.half_open_max:
                 raise CircuitBreakerOpenError(self.name)
+            
+            # Reserve slot for half-open state
+            if self._state == State.HALF_OPEN:
+                self._half_open_count += 1
+            self._pending_calls += 1
 
         try:
             result = fn(*args, **kwargs)
         except Exception:
             with self._lock:
+                self._pending_calls -= 1
                 self._failures += 1
                 self._last_failure_time = time.time()
-                if self._state == State.HALF_OPEN or self._failures >= self.failure_threshold:
+                if self._state == State.HALF_OPEN:
+                    # In half-open, any failure opens the circuit immediately
+                    self._state = State.OPEN
+                    logger.warning(
+                        f"CircuitBreaker[{self.name}]: half_open → open (failure in half-open)"
+                    )
+                elif self._failures >= self.failure_threshold:
                     self._state = State.OPEN
                     logger.warning(
                         f"CircuitBreaker[{self.name}]: → open "
@@ -67,12 +83,13 @@ class CircuitBreaker:
             raise
 
         with self._lock:
-            if self._state == State.HALF_OPEN:
-                self._half_open_count += 1
+            self._pending_calls -= 1
             self._failures = 0
-            if self._state == State.HALF_OPEN and self._half_open_count >= self.half_open_max:
-                self._state = State.CLOSED
-                logger.info(f"CircuitBreaker[{self.name}]: half_open → closed")
+            if self._state == State.HALF_OPEN:
+                # Check if we've completed enough successful calls to close
+                if self._half_open_count >= self.half_open_max and self._pending_calls == 0:
+                    self._state = State.CLOSED
+                    logger.info(f"CircuitBreaker[{self.name}]: half_open → closed")
 
         return result
 
@@ -81,8 +98,13 @@ class CircuitBreaker:
             self._state = State.CLOSED
             self._failures = 0
             self._half_open_count = 0
+            self._pending_calls = 0
 
 
-class CircuitBreakerOpenError(Exception):
+class CircuitBreakerOpenError(UARError):
+    """Raised when circuit breaker is open."""
+    code = ErrorCode.EXTERNAL_DOWN
+
     def __init__(self, name: str):
+        self.service_name = name
         super().__init__(f"Circuit breaker open for '{name}'")
