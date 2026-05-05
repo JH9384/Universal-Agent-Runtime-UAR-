@@ -1,12 +1,18 @@
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
-from typing import Any, Literal
+from typing import Any, Literal, Optional, List, Dict, Tuple
+from contextlib import asynccontextmanager
 import ast
 import hashlib
 import json
 import multiprocessing as mp
-import sys
 import os
+import queue
+import resource
+import sqlite3
+import sys
+import time
+import uuid
 import importlib.util
 
 # Ensure the local apps/api-python directory is on sys.path so the uar package can be imported
@@ -33,12 +39,6 @@ try:
     _MP_CTX: Any = mp.get_context("fork")
 except ValueError:  # pragma: no cover - platforms without fork
     _MP_CTX = mp.get_context()
-import queue
-import resource
-import sqlite3
-import time
-import uuid
-from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,11 +54,11 @@ DEFAULT_TIMEOUT_SECONDS = 2.0
 DEFAULT_MEMORY_MB = 128
 ObjectMode = Literal["immutable", "mutable", "collection"]
 
-STORE: dict[str, dict[str, Any]] = {}
-LINEAGE: dict[str, list[dict[str, Any]]] = {}
-RUNTIME_REGISTRY: dict[str, str] = {}
+STORE: Dict[str, Dict[str, Any]] = {}
+LINEAGE: Dict[str, List[Dict[str, Any]]] = {}
+RUNTIME_REGISTRY: Dict[str, str] = {}
 
-AGENTS: dict[str, list[str]] = {
+AGENTS: Dict[str, List[str]] = {
     "locator": ["query"],
     "verifier": ["verify", "compare"],
     "composer": ["compose"],
@@ -153,7 +153,7 @@ def load_db() -> None:
             RUNTIME_REGISTRY[row["name"]] = row["digest"]
 
 
-def persist_object(record: dict[str, Any]) -> None:
+def persist_object(record: Dict[str, Any]) -> None:
     with db() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO objects (digest, record_json) VALUES (?, ?)",
@@ -162,7 +162,7 @@ def persist_object(record: dict[str, Any]) -> None:
         conn.commit()
 
 
-def persist_lineage(digest: str, event: dict[str, Any]) -> None:
+def persist_lineage(digest: str, event: Dict[str, Any]) -> None:
     with db() as conn:
         conn.execute(
             "INSERT INTO lineage (digest, event_json) VALUES (?, ?)",
@@ -180,7 +180,7 @@ def persist_runtime(name: str, digest: str) -> None:
         conn.commit()
 
 
-def add_lineage(digest: str, event: dict[str, Any]) -> None:
+def add_lineage(digest: str, event: Dict[str, Any]) -> None:
     LINEAGE.setdefault(digest, []).append(event)
     persist_lineage(digest, event)
 
@@ -194,13 +194,13 @@ def timestamp() -> float:
     return time.time()
 
 
-def get_obj(digest: str) -> dict[str, Any]:
+def get_obj(digest: str) -> Dict[str, Any]:
     if digest not in STORE:
         raise HTTPException(status_code=404, detail=f"Object not found: {digest}")
     return STORE[digest]
 
 
-def object_value(obj: dict[str, Any]) -> Any:
+def object_value(obj: Dict[str, Any]) -> Any:
     content = obj.get("content")
     if isinstance(content, dict) and set(content.keys()) == {"result"}:
         return content["result"]
@@ -211,10 +211,10 @@ def create_record(
     *,
     mediaType: str,
     mode: ObjectMode,
-    attributes: dict[str, Any],
-    links: list[dict[str, Any]],
+    attributes: Dict[str, Any],
+    links: List[Dict[str, Any]],
     content: Any,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     envelope = {
         "mediaType": mediaType,
         "mode": mode,
@@ -252,7 +252,7 @@ def validate_code(code: str) -> None:
                 raise HTTPException(status_code=400, detail="Only approved builtin calls are allowed")
 
 
-def extract_runtime_code(runtime_obj: dict[str, Any]) -> str:
+def extract_runtime_code(runtime_obj: Dict[str, Any]) -> str:
     content = runtime_obj.get("content")
     if isinstance(content, str):
         return content
@@ -264,7 +264,7 @@ def extract_runtime_code(runtime_obj: dict[str, Any]) -> str:
     )
 
 
-def resolve_runtime(runtime_name: str | None, runtime_object: str | None) -> tuple[str, dict[str, Any]]:
+def resolve_runtime(runtime_name: Optional[str], runtime_object: Optional[str]) -> Tuple[str, Dict[str, Any]]:
     if runtime_name:
         if runtime_name not in RUNTIME_REGISTRY:
             raise HTTPException(status_code=404, detail=f"Runtime not registered: {runtime_name}")
@@ -277,8 +277,8 @@ def resolve_runtime(runtime_name: str | None, runtime_object: str | None) -> tup
 
 def _safe_child_exec(
     code: str,
-    input_objects: list[dict[str, Any]],
-    parameters: dict[str, Any],
+    input_objects: List[Dict[str, Any]],
+    parameters: Dict[str, Any],
     memory_mb: int,
     result_queue: mp.Queue,
 ) -> None:
@@ -309,7 +309,7 @@ def _safe_child_exec(
         result_queue.put({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
 
 
-def run_code(code: str, input_objects: list[dict[str, Any]], parameters: dict[str, Any]) -> Any:
+def run_code(code: str, input_objects: List[Dict[str, Any]], parameters: Dict[str, Any]) -> Any:
     validate_code(code)
     timeout_seconds = float(parameters.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
     memory_mb = int(parameters.get("memory_mb", DEFAULT_MEMORY_MB))
@@ -344,9 +344,9 @@ def register_runtime_object(
     name: str,
     code: str,
     description: str = "",
-    tags: list[str] | None = None,
-    attributes: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+    tags: Optional[List[str]] = None,
+    attributes: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     if not name.strip():
         raise HTTPException(status_code=400, detail="Runtime name is required")
     validate_code(code)
@@ -376,7 +376,7 @@ def register_runtime_object(
     return record
 
 
-def seed_standard_runtimes() -> dict[str, str]:
+def seed_standard_runtimes() -> Dict[str, str]:
     seeds = {
         "sum_contents": "sum(values)",
         "count_inputs": "len(inputs)",
@@ -398,11 +398,11 @@ def seed_standard_runtimes() -> dict[str, str]:
 
 def execute_runtime(
     *,
-    runtime_name: str | None,
-    runtime_object: str | None,
-    inputs: list[str],
-    parameters: dict[str, Any],
-) -> dict[str, Any]:
+    runtime_name: Optional[str],
+    runtime_object: Optional[str],
+    inputs: List[str],
+    parameters: Dict[str, Any],
+) -> Dict[str, Any]:
     input_objects = [get_obj(digest) for digest in inputs]
 
     if runtime_name or runtime_object:
@@ -471,8 +471,8 @@ def execute_runtime(
 class UORObjectIn(BaseModel):
     mediaType: str = "application/json"
     mode: ObjectMode = "immutable"
-    attributes: dict[str, Any] = Field(default_factory=dict)
-    links: list[dict[str, Any]] = Field(default_factory=list)
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+    links: List[Dict[str, Any]] = Field(default_factory=list)
     content: Any
 
 
@@ -480,18 +480,18 @@ class RuntimeRegisterReq(BaseModel):
     name: str
     code: str
     description: str = ""
-    tags: list[str] = Field(default_factory=list)
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    tags: List[str] = Field(default_factory=list)
+    attributes: Dict[str, Any] = Field(default_factory=dict)
 
 
 class QueryReq(BaseModel):
-    where: dict[str, Any] = Field(default_factory=dict)
+    where: Dict[str, Any] = Field(default_factory=dict)
     limit: int = 25
 
 
 class VerifyReq(BaseModel):
     object: str
-    expectedDigest: str | None = None
+    expectedDigest: Optional[str] = None
 
 
 class CompareReq(BaseModel):
@@ -500,54 +500,54 @@ class CompareReq(BaseModel):
 
 
 class ComposeReq(BaseModel):
-    inputs: list[str]
+    inputs: List[str]
     compositionType: str = "dataset"
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    attributes: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ExecuteReq(BaseModel):
-    runtimeName: str | None = None
-    runtimeObject: str | None = None
-    inputs: list[str] = Field(default_factory=list)
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    runtimeName: Optional[str] = None
+    runtimeObject: Optional[str] = None
+    inputs: List[str] = Field(default_factory=list)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkflowStep(BaseModel):
-    runtimeName: str | None = None
-    runtimeObject: str | None = None
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    runtimeName: Optional[str] = None
+    runtimeObject: Optional[str] = None
+    parameters: Dict[str, Any] = Field(default_factory=dict)
     usePreviousOutput: bool = True
 
 
 class WorkflowRunReq(BaseModel):
     name: str = "adhoc-workflow"
-    inputs: list[str] = Field(default_factory=list)
-    steps: list[WorkflowStep]
+    inputs: List[str] = Field(default_factory=list)
+    steps: List[WorkflowStep]
 
 
 class ConstraintReq(BaseModel):
     action: str
     agent: str
     target: str
-    policy: str | None = None
+    policy: Optional[str] = None
 
 
 class BridgeReq(BaseModel):
-    source: dict[str, Any]
+    source: Dict[str, Any]
     normalize: bool = True
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    attributes: Dict[str, Any] = Field(default_factory=dict)
 
 
 class InferenceReq(BaseModel):
-    objects: list[str]
+    objects: List[str]
     task: str
     requireVerification: bool = True
 
 
 class DelegationReq(BaseModel):
     goal: str
-    inputs: list[str] = Field(default_factory=list)
-    allowedAgents: list[str] = Field(default_factory=list)
+    inputs: List[str] = Field(default_factory=list)
+    allowedAgents: List[str] = Field(default_factory=list)
 
 
 class AtomicLangModelAnalyzeReq(BaseModel):

@@ -27,11 +27,9 @@ from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
 
-# Resolve allowed root from environment (strict - no fallback to cwd for security)
+# Resolve allowed root from environment with fallback to cwd
 _allowed_root_env = os.getenv("PROJECT_ROOT")
-if not _allowed_root_env:
-    raise RuntimeError("PROJECT_ROOT environment variable must be set for GraphRAG security")
-ALLOWED_ROOT = Path(_allowed_root_env).resolve()
+ALLOWED_ROOT = Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
 
 _graphrag_cb = CircuitBreaker("graphrag", failure_threshold=2, recovery_timeout=60.0)
 
