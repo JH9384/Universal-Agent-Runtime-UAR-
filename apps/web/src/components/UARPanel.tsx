@@ -17,6 +17,9 @@ const AVAILABLE_SKILLS = [
   { id: 'autonomi_upload',   label: 'autonomi_upload',   desc: 'Upload file/dir to Autonomi decentralized storage (requires autonomi package + wallet)' },
   { id: 'autonomi_download', label: 'autonomi_download', desc: 'Download a file from Autonomi by address (requires autonomi package)' },
   { id: 'autonomi_status',   label: 'autonomi_status',   desc: 'Check Autonomi client and wallet status' },
+  { id: 'alm_analyze',      label: 'alm_analyze',      desc: 'Analyze formal grammar specifications (BNF, EBNF) with ALM (requires ALM service)' },
+  { id: 'alm_generate',     label: 'alm_generate',     desc: 'Generate token sequences from a prefix using ALM (requires ALM service)' },
+  { id: 'alm_verify',       label: 'alm_verify',       desc: 'Validate text against ALM grammar (requires ALM service)' },
 ]
 
 const GOAL_TEMPLATES = [

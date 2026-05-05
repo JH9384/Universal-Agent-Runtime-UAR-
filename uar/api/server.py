@@ -3,13 +3,15 @@ import logging
 import os
 import time
 import uuid
+import asyncio
 from typing import Any, List, Optional
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Depends, Request, status, Response, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
 from uar.core.contracts import GoalSpec
@@ -19,11 +21,19 @@ from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
 from uar.core.validation import validate_goal, validate_skills, validate_input_path
 from uar.memory.json_store import JsonRunStore
-from uar.api.middleware import (
-    apply_middleware, rate_limit_middleware, auth_middleware,
-    request_logging_middleware, error_handler_middleware, security
+from .middleware import (
+    error_handler_middleware,
+    rate_limit_middleware,
+    auth_middleware,
+    request_logging_middleware,
 )
+from .tracing import trace_span
 from uar.api.metrics import get_metrics_collector
+
+# Backpressure configuration
+BACKPRESSURE_ENABLED = os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
+BACKPRESSURE_THRESHOLD = int(os.getenv("BACKPRESSURE_THRESHOLD", "100"))  # Max buffered events
+BACKPRESSURE_DELAY = float(os.getenv("BACKPRESSURE_DELAY", "0.1"))  # Delay in seconds when backpressure triggered
 
 # Configure logging
 logging.basicConfig(
@@ -55,17 +65,32 @@ async def lifespan(app: FastAPI):
     logger.info("UAR API shutdown complete")
 
 
+# CORS configuration
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower() == "true"
+CORS_ALLOW_METHODS = os.getenv("CORS_ALLOW_METHODS", "*")
+CORS_ALLOW_HEADERS = os.getenv("CORS_ALLOW_HEADERS", "*")
+
 app = FastAPI(
     title="UAR API",
     description="Universal Agent Runtime API with production security features",
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=CORS_ALLOW_CREDENTIALS,
+    allow_methods=[CORS_ALLOW_METHODS] if CORS_ALLOW_METHODS != "*" else ["*"],
+    allow_headers=[CORS_ALLOW_HEADERS] if CORS_ALLOW_HEADERS != "*" else ["*"],
+)
+
 store = JsonRunStore()
 
-
-# Apply middleware
-apply_middleware(app)
+# Security scheme for API key authentication
+security = HTTPBearer(auto_error=False)
 
 
 # Custom exception handlers for UAR exceptions
@@ -206,62 +231,63 @@ async def run_goal(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """Execute a goal and return the complete result"""
-    # Apply rate limiting
-    rate_limit_middleware(request, credentials)
-    
-    # Get user info
-    user_info = auth_middleware(credentials)
-    
-    # Log request
-    request_id = request_logging_middleware(request, user_info)
-    
-    try:
-        goal = _build_goal(req)
-        planner = SimplePlanner()
-        strategy = planner.plan(goal)
-
-        from uar.core.executor import Executor
-
-        executor = Executor()
-        timeout = req.timeout_seconds or 5.0
-        result = executor.run(strategy, goal, timeout_seconds=timeout)
-
-        store.append(result)
-        logger.info(f"[{request_id}] Run completed successfully: {result.run_id}")
+    with trace_span("api.run_goal", {"goal": req.goal[:50]}):
+        # Apply rate limiting
+        rate_limit_middleware(request, credentials)
         
-        return result
+        # Get user info
+        user_info = auth_middleware(credentials)
         
-    except ValidationError as e:
-        logger.warning(f"[{request_id}] Validation error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Validation error",
-                "message": str(e),
-                "field": e.field,
-                "request_id": request_id
-            }
-        )
-    except UARError as e:
-        logger.error(f"[{request_id}] UAR error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "UAR error",
-                "message": str(e),
-                "request_id": request_id
-            }
-        )
-    except Exception as e:
-        logger.error(f"[{request_id}] Unexpected error in run_goal: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error": "Internal server error",
-                "message": "An unexpected error occurred",
-                "request_id": request_id
-            }
-        )
+        # Log request
+        request_id = request_logging_middleware(request, user_info)
+        
+        try:
+            goal = _build_goal(req)
+            planner = SimplePlanner()
+            strategy = planner.plan(goal)
+
+            from uar.core.executor import Executor
+
+            executor = Executor()
+            timeout = req.timeout_seconds or 5.0
+            result = executor.run(strategy, goal, timeout_seconds=timeout)
+
+            store.append(result)
+            logger.info(f"[{request_id}] Run completed successfully: {result.run_id}")
+            
+            return result
+            
+        except ValidationError as e:
+            logger.warning(f"[{request_id}] Validation error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "Validation error",
+                    "message": str(e),
+                    "field": e.field,
+                    "request_id": request_id
+                }
+            )
+        except UARError as e:
+            logger.error(f"[{request_id}] UAR error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "UAR error",
+                    "message": str(e),
+                    "request_id": request_id
+                }
+            )
+        except Exception as e:
+            logger.error(f"[{request_id}] Unexpected error in run_goal: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "error": "Internal server error",
+                    "message": "An unexpected error occurred",
+                    "request_id": request_id
+                }
+            )
 
 
 @app.post("/api/uar/stream", responses={
@@ -276,130 +302,150 @@ async def stream_goal(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """Execute a goal and stream events in real-time"""
-    # Apply rate limiting
-    rate_limit_middleware(request, credentials)
-    
-    # Get user info
-    user_info = auth_middleware(credentials)
-    
-    # Log request
-    request_id = request_logging_middleware(request, user_info)
-    
-    try:
-        goal = _build_goal(req)
-        strategy = SimplePlanner().plan(goal)
+    with trace_span("api.stream_goal", {"goal": req.goal[:50]}):
+        # Apply rate limiting
+        rate_limit_middleware(request, credentials)
+        
+        # Get user info
+        user_info = auth_middleware(credentials)
+        
+        # Log request
+        request_id = request_logging_middleware(request, user_info)
+        
+        try:
+            goal = _build_goal(req)
+            strategy = SimplePlanner().plan(goal)
 
-        plan = build_orchestration_plan(strategy)
+            plan = build_orchestration_plan(strategy)
 
-        from uar.core.executor import Executor
+            from uar.core.executor import Executor
 
-        executor = Executor()
-        timeout = req.timeout_seconds or 5.0
-        cid = getattr(request.state, 'correlation_id', '')
+            executor = Executor()
+            timeout = req.timeout_seconds or 5.0
+            cid = getattr(request.state, 'correlation_id', '')
 
-        def emit(event: dict) -> str:
-            return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+            def emit(event: dict) -> str:
+                return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
 
-        def create_event(event_type: str, run_id: str, skill=None, payload=None, error=None):
-            """Create a properly formatted event following the uar.event.v1 schema."""
-            return {
-                "schema_version": "uar.event.v1",
-                "type": event_type,
-                "run_id": run_id,
-                "goal_id": strategy.goal_id,
-                "skill": skill,
-                "timestamp": time.time(),
-                "correlation_id": cid,
-                "payload": payload or {},
-                "error": error,
-            }
+            def create_event(event_type: str, run_id: str, skill=None, payload=None, error=None):
+                """Create a properly formatted event following the uar.event.v1 schema."""
+                return {
+                    "schema_version": "uar.event.v1",
+                    "type": event_type,
+                    "run_id": run_id,
+                    "goal_id": strategy.goal_id,
+                    "skill": skill,
+                    "timestamp": time.time(),
+                    "correlation_id": cid,
+                    "payload": payload or {},
+                    "error": error,
+                }
 
-        async def generate():
-            events = []
-            persisted = False
-            try:
-                # emit orchestration graph first
-                yield emit(create_event(
-                    "orchestration_plan",
-                    run_id="pending",
-                    payload={"graph": plan.to_graph()}
-                ))
-
-                for event in executor.iter_events(strategy, goal, timeout_seconds=timeout, correlation_id=cid):
-                    events.append(event)
-                    yield emit(event)
-
-                # Persist successful run
-                try:
-                    record = run_record_from_events(events, strategy.ordered_skills)
-                    store.append(record)
-                    persisted = True
-                    logger.info(f"[{request_id}] Stream completed and persisted: {record.run_id}")
-                except Exception as persist_error:
-                    logger.error(f"[{request_id}] Failed to persist stream results: {str(persist_error)}")
-                    # Do not let the finally-block retry a reconstruction that
-                    # already failed deterministically (e.g. EventContractError).
-                    persisted = True
-                    # Still emit completion but mark persistence failure
-                    yield emit(create_event(
-                        "error",
-                        run_id="unknown",
-                        error=f"Execution completed but persistence failed: {str(persist_error)}"
-                    ))
-                    # Re-raise to trigger outer exception handler for client notification
-                    raise persist_error
+            async def generate():
+                events = []
+                persisted = False
+                last_heartbeat = time.time()
+                heartbeat_interval = 30  # Send heartbeat every 30 seconds
                 
-            except Exception as e:
-                logger.error(f"[{request_id}] Stream error: {str(e)}", exc_info=True)
-                # Emit error event to client (correlation_id included via create_event)
-                yield emit(create_event(
-                    "error",
-                    run_id="unknown",
-                    error=str(e)
-                ))
-            finally:
-                # Ensure persistence even if client disconnects or error occurred
-                if events and not persisted:
+                try:
+                    # emit orchestration graph first
+                    yield emit(create_event(
+                        "orchestration_plan",
+                        run_id="pending",
+                        payload={"graph": plan.to_graph()}
+                    ))
+
+                    for event in executor.iter_events(strategy, goal, timeout_seconds=timeout, correlation_id=cid):
+                        # Check if heartbeat needed
+                        current_time = time.time()
+                        if current_time - last_heartbeat > heartbeat_interval:
+                            yield emit(create_event(
+                                "heartbeat",
+                                run_id="pending",
+                                payload={"timestamp": current_time}
+                            ))
+                            last_heartbeat = current_time
+                        
+                        events.append(event)
+                        
+                        # Backpressure handling: slow down if too many events buffered
+                        if BACKPRESSURE_ENABLED and len(events) > BACKPRESSURE_THRESHOLD:
+                            logger.debug(f"Backpressure triggered: {len(events)} events buffered, delaying {BACKPRESSURE_DELAY}s")
+                            await asyncio.sleep(BACKPRESSURE_DELAY)
+                        
+                        yield emit(event)
+
+                    # Persist successful run
                     try:
                         record = run_record_from_events(events, strategy.ordered_skills)
                         store.append(record)
-                        logger.info(f"[{request_id}] Stream persisted {len(events)} events (fallback)")
-                    except Exception as e:
-                        logger.error(f"[{request_id}] Failed to persist stream events in finally: {str(e)}")
+                        persisted = True
+                        logger.info(f"[{request_id}] Stream completed and persisted: {record.run_id}")
+                    except Exception as persist_error:
+                        logger.error(f"[{request_id}] Failed to persist stream results: {str(persist_error)}")
+                        # Do not let the finally-block retry a reconstruction that
+                        # already failed deterministically (e.g. EventContractError).
+                        persisted = True
+                        # Still emit completion but mark persistence failure
+                        yield emit(create_event(
+                            "error",
+                            run_id="unknown",
+                            error=f"Execution completed but persistence failed: {str(persist_error)}"
+                        ))
+                        # Re-raise to trigger outer exception handler for client notification
+                        raise persist_error
+                    
+                except Exception as e:
+                    logger.error(f"[{request_id}] Stream error: {str(e)}", exc_info=True)
+                    # Emit error event to client (correlation_id included via create_event)
+                    yield emit(create_event(
+                        "error",
+                        run_id="unknown",
+                        error=str(e)
+                    ))
+                finally:
+                    # Ensure persistence even if client disconnects or error occurred
+                    if events and not persisted:
+                        try:
+                            record = run_record_from_events(events, strategy.ordered_skills)
+                            store.append(record)
+                            logger.info(f"[{request_id}] Stream persisted {len(events)} events (fallback)")
+                        except Exception as e:
+                            logger.error(f"[{request_id}] Failed to persist stream events in finally: {str(e)}")
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
-        
-    except ValidationError as e:
-        logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Validation error",
-                "message": str(e),
-                "field": e.field,
-                "request_id": request_id
-            }
-        )
-    except UARError as e:
-        logger.error(f"[{request_id}] Stream UAR error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "UAR error",
-                "message": str(e),
-                "request_id": request_id
-            }
-        )
-    except Exception as e:
-        logger.error(f"[{request_id}] Unexpected stream error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error": "Internal server error",
-                "message": "An unexpected error occurred",
-                "request_id": request_id
-            }
-        )
+            return StreamingResponse(generate(), media_type="text/event-stream")
+            
+        except ValidationError as e:
+            logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "Validation error",
+                    "message": str(e),
+                    "field": e.field,
+                    "request_id": request_id
+                }
+            )
+        except UARError as e:
+            logger.error(f"[{request_id}] Stream UAR error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "UAR error",
+                    "message": str(e),
+                    "request_id": request_id
+                }
+            )
+        except Exception as e:
+            logger.error(f"[{request_id}] Unexpected stream error: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "error": "Internal server error",
+                    "message": "An unexpected error occurred",
+                    "request_id": request_id
+                }
+            )
 
 
 @app.get("/api/uar/runs", responses={
@@ -616,7 +662,6 @@ async def docs_upload(files: List[UploadFile] = File(...)):
                         break
                     size += len(chunk)
                     if size > MAX_UPLOAD_BYTES:
-                        out.close()
                         try:
                             dest.unlink()
                         except OSError:

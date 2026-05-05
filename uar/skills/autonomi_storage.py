@@ -97,14 +97,12 @@ def _wallet_and_payment(autonomi_mod, private_key: str, network_name: str):
 
 @register_skill("autonomi_upload")
 def autonomi_upload(ctx):
-    """Upload a file or directory to the Autonomi decentralized network.
+    """Upload a file to Autonomi decentralized storage.
 
-    Source resolution order:
-      1. input_path from goal metadata
-      2. First existing file path from prior doc_ingest documents
-
-    Returns:
-      {status, address, public, file_path, network, error?}
+    Metadata:
+      autonomi_source : file path to upload (required)
+      autonomi_network : "testnet" or "mainnet" (default: testnet)
+      autonomi_private_key : EVM wallet private key (optional, overrides env var)
     """
     mod = _get_autonomi()
     if mod is None:
@@ -113,55 +111,47 @@ def autonomi_upload(ctx):
             "error": "autonomi Python package not installed. Run: pip install autonomi",
         }
 
-    src = _resolve_input_path(ctx)
-    if not src:
-        return {
-            "status": "failed",
-            "error": (
-                "No input_path provided and no documents found from prior steps. "
-                "Upload requires a file or directory source."
-            ),
-        }
+    source = ctx.goal.metadata.get("autonomi_source")
+    if not source:
+        return {"status": "failed", "error": "Missing autonomi_source in metadata"}
 
-    # Configuration ----------------------------------------------------------
-    private_key = (
-        ctx.goal.metadata.get("autonomi_private_key")
-        or os.getenv("AUTONOMI_PRIVATE_KEY")
-    )
+    src = Path(source).resolve()
+    try:
+        validate_path_security(src, ALLOWED_ROOT)
+    except Exception as e:
+        logger.warning(f"Path security validation failed for {src}: {e}")
+        return {"status": "failed", "error": f"Path security violation: {e}"}
+
+    if not src.exists():
+        return {"status": "failed", "error": f"Source not found: {src}"}
+
+    if not src.is_file():
+        raise ValueError(f"Path is neither file nor directory: {src}")
+
     network_name = (
         ctx.goal.metadata.get("autonomi_network")
         or os.getenv("AUTONOMI_NETWORK", "testnet")
     )
     public = bool(ctx.goal.metadata.get("autonomi_public", False))
+
+    private_key = (
+        ctx.goal.metadata.get("autonomi_private_key")
+        or os.getenv("AUTONOMI_PRIVATE_KEY")
+    )
+
     timeout = float(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))
 
-    if not private_key:
-        return {
-            "status": "failed",
-            "error": (
-                "No Autonomi private key configured. Set AUTONOMI_PRIVATE_KEY env var "
-                "or pass autonomi_private_key in metadata."
-            ),
-        }
-
-    # Async upload -----------------------------------------------------------
+    # Async upload ---------------------------------------------------------
     async def _do():
         from autonomi import Client
-        _, payment = _wallet_and_payment(mod, private_key, network_name)
         client = await Client.init()
-
-        if src.is_file():
-            if public:
-                result = await client.file_content_upload_public(str(src), payment)
-            else:
-                result = await client.file_content_upload(str(src), payment)
-        elif src.is_dir():
-            if public:
-                result = await client.dir_content_upload_public(str(src), payment)
-            else:
-                result = await client.dir_content_upload(str(src), payment)
+        if public:
+            result = await client.file_upload_public(str(src))
         else:
-            raise ValueError(f"Path is neither file nor directory: {src}")
+            if not private_key:
+                raise ValueError("Private key required for private uploads")
+            _, payment = _wallet_and_payment(mod, private_key, network_name)
+            result = await client.file_upload(str(src), payment)
         return result
 
     try:
@@ -172,6 +162,7 @@ def autonomi_upload(ctx):
             "public": public,
             "file_path": str(src),
             "network": network_name,
+            "has_wallet": bool(private_key),
         }
     except Exception as exc:
         logger.exception("autonomi_upload failed")
@@ -317,7 +308,12 @@ def autonomi_status(ctx):
             wallet = Wallet.new_from_private_key(net, private_key)
             # Expose wallet address if available
             result["wallet_address"] = str(getattr(wallet, "address", "unavailable"))
+            # Redact private key from result
+            result["has_wallet"] = True
         except Exception as exc:
             result["wallet_error"] = str(exc)
+            result["has_wallet"] = False
+    else:
+        result["has_wallet"] = False
 
     return result

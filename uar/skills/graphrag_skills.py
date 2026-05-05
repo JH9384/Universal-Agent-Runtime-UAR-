@@ -33,6 +33,81 @@ ALLOWED_ROOT = Path(_allowed_root_env).resolve() if _allowed_root_env else Path.
 
 _graphrag_cb = CircuitBreaker("graphrag", failure_threshold=2, recovery_timeout=60.0)
 
+# Graph size limits to prevent unbounded growth
+MAX_NODES = int(os.getenv("GRAPHRAG_MAX_NODES", "10000"))
+MAX_EDGES = int(os.getenv("GRAPHRAG_MAX_EDGES", "50000"))
+MAX_ENTITY_LIMIT = int(os.getenv("GRAPHRAG_MAX_ENTITY_LIMIT", "5000"))
+
+# Schema versioning for graph data
+GRAPH_SCHEMA_VERSION = "v1"  # Current graph schema version
+
+
+def _check_graph_size_limits(root: Path) -> tuple[bool, str]:
+    """Check if existing graph exceeds size limits.
+    
+    Returns (within_limits, error_message).
+    """
+    entities_path = root / "output" / "create_final_entities.parquet"
+    relationships_path = root / "output" / "create_final_relationships.parquet"
+    
+    if not entities_path.exists() or not relationships_path.exists():
+        return True, ""  # No graph yet, within limits
+    
+    try:
+        import pandas as pd
+        
+        # Count entities (nodes)
+        entities_df = pd.read_parquet(entities_path)
+        entity_count = len(entities_df)
+        
+        # Count relationships (edges)
+        relationships_df = pd.read_parquet(relationships_path)
+        edge_count = len(relationships_df)
+        
+        if entity_count > MAX_NODES:
+            return False, f"Graph exceeds node limit ({entity_count} > {MAX_NODES})"
+        
+        if edge_count > MAX_EDGES:
+            return False, f"Graph exceeds edge limit ({edge_count} > {MAX_EDGES})"
+        
+        return True, ""
+    except Exception as e:
+        logger.warning(f"Failed to check graph size limits: {e}")
+        return True, ""  # Allow continuation if check fails
+
+
+def _get_graph_schema_version(root: Path) -> str:
+    """Get the schema version of an existing graph.
+    
+    Returns the schema version string (e.g., "v1") or "unknown" if not found.
+    """
+    version_file = root / "schema_version.txt"
+    if version_file.exists():
+        return version_file.read_text().strip()
+    return "unknown"
+
+
+def _set_graph_schema_version(root: Path, version: str = GRAPH_SCHEMA_VERSION) -> None:
+    """Set the schema version for a graph."""
+    version_file = root / "schema_version.txt"
+    version_file.write_text(version, encoding="utf-8")
+
+
+def _check_schema_compatibility(root: Path) -> tuple[bool, str]:
+    """Check if existing graph schema is compatible with current version.
+    
+    Returns (is_compatible, error_message).
+    """
+    current_version = _get_graph_schema_version(root)
+    if current_version == "unknown":
+        # No version file, assume compatible for new graphs
+        return True, ""
+    
+    if current_version != GRAPH_SCHEMA_VERSION:
+        return False, f"Graph schema version mismatch: existing={current_version}, current={GRAPH_SCHEMA_VERSION}. Run graphrag_init to reset."
+    
+    return True, ""
+
 
 def _check_ollama_health() -> tuple[bool, str]:
     """Check if Ollama is reachable. Returns (is_healthy, error_message)."""
@@ -185,7 +260,9 @@ def _ensure_workspace() -> Path:
     # Minimal .env to satisfy graphrag's API key lookup
     env_file = root / ".env"
     if not env_file.exists():
-        env_file.write_text("GRAPHRAG_API_KEY=ollama\n", encoding="utf-8")
+        # Use environment variable for API key if set, otherwise use placeholder
+        api_key = os.getenv("GRAPHRAG_API_KEY", "ollama")
+        env_file.write_text(f"GRAPHRAG_API_KEY={api_key}\n", encoding="utf-8")
     return root
 
 
@@ -252,10 +329,12 @@ def _run_cli_impl(args: list[str], cwd: Path, timeout: int = 3600) -> dict:
 def graphrag_init(ctx):
     """Create or refresh the GraphRAG workspace at <PROJECT_ROOT>/.uar_graphrag."""
     root = _ensure_workspace()
+    _set_graph_schema_version(root)  # Set current schema version
     return {
         "status": "completed",
         "workspace": str(root),
         "settings": str(root / "settings.yaml"),
+        "schema_version": GRAPH_SCHEMA_VERSION,
     }
 
 
@@ -288,6 +367,22 @@ def graphrag_index(ctx):
     
     if not source.exists():
         return {"status": "failed", "error": f"input_path does not exist: {source}"}
+
+    # Check graph size limits before indexing
+    within_limits, limit_error = _check_graph_size_limits(root)
+    if not within_limits:
+        return {
+            "status": "failed",
+            "error": f"Graph size limit exceeded: {limit_error}. Consider clearing the workspace with graphrag_init.",
+        }
+
+    # Check schema compatibility before indexing
+    compatible, schema_error = _check_schema_compatibility(root)
+    if not compatible:
+        return {
+            "status": "failed",
+            "error": schema_error,
+        }
 
     staged = _stage_inputs(source, root / "input")
     if staged == 0:
@@ -326,6 +421,22 @@ def graphrag_query(ctx):
     settings = root / "settings.yaml"
     if not settings.exists():
         return {"status": "failed", "error": f"No GraphRAG workspace at {root}. Run graphrag_index first."}
+
+    # Check graph size limits before querying
+    within_limits, limit_error = _check_graph_size_limits(root)
+    if not within_limits:
+        return {
+            "status": "failed",
+            "error": f"Graph size limit exceeded: {limit_error}. Consider clearing the workspace with graphrag_init.",
+        }
+
+    # Check schema compatibility before querying
+    compatible, schema_error = _check_schema_compatibility(root)
+    if not compatible:
+        return {
+            "status": "failed",
+            "error": schema_error,
+        }
 
     meta = ctx.goal.metadata or {}
     method = (meta.get("graphrag_method") or "local").lower()

@@ -1,4 +1,5 @@
 import concurrent.futures
+import os
 import time
 import uuid
 from typing import Iterator
@@ -7,6 +8,22 @@ from .contracts import PipelineContext, RunRecord, StrategySpec
 from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .registry import registry
 from .validation import validate_timeout
+
+
+# Retry configuration per skill (max retries)
+DEFAULT_MAX_RETRIES = int(os.getenv("UAR_MAX_RETRIES", "2"))
+SKILL_RETRY_POLICIES = {
+    "default": DEFAULT_MAX_RETRIES,
+    "ollama_generate": 3,  # More retries for external service
+    "graphrag_query": 2,
+    "autonomi_upload": 3,
+    "autonomi_download": 3,
+}
+
+
+def get_max_retries(skill_name: str) -> int:
+    """Get max retries for a skill, with default fallback."""
+    return SKILL_RETRY_POLICIES.get(skill_name, SKILL_RETRY_POLICIES["default"])
 
 
 def _run_with_timeout(fn, ctx, timeout_seconds):
@@ -90,58 +107,53 @@ class Executor:
 
         for skill_name in strategy.ordered_skills:
             yield _ev("skill_start", skill=skill_name)
-            try:
-                fn = registry.get(skill_name)
-                result = _run_with_timeout(fn, ctx, timeout_seconds)
-                ctx.data[skill_name] = result
-                outputs.append({skill_name: result})
-                yield _ev(
-                    "skill_complete",
-                    skill=skill_name,
-                    payload={"result": result},
-                )
-            except TimeoutError as e:
-                message = str(e)
-                errors.append(message)
-                yield _ev("skill_failed", skill=skill_name, error=message)
-                yield _ev(
-                    "complete",
-                    payload={
-                        "status": "failed",
-                        "outputs": outputs,
-                        "errors": errors,
-                        "final_context": ctx.data,
-                    },
-                )
-                return
-            except SkillExecutionError as e:
-                message = str(e)
-                errors.append(message)
-                yield _ev("skill_failed", skill=skill_name, error=message)
-                yield _ev(
-                    "complete",
-                    payload={
-                        "status": "failed",
-                        "outputs": outputs,
-                        "errors": errors,
-                        "final_context": ctx.data,
-                    },
-                )
-                return
-            except Exception as e:
-                message = str(e)
-                errors.append(message)
-                yield _ev("skill_failed", skill=skill_name, error=message)
-                yield _ev(
-                    "complete",
-                    payload={
-                        "status": "failed",
-                        "outputs": outputs,
-                        "errors": errors,
-                        "final_context": ctx.data,
-                    },
-                )
-                return
+            
+            # Retry logic for skill execution
+            max_retries = get_max_retries(skill_name)
+            last_error = None
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    fn = registry.get(skill_name)
+                    result = _run_with_timeout(fn, ctx, timeout_seconds)
+                    ctx.data[skill_name] = result
+                    outputs.append({skill_name: result})
+                    yield _ev(
+                        "skill_complete",
+                        skill=skill_name,
+                        payload={"result": result, "attempt": attempt + 1},
+                    )
+                    break  # Success, exit retry loop
+                except (TimeoutError, SkillExecutionError) as exc:
+                    last_error = exc
+                    if attempt < max_retries:
+                        # Retry with exponential backoff
+                        backoff = min(2 ** attempt, 5)  # Max 5 seconds
+                        yield _ev(
+                            "skill_retry",
+                            skill=skill_name,
+                            payload={"attempt": attempt + 1, "backoff": backoff, "error": str(exc)},
+                        )
+                        time.sleep(backoff)
+                    else:
+                        # Max retries exceeded
+                        yield _ev(
+                            "skill_failed",
+                            skill=skill_name,
+                            error=str(last_error),
+                            payload={"attempts": attempt + 1},
+                        )
+                        errors.append(f"{skill_name}: {str(last_error)}")
+                        break
+                except Exception as exc:
+                    # Non-retryable error
+                    yield _ev(
+                        "skill_failed",
+                        skill=skill_name,
+                        error=str(exc),
+                    )
+                    errors.append(f"{skill_name}: {str(exc)}")
+                    break
 
         # Optional sum_review skill - only run when explicitly opted in via
         # goal metadata, so implicit execution does not diverge from the

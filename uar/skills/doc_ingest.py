@@ -131,21 +131,20 @@ def _extract_docx(file_path: Path) -> str:
 def _extract_xlsx(file_path: Path) -> str:
     """Extract all sheets from a .xlsx as TSV-like text via openpyxl."""
     from openpyxl import load_workbook  # type: ignore
-    wb = load_workbook(str(file_path), data_only=True, read_only=True)
     parts = []
-    for sheet in wb.sheetnames:
-        ws = wb[sheet]
-        parts.append(f"--- SHEET: {sheet} ---")
-        rows_added = 0
-        for row in ws.iter_rows(values_only=True):
-            if all(c is None for c in row):
-                continue
-            parts.append("\t".join("" if c is None else str(c) for c in row))
-            rows_added += 1
-            if rows_added >= 5000:
-                parts.append("[...truncated at 5000 rows...]")
-                break
-    wb.close()
+    with load_workbook(str(file_path), data_only=True, read_only=True) as wb:
+        for sheet in wb.sheetnames:
+            ws = wb[sheet]
+            parts.append(f"--- SHEET: {sheet} ---")
+            rows_added = 0
+            for row in ws.iter_rows(values_only=True):
+                if all(c is None for c in row):
+                    continue
+                parts.append("\t".join("" if c is None else str(c) for c in row))
+                rows_added += 1
+                if rows_added >= 5000:
+                    parts.append("[...truncated at 5000 rows...]")
+                    break
     return "\n".join(parts)
 
 

@@ -2,6 +2,7 @@ import fcntl
 import json
 import os
 import threading
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional
@@ -28,29 +29,26 @@ class JsonRunStore:
         self._lock_file = self.path.parent / ".uar_lock"
         self._thread_lock = threading.Lock()
 
+    @contextmanager
     def _acquire_lock(self, shared: bool = False):
-        """Acquire file lock for read or write operations."""
+        """Acquire file lock for read or write operations with context manager."""
         self._lock_file.touch(exist_ok=True)
-        self._lock_fd = open(self._lock_file, "w")
-        fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_SH if shared else fcntl.LOCK_EX)
-
-    def _release_lock(self):
-        """Release file lock."""
-        if hasattr(self, '_lock_fd'):
-            fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_UN)
-            self._lock_fd.close()
+        lock_fd = open(self._lock_file, "w")
+        try:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_SH if shared else fcntl.LOCK_EX)
+            yield lock_fd
+        finally:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+            lock_fd.close()
 
     def append(self, record: RunRecord) -> None:
         """Append record to JSONL file with exclusive lock."""
         with self._thread_lock:
-            self._acquire_lock()
-            try:
+            with self._acquire_lock():
                 with self.path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(asdict(record), sort_keys=True) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
-            finally:
-                self._release_lock()
 
     def list_records(self) -> List[dict]:
         """List all records with shared lock for consistency."""
@@ -58,8 +56,7 @@ class JsonRunStore:
             return []
 
         with self._thread_lock:
-            self._acquire_lock(shared=True)
-            try:
+            with self._acquire_lock(shared=True):
                 records = []
                 with self.path.open("r", encoding="utf-8") as f:
                     for line in f:
@@ -71,5 +68,3 @@ class JsonRunStore:
                                 # Skip corrupted lines
                                 continue
                 return records
-            finally:
-                self._release_lock()
