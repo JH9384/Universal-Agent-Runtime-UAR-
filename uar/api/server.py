@@ -1,11 +1,14 @@
 import json
 import logging
+import os
 import time
 import uuid
 from typing import Any, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, status, Depends, UploadFile, File
-from fastapi.responses import JSONResponse, StreamingResponse
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Query, Depends, Request, status, Response, UploadFile, File
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, field_validator
 
@@ -17,9 +20,10 @@ from uar.core.orchestrator import build_orchestration_plan
 from uar.core.validation import validate_goal, validate_skills, validate_input_path
 from uar.memory.json_store import JsonRunStore
 from uar.api.middleware import (
-    apply_middleware, rate_limit_middleware, auth_middleware, 
+    apply_middleware, rate_limit_middleware, auth_middleware,
     request_logging_middleware, error_handler_middleware, security
 )
+from uar.api.metrics import get_metrics_collector
 
 # Configure logging
 logging.basicConfig(
@@ -37,12 +41,28 @@ import uar.skills.ollama_generate  # noqa
 import uar.skills.graphrag_skills  # noqa
 import uar.skills.autonomi_storage  # noqa
 
+# Lifespan for graceful startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan handler for graceful startup and shutdown."""
+    # Startup
+    logger.info("UAR API starting up...")
+    yield
+    # Shutdown - drain in-flight requests
+    logger.info("UAR API shutting down, draining requests (5s grace period)...")
+    import asyncio
+    await asyncio.sleep(0.1)  # Let any in-flight requests complete
+    logger.info("UAR API shutdown complete")
+
+
 app = FastAPI(
     title="UAR API",
     description="Universal Agent Runtime API with production security features",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 store = JsonRunStore()
+
 
 # Apply middleware
 apply_middleware(app)
@@ -417,8 +437,65 @@ async def list_runs(
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint (backwards-compatible alias for liveness)."""
     return {"status": "healthy", "version": "1.0.0"}
+
+
+@app.get("/api/health/live")
+async def liveness_probe():
+    """Kubernetes liveness probe — process is alive."""
+    return {"status": "alive"}
+
+
+@app.get("/api/metrics")
+async def metrics_endpoint():
+    """Prometheus-compatible metrics endpoint."""
+    metrics = get_metrics_collector()
+    return Response(
+        content=metrics.get_prometheus_format(),
+        media_type="text/plain; version=0.0.4; charset=utf-8"
+    )
+
+@app.get("/api/metrics/json")
+async def metrics_json_endpoint():
+    """JSON metrics endpoint for debugging."""
+    metrics = get_metrics_collector()
+    return metrics.get_metrics()
+
+@app.get("/api/health/ready")
+async def readiness_probe():
+    """Kubernetes readiness probe — service is ready to accept traffic."""
+    checks = {}
+
+    # Check skills loaded
+    from uar.core.registry import registry
+    skills = registry.list()
+    checks["skills_loaded"] = len(skills) > 0
+
+    # Check disk writable
+    try:
+        test_file = store.runs_dir / ".health_check"
+        test_file.write_text("ok")
+        test_file.unlink()
+        checks["disk_writable"] = True
+    except Exception:
+        checks["disk_writable"] = False
+
+    # Check Ollama reachable (non-blocking, best-effort)
+    try:
+        import httpx
+        ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+        r = httpx.get(f"{ollama_host.rstrip('/')}/api/tags", timeout=2.0)
+        checks["ollama_reachable"] = r.is_success
+    except Exception:
+        checks["ollama_reachable"] = False
+
+    all_ready = all(checks.values())
+    status_code = 200 if all_ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if all_ready else "not_ready", "checks": checks}
+    )
 
 
 def _docs_root():

@@ -26,8 +26,11 @@ import os
 from pathlib import Path
 
 from uar.core.registry import register_skill
+from uar.core.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
+
+_autonomi_cb = CircuitBreaker("autonomi", failure_threshold=3, recovery_timeout=60.0)
 
 
 def _get_autonomi():
@@ -144,7 +147,7 @@ def autonomi_upload(ctx):
         return result
 
     try:
-        result = asyncio.run(asyncio.wait_for(_do(), timeout=timeout))
+        result = _autonomi_cb.call(lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout)))
         return {
             "status": "completed",
             "address": str(result) if result else None,
@@ -222,7 +225,7 @@ def autonomi_download(ctx):
         return str(dest)
 
     try:
-        asyncio.run(asyncio.wait_for(_do(), timeout=timeout))
+        _autonomi_cb.call(lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout)))
         return {
             "status": "completed",
             "dest_path": str(dest),

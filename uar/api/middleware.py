@@ -8,9 +8,13 @@ from collections import defaultdict, deque
 from functools import wraps
 from typing import Dict, Optional, List
 
+import json
 import logging
 from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from uar.api.security import get_security_manager
+from uar.api.metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +231,25 @@ def apply_middleware(app):
         allow_headers=["*"],
     )
     
+    # Request body size limiter
+    max_body_size = int(os.getenv("MAX_REQUEST_BODY_BYTES", "10485760"))  # 10MB default
+
+    @app.middleware("http")
+    async def limit_request_body(request: Request, call_next):
+        # Check content length header for early rejection
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > max_body_size:
+            logger.warning(f"Request body too large: {content_length} bytes > {max_body_size}")
+            return JSONResponse(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                content={
+                    "error": "Request body too large",
+                    "message": f"Maximum body size is {max_body_size} bytes",
+                    "code": "BODY_TOO_LARGE"
+                }
+            )
+        return await call_next(request)
+
     # Request logging middleware
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
@@ -237,8 +260,30 @@ def apply_middleware(app):
         correlation_id = getattr(request.state, 'correlation_id', 'unknown')
 
         response = await call_next(request)
-
         process_time = time.time() - start_time
+
+        # Record metrics
+        metrics = get_metrics_collector()
+        endpoint = f"{request.method} {request.url.path}"
+        is_error = response.status_code >= 400
+        metrics.record_request(endpoint, process_time, error=is_error)
+
+        # Structured audit log for security/compliance
+        audit_entry = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "level": "AUDIT" if request.url.path.startswith("/api/") else "INFO",
+            "correlation_id": correlation_id,
+            "request_id": request_id,
+            "client_ip": request.client.host if request.client else None,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": round(process_time * 1000, 2),
+            "user_agent": request.headers.get("user-agent", "unknown"),
+            "referer": request.headers.get("referer"),
+        }
+        logger.info(json.dumps(audit_entry))
+
         logger.info(
             f"[cid={correlation_id}][req={request_id}] {request.method} {request.url.path} "
             f"completed in {process_time:.3f}s with status {response.status_code}"
@@ -247,5 +292,16 @@ def apply_middleware(app):
         # Echo correlation ID back to caller
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Correlation-ID"] = correlation_id
+
+        # Add rate limit headers if available from rate limiter
+        rate_limit_key = get_rate_limit_key(request, None)
+        with rate_limiter._lock:
+            requests_made = len(rate_limiter.requests[rate_limit_key])
+            window = RATE_LIMITS["default"]["window"]
+            limit = RATE_LIMITS["default"]["requests"]
+            remaining = max(0, limit - requests_made)
+            response.headers["X-RateLimit-Limit"] = str(limit)
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            response.headers["X-RateLimit-Window"] = str(window)
 
         return response

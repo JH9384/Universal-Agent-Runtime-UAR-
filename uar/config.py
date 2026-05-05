@@ -45,7 +45,18 @@ class Config:
         # Production Settings
         self.cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
         self.max_request_size = int(os.getenv("MAX_REQUEST_SIZE", str(10 * 1024 * 1024)))  # 10MB
-        
+        self.max_request_body_bytes = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(10 * 1024 * 1024)))  # 10MB
+
+        # Library and storage paths
+        project_root = Path(__file__).parent.parent.parent
+        self.uar_library_dir = Path(os.getenv("UAR_LIBRARY_DIR", project_root / ".uar_library"))
+        self.uar_graphrag_root = Path(os.getenv("UAR_GRAPHRAG_ROOT", project_root / ".uar_graphrag"))
+
+        # Autonomi Network Configuration
+        self.autonomi_private_key = os.getenv("AUTONOMI_PRIVATE_KEY")
+        self.autonomi_network = os.getenv("AUTONOMI_NETWORK", "testnet")
+        self.autonomi_timeout_sec = int(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))
+
         # Monitoring
         self.enable_metrics = os.getenv("ENABLE_METRICS", "false").lower() == "true"
         self.metrics_port = int(os.getenv("METRICS_PORT", "9090"))

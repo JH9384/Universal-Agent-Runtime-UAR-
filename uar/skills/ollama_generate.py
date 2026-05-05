@@ -4,8 +4,11 @@ import logging
 import httpx
 
 from uar.core.registry import register_skill
+from uar.core.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
+
+_ollama_cb = CircuitBreaker("ollama", failure_threshold=3, recovery_timeout=30.0)
 
 # Limit on how much document context we send to the model (chars).
 # Defaults to ~12k chars (~3k tokens) — safe for most local models.
@@ -108,7 +111,7 @@ def ollama_generate(ctx):
         payload["system"] = system
 
     try:
-        response = httpx.post(f"{host.rstrip('/')}/api/generate", json=payload, timeout=timeout)
+        response = _ollama_cb.call(lambda: httpx.post(f"{host.rstrip('/')}/api/generate", json=payload, timeout=timeout))
         response.raise_for_status()
         data = response.json()
     except Exception as exc:

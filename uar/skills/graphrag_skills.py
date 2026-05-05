@@ -18,9 +18,15 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import logging
 from pathlib import Path
 
 from uar.core.registry import register_skill
+from uar.core.circuit_breaker import CircuitBreaker
+
+logger = logging.getLogger(__name__)
+
+_graphrag_cb = CircuitBreaker("graphrag", failure_threshold=2, recovery_timeout=60.0)
 
 SETTINGS_YAML = """\
 encoding_model: cl100k_base
@@ -199,6 +205,11 @@ def _stage_inputs(source_dir: Path, input_dir: Path) -> int:
 
 def _run_cli(args: list[str], cwd: Path, timeout: int = 3600) -> dict:
     """Run graphrag CLI. Returns {returncode, stdout, stderr}."""
+    return _graphrag_cb.call(_run_cli_impl, args, cwd, timeout)
+
+
+def _run_cli_impl(args: list[str], cwd: Path, timeout: int = 3600) -> dict:
+    """Internal implementation of graphrag CLI runner."""
     try:
         proc = subprocess.run(
             args,
