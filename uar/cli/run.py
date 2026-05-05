@@ -12,6 +12,7 @@ import uar.skills.dependency_map  # noqa
 import uar.skills.sum_review  # noqa
 import uar.skills.ollama_generate  # noqa
 import uar.skills.graphrag_skills  # noqa
+import uar.skills.autonomi_storage  # noqa
 
 
 def main():

@@ -35,6 +35,7 @@ import uar.skills.dependency_map  # noqa
 import uar.skills.sum_review  # noqa
 import uar.skills.ollama_generate  # noqa
 import uar.skills.graphrag_skills  # noqa
+import uar.skills.autonomi_storage  # noqa
 
 app = FastAPI(
     title="UAR API",
@@ -696,7 +697,9 @@ async def get_status(
         "status": "operational",
         "user": user_info,
         "available_skills": [
-            "section_sum", "doc_ingest", "dependency_map", 
-            "sum_review", "ollama_generate"
+            "section_sum", "doc_ingest", "dependency_map",
+            "sum_review", "ollama_generate", "graphrag_index",
+            "graphrag_query", "autonomi_upload", "autonomi_download",
+            "autonomi_status"
         ]
     }

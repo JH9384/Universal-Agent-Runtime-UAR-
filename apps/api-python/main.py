@@ -9,17 +9,21 @@ import sys
 import os
 import importlib.util
 
-# Import the AtomicLanguageModelSkill directly
+# Ensure the local apps/api-python directory is on sys.path so the uar package can be imported
 current_dir = os.path.dirname(os.path.abspath(__file__))
-uar_dir = os.path.join(current_dir, 'uar')
-skills_dir = os.path.join(uar_dir, 'skills')
-atomic_lang_model_path = os.path.join(skills_dir, 'atomic_lang_model.py')
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
-spec = importlib.util.spec_from_file_location("uar.skills.atomic_lang_model", atomic_lang_model_path)
-atomic_lang_model_module = importlib.util.module_from_spec(spec)
-sys.modules["uar.skills.atomic_lang_model"] = atomic_lang_model_module
-spec.loader.exec_module(atomic_lang_model_module)
-AtomicLanguageModelSkill = atomic_lang_model_module.AtomicLanguageModelSkill
+# Import the local uar skill module in both normal runtime and importlib.test fixture modes.
+try:
+    from uar.skills.atomic_lang_model import AtomicLanguageModelSkill
+except ModuleNotFoundError:
+    atomic_lang_model_path = os.path.join(current_dir, "uar", "skills", "atomic_lang_model.py")
+    spec = importlib.util.spec_from_file_location("uar.skills.atomic_lang_model", atomic_lang_model_path)
+    atomic_lang_model_module = importlib.util.module_from_spec(spec)
+    sys.modules["uar.skills.atomic_lang_model"] = atomic_lang_model_module
+    spec.loader.exec_module(atomic_lang_model_module)
+    AtomicLanguageModelSkill = atomic_lang_model_module.AtomicLanguageModelSkill
 
 # Use an explicit "fork" context for child execution so worker processes
 # inherit the parent interpreter state (including ad-hoc test-loaded modules).
@@ -580,6 +584,17 @@ def health():
     return {"ok": True, "service": "universal-agent-runtime", "db": DB_PATH}
 
 
+@app.get("/api/status")
+def api_status():
+    return {
+        "status": "UAR running",
+        "version": "1.0.0",
+        "service": "universal-agent-runtime",
+        "registered_runtimes": list(RUNTIME_REGISTRY.keys()),
+        "object_count": len(STORE),
+    }
+
+
 @app.get("/agents")
 def list_agents():
     return {
@@ -725,6 +740,11 @@ def execution_run(req: ExecuteReq):
         inputs=req.inputs,
         parameters=req.parameters,
     )
+
+
+@app.post("/agents/workflow/run")
+def workflow_run_agent(req: WorkflowRunReq):
+    return workflow_run(req)
 
 
 @app.post("/workflows/run")

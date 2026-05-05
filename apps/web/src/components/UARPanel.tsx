@@ -15,6 +15,9 @@ const AVAILABLE_SKILLS = [
   { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
   { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
   { id: 'atomic_lang_model', label: 'atomic_lang_model', desc: 'Formal language model analysis, generation, and verification (requires ALM service)' },
+  { id: 'autonomi_upload',   label: 'autonomi_upload',   desc: 'Upload file/dir to Autonomi decentralized storage (requires autonomi package + wallet)' },
+  { id: 'autonomi_download', label: 'autonomi_download', desc: 'Download a file from Autonomi by address (requires autonomi package)' },
+  { id: 'autonomi_status',   label: 'autonomi_status',   desc: 'Check Autonomi client and wallet status' },
 ]
 
 const GOAL_TEMPLATES = [
@@ -32,6 +35,9 @@ const RECIPES: Recipe[] = [
   { id: 'gr_index',  label: '📚 GraphRAG index',  skills: ['graphrag_index'], hint: 'Build the knowledge graph (slow, one-time)' },
   { id: 'gr_query',  label: '🔎 GraphRAG query',  skills: ['graphrag_query'], hint: 'Query an existing graph' },
   { id: 'gr_full',   label: '⚡ Full pipeline',    skills: ['graphrag_index', 'graphrag_query'], hint: 'Index then query (very slow)' },
+  { id: 'auto_up',   label: '☁️ Autonomi upload',  skills: ['autonomi_upload'], hint: 'Upload current input_path to Autonomi' },
+  { id: 'auto_down', label: '☁️ Autonomi download', skills: ['autonomi_download'], hint: 'Download from Autonomi address' },
+  { id: 'auto_status', label: '☁️ Autonomi status',  skills: ['autonomi_status'], hint: 'Check Autonomi connectivity' },
 ]
 
 type Preset = { name: string; path: string }
@@ -269,6 +275,11 @@ export function UARPanel() {
   // Advanced overrides
   const [graphragMethod, setGraphragMethod] = useState<'local' | 'global'>('local')
   const [ollamaModel, setOllamaModel] = useState<string>('')
+  // Autonomi overrides
+  const [autonomiKey, setAutonomiKey] = useState<string>('')
+  const [autonomiNetwork, setAutonomiNetwork] = useState<'testnet' | 'mainnet'>('testnet')
+  const [autonomiPublic, setAutonomiPublic] = useState<boolean>(false)
+  const [autonomiAddress, setAutonomiAddress] = useState<string>('')
 
   // Document management
   const [presets, setPresets] = useState<Preset[]>([])
@@ -434,6 +445,16 @@ export function UARPanel() {
     }
     if (ollamaModel.trim() && selectedSkills.includes('ollama_generate')) {
       meta.ollama_model = ollamaModel.trim()
+    }
+    if (selectedSkills.includes('autonomi_upload') || selectedSkills.includes('autonomi_download') || selectedSkills.includes('autonomi_status')) {
+      if (autonomiKey.trim()) meta.autonomi_private_key = autonomiKey.trim()
+      meta.autonomi_network = autonomiNetwork
+      if (selectedSkills.includes('autonomi_upload')) {
+        meta.autonomi_public = autonomiPublic
+      }
+      if (selectedSkills.includes('autonomi_download') && autonomiAddress.trim()) {
+        meta.autonomi_address = autonomiAddress.trim()
+      }
     }
     if (Object.keys(meta).length) body.metadata = meta
 
@@ -777,6 +798,47 @@ export function UARPanel() {
                     style={{ fontSize: 12, padding: '2px 6px', width: 140 }}
                   />
                 </label>
+              )}
+              {(selectedSkills.includes('autonomi_upload') || selectedSkills.includes('autonomi_download') || selectedSkills.includes('autonomi_status')) && (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                    Private key:
+                    <input type="password"
+                      value={autonomiKey}
+                      onChange={(e) => setAutonomiKey(e.target.value)}
+                      placeholder="0x... (or set AUTONOMI_PRIVATE_KEY env)"
+                      style={{ fontSize: 12, padding: '2px 6px', width: 220 }}
+                    />
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                    Network:
+                    <select value={autonomiNetwork} onChange={(e) => setAutonomiNetwork(e.target.value as any)} style={{ fontSize: 12, padding: 2 }}>
+                      <option value="testnet">testnet</option>
+                      <option value="mainnet">mainnet</option>
+                    </select>
+                  </label>
+                  {selectedSkills.includes('autonomi_upload') && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                      <input type="checkbox"
+                        checked={autonomiPublic}
+                        onChange={(e) => setAutonomiPublic(e.target.checked)}
+                        style={{ margin: 0 }}
+                      />
+                      Public upload
+                    </label>
+                  )}
+                  {selectedSkills.includes('autonomi_download') && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                      Address:
+                      <input type="text"
+                        value={autonomiAddress}
+                        onChange={(e) => setAutonomiAddress(e.target.value)}
+                        placeholder="autonomi address or data map"
+                        style={{ fontSize: 12, padding: '2px 6px', width: 200 }}
+                      />
+                    </label>
+                  )}
+                </>
               )}
             </div>
           </div>
