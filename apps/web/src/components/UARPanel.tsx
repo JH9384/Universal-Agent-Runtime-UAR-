@@ -29,6 +29,7 @@ const GOAL_TEMPLATES = [
 ]
 
 type Recipe = { id: string; label: string; skills: string[]; hint: string }
+type UARError = { code?: string; message: string; requestId?: string; timestamp: number }
 const RECIPES: Recipe[] = [
   { id: 'review',    label: '🦙 Ollama review',   skills: ['doc_ingest', 'ollama_generate'], hint: 'Quick LLM review of library docs' },
   { id: 'deps',      label: '🕸️ Dep map',          skills: ['doc_ingest', 'dependency_map', 'sum_review'], hint: 'Build a dependency graph' },
@@ -270,7 +271,7 @@ export function UARPanel() {
   const [events, setEvents] = useState<any[]>([])
   const [graph, setGraph] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<UARError | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   // Advanced overrides
   const [graphragMethod, setGraphragMethod] = useState<'local' | 'global'>('local')
@@ -489,7 +490,7 @@ export function UARPanel() {
               eventCountRef.current++
               if (eventCountRef.current > MAX_EVENTS) {
                 abortControllerRef.current?.abort()
-                setError(`Event limit reached (${MAX_EVENTS}).`)
+                setError({ message: `Event limit reached (${MAX_EVENTS}).`, timestamp: Date.now() })
                 setIsRunning(false)
                 return
               }
@@ -499,17 +500,17 @@ export function UARPanel() {
               })
               if (json.type === 'orchestration_plan' && json.payload?.graph) setGraph(json.payload.graph)
               if (json.run?.final_context?.dependency_map) setGraph(json.run.final_context.dependency_map)
-              if (json.type === 'error' && json.error) setError(json.error)
+              if (json.type === 'error' && json.error) setError({ message: json.error, timestamp: Date.now() })
             } catch (parseError) {
               console.error('Failed to parse SSE data:', parseError, 'Data:', line)
-              setError('Failed to parse server response')
+              setError({ message: 'Failed to parse server response', timestamp: Date.now() })
             }
           }
         }
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return
-      setError(err instanceof Error ? err.message : 'Unknown error occurred')
+      setError({ message: err instanceof Error ? err.message : 'Unknown error occurred', timestamp: Date.now() })
     } finally {
       setIsRunning(false)
       abortControllerRef.current = null
@@ -588,8 +589,11 @@ export function UARPanel() {
 
       {error && (
         <div style={{ background: '#fee', border: '1px solid #fcc', padding: 10, marginBottom: 16, borderRadius: 4 }}>
-          <strong>Error:</strong> {error}
+          <strong>Error:</strong> {error.message}
+          {error.code && <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>[{error.code}]</span>}
+          {error.requestId && <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>req: {error.requestId}</span>}
           <button onClick={() => setError(null)} style={{ marginLeft: 10, padding: '2px 8px' }}>Dismiss</button>
+          <button onClick={() => { navigator.clipboard.writeText(JSON.stringify(error, null, 2)).catch(() => {}) }} style={{ marginLeft: 6, padding: '2px 8px', fontSize: 11 }}>Copy</button>
         </div>
       )}
 

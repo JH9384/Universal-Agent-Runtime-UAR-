@@ -56,6 +56,7 @@ async def validation_error_handler(request, exc):
         content={
             "detail": {
                 "error": "Validation error",
+                "code": exc.code.value,
                 "message": str(exc),
                 "field": getattr(exc, 'field', None)
             }
@@ -70,8 +71,23 @@ async def path_security_error_handler(request, exc):
         content={
             "detail": {
                 "error": "Path security violation",
+                "code": exc.code.value,
                 "message": str(exc),
                 "field": "input_path"
+            }
+        }
+    )
+
+
+@app.exception_handler(UARError)
+async def uar_error_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": {
+                "error": "Internal error",
+                "code": exc.code.value,
+                "message": str(exc),
             }
         }
     )
@@ -259,6 +275,7 @@ async def stream_goal(
 
         executor = Executor()
         timeout = req.timeout_seconds or 5.0
+        cid = getattr(request.state, 'correlation_id', '')
 
         def emit(event: dict) -> str:
             return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
@@ -287,7 +304,7 @@ async def stream_goal(
                     payload={"graph": plan.to_graph()}
                 ))
 
-                for event in executor.iter_events(strategy, goal, timeout_seconds=timeout):
+                for event in executor.iter_events(strategy, goal, timeout_seconds=timeout, correlation_id=cid):
                     events.append(event)
                     yield emit(event)
 

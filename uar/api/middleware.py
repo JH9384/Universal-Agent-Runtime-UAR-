@@ -163,17 +163,20 @@ def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
 
 def request_logging_middleware(request: Request, user_info: Optional[Dict]):
     """Request logging middleware"""
+    # Use incoming X-Request-ID or generate new correlation id
+    correlation_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     request_id = str(uuid.uuid4())
-    
-    # Add request ID to request state for tracing
+
+    # Add both IDs to request state for tracing
     request.state.request_id = request_id
-    
+    request.state.correlation_id = correlation_id
+
     user_str = f"user:{user_info['user']}" if user_info else "anonymous"
     logger.info(
-        f"[{request_id}] {request.method} {request.url.path} "
+        f"[cid={correlation_id}][req={request_id}] {request.method} {request.url.path} "
         f"from {request.client.host if request.client else 'unknown'} ({user_str})"
     )
-    
+
     return request_id
 
 def error_handler_middleware(func):
@@ -228,16 +231,21 @@ def apply_middleware(app):
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
         start_time = time.time()
-        
-        # Get request ID from request state (set by auth middleware)
+
+        # Get IDs from request state
         request_id = getattr(request.state, 'request_id', 'unknown')
-        
+        correlation_id = getattr(request.state, 'correlation_id', 'unknown')
+
         response = await call_next(request)
-        
+
         process_time = time.time() - start_time
         logger.info(
-            f"[{request_id}] {request.method} {request.url.path} "
+            f"[cid={correlation_id}][req={request_id}] {request.method} {request.url.path} "
             f"completed in {process_time:.3f}s with status {response.status_code}"
         )
-        
+
+        # Echo correlation ID back to caller
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Correlation-ID"] = correlation_id
+
         return response

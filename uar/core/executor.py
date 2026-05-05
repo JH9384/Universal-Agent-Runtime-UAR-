@@ -25,7 +25,7 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
             raise
 
 
-def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None, error=None):
+def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None, error=None, correlation_id: str = ""):
     return {
         "schema_version": "uar.event.v1",
         "type": event_type,
@@ -33,13 +33,14 @@ def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None,
         "goal_id": goal_id,
         "skill": skill,
         "timestamp": time.time(),
+        "correlation_id": correlation_id,
         "payload": payload or {},
         "error": error,
     }
 
 
 class Executor:
-    def iter_events(self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0) -> Iterator[dict]:
+    def iter_events(self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0, correlation_id: str = "") -> Iterator[dict]:
         """Execute strategy and yield events with proper error handling"""
         # Validate inputs
         timeout_seconds = validate_timeout(timeout_seconds)
@@ -52,6 +53,12 @@ class Executor:
         outputs = []
         errors = []
 
+        # Local helper so every event carries the correlation ID
+        def _ev(event_type: str, skill=None, payload=None, error=None):
+            return _event(event_type, run_id, strategy.goal_id,
+                          skill=skill, payload=payload, error=error,
+                          correlation_id=correlation_id)
+
         # Validate all skills exist before execution
         missing_skills = []
         for skill_name in strategy.ordered_skills:
@@ -61,16 +68,12 @@ class Executor:
         if missing_skills:
             # Return failed run instead of raising
             error_msg = f"Skill(s) not found: {', '.join(missing_skills)}"
-            yield _event(
+            yield _ev(
                 "start",
-                run_id,
-                strategy.goal_id,
                 payload={"goal": goal.objective, "skills": strategy.ordered_skills},
             )
-            yield _event(
+            yield _ev(
                 "complete",
-                run_id,
-                strategy.goal_id,
                 payload={
                     "status": "failed",
                     "outputs": [],
@@ -80,35 +83,29 @@ class Executor:
             )
             return
 
-        yield _event(
+        yield _ev(
             "start",
-            run_id,
-            strategy.goal_id,
             payload={"goal": goal.objective, "skills": strategy.ordered_skills},
         )
 
         for skill_name in strategy.ordered_skills:
-            yield _event("skill_start", run_id, strategy.goal_id, skill=skill_name)
+            yield _ev("skill_start", skill=skill_name)
             try:
                 fn = registry.get(skill_name)
                 result = _run_with_timeout(fn, ctx, timeout_seconds)
                 ctx.data[skill_name] = result
                 outputs.append({skill_name: result})
-                yield _event(
+                yield _ev(
                     "skill_complete",
-                    run_id,
-                    strategy.goal_id,
                     skill=skill_name,
                     payload={"result": result},
                 )
             except TimeoutError as e:
                 message = str(e)
                 errors.append(message)
-                yield _event("skill_failed", run_id, strategy.goal_id, skill=skill_name, error=message)
-                yield _event(
+                yield _ev("skill_failed", skill=skill_name, error=message)
+                yield _ev(
                     "complete",
-                    run_id,
-                    strategy.goal_id,
                     payload={
                         "status": "failed",
                         "outputs": outputs,
@@ -120,11 +117,9 @@ class Executor:
             except SkillExecutionError as e:
                 message = str(e)
                 errors.append(message)
-                yield _event("skill_failed", run_id, strategy.goal_id, skill=skill_name, error=message)
-                yield _event(
+                yield _ev("skill_failed", skill=skill_name, error=message)
+                yield _ev(
                     "complete",
-                    run_id,
-                    strategy.goal_id,
                     payload={
                         "status": "failed",
                         "outputs": outputs,
@@ -136,11 +131,9 @@ class Executor:
             except Exception as e:
                 message = str(e)
                 errors.append(message)
-                yield _event("skill_failed", run_id, strategy.goal_id, skill=skill_name, error=message)
-                yield _event(
+                yield _ev("skill_failed", skill=skill_name, error=message)
+                yield _ev(
                     "complete",
-                    run_id,
-                    strategy.goal_id,
                     payload={
                         "status": "failed",
                         "outputs": outputs,
@@ -160,14 +153,12 @@ class Executor:
             and "sum_review" not in strategy.ordered_skills
         ):
             skill_name = "sum_review"
-            yield _event("skill_start", run_id, strategy.goal_id, skill=skill_name)
+            yield _ev("skill_start", skill=skill_name)
             try:
                 summary = _run_with_timeout(registry.get(skill_name), ctx, timeout_seconds)
                 outputs.append({skill_name: summary})
-                yield _event(
+                yield _ev(
                     "skill_complete",
-                    run_id,
-                    strategy.goal_id,
                     skill=skill_name,
                     payload={"result": summary},
                 )
@@ -175,10 +166,8 @@ class Executor:
                 # Review failures don't fail the entire execution
                 errors.append(f"Review failed: {str(e)}")
 
-        yield _event(
+        yield _ev(
             "complete",
-            run_id,
-            strategy.goal_id,
             payload={
                 "status": "completed" if not errors else "failed",
                 "outputs": outputs,
