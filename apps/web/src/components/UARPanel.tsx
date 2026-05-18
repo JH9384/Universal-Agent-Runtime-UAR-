@@ -601,6 +601,10 @@ export function UARPanel() {
   const [tipsPopupOpen, setTipsPopupOpen] = useState(false)
   const [libraryPopupOpen, setLibraryPopupOpen] = useState(false)
   const [recipesPopupOpen, setRecipesPopupOpen] = useState(false)
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
+  const [editRecipeLabel, setEditRecipeLabel] = useState('')
+  const [editRecipeSkills, setEditRecipeSkills] = useState('')
+  const [editRecipeHint, setEditRecipeHint] = useState('')
   const [expandedTipSections, setExpandedTipSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
@@ -1562,6 +1566,23 @@ export function UARPanel() {
               </div>
               <div className={styles.orderText} title="Skills execute in this order">
                 <span>Order:</span>
+                {unifiedOrder.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setUnifiedOrder([])
+                      setUnifiedOrderHistory([[]])
+                      setUnifiedOrderHistoryIndex(0)
+                      setSkillLastPositions({})
+                      setSkillHistory([[]])
+                      setSkillHistoryIndex(0)
+                    }}
+                    className={styles.clearButton}
+                    disabled={isRunning}
+                    title="Clear execution order"
+                  >
+                    ✕
+                  </button>
+                )}
                 {unifiedOrder.length === 0 ? (
                   <span>(none)</span>
                 ) : (
@@ -2413,40 +2434,129 @@ export function UARPanel() {
               <button className={styles.modalCloseButton} onClick={() => setRecipesPopupOpen(false)}>✕</button>
             </div>
             <div className={styles.modalBody}>
-              <div className={styles.libraryPopupList}>
-                {recipes.map((r) => (
-                  <div
-                    key={r.id}
-                    className={styles.libraryPopupItem}
+              {editingRecipe ? (
+                <div className={styles.createFolderRow}>
+                  <input
+                    type="text"
+                    className={styles.createFolderInput}
+                    placeholder="Recipe label"
+                    value={editRecipeLabel}
+                    onChange={(e) => setEditRecipeLabel(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    className={styles.createFolderInput}
+                    placeholder="Skills (comma-separated)"
+                    value={editRecipeSkills}
+                    onChange={(e) => setEditRecipeSkills(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    className={styles.createFolderInput}
+                    placeholder="Hint"
+                    value={editRecipeHint}
+                    onChange={(e) => setEditRecipeHint(e.target.value)}
+                  />
+                  <button
+                    className={styles.createFolderButton}
                     onClick={() => {
-                      // Add a new instance of the recipe (allow multiple selections)
-                      setUnifiedOrder((prev) => {
-                        const existingIds = new Set(prev.map(i => i.id))
-                        const newInstance = {
-                          id: generateUniqueId(existingIds),
-                          type: 'recipe' as const,
-                          content: r.id
-                        }
-                        const newOrder = [...prev, newInstance]
-                        // Save unified order to history to preserve instance IDs
-                        setUnifiedOrderHistory((history) => {
-                          const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
-                          setUnifiedOrderHistoryIndex((idx) => idx + 1)
+                      const updatedRecipe: Recipe = {
+                        id: editingRecipe.id,
+                        label: editRecipeLabel || editingRecipe.label,
+                        skills: editRecipeSkills.split(',').map(s => s.trim()).filter(s => s),
+                        hint: editRecipeHint || editingRecipe.hint
+                      }
+                      setRecipes((prev) => {
+                        const newRecipes = prev.map(r => r.id === editingRecipe.id ? updatedRecipe : r)
+                        setRecipeHistory((history) => {
+                          const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                          setRecipeHistoryIndex((idx) => idx + 1)
                           return newHistory
                         })
-                        return newOrder
+                        return newRecipes
                       })
+                      setEditingRecipe(null)
+                      setEditRecipeLabel('')
+                      setEditRecipeSkills('')
+                      setEditRecipeHint('')
                     }}
                   >
-                    <span className={styles.libraryItemName}>
-                      {unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length > 0 ? `✓ (${unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length}) ` : ''}{r.label}
-                    </span>
-                    <span className={styles.libraryItemSize}>
-                      {r.skills.join(', ')}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                    Save
+                  </button>
+                  <button
+                    className={styles.footerButton}
+                    onClick={() => {
+                      setEditingRecipe(null)
+                      setEditRecipeLabel('')
+                      setEditRecipeSkills('')
+                      setEditRecipeHint('')
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.libraryPopupList}>
+                  {RECIPES.map((r) => (
+                    <div
+                      key={r.id}
+                      className={styles.libraryPopupItem}
+                    >
+                      <div onClick={() => {
+                        // Toggle recipe in the recipes array (only if not in execution order)
+                        const isInOrder = unifiedOrder.some(i => i.type === 'recipe' && i.content === r.id)
+                        if (isInOrder) {
+                          // Don't allow unselecting if recipe is in execution order
+                          return
+                        }
+                        setRecipes((prev) => {
+                          if (prev.some(recipe => recipe.id === r.id)) {
+                            // Remove if already present
+                            const newRecipes = prev.filter(recipe => recipe.id !== r.id)
+                            // Update history
+                            setRecipeHistory((history) => {
+                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              setRecipeHistoryIndex((idx) => idx + 1)
+                              return newHistory
+                            })
+                            return newRecipes
+                          } else {
+                            // Add if not present
+                            const newRecipes = [...prev, r]
+                            // Update history
+                            setRecipeHistory((history) => {
+                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              setRecipeHistoryIndex((idx) => idx + 1)
+                              return newHistory
+                            })
+                            return newRecipes
+                          }
+                        })
+                      }}>
+                        <span className={styles.libraryItemName}>
+                          {recipes.some(recipe => recipe.id === r.id) ? '✓ ' : ''}{r.label}
+                        </span>
+                        <span className={styles.libraryItemSize}>
+                          {r.skills.join(', ')}
+                        </span>
+                      </div>
+                      <button
+                        className={styles.deleteButton}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditingRecipe(r)
+                          setEditRecipeLabel(r.label)
+                          setEditRecipeSkills(r.skills.join(', '))
+                          setEditRecipeHint(r.hint || '')
+                        }}
+                        title="Edit recipe"
+                      >
+                        ✏️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className={styles.modalFooter}>
               <button className={styles.footerButton} onClick={() => setRecipesPopupOpen(false)}>

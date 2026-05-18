@@ -59,6 +59,36 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _validate_recipe(recipe: Any) -> bool:
+    """Validate a single recipe structure. Returns True if valid."""
+    if not isinstance(recipe, dict):
+        logger.warning(f"Invalid recipe (not a dict): {recipe}")
+        return False
+    if "id" not in recipe:
+        logger.warning(f"Recipe missing 'id' field: {recipe}")
+        return False
+    if "skills" not in recipe:
+        logger.warning(
+            f"Recipe '{recipe.get('id')}' missing 'skills' field"
+        )
+        return False
+    if not isinstance(recipe["skills"], list):
+        logger.warning(
+            f"Recipe '{recipe['id']}' has invalid 'skills' (not a list)"
+        )
+        return False
+    return True
+
+
+def _validate_recipes(recipes: List[Any]) -> List[Dict[str, Any]]:
+    """Validate a list of recipes and return only valid ones."""
+    validated_recipes = []
+    for recipe in recipes:
+        if _validate_recipe(recipe):
+            validated_recipes.append(recipe)
+    return validated_recipes
+
+
 # Load recipes from shared config file
 def _load_recipes() -> List[Dict[str, Any]]:
     """Load recipes from the shared configuration file."""
@@ -73,38 +103,18 @@ def _load_recipes() -> List[Dict[str, Any]]:
                 with open(recipe_path, "r") as f:
                     data = json.load(f)
                     recipes = data.get("recipes", [])
-                    # Validate and return recipes
-                    validated_recipes = []
-                    for recipe in recipes:
-                        if not isinstance(recipe, dict):
-                            logger.warning(
-                                f"Invalid recipe (not a dict): {recipe}"
-                            )
-                            continue
-                        if "id" not in recipe:
-                            logger.warning(
-                                f"Recipe missing 'id' field: {recipe}"
-                            )
-                            continue
-                        if "skills" not in recipe:
-                            logger.warning(
-                                f"Recipe '{recipe.get('id')}' missing "
-                                f"'skills' field"
-                            )
-                            continue
-                        if not isinstance(recipe["skills"], list):
-                            logger.warning(
-                                f"Recipe '{recipe['id']}' has invalid "
-                                f"'skills' (not a list)"
-                            )
-                            continue
-                        validated_recipes.append(recipe)
+                    validated_recipes = _validate_recipes(recipes)
                     if validated_recipes:
                         return validated_recipes
+                    else:
+                        logger.warning(
+                            f"RECIPES_PATH {env_recipe_path} exists but "
+                            f"contains no valid recipes"
+                        )
             except (json.JSONDecodeError, IOError) as e:
                 logger.warning(
                     f"Failed to load recipes from RECIPES_PATH "
-                    f"{env_recipe_path}: {e}"
+                    f"{env_recipe_path}: {type(e).__name__}: {e}"
                 )
 
     # Try to find recipes.json in the specs directory
@@ -122,43 +132,18 @@ def _load_recipes() -> List[Dict[str, Any]]:
                 with open(recipe_path, "r") as f:
                     data = json.load(f)
                     recipes = data.get("recipes", [])
-
-                    # Validate recipe structure
-                    validated_recipes = []
-                    for recipe in recipes:
-                        if not isinstance(recipe, dict):
-                            logger.warning(
-                                f"Invalid recipe (not a dict): {recipe}"
-                            )
-                            continue
-                        if "id" not in recipe:
-                            logger.warning(
-                                f"Recipe missing 'id' field: {recipe}"
-                            )
-                            continue
-                        if "skills" not in recipe:
-                            logger.warning(
-                                f"Recipe '{recipe.get('id')}' missing "
-                                f"'skills' field"
-                            )
-                            continue
-                        if not isinstance(recipe["skills"], list):
-                            logger.warning(
-                                f"Recipe '{recipe['id']}' has invalid "
-                                f"'skills' (not a list)"
-                            )
-                            continue
-                        validated_recipes.append(recipe)
-
+                    validated_recipes = _validate_recipes(recipes)
                     if validated_recipes:
                         return validated_recipes
                     else:
                         logger.warning(
-                            f"No valid recipes found in {recipe_path}"
+                            f"Recipe file {recipe_path} exists but "
+                            f"contains no valid recipes"
                         )
             except (json.JSONDecodeError, IOError) as e:
                 logger.warning(
-                    f"Failed to load recipes from {recipe_path}: {e}"
+                    f"Failed to load recipes from {recipe_path}: "
+                    f"{type(e).__name__}: {e}"
                 )
                 continue
 
@@ -178,7 +163,12 @@ def _load_recipes() -> List[Dict[str, Any]]:
 
 
 DEFAULT_RECIPES = _load_recipes()
-RECIPE_MAP = {r["id"]: r["skills"] for r in DEFAULT_RECIPES}
+# Defensive check: only include recipes with valid 'id' field
+RECIPE_MAP = {
+    r["id"]: r["skills"]
+    for r in DEFAULT_RECIPES
+    if isinstance(r, dict) and "id" in r and "skills" in r
+}
 
 # Backpressure configuration
 BACKPRESSURE_ENABLED = (
@@ -395,7 +385,7 @@ class RunRequest(BaseModel):
             # Validate content based on type
             if item["type"] == "recipe":
                 if item["content"] not in RECIPE_MAP:
-                    logger.warning(
+                    raise ValueError(
                         f"execution_order[{i}] references unknown "
                         f"recipe: {item['content']}. "
                         f"Available: {list(RECIPE_MAP.keys())}"
@@ -441,10 +431,9 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         metadata["timeout_seconds"] = req.timeout_seconds
     if req.metadata:
         # User-supplied extras (e.g. graphrag_method, ollama_model)
-        # do not allow overriding the sanitized input_path/timeout.
-        # Note: This will overwrite any existing keys in metadata
-        # with the same name. This is intentional to ensure
-        # user-provided metadata takes precedence.
+        # Protected keys (input_path, timeout_seconds, execution_order) cannot
+        # be overridden by user-provided metadata. Other user-provided metadata
+        # keys will override any defaults with the same name.
         extras = {
             k: v
             for k, v in req.metadata.items()
@@ -464,6 +453,8 @@ def _build_goal(req: RunRequest) -> GoalSpec:
             if item["type"] == "recipe":
                 recipe_skills = RECIPE_MAP.get(item["content"])
                 if recipe_skills is None:
+                    # This should not happen due to validation
+                    # but handle gracefully
                     logger.warning(
                         f"Unknown recipe ID in execution_order: "
                         f"{item['content']}. "
@@ -563,6 +554,11 @@ async def run_goal(
                     "Please provide a timeout between 1 and "
                     "300 seconds."
                 )
+            elif e.field == "execution_order":
+                user_message = (
+                    f"Invalid execution order: {str(e)}. "
+                    "Please check that all skills and recipes are valid."
+                )
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -625,6 +621,15 @@ async def run_goal(
                     ),
                 },
             )
+
+
+@app.get("/api/uar/skills")
+async def get_skills():
+    """Return list of registered skills to ensure frontend/backend validation
+    consistency."""
+    from uar.core.registry import registry
+
+    return {"skills": registry.list()}
 
 
 @app.post(
@@ -836,6 +841,11 @@ async def stream_goal(
                     f"Invalid timeout: {str(e)}. "
                     "Please provide a timeout between 1 and "
                     "300 seconds."
+                )
+            elif e.field == "execution_order":
+                user_message = (
+                    f"Invalid execution order: {str(e)}. "
+                    "Please check that all skills and recipes are valid."
                 )
 
             raise HTTPException(
