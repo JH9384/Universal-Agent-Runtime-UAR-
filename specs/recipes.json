@@ -1,0 +1,52 @@
+{
+  "recipes": [
+    {
+      "id": "review",
+      "label": "🦙 Ollama review",
+      "skills": ["doc_ingest", "ollama_generate"],
+      "hint": "Quick LLM review of library docs"
+    },
+    {
+      "id": "deps",
+      "label": "🕸️ Dep map",
+      "skills": ["doc_ingest", "dependency_map", "sum_review"],
+      "hint": "Build a dependency graph"
+    },
+    {
+      "id": "gr_index",
+      "label": "📚 GraphRAG index",
+      "skills": ["graphrag_index"],
+      "hint": "Build the knowledge graph (slow, one-time)"
+    },
+    {
+      "id": "gr_query",
+      "label": "🔎 GraphRAG query",
+      "skills": ["graphrag_query"],
+      "hint": "Query an existing graph"
+    },
+    {
+      "id": "gr_full",
+      "label": "⚡ Full pipeline",
+      "skills": ["graphrag_index", "graphrag_query"],
+      "hint": "Index then query (very slow)"
+    },
+    {
+      "id": "auto_up",
+      "label": "☁️ Autonomi upload",
+      "skills": ["autonomi_upload"],
+      "hint": "Upload current input_path to Autonomi"
+    },
+    {
+      "id": "auto_down",
+      "label": "☁️ Autonomi download",
+      "skills": ["autonomi_download"],
+      "hint": "Download from Autonomi address"
+    },
+    {
+      "id": "auto_status",
+      "label": "☁️ Autonomi status",
+      "skills": ["autonomi_status"],
+      "hint": "Check Autonomi connectivity"
+    }
+  ]
+}

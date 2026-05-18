@@ -4,7 +4,7 @@ import os
 import time
 import uuid
 import asyncio
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from contextlib import asynccontextmanager
 
@@ -51,6 +51,135 @@ DEFAULT_BROWSE_LIMIT = 200
 BACKPRESSURE_DELAY = 0.1  # seconds
 SHUTDOWN_SLEEP = 0.1  # seconds
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+# Load recipes from shared config file
+def _load_recipes() -> List[Dict[str, Any]]:
+    """Load recipes from the shared configuration file."""
+    from pathlib import Path
+
+    # Check for environment variable override first
+    env_recipe_path = os.getenv("RECIPES_PATH")
+    if env_recipe_path:
+        recipe_path = Path(env_recipe_path)
+        if recipe_path.exists():
+            try:
+                with open(recipe_path, "r") as f:
+                    data = json.load(f)
+                    recipes = data.get("recipes", [])
+                    # Validate and return recipes
+                    validated_recipes = []
+                    for recipe in recipes:
+                        if not isinstance(recipe, dict):
+                            logger.warning(
+                                f"Invalid recipe (not a dict): {recipe}"
+                            )
+                            continue
+                        if "id" not in recipe:
+                            logger.warning(
+                                f"Recipe missing 'id' field: {recipe}"
+                            )
+                            continue
+                        if "skills" not in recipe:
+                            logger.warning(
+                                f"Recipe '{recipe.get('id')}' missing "
+                                f"'skills' field"
+                            )
+                            continue
+                        if not isinstance(recipe["skills"], list):
+                            logger.warning(
+                                f"Recipe '{recipe['id']}' has invalid "
+                                f"'skills' (not a list)"
+                            )
+                            continue
+                        validated_recipes.append(recipe)
+                    if validated_recipes:
+                        return validated_recipes
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning(
+                    f"Failed to load recipes from RECIPES_PATH "
+                    f"{env_recipe_path}: {e}"
+                )
+
+    # Try to find recipes.json in the specs directory
+    # First check relative to the current file, then check common locations
+    current_dir = Path(__file__).parent.parent.parent
+    recipe_paths = [
+        current_dir / "specs" / "recipes.json",
+        Path.cwd() / "specs" / "recipes.json",
+        Path("/app") / "specs" / "recipes.json",  # Common Docker mount point
+    ]
+
+    for recipe_path in recipe_paths:
+        if recipe_path.exists():
+            try:
+                with open(recipe_path, "r") as f:
+                    data = json.load(f)
+                    recipes = data.get("recipes", [])
+
+                    # Validate recipe structure
+                    validated_recipes = []
+                    for recipe in recipes:
+                        if not isinstance(recipe, dict):
+                            logger.warning(
+                                f"Invalid recipe (not a dict): {recipe}"
+                            )
+                            continue
+                        if "id" not in recipe:
+                            logger.warning(
+                                f"Recipe missing 'id' field: {recipe}"
+                            )
+                            continue
+                        if "skills" not in recipe:
+                            logger.warning(
+                                f"Recipe '{recipe.get('id')}' missing "
+                                f"'skills' field"
+                            )
+                            continue
+                        if not isinstance(recipe["skills"], list):
+                            logger.warning(
+                                f"Recipe '{recipe['id']}' has invalid "
+                                f"'skills' (not a list)"
+                            )
+                            continue
+                        validated_recipes.append(recipe)
+
+                    if validated_recipes:
+                        return validated_recipes
+                    else:
+                        logger.warning(
+                            f"No valid recipes found in {recipe_path}"
+                        )
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning(
+                    f"Failed to load recipes from {recipe_path}: {e}"
+                )
+                continue
+
+    # Fallback to hardcoded recipes if file not found or invalid
+    logger.warning("Could not find valid recipes.json, using fallback recipes")
+    return [
+        {"id": "review", "skills": ["doc_ingest", "ollama_generate"]},
+        {"id": "deps", "skills": ["doc_ingest", "dependency_map",
+         "sum_review"]},
+        {"id": "gr_index", "skills": ["graphrag_index"]},
+        {"id": "gr_query", "skills": ["graphrag_query"]},
+        {"id": "gr_full", "skills": ["graphrag_index", "graphrag_query"]},
+        {"id": "auto_up", "skills": ["autonomi_upload"]},
+        {"id": "auto_down", "skills": ["autonomi_download"]},
+        {"id": "auto_status", "skills": ["autonomi_status"]},
+    ]
+
+
+DEFAULT_RECIPES = _load_recipes()
+RECIPE_MAP = {r["id"]: r["skills"] for r in DEFAULT_RECIPES}
+
 # Backpressure configuration
 BACKPRESSURE_ENABLED = (
     os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
@@ -58,13 +187,6 @@ BACKPRESSURE_ENABLED = (
 BACKPRESSURE_THRESHOLD = int(
     os.getenv("BACKPRESSURE_THRESHOLD", "100")
 )  # Max buffered events
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
 
 # register skills
 import uar.skills.section_sum  # noqa
@@ -194,6 +316,9 @@ class RunRequest(BaseModel):
     input_path: Optional[str] = None
     timeout_seconds: Optional[float] = None
     metadata: Optional[dict] = None
+    # Support for nested recipe structure
+    # Format: [{type: 'skill'|'recipe', content: str, id: str}]
+    execution_order: Optional[List[Dict[str, Any]]] = None
 
     @field_validator("goal")
     @classmethod
@@ -221,6 +346,70 @@ class RunRequest(BaseModel):
             from uar.core.validation import validate_timeout
 
             return validate_timeout(v)
+        return v
+
+    @field_validator("execution_order")
+    @classmethod
+    def validate_execution_order_field(cls, v):
+        """Validate execution_order structure and content."""
+        if v is None:
+            return v
+
+        if not isinstance(v, list):
+            raise ValueError("execution_order must be an array")
+
+        seen_ids = set()
+        for i, item in enumerate(v):
+            # Check required fields
+            if not isinstance(item, dict):
+                raise ValueError(
+                    f"execution_order[{i}] must be an object"
+                )
+            if "type" not in item:
+                raise ValueError(
+                    f"execution_order[{i}] missing required field: type"
+                )
+            if "content" not in item:
+                raise ValueError(
+                    f"execution_order[{i}] missing required field: content"
+                )
+            if "id" not in item:
+                raise ValueError(
+                    f"execution_order[{i}] missing required field: id"
+                )
+
+            # Validate type
+            if item["type"] not in ["skill", "recipe"]:
+                raise ValueError(
+                    f"execution_order[{i}] has invalid type: "
+                    f"{item['type']}. Must be 'skill' or 'recipe'"
+                )
+
+            # Check for duplicate IDs
+            if item["id"] in seen_ids:
+                raise ValueError(
+                    f"execution_order[{i}] has duplicate ID: {item['id']}"
+                )
+            seen_ids.add(item["id"])
+
+            # Validate content based on type
+            if item["type"] == "recipe":
+                if item["content"] not in RECIPE_MAP:
+                    logger.warning(
+                        f"execution_order[{i}] references unknown "
+                        f"recipe: {item['content']}. "
+                        f"Available: {list(RECIPE_MAP.keys())}"
+                    )
+            elif item["type"] == "skill":
+                # Import here to avoid circular dependency
+                from uar.core.registry import registry
+                if not registry.is_registered(item["content"]):
+                    raise ValueError(
+                        f"execution_order[{i}] references unknown "
+                        f"skill: {item['content']}. "
+                        f"Available skills: {registry.list()}"
+                    )
+
         return v
 
 
@@ -251,20 +440,46 @@ def _build_goal(req: RunRequest) -> GoalSpec:
     if req.timeout_seconds:
         metadata["timeout_seconds"] = req.timeout_seconds
     if req.metadata:
-        # User-supplied extras (e.g. graphrag_method, ollama_model); do not
-        # allow overriding the sanitized input_path/timeout.
+        # User-supplied extras (e.g. graphrag_method, ollama_model)
+        # do not allow overriding the sanitized input_path/timeout.
+        # Note: This will overwrite any existing keys in metadata
+        # with the same name. This is intentional to ensure
+        # user-provided metadata takes precedence.
         extras = {
             k: v
             for k, v in req.metadata.items()
-            if k not in {"input_path", "timeout_seconds"}
+            if k not in {"input_path", "timeout_seconds", "execution_order"}
         }
         metadata.update(extras)
+
+    # Handle execution_order with nested recipe structure
+    skills = req.skills or []
+    if req.execution_order:
+        # Store the execution order in metadata for the executor to use
+        metadata["execution_order"] = req.execution_order
+        # Also expand recipes into skills for backward compatibility
+        # using the shared recipe configuration
+        expanded_skills: List[str] = []
+        for item in req.execution_order:
+            if item["type"] == "recipe":
+                recipe_skills = RECIPE_MAP.get(item["content"])
+                if recipe_skills is None:
+                    logger.warning(
+                        f"Unknown recipe ID in execution_order: "
+                        f"{item['content']}. "
+                        f"Available recipes: {list(RECIPE_MAP.keys())}"
+                    )
+                    recipe_skills = []
+                expanded_skills.extend(recipe_skills)
+            else:
+                expanded_skills.append(item["content"])
+        skills = expanded_skills
 
     return GoalSpec(
         id=goal_id,
         user_intent=req.goal,
         objective=req.goal,
-        required_skills=req.skills or [],
+        required_skills=skills,
         metadata=metadata,
     )
 

@@ -7,14 +7,17 @@ Requires-Dist: fastapi<1.0,>=0.110
 Requires-Dist: uvicorn<1.0,>=0.27
 Requires-Dist: httpx<1.0,>=0.27
 Requires-Dist: pydantic<3.0,>=2.0
-Requires-Dist: pypdf>=4.0
-Requires-Dist: python-docx>=1.1
-Requires-Dist: openpyxl>=3.1
-Requires-Dist: nbformat>=5.9
-Requires-Dist: pandas>=2.0
-Requires-Dist: pyarrow>=14.0
-Requires-Dist: python-multipart>=0.0.9
-Requires-Dist: rfc8785>=0.1.0
+Requires-Dist: pypdf<5.0,>=4.0
+Requires-Dist: python-docx<2.0,>=1.1
+Requires-Dist: openpyxl<4.0,>=3.1
+Requires-Dist: nbformat<6.0,>=5.9
+Requires-Dist: pandas<3.0,>=2.0
+Requires-Dist: pyarrow<16.0,>=14.0
+Requires-Dist: python-multipart<1.0,>=0.0.9
+Requires-Dist: rfc8785<1.0,>=0.1.0
+Requires-Dist: tenacity<9.0,>=8.0
+Requires-Dist: rich<14.0,>=13.0
+Requires-Dist: typer<1.0,>=0.9
 Provides-Extra: dev
 Requires-Dist: pytest<9.0,>=8.0; extra == "dev"
 Requires-Dist: httpx<1.0,>=0.27; extra == "dev"
@@ -23,7 +26,34 @@ Requires-Dist: pytest-cov<5.0,>=4.0; extra == "dev"
 Requires-Dist: ruff<1.0,>=0.1; extra == "dev"
 Requires-Dist: mypy<2.0,>=1.0; extra == "dev"
 Requires-Dist: types-requests<3.0,>=2.31; extra == "dev"
+Provides-Extra: advanced
+Requires-Dist: unstructured[local-inference]<1.0,>=0.12; extra == "advanced"
+Requires-Dist: docling<3.0,>=2.0; extra == "advanced"
+Requires-Dist: autogen<1.0,>=0.4; extra == "advanced"
+Requires-Dist: crewai<1.0,>=0.80; extra == "advanced"
+Requires-Dist: llama-index<1.0,>=0.10; extra == "advanced"
+Requires-Dist: llama-index-graph-stores-neo4j<1.0,>=0.1; extra == "advanced"
+Requires-Dist: dagster<2.0,>=1.7; extra == "advanced"
+Requires-Dist: dagster-webserver<2.0,>=1.7; extra == "advanced"
+Requires-Dist: neo4j<6.0,>=5.0; extra == "advanced"
+Requires-Dist: chromadb<1.0,>=0.4; extra == "advanced"
+Requires-Dist: qdrant-client<2.0,>=1.9; extra == "advanced"
+Provides-Extra: doc-processing
+Requires-Dist: unstructured[local-inference]<1.0,>=0.12; extra == "doc-processing"
+Requires-Dist: docling<3.0,>=2.0; extra == "doc-processing"
+Provides-Extra: agent-orchestration
+Requires-Dist: autogen<1.0,>=0.4; extra == "agent-orchestration"
+Requires-Dist: crewai<1.0,>=0.80; extra == "agent-orchestration"
+Provides-Extra: advanced-rag
+Requires-Dist: llama-index<1.0,>=0.10; extra == "advanced-rag"
+Requires-Dist: llama-index-graph-stores-neo4j<1.0,>=0.1; extra == "advanced-rag"
+Requires-Dist: neo4j<6.0,>=5.0; extra == "advanced-rag"
+Requires-Dist: chromadb<1.0,>=0.4; extra == "advanced-rag"
+Requires-Dist: qdrant-client<2.0,>=1.9; extra == "advanced-rag"
+Provides-Extra: pipeline-orchestration
+Requires-Dist: dagster<2.0,>=1.7; extra == "pipeline-orchestration"
+Requires-Dist: dagster-webserver<2.0,>=1.7; extra == "pipeline-orchestration"
 Provides-Extra: graphrag
-Requires-Dist: graphrag>=1.0; extra == "graphrag"
+Requires-Dist: graphrag<2.0,>=1.0; extra == "graphrag"
 Provides-Extra: autonomi
-Requires-Dist: autonomi>=0.3; extra == "autonomi"
+Requires-Dist: autonomi<1.0,>=0.3; extra == "autonomi"

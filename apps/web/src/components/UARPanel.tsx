@@ -9,6 +9,41 @@ const RECENT_KEY = 'uar.recentPaths'
 const RECIPES_KEY = 'uar.recipes'
 const RECENT_MAX = 8
 
+// Improved ID generation with collision prevention
+// Module-level counter (resets on page reload, which is acceptable for this use case)
+let idCounter = 0
+// Component instance ID to prevent cross-reload collisions with persisted IDs
+const componentInstanceId = Math.random().toString(36).substring(2, 9)
+const generateUniqueId = (existingIds?: Set<string>): string => {
+  const generate = (): string => {
+    try {
+      return crypto.randomUUID()
+    } catch {
+      // Fallback: use timestamp + counter + random + component instance for better collision resistance
+      const timestamp = Date.now().toString(36)
+      const counter = (idCounter++).toString(36)
+      const random = Math.random().toString(36).substring(2, 9)
+      return `${timestamp}-${counter}-${random}-${componentInstanceId}`
+    }
+  }
+  let id = generate()
+  // Check for collisions if existingIds is provided
+  if (existingIds) {
+    let attempts = 0
+    const maxAttempts = 100  // Increased from 10 to handle high-frequency scenarios
+    while (existingIds.has(id) && attempts < maxAttempts) {
+      id = generate()
+      attempts++
+    }
+    if (attempts >= maxAttempts) {
+      console.error('Failed to generate unique ID after 100 attempts - using fallback with timestamp')
+      // Ultimate fallback: use full timestamp with nanosecond precision if available
+      return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${componentInstanceId}`
+    }
+  }
+  return id
+}
+
 // TypeScript interfaces for type safety
 interface GraphNode {
   id?: string
@@ -21,6 +56,12 @@ interface GraphEdge {
   from?: string
   to?: string
   [key: string]: any
+}
+
+interface ExecutionOrderItem {
+  id: string
+  type: 'skill' | 'recipe'
+  content: string
 }
 
 interface IngestedDocument {
@@ -477,9 +518,11 @@ export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [inputPath, setInputPath] = useState('')
   const initialSkills = ['doc_ingest', 'dependency_map', 'sum_review']
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(initialSkills)
-  const [skillHistory, setSkillHistory] = useState<string[][]>([initialSkills])
-  const [skillHistoryIndex, setSkillHistoryIndex] = useState(0)
+  const [skillLastPositions, setSkillLastPositions] = useState<Record<string, number>>(() => {
+    const positions: Record<string, number> = {}
+    initialSkills.forEach((skill, idx) => positions[skill] = idx)
+    return positions
+  })
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
     try {
       const saved = localStorage.getItem(RECIPES_KEY)
@@ -489,9 +532,41 @@ export function UARPanel() {
       return RECIPES
     }
   })
-  const [selectedRecipes, setSelectedRecipes] = useState<string[]>([])
   const [recipeHistory, setRecipeHistory] = useState<Recipe[][]>([RECIPES])
   const [recipeHistoryIndex, setRecipeHistoryIndex] = useState(0)
+  // Unified order combining both skills and recipes
+  // Move ID generation inside useState to ensure fresh IDs on component mount
+  const [unifiedOrder, setUnifiedOrder] = useState<{id: string; type: 'skill' | 'recipe'; content: string}[]>(() =>
+    initialSkills.map(skill => ({ id: generateUniqueId(), type: 'skill' as const, content: skill }))
+  )
+  const [skillHistory, setSkillHistory] = useState<string[][]>([initialSkills])
+  const [skillHistoryIndex, setSkillHistoryIndex] = useState(0)
+  // Separate history for unified order to preserve instance IDs during undo/redo
+  const [unifiedOrderHistory, setUnifiedOrderHistory] = useState<{id: string; type: 'skill' | 'recipe'; content: string}[][]>(() =>
+    [initialSkills.map(skill => ({ id: generateUniqueId(), type: 'skill' as const, content: skill }))]
+  )
+  const [unifiedOrderHistoryIndex, setUnifiedOrderHistoryIndex] = useState(0)
+
+  // selectedSkills is now derived from unifiedOrder to prevent state synchronization issues
+  const selectedSkills = useMemo(() => {
+    const recipeSkills = unifiedOrder
+      .filter(i => i.type === 'recipe')
+      .flatMap((item) => {
+        const recipe = recipes.find((r) => r.id === item.content)
+        return recipe ? recipe.skills : []
+      })
+    const manualSkills = unifiedOrder
+      .filter(i => i.type === 'skill')
+      .map(i => i.content)
+    const combinedSkills = [...manualSkills]
+    recipeSkills.forEach((skill) => {
+      if (!combinedSkills.includes(skill)) {
+        combinedSkills.push(skill)
+      }
+    })
+    return combinedSkills
+  }, [unifiedOrder, recipes])
+
   const [events, setEvents] = useState<any[]>([])
   const [graph, setGraph] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
@@ -509,6 +584,8 @@ export function UARPanel() {
   const [autonomiNetwork, setAutonomiNetwork] = useState<'testnet' | 'mainnet'>('testnet')
   const [autonomiPublic, setAutonomiPublic] = useState<boolean>(false)
   const [autonomiAddress, setAutonomiAddress] = useState<string>('')
+  // Backend skills for validation consistency
+  const [backendSkills, setBackendSkills] = useState<string[]>([])
 
   // Document management
   const [presets, setPresets] = useState<Preset[]>([])
@@ -561,40 +638,6 @@ export function UARPanel() {
     }
   }, [recipes])
 
-  // Combine selected recipe skills into selectedSkills
-  const prevSelectedRecipesRef = useRef<string[]>([])
-  useEffect(() => {
-    // Only run when selectedRecipes actually changes (not when selectedSkills changes)
-    // Use array length and content comparison instead of JSON.stringify for efficiency
-    const recipesChanged =
-      prevSelectedRecipesRef.current.length !== selectedRecipes.length ||
-      prevSelectedRecipesRef.current.some((id, i) => id !== selectedRecipes[i])
-    if (!recipesChanged || selectedRecipes.length === 0) {
-      prevSelectedRecipesRef.current = selectedRecipes
-      return
-    }
-    prevSelectedRecipesRef.current = selectedRecipes
-
-    const recipeSkills = selectedRecipes.flatMap((recipeId) => {
-      const recipe = recipes.find((r) => r.id === recipeId)
-      return recipe ? recipe.skills : []
-    })
-    // Merge recipe skills with existing selections while preserving order
-    // Keep existing order, append new recipe skills that aren't already selected
-    const combinedSkills = [...selectedSkills]
-    recipeSkills.forEach((skill) => {
-      if (!combinedSkills.includes(skill)) {
-        combinedSkills.push(skill)
-      }
-    })
-    setSelectedSkills(combinedSkills)
-    setSkillHistory((history) => {
-      const newHistory = [...history.slice(0, skillHistoryIndex + 1), combinedSkills]
-      setSkillHistoryIndex((idx) => idx + 1)
-      return newHistory
-    })
-  }, [selectedRecipes, recipes])
-
   const abortControllerRef = useRef<AbortController | null>(null)
   const eventCountRef = useRef(0)
 
@@ -638,6 +681,16 @@ export function UARPanel() {
       })
       .catch(() => {})
     refreshLibrary()
+    // Fetch backend skills for validation consistency
+    fetch('/api/uar/skills')
+      .then((r) => r.json())
+      .then((d) => {
+        setBackendSkills(d.skills || [])
+      })
+      .catch(() => {
+        // Fallback to AVAILABLE_SKILLS if endpoint fails
+        setBackendSkills(AVAILABLE_SKILLS.map(s => s.id))
+      })
   }, [refreshLibrary])
 
   const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -755,17 +808,77 @@ export function UARPanel() {
   }
 
   const toggleSkill = (id: string) => {
-    // Clear selected recipes when manually toggling skills to prevent overwriting
-    setSelectedRecipes([])
-    setSelectedSkills((prev) => {
-      const next = prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-      // Update history with functional update to avoid stale closure
-      setSkillHistory((history) => {
-        const newHistory = [...history.slice(0, skillHistoryIndex + 1), next]
-        setSkillHistoryIndex((idx) => idx + 1)
-        return newHistory
-      })
-      return next
+    // Toggle skill: remove first instance if exists, otherwise add new instance
+    setUnifiedOrder((prev) => {
+      // Check if skill already exists in order
+      const existingIndex = prev.findIndex(i => i.type === 'skill' && i.content === id)
+      
+      if (existingIndex >= 0) {
+        // Remove the first instance of this skill
+        const newOrder = [...prev]
+        newOrder.splice(existingIndex, 1)
+        // Update last positions for all skills after the removal point
+        setSkillLastPositions((prevPositions) => {
+          const newPositions = { ...prevPositions }
+          for (let i = existingIndex; i < newOrder.length; i++) {
+            if (newOrder[i].type === 'skill') {
+              newPositions[newOrder[i].content] = i
+            }
+          }
+          return newPositions
+        })
+        // selectedSkills is now derived from unifiedOrder, no need to set it
+        const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+        setSkillHistory((history) => {
+          const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+          setSkillHistoryIndex((idx) => idx + 1)
+          return newHistory
+        })
+        // Save unified order to history to preserve instance IDs
+        setUnifiedOrderHistory((history) => {
+          const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+          setUnifiedOrderHistoryIndex((idx) => idx + 1)
+          return newHistory
+        })
+        return newOrder
+      } else {
+        // Add a new instance of the skill
+        const existingIds = new Set(prev.map(i => i.id))
+        const newInstance = {
+          id: generateUniqueId(existingIds),
+          type: 'skill' as const,
+          content: id
+        }
+        const newOrder = [...prev]
+        const lastPosition = skillLastPositions[id] ?? newOrder.length
+        // Insert at the last known position, or at the end if no position exists
+        const insertPosition = Math.min(lastPosition, newOrder.length)
+        newOrder.splice(insertPosition, 0, newInstance)
+        // Update last positions for all skills after the insertion point
+        setSkillLastPositions((prevPositions) => {
+          const newPositions = { ...prevPositions }
+          for (let i = insertPosition; i < newOrder.length; i++) {
+            if (newOrder[i].type === 'skill') {
+              newPositions[newOrder[i].content] = i
+            }
+          }
+          return newPositions
+        })
+        // selectedSkills is now derived from unifiedOrder, no need to set it
+        const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+        setSkillHistory((history) => {
+          const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+          setSkillHistoryIndex((idx) => idx + 1)
+          return newHistory
+        })
+        // Save unified order to history to preserve instance IDs
+        setUnifiedOrderHistory((history) => {
+          const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+          setUnifiedOrderHistoryIndex((idx) => idx + 1)
+          return newHistory
+        })
+        return newOrder
+      }
     })
   }
 
@@ -773,7 +886,34 @@ export function UARPanel() {
     setSkillHistoryIndex((prevIndex) => {
       if (prevIndex > 0 && skillHistory.length > 0) {
         const newIndex = prevIndex - 1
-        setSelectedSkills(skillHistory[newIndex])
+        // Ensure index is within bounds
+        if (newIndex < 0 || newIndex >= skillHistory.length) {
+          console.warn('Undo would cause skillHistoryIndex to go out of bounds')
+          return prevIndex
+        }
+        // selectedSkills is now derived from unifiedOrder, no need to set it
+        return newIndex
+      }
+      return prevIndex
+    })
+    setUnifiedOrderHistoryIndex((prevIndex) => {
+      if (prevIndex > 0 && unifiedOrderHistory.length > 0) {
+        const newIndex = prevIndex - 1
+        // Ensure index is within bounds
+        if (newIndex < 0 || newIndex >= unifiedOrderHistory.length) {
+          console.warn('Undo would cause unifiedOrderHistoryIndex to go out of bounds')
+          return prevIndex
+        }
+        const newOrder = unifiedOrderHistory[newIndex]
+        setUnifiedOrder(newOrder)
+        // Recalculate skillLastPositions from the restored order
+        const newPositions: Record<string, number> = {}
+        newOrder.forEach((item, index) => {
+          if (item.type === 'skill') {
+            newPositions[item.content] = index
+          }
+        })
+        setSkillLastPositions(newPositions)
         return newIndex
       }
       return prevIndex
@@ -784,7 +924,34 @@ export function UARPanel() {
     setSkillHistoryIndex((prevIndex) => {
       if (prevIndex < skillHistory.length - 1 && skillHistory.length > 0) {
         const newIndex = prevIndex + 1
-        setSelectedSkills(skillHistory[newIndex])
+        // Ensure index is within bounds
+        if (newIndex < 0 || newIndex >= skillHistory.length) {
+          console.warn('Redo would cause skillHistoryIndex to go out of bounds')
+          return prevIndex
+        }
+        // selectedSkills is now derived from unifiedOrder, no need to set it
+        return newIndex
+      }
+      return prevIndex
+    })
+    setUnifiedOrderHistoryIndex((prevIndex) => {
+      if (prevIndex < unifiedOrderHistory.length - 1 && unifiedOrderHistory.length > 0) {
+        const newIndex = prevIndex + 1
+        // Ensure index is within bounds
+        if (newIndex < 0 || newIndex >= unifiedOrderHistory.length) {
+          console.warn('Redo would cause unifiedOrderHistoryIndex to go out of bounds')
+          return prevIndex
+        }
+        const newOrder = unifiedOrderHistory[newIndex]
+        setUnifiedOrder(newOrder)
+        // Recalculate skillLastPositions from the restored order
+        const newPositions: Record<string, number> = {}
+        newOrder.forEach((item, index) => {
+          if (item.type === 'skill') {
+            newPositions[item.content] = index
+          }
+        })
+        setSkillLastPositions(newPositions)
         return newIndex
       }
       return prevIndex
@@ -845,27 +1012,122 @@ export function UARPanel() {
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
 
-    const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata } = { goal, skills: selectedSkills }
+    // Validate inputs before sending request
+    if (!goal.trim()) {
+      setError({ message: 'Goal is required', timestamp: Date.now() })
+      setIsRunning(false)
+      return
+    }
+    if (unifiedOrder.length === 0) {
+      setError({ message: 'At least one skill or recipe must be selected', timestamp: Date.now() })
+      setIsRunning(false)
+      return
+    }
+
+    // Send unified order as execution_order to support nested recipe execution
+    const executionOrder = unifiedOrder.map(item => ({
+      type: item.type,
+      content: item.content,
+      id: item.id
+    }))
+
+    // Validate execution_order structure comprehensively
+    // Use backendSkills for validation consistency with backend registry
+    const validSkills = new Set(backendSkills.length > 0 ? backendSkills : AVAILABLE_SKILLS.map(s => s.id))
+    const validRecipes = new Set(recipes.map(r => r.id))
+    const ids = new Set<string>()
+    
+    if (!Array.isArray(executionOrder)) {
+      setError({ message: 'Execution order must be an array', timestamp: Date.now() })
+      setIsRunning(false)
+      return
+    }
+    
+    for (const item of executionOrder) {
+      // Check required fields
+      if (!item.type || !item.content || !item.id) {
+        setError({ message: 'Each execution order item must have type, content, and id', timestamp: Date.now() })
+        setIsRunning(false)
+        return
+      }
+      
+      // Check type is valid
+      if (!['skill', 'recipe'].includes(item.type)) {
+        setError({ message: `Invalid type "${item.type}" in execution order. Must be "skill" or "recipe"`, timestamp: Date.now() })
+        setIsRunning(false)
+        return
+      }
+      
+      // Check for duplicate IDs
+      if (ids.has(item.id)) {
+        setError({ message: `Duplicate ID "${item.id}" in execution order`, timestamp: Date.now() })
+        setIsRunning(false)
+        return
+      }
+      ids.add(item.id)
+      
+      // Validate content based on type
+      if (item.type === 'skill' && !validSkills.has(item.content)) {
+        setError({ message: `Invalid skill ID "${item.content}" in execution order`, timestamp: Date.now() })
+        setIsRunning(false)
+        return
+      }
+      
+      if (item.type === 'recipe' && !validRecipes.has(item.content)) {
+        setError({ message: `Invalid recipe ID "${item.content}" in execution order`, timestamp: Date.now() })
+        setIsRunning(false)
+        return
+      }
+    }
+
+    // Derive skills directly from unifiedOrder to ensure consistency with execution_order
+    const currentSkills = unifiedOrder
+      .filter(i => i.type === 'skill')
+      .map(i => i.content)
+    const recipeSkills = unifiedOrder
+      .filter(i => i.type === 'recipe')
+      .flatMap((item) => {
+        const recipe = recipes.find((r) => r.id === item.content)
+        return recipe ? recipe.skills : []
+      })
+    const allSkills = [...new Set([...currentSkills, ...recipeSkills])]
+
+    const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata; execution_order?: any[] } = { 
+      goal, 
+      skills: allSkills,
+      execution_order: executionOrder
+    }
     if (inputPath.trim()) { body.input_path = inputPath.trim(); pushRecent(inputPath.trim()) }
+    
+    // Check metadata against unifiedOrder to support recipe-specific metadata
+    const allRecipes = unifiedOrder.filter(i => i.type === 'recipe').map(i => i.content)
+    
     const meta: RunRequestMetadata = {}
-    if (selectedSkills.includes('graphrag_query')) {
+    if (allSkills.includes('graphrag_query') || allRecipes.some(r => r === 'gr_query' || r === 'gr_full')) {
       meta.graphrag_method = graphragMethod
       meta.graphrag_query = goal
     }
-    if (ollamaModel.trim() && selectedSkills.includes('ollama_generate')) {
+    if (ollamaModel.trim() && (allSkills.includes('ollama_generate') || allRecipes.some(r => r === 'review'))) {
       meta.ollama_model = ollamaModel.trim()
     }
-    if (selectedSkills.includes('autonomi_upload') || selectedSkills.includes('autonomi_download') || selectedSkills.includes('autonomi_status')) {
+    if (allSkills.includes('autonomi_upload') || allSkills.includes('autonomi_download') || allSkills.includes('autonomi_status')) {
       if (autonomiKey.trim()) meta.autonomi_private_key = autonomiKey.trim()
       meta.autonomi_network = autonomiNetwork
-      if (selectedSkills.includes('autonomi_upload')) {
+      if (allSkills.includes('autonomi_upload')) {
         meta.autonomi_public = autonomiPublic
       }
-      if (selectedSkills.includes('autonomi_download') && autonomiAddress.trim()) {
+      if (allSkills.includes('autonomi_download') && autonomiAddress.trim()) {
         meta.autonomi_address = autonomiAddress.trim()
       }
     }
     if (Object.keys(meta).length) body.metadata = meta
+
+    // Add timeout to abort controller
+    const timeoutId = setTimeout(() => {
+      abortControllerRef.current?.abort()
+      setError({ message: 'Request timeout - server did not respond in time', timestamp: Date.now() })
+      setIsRunning(false)
+    }, 300000) // 5 minute timeout
 
     try {
       setCurrentSkill(selectedSkills[0] || 'Starting')
@@ -876,6 +1138,9 @@ export function UARPanel() {
         body: JSON.stringify(body),
         signal: abortControllerRef.current.signal,
       })
+      // Clear timeout immediately after fetch completes to prevent race condition
+      clearTimeout(timeoutId)
+      
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         throw new Error(`HTTP ${res.status}: ${res.statusText}${text ? ` — ${text}` : ''}`)
@@ -885,10 +1150,31 @@ export function UARPanel() {
       if (!reader) throw new Error('No response body reader available')
 
       let buffer = ''
+      let lastEventTime = Date.now()
+      const HEARTBEAT_INTERVAL = 30000 // 30 seconds
+      const HEARTBEAT_ABORT_THRESHOLD = 2 // Abort after 2 missed heartbeats (60 seconds)
+      let missedHeartbeats = 0
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         if (abortControllerRef.current?.signal.aborted) break
+
+        // Check for heartbeat/timeout
+        const now = Date.now()
+        if (now - lastEventTime > HEARTBEAT_INTERVAL) {
+          missedHeartbeats++
+          console.warn(`No events received for ${HEARTBEAT_INTERVAL / 1000}s (missed heartbeat ${missedHeartbeats}/${HEARTBEAT_ABORT_THRESHOLD})`)
+          if (missedHeartbeats >= HEARTBEAT_ABORT_THRESHOLD) {
+            abortControllerRef.current?.abort()
+            setError({ message: `Connection stalled - no events received for ${HEARTBEAT_INTERVAL * HEARTBEAT_ABORT_THRESHOLD / 1000}s`, timestamp: Date.now() })
+            break
+          }
+        } else {
+          missedHeartbeats = 0
+        }
+        lastEventTime = now
+        
         buffer += decoder.decode(value, { stream: true })
         const parts = buffer.split('\n\n')
         buffer = parts.pop() || ''
@@ -897,17 +1183,16 @@ export function UARPanel() {
             if (!line.startsWith('data:')) continue
             try {
               const json = JSON.parse(line.replace('data: ', ''))
+              // Check event limit before processing to avoid processing events beyond limit
+              if (eventCountRef.current >= MAX_EVENTS) {
+                abortControllerRef.current?.abort()
+                setError({ message: `Event limit reached (${MAX_EVENTS}).`, timestamp: Date.now() })
+                setIsRunning(false)
+                break
+              }
               setEvents((prev) => {
                 const next = prev.length >= MAX_EVENTS ? prev.slice(1) : prev
                 eventCountRef.current++
-                // Check event limit inside setState callback to ensure atomic operation
-                // This prevents race conditions where multiple events arrive simultaneously
-                if (eventCountRef.current > MAX_EVENTS) {
-                  abortControllerRef.current?.abort()
-                  setError({ message: `Event limit reached (${MAX_EVENTS}).`, timestamp: Date.now() })
-                  setIsRunning(false)
-                  return prev // Don't add the event that exceeded the limit
-                }
                 return [...next, json]
               })
               if (json.type === 'skill_start' && json.skill) setCurrentSkill(json.skill)
@@ -920,18 +1205,22 @@ export function UARPanel() {
               setError({ message: 'Failed to parse server response', timestamp: Date.now() })
             }
           }
+          // Break outer loop if limit reached
+          if (eventCountRef.current >= MAX_EVENTS) break
         }
       }
     } catch (err) {
+      clearTimeout(timeoutId)
       if (err instanceof Error && err.name === 'AbortError') return
       setError({ message: err instanceof Error ? err.message : 'Unknown error occurred', timestamp: Date.now() })
     } finally {
+      clearTimeout(timeoutId)
       setIsRunning(false)
       if (!abortControllerRef.current?.signal.aborted) {
         abortControllerRef.current = null
       }
     }
-  }, [goal, inputPath, selectedSkills, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent])
+  }, [goal, inputPath, selectedSkills, unifiedOrder, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent])
 
   const stopStream = useCallback(() => {
     setIsStopping(true)
@@ -1227,9 +1516,15 @@ export function UARPanel() {
               ▲
             </button>
             <button onClick={() => {
-              setSelectedSkills([])
+              setUnifiedOrder((prev) => prev.filter(i => i.type === 'skill'))
+              // selectedSkills is now derived from unifiedOrder, no need to set it
               setSkillHistory((history) => [...history.slice(0, skillHistoryIndex + 1), []])
               setSkillHistoryIndex((prev) => prev + 1)
+              // Also clear unified order history
+              setUnifiedOrderHistory((history) => [...history.slice(0, unifiedOrderHistoryIndex + 1), []])
+              setUnifiedOrderHistoryIndex((prev) => prev + 1)
+              // Reset skill last positions
+              setSkillLastPositions({})
             }} className={styles.collapseAllButton} disabled={isRunning} title="Clear all selected skills">
               ✕
             </button>
@@ -1255,8 +1550,8 @@ export function UARPanel() {
                       {!isCollapsed && (
                         <div className={styles.skillGroupSkills}>
                           {group.skills.map((s) => (
-                            <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
-                              {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
+                            <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(unifiedOrder.some(i => i.type === 'skill' && i.content === s.id), isRunning)}>
+                              {unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length > 0 ? `✓ (${unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length}) ` : ''}{s.label}
                             </button>
                           ))}
                         </div>
@@ -1267,109 +1562,142 @@ export function UARPanel() {
               </div>
               <div className={styles.orderText} title="Skills execute in this order">
                 <span>Order:</span>
-                {selectedSkills.length === 0 ? (
+                {unifiedOrder.length === 0 ? (
                   <span>(none)</span>
                 ) : (
                   <div className={styles.orderChips}>
-                    {selectedSkills.map((skill, index) => (
-                      <div
-                        key={skill}
-                        className={styles.orderChip}
-                        draggable={!isRunning}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', String(index))
-                          e.dataTransfer.effectAllowed = 'move'
-                        }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault()
-                          const fromIndex = parseInt(e.dataTransfer.getData('text/plain'))
-                          const toIndex = index
-                          if (fromIndex !== toIndex) {
-                            setSelectedRecipes([]) // Clear recipes when manually reordering
-                            setSelectedSkills((prev) => {
-                              const newSkills = [...prev]
-                              const [moved] = newSkills.splice(fromIndex, 1)
-                              newSkills.splice(toIndex, 0, moved)
-                              // Update history atomically
-                              setSkillHistory((history) => {
-                                const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
-                                setSkillHistoryIndex((idx) => idx + 1)
-                                return newHistory
-                              })
-                              return newSkills
-                            })
-                          }
-                        }}
-                      >
-                        {skill}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedRecipes([]) // Clear recipes when manually modifying skills
-                            setSelectedSkills((prev) => {
-                              const newSkills = [...prev]
-                              newSkills.splice(index + 1, 0, skill)
-                              // Update history atomically
-                              setSkillHistory((history) => {
-                                const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
-                                setSkillHistoryIndex((idx) => idx + 1)
-                                return newHistory
-                              })
-                              return newSkills
-                            })
-                          }}
-                          className={styles.orderChipAction}
-                          disabled={isRunning}
-                          title={`Duplicate ${skill}`}
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedRecipes([]) // Clear recipes when manually modifying skills
-                            setSelectedSkills((prev) => {
-                              const newSkills = prev.filter((_, i) => i !== index)
-                              // Update history atomically
-                              setSkillHistory((history) => {
-                                const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
-                                setSkillHistoryIndex((idx) => idx + 1)
-                                return newHistory
-                              })
-                              return newSkills
-                            })
-                          }}
-                          className={styles.orderChipAction}
-                          disabled={isRunning}
-                          title={`Remove ${skill}`}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Selected Recipes */}
-              {selectedRecipes.length > 0 && (
-                <div className={styles.selectedRecipesSection}>
-                  <div className={styles.selectedRecipesLabel}>Selected Recipes</div>
-                  <div className={styles.selectedRecipesList}>
-                    {selectedRecipes.map((recipeId, idx) => {
-                      const recipe = recipes.find((r) => r.id === recipeId)
-                      if (!recipe) return null
-                      const colorClass = `color-${idx % 10}` as `color-${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+                    {unifiedOrder.map((item, index) => {
+                      const hash = item.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+                      const colorClass = `color-${hash % 10}` as `color-${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+                      const label = item.type === 'skill' ? item.content : recipes.find(r => r.id === item.content)?.label || item.content
                       return (
                         <div
-                          key={recipeId}
-                          className={`${styles.selectedRecipeChip} ${styles[colorClass]}`}
+                          key={item.id}
+                          className={`${styles.orderChip} ${styles[colorClass]}`}
+                          draggable={!isRunning}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', String(index))
+                            e.dataTransfer.effectAllowed = 'move'
+                          }}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            const fromIndex = parseInt(e.dataTransfer.getData('text/plain'))
+                            const toIndex = index
+                            if (fromIndex !== toIndex) {
+                              setUnifiedOrder((prev) => {
+                                const newOrder = [...prev]
+                                const [moved] = newOrder.splice(fromIndex, 1)
+                                newOrder.splice(toIndex, 0, moved)
+                                // Update skillLastPositions for skills
+                                setSkillLastPositions((prevPositions) => {
+                                  const newPositions = { ...prevPositions }
+                                  const minIndex = Math.min(fromIndex, toIndex)
+                                  const maxIndex = Math.max(fromIndex, toIndex)
+                                  for (let i = minIndex; i <= maxIndex; i++) {
+                                    if (newOrder[i].type === 'skill') {
+                                      newPositions[newOrder[i].content] = i
+                                    }
+                                  }
+                                  return newPositions
+                                })
+                                // selectedSkills is now derived from unifiedOrder, no need to set it
+                                const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+                                setSkillHistory((history) => {
+                                  const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                  setSkillHistoryIndex((idx) => idx + 1)
+                                  return newHistory
+                                })
+                                // Save unified order to history to preserve instance IDs
+                                setUnifiedOrderHistory((history) => {
+                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                                  setUnifiedOrderHistoryIndex((idx) => idx + 1)
+                                  return newHistory
+                                })
+                                return newOrder
+                              })
+                            }
+                          }}
                         >
-                          <span className={styles.selectedRecipeName}>{recipe.label}</span>
+                          {item.type === 'recipe' ? '🍳 ' : ''}{label}
                           <button
-                            onClick={() => setSelectedRecipes((prev) => prev.filter((id) => id !== recipeId))}
-                            title="Remove recipe"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setUnifiedOrder((prev) => {
+                                const newOrder = [...prev]
+                                const existingIds = new Set(prev.map(i => i.id))
+                                const newInstance = {
+                                  id: generateUniqueId(existingIds),
+                                  type: item.type,
+                                  content: item.content
+                                }
+                                newOrder.splice(index + 1, 0, newInstance)
+                                // Update skillLastPositions for skills
+                                setSkillLastPositions((prevPositions) => {
+                                  const newPositions = { ...prevPositions }
+                                  for (let i = index + 1; i < newOrder.length; i++) {
+                                    if (newOrder[i].type === 'skill') {
+                                      newPositions[newOrder[i].content] = i
+                                    }
+                                  }
+                                  return newPositions
+                                })
+                                // selectedSkills is now derived from unifiedOrder, no need to set it
+                                const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+                                setSkillHistory((history) => {
+                                  const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                  setSkillHistoryIndex((idx) => idx + 1)
+                                  return newHistory
+                                })
+                                // Save unified order to history to preserve instance IDs
+                                setUnifiedOrderHistory((history) => {
+                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                                  setUnifiedOrderHistoryIndex((idx) => idx + 1)
+                                  return newHistory
+                                })
+                                return newOrder
+                              })
+                            }}
+                            className={styles.orderChipAction}
+                            disabled={isRunning}
+                            title={`Duplicate ${label}`}
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setUnifiedOrder((prev) => {
+                                const newOrder = prev.filter((_, i) => i !== index)
+                                // Update skillLastPositions for skills
+                                setSkillLastPositions((prevPositions) => {
+                                  const newPositions = { ...prevPositions }
+                                  for (let i = index; i < newOrder.length; i++) {
+                                    if (newOrder[i].type === 'skill') {
+                                      newPositions[newOrder[i].content] = i
+                                    }
+                                  }
+                                  return newPositions
+                                })
+                                // selectedSkills is now derived from unifiedOrder, no need to set it
+                                const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+                                setSkillHistory((history) => {
+                                  const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                  setSkillHistoryIndex((idx) => idx + 1)
+                                  return newHistory
+                                })
+                                // Save unified order to history to preserve instance IDs
+                                setUnifiedOrderHistory((history) => {
+                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                                  setUnifiedOrderHistoryIndex((idx) => idx + 1)
+                                  return newHistory
+                                })
+                                return newOrder
+                              })
+                            }}
+                            className={styles.orderChipAction}
+                            disabled={isRunning}
+                            title={`Remove ${label}`}
                           >
                             ✕
                           </button>
@@ -1377,8 +1705,8 @@ export function UARPanel() {
                       )
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Recipes */}
               <div className={styles.presetsContainer}>
@@ -1432,63 +1760,27 @@ export function UARPanel() {
                       <button
                         title={r.hint}
                         onClick={() => {
-                          setSelectedRecipes((prev) =>
-                            prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id]
-                          )
-                        }}
-                        className={`${styles.presetButton} ${selectedRecipes.includes(r.id) ? styles.chipActive : ''}`}
-                      >
-                        {selectedRecipes.includes(r.id) ? '✓ ' : ''}{r.label}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setRecipes((prev) => {
-                            const newRecipes = [...prev]
-                            // Use crypto.randomUUID() with fallback for browser compatibility
-                            const generateId = () => {
-                              try {
-                                return crypto.randomUUID()
-                              } catch {
-                                return Math.random().toString(36).substr(2, 9)
-                              }
+                          // Add a new instance of the recipe (allow multiple selections)
+                          setUnifiedOrder((prev) => {
+                            const existingIds = new Set(prev.map(i => i.id))
+                            const newInstance = {
+                              id: generateUniqueId(existingIds),
+                              type: 'recipe' as const,
+                              content: r.id
                             }
-                            const newId = `${r.id}-copy-${generateId()}`
-                            newRecipes.splice(index + 1, 0, { ...r, id: newId })
-                            // Update history atomically
-                            setRecipeHistory((history) => {
-                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
-                              setRecipeHistoryIndex((idx) => idx + 1)
+                            const newOrder = [...prev, newInstance]
+                            // Save unified order to history to preserve instance IDs
+                            setUnifiedOrderHistory((history) => {
+                              const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                              setUnifiedOrderHistoryIndex((idx) => idx + 1)
                               return newHistory
                             })
-                            return newRecipes
+                            return newOrder
                           })
                         }}
-                        className={styles.orderChipAction}
-                        disabled={isRunning}
-                        title={`Duplicate ${r.label}`}
+                        className={`${styles.presetButton} ${unifiedOrder.some(i => i.type === 'recipe' && i.content === r.id) ? styles.chipActive : ''}`}
                       >
-                        +
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setRecipes((prev) => {
-                            const newRecipes = prev.filter((_, i) => i !== index)
-                            // Update history atomically
-                            setRecipeHistory((history) => {
-                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
-                              setRecipeHistoryIndex((idx) => idx + 1)
-                              return newHistory
-                            })
-                            return newRecipes
-                          })
-                        }}
-                        className={styles.orderChipAction}
-                        disabled={isRunning}
-                        title={`Remove ${r.label}`}
-                      >
-                        ✕
+                        {unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length > 0 ? `✓ (${unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length}) ` : ''}{r.label}
                       </button>
                     </div>
                   ))}
@@ -2127,13 +2419,27 @@ export function UARPanel() {
                     key={r.id}
                     className={styles.libraryPopupItem}
                     onClick={() => {
-                      setSelectedRecipes((prev) =>
-                        prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id]
-                      )
+                      // Add a new instance of the recipe (allow multiple selections)
+                      setUnifiedOrder((prev) => {
+                        const existingIds = new Set(prev.map(i => i.id))
+                        const newInstance = {
+                          id: generateUniqueId(existingIds),
+                          type: 'recipe' as const,
+                          content: r.id
+                        }
+                        const newOrder = [...prev, newInstance]
+                        // Save unified order to history to preserve instance IDs
+                        setUnifiedOrderHistory((history) => {
+                          const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                          setUnifiedOrderHistoryIndex((idx) => idx + 1)
+                          return newHistory
+                        })
+                        return newOrder
+                      })
                     }}
                   >
                     <span className={styles.libraryItemName}>
-                      {selectedRecipes.includes(r.id) ? '✓ ' : ''}{r.label}
+                      {unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length > 0 ? `✓ (${unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length}) ` : ''}{r.label}
                     </span>
                     <span className={styles.libraryItemSize}>
                       {r.skills.join(', ')}
