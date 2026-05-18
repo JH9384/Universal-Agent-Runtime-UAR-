@@ -1,3 +1,9 @@
+body {
+  background: #E8F5E9;
+  margin: 0;
+  padding: 0;
+}
+
 .container {
   padding: 20px;
   max-width: 1200px;
@@ -10,16 +16,30 @@
   align-items: baseline;
   gap: 12px;
   margin-bottom: 12px;
+  position: sticky;
+  top: 0;
+  background: #C8E6C9;
+  z-index: 100;
+  padding: 8px 0;
 }
 
 .headerTitle {
   margin: 0;
+  margin-left: 10px;
+}
+
+.scrollableContent {
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .projectRoot {
   font-size: 11px;
   color: #888;
   font-family: monospace;
+  margin-left: auto;
+  margin-right: 20px;
 }
 
 .skillGuideButton {
@@ -33,7 +53,19 @@
 }
 
 .skillGuideButton:hover {
-  background: #f0f0f0;
+  background: #f8f9fa;
+}
+
+.libraryLink {
+  margin-left: 8px;
+  color: #0366d6;
+  text-decoration: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.libraryLink:hover {
+  text-decoration: underline;
 }
 
 .helpBox {
@@ -319,6 +351,64 @@
   border-radius: 4px;
   font-family: monospace;
   font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.libraryPopupList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.libraryPopupItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e3e5e8;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.libraryPopupItem:hover {
+  background: #f8f9fa;
+}
+
+.libraryPopupList .recipeChip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e3e5e8;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+}
+
+.libraryPopupList .recipeChip:hover {
+  border-color: #b0b8c4;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.libraryPopupList .recipeChip .libraryItemName {
+  font-weight: 500;
+  font-size: 14px;
+  color: #1a1a1a;
+  flex: 1;
+}
+
+.libraryPopupList .recipeChip .libraryItemSize {
+  font-size: 12px;
+  color: #666;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .libraryItem {
@@ -386,7 +476,7 @@
 }
 
 .presetsContainer {
-  margin-bottom: 8px;
+  margin-top: 20px;
 }
 
 .recentContainer {
@@ -510,17 +600,83 @@
   gap: 4px;
 }
 
+.createFolderRow {
+  padding: 8px 16px;
+  background: #f0f7ff;
+  border-bottom: 1px solid #d0e3ff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.createFolderInput {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  min-width: 200px;
+}
+
+.createFolderButton {
+  padding: 6px 12px;
+  background: #0d6efd;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.createFolderButton:hover:not(:disabled) {
+  background: #0b5ed7;
+}
+
+.createFolderButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.createFolderError {
+  color: #dc3545;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
 .navButton {
   padding: 2px 8px;
   background: none;
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .navButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.navButtonCreate {
+  padding: 2px 10px;
+  background: #0d6efd;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.navButtonCreate:hover:not(:disabled) {
+  background: #0b5ed7;
+}
+
+.navButtonCreate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #6c757d;
 }
 
 .breadcrumbContainer {
@@ -846,6 +1002,222 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.recipeEditContainer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.recipeEditInput {
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  min-width: 120px;
+}
+
+.recipeEditInput:first-of-type {
+  min-width: 150px;
+}
+
+.selectedRecipesSection {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px solid #e3e5e8;
+  border-radius: 6px;
+}
+
+.selectedRecipesLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.selectedRecipesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selectedRecipeChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #fff;
+  border: 2px solid #4a90e2;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.selectedRecipeName {
+  color: #1a1a1a;
+}
+
+.selectedRecipeChip.color-0 {
+  border-color: #4a90e2;
+}
+
+.selectedRecipeChip.color-1 {
+  border-color: #e74c3c;
+}
+
+.selectedRecipeChip.color-2 {
+  border-color: #27ae60;
+}
+
+.selectedRecipeChip.color-3 {
+  border-color: #f39c12;
+}
+
+.selectedRecipeChip.color-4 {
+  border-color: #9b59b6;
+}
+
+.selectedRecipeChip.color-5 {
+  border-color: #1abc9c;
+}
+
+.selectedRecipeChip.color-6 {
+  border-color: #e67e22;
+}
+
+.selectedRecipeChip.color-7 {
+  border-color: #3498db;
+}
+
+.selectedRecipeChip.color-8 {
+  border-color: #e91e63;
+}
+
+.selectedRecipeChip.color-9 {
+  border-color: #00bcd4;
+}
+
+.selectedRecipeChip.color-0 button {
+  color: #4a90e2;
+}
+
+.selectedRecipeChip.color-1 button {
+  color: #e74c3c;
+}
+
+.selectedRecipeChip.color-2 button {
+  color: #27ae60;
+}
+
+.selectedRecipeChip.color-3 button {
+  color: #f39c12;
+}
+
+.selectedRecipeChip.color-4 button {
+  color: #9b59b6;
+}
+
+.selectedRecipeChip.color-5 button {
+  color: #1abc9c;
+}
+
+.selectedRecipeChip.color-6 button {
+  color: #e67e22;
+}
+
+.selectedRecipeChip.color-7 button {
+  color: #3498db;
+}
+
+.selectedRecipeChip.color-8 button {
+  color: #e91e63;
+}
+
+.selectedRecipeChip.color-9 button {
+  color: #00bcd4;
+}
+
+.orderChip.color-0 {
+  border-color: #4a90e2;
+}
+
+.orderChip.color-1 {
+  border-color: #e74c3c;
+}
+
+.orderChip.color-2 {
+  border-color: #27ae60;
+}
+
+.orderChip.color-3 {
+  border-color: #f39c12;
+}
+
+.orderChip.color-4 {
+  border-color: #9b59b6;
+}
+
+.orderChip.color-5 {
+  border-color: #1abc9c;
+}
+
+.orderChip.color-6 {
+  border-color: #e67e22;
+}
+
+.orderChip.color-7 {
+  border-color: #3498db;
+}
+
+.orderChip.color-8 {
+  border-color: #e91e63;
+}
+
+.orderChip.color-9 {
+  border-color: #00bcd4;
+}
+
+.orderChip.color-0 button {
+  color: #4a90e2;
+}
+
+.orderChip.color-1 button {
+  color: #e74c3c;
+}
+
+.orderChip.color-2 button {
+  color: #27ae60;
+}
+
+.orderChip.color-3 button {
+  color: #f39c12;
+}
+
+.orderChip.color-4 button {
+  color: #9b59b6;
+}
+
+.orderChip.color-5 button {
+  color: #1abc9c;
+}
+
+.orderChip.color-6 button {
+  color: #e67e22;
+}
+
+.orderChip.color-7 button {
+  color: #3498db;
+}
+
+.orderChip.color-8 button {
+  color: #e91e63;
+}
+
+.orderChip.color-9 button {
+  color: #00bcd4;
 }
 
 .advancedOverrides {

@@ -1258,6 +1258,193 @@ async def docs_browse(
         )
 
 
+@app.post(
+    "/api/uar/docs/create_folder",
+    responses={
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        409: {"model": ErrorResponse, "description": "Folder already exists"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def docs_create_folder(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """
+    Create a new folder in the docs directory.
+    Expects JSON body with 'path' (parent directory) and 'name' (folder name).
+    """
+    request_id = str(uuid.uuid4())
+    auth_middleware(credentials)  # Auth check, result unused
+    try:
+        body = await request.json()
+        parent_path = body.get("path")
+        folder_name = body.get("name")
+
+        # Validate input types
+        if (
+            not isinstance(parent_path, str)
+            or not isinstance(folder_name, str)
+        ):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Invalid input types",
+                    "message": "Both 'path' and 'name' must be strings",
+                    "request_id": request_id,
+                },
+            )
+
+        # Check required fields
+        if not parent_path or not folder_name:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Missing required fields",
+                    "message": "Both 'path' and 'name' are required",
+                    "request_id": request_id,
+                },
+            )
+
+        # Trim whitespace
+        folder_name = folder_name.strip()
+        if not folder_name:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Invalid folder name",
+                    "message": (
+                        "Folder name cannot be empty or "
+                        "whitespace only"
+                    ),
+                    "request_id": request_id,
+                },
+            )
+
+        # Prevent path traversal and invalid characters in folder name
+        if (
+            "/" in folder_name
+            or "\\" in folder_name
+            or ".." in folder_name
+            or "\x00" in folder_name
+            or any(ord(c) < 32 for c in folder_name)
+        ):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Invalid folder name",
+                    "message": (
+                        "Folder name cannot contain slashes, "
+                        "parent directory references, null "
+                        "bytes, or control characters"
+                    ),
+                    "request_id": request_id,
+                },
+            )
+
+        # Check for reserved Windows names
+        reserved_names = {"CON", "PRN", "AUX", "NUL"}
+        reserved_names.update(f"COM{i}" for i in range(1, 10))
+        reserved_names.update(f"LPT{i}" for i in range(1, 10))
+        if folder_name.upper() in reserved_names:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Invalid folder name",
+                    "message": f"'{folder_name}' is a reserved system name",
+                    "request_id": request_id,
+                },
+            )
+
+        # Check length limits (most filesystems limit to 255 chars)
+        if len(folder_name) > 255:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Invalid folder name",
+                    "message": (
+                        "Folder name exceeds maximum "
+                        "length of 255 characters"
+                    ),
+                    "request_id": request_id,
+                },
+            )
+
+        # Prevent names starting/ending with dot (hidden files on Unix)
+        if folder_name.startswith(".") or folder_name.endswith("."):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Invalid folder name",
+                    "message": "Folder name cannot start or end with a dot",
+                    "request_id": request_id,
+                },
+            )
+
+        # Resolve and validate parent path
+        parent = _resolve_docs_path(parent_path)
+        if not parent.exists():
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": "Parent directory not found",
+                    "message": str(parent),
+                    "request_id": request_id,
+                },
+            )
+
+        if not parent.is_dir():
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Parent is not a directory",
+                    "message": str(parent),
+                    "request_id": request_id,
+                },
+            )
+
+        # Create the new folder
+        new_folder = parent / folder_name
+        try:
+            new_folder.mkdir(parents=False, exist_ok=False)
+            logger.info(f"[{request_id}] Created folder: {new_folder}")
+        except FileExistsError:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "Folder already exists",
+                    "message": str(new_folder),
+                    "request_id": request_id,
+                },
+            )
+
+        return {
+            "path": str(new_folder),
+            "message": "Folder created successfully",
+            "request_id": request_id,
+        }
+
+    except (ValidationError, PathSecurityError) as e:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid path",
+                "message": str(e),
+                "request_id": request_id,
+            },
+        )
+    except Exception as e:
+        logger.exception(f"[{request_id}] docs_create_folder failed")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal server error",
+                "message": str(e),
+                "request_id": request_id,
+            },
+        )
+
+
 @app.get("/api/status")
 async def get_status(
     request: Request,

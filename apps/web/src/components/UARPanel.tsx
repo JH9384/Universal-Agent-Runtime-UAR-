@@ -522,6 +522,8 @@ export function UARPanel() {
   const tipsPopupRef = useRef<HTMLDivElement | null>(null)
   const [showHelp, setShowHelp] = useState(false)
   const [tipsPopupOpen, setTipsPopupOpen] = useState(false)
+  const [libraryPopupOpen, setLibraryPopupOpen] = useState(false)
+  const [recipesPopupOpen, setRecipesPopupOpen] = useState(false)
   const [expandedTipSections, setExpandedTipSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
@@ -996,8 +998,7 @@ export function UARPanel() {
       />
 
       <div className={styles.header}>
-        <h3 className={styles.headerTitle}>UAR Live System</h3>
-        <span className={styles.projectRoot}>{projectRoot}</span>
+        <h3 className={styles.headerTitle}>🤖 Universal Agent Runtime (UAR)</h3>
         <button
           onClick={() => setShowHelp(!showHelp)}
           className={styles.skillGuideButton}
@@ -1012,6 +1013,7 @@ export function UARPanel() {
         >
           📘
         </button>
+        <span className={styles.projectRoot}>UOR Support</span>
       </div>
 
       {showHelp && (
@@ -1350,10 +1352,45 @@ export function UARPanel() {
                 )}
               </div>
 
+              {/* Selected Recipes */}
+              {selectedRecipes.length > 0 && (
+                <div className={styles.selectedRecipesSection}>
+                  <div className={styles.selectedRecipesLabel}>Selected Recipes</div>
+                  <div className={styles.selectedRecipesList}>
+                    {selectedRecipes.map((recipeId, idx) => {
+                      const recipe = recipes.find((r) => r.id === recipeId)
+                      if (!recipe) return null
+                      const colorClass = `color-${idx % 10}` as `color-${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+                      return (
+                        <div
+                          key={recipeId}
+                          className={`${styles.selectedRecipeChip} ${styles[colorClass]}`}
+                        >
+                          <span className={styles.selectedRecipeName}>{recipe.label}</span>
+                          <button
+                            onClick={() => setSelectedRecipes((prev) => prev.filter((id) => id !== recipeId))}
+                            title="Remove recipe"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Recipes */}
               <div className={styles.presetsContainer}>
                 <label className={styles.label} title="Pre-configured skill combinations for common workflows">
                   Recipes
+                  <a
+                    onClick={() => setRecipesPopupOpen(true)}
+                    className={styles.libraryLink}
+                    title="View recipes library"
+                  >
+                    📚
+                  </a>
                   <button onClick={undoRecipes} className={styles.collapseAllButton} disabled={isRunning || recipeHistoryIndex === 0} title="Undo">
                     ↶
                   </button>
@@ -2027,6 +2064,89 @@ export function UARPanel() {
                 </ul>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Library Popup */}
+      {libraryPopupOpen && (
+        <div className={styles.modalOverlay} onClick={() => setLibraryPopupOpen(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <strong>📚 Library</strong>
+              <button className={styles.modalCloseButton} onClick={() => setLibraryPopupOpen(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              {libBusy ? (
+                <div className={styles.loadingText}>Loading library…</div>
+              ) : library.length === 0 ? (
+                <div className={styles.emptyLibrary}>(empty — upload files to add them)</div>
+              ) : (
+                <div className={styles.libraryPopupList}>
+                  {library.map((f) => (
+                    <div
+                      key={f.path}
+                      className={styles.libraryPopupItem}
+                      onClick={() => {
+                        onPick(f.path)
+                        setLibraryPopupOpen(false)
+                      }}
+                    >
+                      <span className={styles.libraryItemName}>
+                        📄 {f.name}
+                      </span>
+                      <span className={styles.libraryItemSize}>
+                        {human(f.size)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.footerButton} onClick={() => setLibraryPopupOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recipes Popup */}
+      {recipesPopupOpen && (
+        <div className={styles.modalOverlay} onClick={() => setRecipesPopupOpen(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <strong>📚 Recipes Library</strong>
+              <button className={styles.modalCloseButton} onClick={() => setRecipesPopupOpen(false)}>✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              <div className={styles.libraryPopupList}>
+                {recipes.map((r) => (
+                  <div
+                    key={r.id}
+                    className={styles.libraryPopupItem}
+                    onClick={() => {
+                      setSelectedRecipes((prev) =>
+                        prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id]
+                      )
+                    }}
+                  >
+                    <span className={styles.libraryItemName}>
+                      {selectedRecipes.includes(r.id) ? '✓ ' : ''}{r.label}
+                    </span>
+                    <span className={styles.libraryItemSize}>
+                      {r.skills.join(', ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.footerButton} onClick={() => setRecipesPopupOpen(false)}>
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
