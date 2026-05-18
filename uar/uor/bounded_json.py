@@ -124,7 +124,7 @@ class JsonValue:
         return case_byte + canonical.encode("utf-8")
 
     def _apply_nfc_normalization(self, obj: Any, depth: int = 0) -> Any:
-        """Apply Unicode NFC normalization to all strings."""
+        """Apply Unicode NFC normalization to all strings including dictionary keys."""
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
                 f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
@@ -139,7 +139,7 @@ class JsonValue:
             ]
         elif isinstance(obj, dict):
             return {
-                k: self._apply_nfc_normalization(v, depth + 1)
+                unicodedata.normalize("NFC", k): self._apply_nfc_normalization(v, depth + 1)
                 for k, v in obj.items()
             }
         else:

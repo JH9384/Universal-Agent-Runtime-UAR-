@@ -73,6 +73,10 @@ import uar.skills.sum_review  # noqa
 import uar.skills.ollama_generate  # noqa
 import uar.skills.graphrag_skills  # noqa
 import uar.skills.autonomi_storage  # noqa
+import uar.skills.atomic_lang_model  # noqa
+import uar.skills.math_compute  # noqa
+import uar.skills.cipher_ops  # noqa
+import uar.skills.physics_compute  # noqa
 
 
 # Lifespan for graceful startup/shutdown

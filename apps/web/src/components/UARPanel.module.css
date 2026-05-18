@@ -557,6 +557,35 @@
   margin-top: 4px;
 }
 
+.skillGroup {
+  margin-bottom: 12px;
+}
+
+.skillGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #eef;
+}
+
+.skillGroupIcon {
+  font-size: 14px;
+}
+
+.skillGroupName {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.skillGroupSkills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .recipeContainer {
   display: flex;
   flex-wrap: wrap;

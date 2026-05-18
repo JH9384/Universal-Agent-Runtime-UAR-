@@ -125,10 +125,11 @@ class Config:
 
         # Metrics Configuration
         # Support both new METRICS_ENABLED and legacy ENABLE_METRICS
-        # for backward compatibility. Treat empty string as unset.
-        metrics_env = os.getenv("METRICS_ENABLED") or os.getenv(
-            "ENABLE_METRICS", "true"
-        )
+        # for backward compatibility. Use explicit None check to allow
+        # explicit empty string to disable metrics.
+        metrics_env = os.getenv("METRICS_ENABLED")
+        if metrics_env is None:
+            metrics_env = os.getenv("ENABLE_METRICS", "true")
         self.metrics_enabled = metrics_env.lower() == "true"
         self.metrics_port = int(
             os.getenv("METRICS_PORT", str(DEFAULT_METRICS_PORT))

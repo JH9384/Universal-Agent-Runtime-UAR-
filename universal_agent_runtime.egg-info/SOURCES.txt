@@ -35,10 +35,13 @@ uar/core/validation.py
 uar/memory/json_store.py
 uar/skills/atomic_lang_model.py
 uar/skills/autonomi_storage.py
+uar/skills/cipher_ops.py
 uar/skills/dependency_map.py
 uar/skills/doc_ingest.py
 uar/skills/graphrag_skills.py
+uar/skills/math_compute.py
 uar/skills/ollama_generate.py
+uar/skills/physics_compute.py
 uar/skills/section_sum.py
 uar/skills/sum_review.py
 uar/uor/__init__.py

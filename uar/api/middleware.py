@@ -256,6 +256,11 @@ def rate_limit_middleware(
             },
         )
 
+    # Capture remaining count immediately after check for accurate headers
+    with rate_limiter._lock:
+        requests_made = len(rate_limiter.requests.get(rate_limit_key, deque()))
+        request.state.rate_limit_remaining = max(0, limit - requests_made)
+
 
 def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
     """Authentication middleware"""
@@ -439,18 +444,13 @@ def apply_middleware(app):
             hasattr(request.state, "rate_limit_key")
             and hasattr(request.state, "rate_limit")
             and hasattr(request.state, "rate_limit_window")
+            and hasattr(request.state, "rate_limit_remaining")
         ):
-            with rate_limiter._lock:
-                requests_made = len(
-                    rate_limiter.requests.get(
-                        request.state.rate_limit_key, deque()
-                    )
-                )
-                limit = request.state.rate_limit
-                window = request.state.rate_limit_window
-                remaining = max(0, limit - requests_made)
-                response.headers["X-RateLimit-Limit"] = str(limit)
-                response.headers["X-RateLimit-Remaining"] = str(remaining)
-                response.headers["X-RateLimit-Window"] = str(window)
+            limit = request.state.rate_limit
+            remaining = request.state.rate_limit_remaining
+            window = request.state.rate_limit_window
+            response.headers["X-RateLimit-Limit"] = str(limit)
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            response.headers["X-RateLimit-Window"] = str(window)
 
         return response

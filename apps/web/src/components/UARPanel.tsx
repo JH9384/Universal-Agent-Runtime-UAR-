@@ -8,25 +8,63 @@ const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
 const RECENT_MAX = 8
 
-const AVAILABLE_SKILLS = [
-  { id: 'doc_ingest',     label: 'doc_ingest',     desc: 'Read files from input_path (.md .txt .py .ts .json …)' },
-  { id: 'dependency_map', label: 'dependency_map', desc: 'Build a dependency graph between artifacts' },
-  { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize document sections' },
-  { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of pipeline outputs' },
-  { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
-  { id: 'graphrag_init',   label: 'graphrag_init',   desc: 'Initialize GraphRAG workspace (one-time setup)' },
-  { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
-  { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
-  { id: 'autonomi_upload',   label: 'autonomi_upload',   desc: 'Upload file/dir to Autonomi decentralized storage (requires autonomi package + wallet)' },
-  { id: 'autonomi_download', label: 'autonomi_download', desc: 'Download a file from Autonomi by address (requires autonomi package)' },
-  { id: 'autonomi_status',   label: 'autonomi_status',   desc: 'Check Autonomi client and wallet status' },
-  { id: 'alm_analyze',      label: 'alm_analyze',      desc: 'Analyze formal grammar specifications (BNF, EBNF) with ALM (requires ALM service)' },
-  { id: 'alm_generate',     label: 'alm_generate',     desc: 'Generate token sequences from a prefix using ALM (requires ALM service)' },
-  { id: 'alm_verify',       label: 'alm_verify',       desc: 'Validate text against ALM grammar (requires ALM service)' },
-  { id: 'math_compute',    label: 'math_compute',    desc: 'Symbolic math with SymPy: solve, differentiate, integrate, simplify (requires sympy)' },
-  { id: 'cipher_ops',      label: 'cipher_ops',      desc: 'Cryptographic operations: encrypt, decrypt, hash, sign (requires pycryptodome)' },
-  { id: 'physics_compute', label: 'physics_compute', desc: 'Physics & astronomy: unit conversion, coordinate transforms, cosmology (requires astropy)' },
+const SKILL_GROUPS = [
+  {
+    name: 'Core UAR',
+    icon: '⚙️',
+    skills: [
+      { id: 'doc_ingest',     label: 'doc_ingest',     desc: 'Read files from input_path (.md .txt .py .ts .json …)' },
+      { id: 'dependency_map', label: 'dependency_map', desc: 'Build a dependency graph between artifacts' },
+      { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize document sections' },
+      { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of pipeline outputs' },
+    ]
+  },
+  {
+    name: 'AI / LLM',
+    icon: '🧠',
+    skills: [
+      { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
+    ]
+  },
+  {
+    name: 'GraphRAG',
+    icon: '📚',
+    skills: [
+      { id: 'graphrag_init',   label: 'graphrag_init',   desc: 'Initialize GraphRAG workspace (one-time setup)' },
+      { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
+      { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
+    ]
+  },
+  {
+    name: 'Autonomi',
+    icon: '☁️',
+    skills: [
+      { id: 'autonomi_upload',   label: 'autonomi_upload',   desc: 'Upload file/dir to Autonomi decentralized storage (requires autonomi package + wallet)' },
+      { id: 'autonomi_download', label: 'autonomi_download', desc: 'Download a file from Autonomi by address (requires autonomi package)' },
+      { id: 'autonomi_status',   label: 'autonomi_status',   desc: 'Check Autonomi client and wallet status' },
+    ]
+  },
+  {
+    name: 'ALM',
+    icon: '🔤',
+    skills: [
+      { id: 'alm_analyze',      label: 'alm_analyze',      desc: 'Analyze formal grammar specifications (BNF, EBNF) with ALM (requires ALM service)' },
+      { id: 'alm_generate',     label: 'alm_generate',     desc: 'Generate token sequences from a prefix using ALM (requires ALM service)' },
+      { id: 'alm_verify',       label: 'alm_verify',       desc: 'Validate text against ALM grammar (requires ALM service)' },
+    ]
+  },
+  {
+    name: 'STEM',
+    icon: '🔬',
+    skills: [
+      { id: 'math_compute',    label: 'math_compute',    desc: 'Symbolic math with SymPy: solve, differentiate, integrate, simplify (requires sympy)' },
+      { id: 'cipher_ops',      label: 'cipher_ops',      desc: 'Cryptographic operations: encrypt, decrypt, hash, sign (requires pycryptodome)' },
+      { id: 'physics_compute', label: 'physics_compute', desc: 'Physics & astronomy: unit conversion, coordinate transforms, cosmology (requires astropy)' },
+    ]
+  },
 ]
+
+const AVAILABLE_SKILLS = SKILL_GROUPS.flatMap(g => g.skills)
 
 const GOAL_TEMPLATES = [
   'Summarize the project',
@@ -736,10 +774,20 @@ export function UARPanel() {
         <div>
           <label className={styles.label}>Skills</label>
           <div>
-            {AVAILABLE_SKILLS.map((s) => (
-              <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
-                {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
-              </button>
+            {SKILL_GROUPS.map((group) => (
+              <div key={group.name} className={styles.skillGroup}>
+                <div className={styles.skillGroupHeader}>
+                  <span className={styles.skillGroupIcon}>{group.icon}</span>
+                  <span className={styles.skillGroupName}>{group.name}</span>
+                </div>
+                <div className={styles.skillGroupSkills}>
+                  {group.skills.map((s) => (
+                    <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
+                      {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
           <div className={styles.orderText}>
