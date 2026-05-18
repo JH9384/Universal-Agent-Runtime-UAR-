@@ -6,6 +6,7 @@ import styles from './UARPanel.module.css'
 
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
+const RECIPES_KEY = 'uar.recipes'
 const RECENT_MAX = 8
 
 const SKILL_GROUPS = [
@@ -14,6 +15,7 @@ const SKILL_GROUPS = [
     icon: '⚙️',
     skills: [
       { id: 'doc_ingest',     label: 'doc_ingest',     desc: 'Read files from input_path (.md .txt .py .ts .json …)' },
+      { id: 'doc_ingest_enhanced', label: 'doc_ingest_enhanced', desc: 'Advanced document ingestion with Unstructured & Docling (PDF, DOCX, images, tables)' },
       { id: 'dependency_map', label: 'dependency_map', desc: 'Build a dependency graph between artifacts' },
       { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize document sections' },
       { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of pipeline outputs' },
@@ -47,6 +49,45 @@ const SKILL_GROUPS = [
       { id: 'together_chat', label: 'together_chat', desc: 'Chat with Together models (requires openai package + TOGETHER_API_KEY)' },
       { id: 'together_completion', label: 'together_completion', desc: 'Text completion with Together (requires openai package + TOGETHER_API_KEY)' },
       { id: 'together_embedding', label: 'together_embedding', desc: 'Generate embeddings with Together (requires openai package + TOGETHER_API_KEY)' },
+      { id: 'optuna_tune', label: 'optuna_tune', desc: 'Hyperparameter optimization with Optuna - automated tuning for ML models (requires optuna)' },
+      { id: 'autogluon_ml', label: 'autogluon_ml', desc: 'AutoML with AutoGluon - automated ML with ensemble methods (requires autogluon)' },
+      { id: 'pycaret_ml', label: 'pycaret_ml', desc: 'Low-code ML with PyCaret - classification, regression, clustering (requires pycaret)' },
+      { id: 'flaml_auto', label: 'flaml_auto', desc: 'AutoML with FLAML - efficient hyperparameter tuning (requires flaml)' },
+      { id: 'chromadb_store', label: 'chromadb_store', desc: 'Vector database with ChromaDB - semantic search, embeddings storage (requires chromadb)' },
+    ]
+  },
+  {
+    name: 'Multi-Agent',
+    icon: '🤖',
+    skills: [
+      { id: 'agent_workflow', label: 'agent_workflow', desc: 'Execute multi-agent workflows with Microsoft Agent Framework patterns (requires autogen)' },
+      { id: 'crewai_task', label: 'crewai_task', desc: 'Execute role-based agent tasks with CrewAI patterns (requires crewai)' },
+      { id: 'crewai_workflow', label: 'crewai_workflow', desc: 'Execute standard multi-agent workflows (research-analyze-write, code-review, data-analysis)' },
+    ]
+  },
+  {
+    name: 'Advanced RAG',
+    icon: '📖',
+    skills: [
+      { id: 'llamaindex_rag', label: 'llamaindex_rag', desc: 'Advanced RAG with LlamaIndex - hierarchical chunking, hybrid search, knowledge graph (requires llama-index)' },
+      { id: 'llamaindex_query', label: 'llamaindex_query', desc: 'Query LlamaIndex RAG system with multiple retrieval strategies (requires llama-index)' },
+    ]
+  },
+  {
+    name: 'Pipeline Orchestration',
+    icon: '🔄',
+    skills: [
+      { id: 'dagster_pipeline', label: 'dagster_pipeline', desc: 'Execute Dagster pipelines with asset-based orchestration (requires dagster)' },
+      { id: 'dagster_status', label: 'dagster_status', desc: 'Check Dagster pipeline and asset status (requires dagster)' },
+    ]
+  },
+  {
+    name: 'Governance',
+    icon: '🛡️',
+    skills: [
+      { id: 'guardrail_check', label: 'guardrail_check', desc: 'Check guardrails for agent outputs - content safety, rate limits, budgets' },
+      { id: 'budget_status', label: 'budget_status', desc: 'Check agent budget status - tokens, API calls, cost, time limits' },
+      { id: 'blackboard_status', label: 'blackboard_status', desc: 'Check shared blackboard status for agent coordination' },
     ]
   },
   {
@@ -56,6 +97,7 @@ const SKILL_GROUPS = [
       { id: 'graphrag_init',   label: 'graphrag_init',   desc: 'Initialize GraphRAG workspace (one-time setup)' },
       { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
       { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
+      { id: 'flexible_graphrag', label: 'flexible_graphrag', desc: 'Flexible GraphRAG with multiple backends (Neo4j, Memgraph, RDF) and hybrid search' },
     ]
   },
   {
@@ -83,6 +125,79 @@ const SKILL_GROUPS = [
       { id: 'math_compute',    label: 'math_compute',    desc: 'Symbolic math with SymPy: solve, differentiate, integrate, simplify (requires sympy)' },
       { id: 'cipher_ops',      label: 'cipher_ops',      desc: 'Cryptographic operations: encrypt, decrypt, hash, sign (requires pycryptodome)' },
       { id: 'physics_compute', label: 'physics_compute', desc: 'Physics & astronomy: unit conversion, coordinate transforms, cosmology (requires astropy)' },
+      { id: 'diff_eq_solve',    label: 'diff_eq_solve',    desc: 'Differential equations with diffeqpy: ODE/PDE solvers, symbolic optimization (requires diffeqpy)' },
+      { id: 'cern_root',       label: 'cern_root',       desc: 'CERN ROOT data analysis: particle physics, large datasets, statistical analysis (requires root-cern/pyroot)' },
+      { id: 'scipy_opt',       label: 'scipy_opt',       desc: 'SciPy optimization: linear/nonlinear programming, integration, interpolation, eigenvalues (requires scipy)' },
+      { id: 'quantum_circuit',  label: 'quantum_circuit',  desc: 'Quantum computing with Qiskit: build circuits, run on IBM Q, quantum algorithms (requires qiskit)' },
+      { id: 'quantum_ml',      label: 'quantum_ml',      desc: 'Quantum ML with PennyLane: quantum neural networks, quantum chemistry (requires pennylane)' },
+      { id: 'chem_analysis',   label: 'chem_analysis',   desc: 'Computational chemistry with RDKit: molecular analysis, conformers, chemical properties (requires rdkit)' },
+      { id: 'bio_compute',     label: 'bio_compute',     desc: 'Bioinformatics with Biopython: DNA/RNA/protein analysis, sequence alignment (requires biopython)' },
+      { id: 'relativity',      label: 'relativity',      desc: 'General relativity with EinsteinPy: spacetime metrics, geodesics, gravitational physics (requires einsteinpy)' },
+      { id: 'data_viz_3d',     label: 'data_viz_3d',     desc: '3D visualization with PyVista: mesh analysis, VTK integration, scientific plotting (requires pyvista)' },
+    ]
+  },
+  {
+    name: 'Hardware / Embedded',
+    icon: '⚡',
+    skills: [
+      { id: 'fpga_verify',     label: 'fpga_verify',     desc: 'FPGA verification with cocotb: Python testbenches for Verilog/SystemVerilog (requires cocotb)' },
+      { id: 'verilog_parse',   label: 'verilog_parse',   desc: 'Verilog HDL processing with Pyverilog: parser, code analysis, code generation (requires pyverilog)' },
+      { id: 'myhdl_design',    label: 'myhdl_design',    desc: 'Hardware design with MyHDL: Python to Verilog/VHDL conversion, simulation (requires myhdl)' },
+      { id: 'riscv_sim',       label: 'riscv_sim',       desc: 'RISC-V simulation with riscemu: emulator for RISC-V assembly programs (requires riscemu)' },
+      { id: 'riscv_cycle',     label: 'riscv_cycle',     desc: 'Cycle-accurate RISC-V with py-v: CPU simulator + RTL modeling (requires py-v)' },
+      { id: 'verilator_sim',  label: 'verilator_sim',  desc: 'Verilog simulation with Verilator: high-speed SystemVerilog to C++/SystemC (requires verilator)' },
+      { id: 'micropython',    label: 'micropython',    desc: 'MicroPython for embedded: ESP32/ESP8266, microcontroller programming (requires micropython)' },
+      { id: 'platformio',     label: 'platformio',     desc: 'Embedded development with PlatformIO: Arduino, ESP32, STM32, CI/CD (requires platformio)' },
+    ]
+  },
+  {
+    name: 'Computer Vision',
+    icon: '👁️',
+    skills: [
+      { id: 'yolo_detect',      label: 'yolo_detect',      desc: 'Object detection with YOLO - real-time detection, custom training (requires ultralytics)' },
+      { id: 'opencv_process',   label: 'opencv_process',   desc: 'Image processing with OpenCV - filters, transforms, feature detection (requires opencv-python)' },
+      { id: 'video_analyze',    label: 'video_analyze',    desc: 'Video analysis - motion detection, tracking, frame extraction (requires opencv-python)' },
+      { id: 'face_recognize',   label: 'face_recognize',   desc: 'Face recognition - detection, identification, emotion analysis (requires face_recognition)' },
+    ]
+  },
+  {
+    name: 'Blockchain / Web3',
+    icon: '🔗',
+    skills: [
+      { id: 'web3_eth',        label: 'web3_eth',        desc: 'Ethereum interaction with web3.py - smart contracts, transactions (requires web3)' },
+      { id: 'solana_tx',       label: 'solana_tx',       desc: 'Solana transactions - SPL tokens, wallet management (requires solana-py)' },
+      { id: 'smart_contract',  label: 'smart_contract',  desc: 'Smart contract deployment and interaction (requires web3, brownie)' },
+      { id: 'nft_mint',        label: 'nft_mint',        desc: 'NFT minting and metadata management (requires web3, eth-account)' },
+    ]
+  },
+  {
+    name: 'MLOps',
+    icon: '🚀',
+    skills: [
+      { id: 'mlflow_track',    label: 'mlflow_track',    desc: 'ML experiment tracking with MLflow - metrics, parameters, artifacts (requires mlflow)' },
+      { id: 'mlflow_deploy',   label: 'mlflow_deploy',   desc: 'ML model deployment with MLflow - serving, batch inference (requires mlflow)' },
+      { id: 'kubeflow_pipe',   label: 'kubeflow_pipe',   desc: 'ML pipelines with Kubeflow - workflow orchestration on K8s (requires kfp)' },
+      { id: 'model_reg',       label: 'model_reg',       desc: 'Model registry management - versioning, staging, promotion (requires mlflow)' },
+    ]
+  },
+  {
+    name: 'Security',
+    icon: '🔒',
+    skills: [
+      { id: 'pentest_scan',    label: 'pentest_scan',    desc: 'Penetration testing - vulnerability scanning, security assessment (requires nmap, python-nmap)' },
+      { id: 'osint_recon',     label: 'osint_recon',     desc: 'OSINT reconnaissance - gather intelligence on targets (requires requests, shodan)' },
+      { id: 'crypto_analyze',  label: 'crypto_analyze',  desc: 'Cryptographic analysis - hash cracking, encryption analysis (requires hashcat, pycryptodome)' },
+      { id: 'security_audit',  label: 'security_audit',  desc: 'Security audit - code review, dependency vulnerabilities (requires bandit, safety)' },
+    ]
+  },
+  {
+    name: 'Data Engineering',
+    icon: '📊',
+    skills: [
+      { id: 'airflow_dag',     label: 'airflow_dag',     desc: 'Workflow orchestration with Airflow - DAGs, scheduling, monitoring (requires apache-airflow)' },
+      { id: 'dbt_transform',   label: 'dbt_transform',   desc: 'Data transformation with dbt - SQL models, testing, documentation (requires dbt-core)' },
+      { id: 'snowflake_etl',   label: 'snowflake_etl',   desc: 'Snowflake ETL - data loading, warehousing, analytics (requires snowflake-connector-python)' },
+      { id: 'spark_process',   label: 'spark_process',   desc: 'Big data processing with PySpark - ETL, analytics on large datasets (requires pyspark)' },
     ]
   },
 ]
@@ -192,7 +307,7 @@ function FilePicker(props: {
 
   return (
     <div onClick={onClose} className={styles.modalOverlay}>
-      <div onClick={(e: any) => e.stopPropagation()} className={styles.modalContent}>
+      <div onClick={(e: React.MouseEvent) => e.stopPropagation()} className={styles.modalContent}>
         {/* Header */}
         <div className={styles.modalHeader}>
           <strong>Pick a folder or file</strong>
@@ -236,14 +351,14 @@ function FilePicker(props: {
           <input
             placeholder="Filter (filename contains…)"
             value={filter}
-            onChange={(e: any) => setFilter(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilter(e.target.value)}
             className={styles.filterInput}
           />
           <input
             placeholder="Or type a path and press Enter"
             value={path}
-            onChange={(e: any) => setPath(e.target.value)}
-            onKeyDown={(e: any) => { if (e.key === 'Enter') load(path) }}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPath(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') load(path) }}
             className={styles.pathInput}
           />
         </div>
@@ -314,10 +429,26 @@ function FilePicker(props: {
 export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [inputPath, setInputPath] = useState('')
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(['doc_ingest', 'dependency_map', 'sum_review'])
+  const initialSkills = ['doc_ingest', 'dependency_map', 'sum_review']
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(initialSkills)
+  const [skillHistory, setSkillHistory] = useState<string[][]>([initialSkills])
+  const [skillHistoryIndex, setSkillHistoryIndex] = useState(0)
+  const [recipes, setRecipes] = useState<Recipe[]>(() => {
+    try {
+      const saved = localStorage.getItem(RECIPES_KEY)
+      return saved ? JSON.parse(saved) : RECIPES
+    } catch (e) {
+      console.warn('Failed to load recipes from localStorage:', e)
+      return RECIPES
+    }
+  })
+  const [selectedRecipes, setSelectedRecipes] = useState<string[]>([])
+  const [recipeHistory, setRecipeHistory] = useState<Recipe[][]>([RECIPES])
+  const [recipeHistoryIndex, setRecipeHistoryIndex] = useState(0)
   const [events, setEvents] = useState<any[]>([])
   const [graph, setGraph] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
   const [error, setError] = useState<UARError | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [skillGuideOpen, setSkillGuideOpen] = useState(false)
@@ -341,15 +472,79 @@ export function UARPanel() {
   const [dragActive, setDragActive] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const tipsPopupRef = useRef<HTMLDivElement | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [tipsPopupOpen, setTipsPopupOpen] = useState(false)
+  const [expandedTipSections, setExpandedTipSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
+    // Only expand key sections by default for better performance
+    const keySections = ['Documents', 'Goal', 'Skills']
+    sections.forEach(s => initial[s] = keySections.includes(s))
+    return initial
+  })
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     SKILL_GROUPS.forEach(g => initial[g.name] = false)
     return initial
   })
   const [recent, setRecent] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') } catch { return [] }
+    try {
+      const saved = localStorage.getItem(RECENT_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch (e) {
+      console.warn('Failed to load recent paths from localStorage:', e)
+      return []
+    }
   })
+
+  // Save recipes to localStorage when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(RECIPES_KEY, JSON.stringify(recipes))
+    } catch (e) {
+      // Handle localStorage quota exceeded errors gracefully
+      if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
+        console.error('localStorage quota exceeded - recipes not saved')
+      } else {
+        console.warn('Failed to save recipes to localStorage:', e)
+      }
+    }
+  }, [recipes])
+
+  // Combine selected recipe skills into selectedSkills
+  const prevSelectedRecipesRef = useRef<string[]>([])
+  useEffect(() => {
+    // Only run when selectedRecipes actually changes (not when selectedSkills changes)
+    // Use array length and content comparison instead of JSON.stringify for efficiency
+    const recipesChanged =
+      prevSelectedRecipesRef.current.length !== selectedRecipes.length ||
+      prevSelectedRecipesRef.current.some((id, i) => id !== selectedRecipes[i])
+    if (!recipesChanged || selectedRecipes.length === 0) {
+      prevSelectedRecipesRef.current = selectedRecipes
+      return
+    }
+    prevSelectedRecipesRef.current = selectedRecipes
+
+    const recipeSkills = selectedRecipes.flatMap((recipeId) => {
+      const recipe = recipes.find((r) => r.id === recipeId)
+      return recipe ? recipe.skills : []
+    })
+    // Merge recipe skills with existing selections while preserving order
+    // Keep existing order, append new recipe skills that aren't already selected
+    const combinedSkills = [...selectedSkills]
+    recipeSkills.forEach((skill) => {
+      if (!combinedSkills.includes(skill)) {
+        combinedSkills.push(skill)
+      }
+    })
+    setSelectedSkills(combinedSkills)
+    setSkillHistory((history) => {
+      const newHistory = [...history.slice(0, skillHistoryIndex + 1), combinedSkills]
+      setSkillHistoryIndex((idx) => idx + 1)
+      return newHistory
+    })
+  }, [selectedRecipes, recipes])
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const eventCountRef = useRef(0)
@@ -360,11 +555,12 @@ export function UARPanel() {
       abortControllerRef.current = null
     }
     setIsRunning(false)
+    setIsStopping(false)
     setCurrentSkill('')
     setStartTime(0)
   }, [])
 
-  useEffect(() => cleanup, [cleanup])
+  useEffect(() => cleanup, [])
 
   const refreshLibrary = useCallback(async () => {
     setLibBusy(true)
@@ -450,35 +646,130 @@ export function UARPanel() {
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(true) }
   const onDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(false) }
 
-  // ESC closes picker
+  // ESC closes picker and tips popup
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPickerOpen(false) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPickerOpen(false)
+        setTipsPopupOpen(false)
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [setPickerOpen, setTipsPopupOpen])
+
+  // Click outside to close tips popup
+  useEffect(() => {
+    if (!tipsPopupOpen) return
+
+    const timeoutRef: { current: number | null } = { current: null }
+
+    const handleClickOutside = (e: MouseEvent) => {
+      // Check if click is outside the popup and not on a button that might trigger DOM updates
+      if (tipsPopupRef.current && !tipsPopupRef.current.contains(e.target as Node)) {
+        // Small delay to ensure any button click handlers have time to process
+        timeoutRef.current = window.setTimeout(() => {
+          setTipsPopupOpen(false)
+        }, 0)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [tipsPopupOpen, setTipsPopupOpen])
 
   const pushRecent = (p: string) => {
     if (!p.trim()) return
     setRecent((prev) => {
       const next = [p, ...prev.filter((x) => x !== p)].slice(0, RECENT_MAX)
-      try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)) } catch {}
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+      } catch (e) {
+        console.warn('Failed to save recent paths to localStorage:', e)
+      }
       return next
     })
   }
 
   const clearRecent = () => {
     setRecent([])
-    try { localStorage.removeItem(RECENT_KEY) } catch {}
+    try {
+      localStorage.removeItem(RECENT_KEY)
+    } catch (e) {
+      console.warn('Failed to clear recent paths from localStorage:', e)
+    }
   }
 
   const toggleSkill = (id: string) => {
-    setSelectedSkills((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-    )
+    // Clear selected recipes when manually toggling skills to prevent overwriting
+    setSelectedRecipes([])
+    setSelectedSkills((prev) => {
+      const next = prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+      // Update history with functional update to avoid stale closure
+      setSkillHistory((history) => {
+        const newHistory = [...history.slice(0, skillHistoryIndex + 1), next]
+        setSkillHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      return next
+    })
   }
 
-  const toggleGroup = (groupName: string) => {
-    setCollapsedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }))
+  const undoSkills = () => {
+    setSkillHistoryIndex((prevIndex) => {
+      if (prevIndex > 0 && skillHistory.length > 0) {
+        const newIndex = prevIndex - 1
+        setSelectedSkills(skillHistory[newIndex])
+        return newIndex
+      }
+      return prevIndex
+    })
+  }
+
+  const redoSkills = () => {
+    setSkillHistoryIndex((prevIndex) => {
+      if (prevIndex < skillHistory.length - 1 && skillHistory.length > 0) {
+        const newIndex = prevIndex + 1
+        setSelectedSkills(skillHistory[newIndex])
+        return newIndex
+      }
+      return prevIndex
+    })
+  }
+
+  const undoRecipes = () => {
+    setRecipeHistoryIndex((prevIndex) => {
+      if (prevIndex > 0 && recipeHistory.length > 0) {
+        const newIndex = prevIndex - 1
+        setRecipes(recipeHistory[newIndex])
+        return newIndex
+      }
+      return prevIndex
+    })
+  }
+
+  const redoRecipes = () => {
+    setRecipeHistoryIndex((prevIndex) => {
+      if (prevIndex < recipeHistory.length - 1 && recipeHistory.length > 0) {
+        const newIndex = prevIndex + 1
+        setRecipes(recipeHistory[newIndex])
+        return newIndex
+      }
+      return prevIndex
+    })
+  }
+
+  const toggleGroup = (name: string) => {
+    setCollapsedGroups(prev => ({ ...prev, [name]: !prev[name] }))
+  }
+
+  const toggleTipSection = (name: string) => {
+    setExpandedTipSections(prev => ({ ...prev, [name]: !prev[name] }))
   }
 
   const toggleAllGroups = (expand: boolean) => {
@@ -557,15 +848,17 @@ export function UARPanel() {
             if (!line.startsWith('data:')) continue
             try {
               const json = JSON.parse(line.replace('data: ', ''))
-              eventCountRef.current++
-              if (eventCountRef.current > MAX_EVENTS) {
-                abortControllerRef.current?.abort()
-                setError({ message: `Event limit reached (${MAX_EVENTS}).`, timestamp: Date.now() })
-                setIsRunning(false)
-                return
-              }
               setEvents((prev) => {
                 const next = prev.length >= MAX_EVENTS ? prev.slice(1) : prev
+                eventCountRef.current++
+                // Check event limit inside setState callback to ensure atomic operation
+                // This prevents race conditions where multiple events arrive simultaneously
+                if (eventCountRef.current > MAX_EVENTS) {
+                  abortControllerRef.current?.abort()
+                  setError({ message: `Event limit reached (${MAX_EVENTS}).`, timestamp: Date.now() })
+                  setIsRunning(false)
+                  return prev // Don't add the event that exceeded the limit
+                }
                 return [...next, json]
               })
               if (json.type === 'skill_start' && json.skill) setCurrentSkill(json.skill)
@@ -585,11 +878,16 @@ export function UARPanel() {
       setError({ message: err instanceof Error ? err.message : 'Unknown error occurred', timestamp: Date.now() })
     } finally {
       setIsRunning(false)
-      abortControllerRef.current = null
+      if (!abortControllerRef.current?.signal.aborted) {
+        abortControllerRef.current = null
+      }
     }
-  }, [goal, inputPath, selectedSkills])
+  }, [goal, inputPath, selectedSkills, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent])
 
-  const stopStream = useCallback(() => cleanup(), [cleanup])
+  const stopStream = useCallback(() => {
+    setIsStopping(true)
+    cleanup()
+  }, [cleanup])
 
   const { nodes, edges } = useMemo(() => {
     if (!graph) return { nodes: [], edges: [] }
@@ -630,7 +928,7 @@ export function UARPanel() {
     return last?.payload?.result || null
   }, [events])
 
-  const canRun = !isRunning && goal.trim().length > 0 && selectedSkills.length > 0
+  const canRun = !isRunning && !isStopping && goal.trim().length > 0 && selectedSkills.length > 0
 
   const chip = (active: boolean, disabled = false): string => {
     const base = styles.chip
@@ -656,16 +954,16 @@ export function UARPanel() {
         <button
           onClick={() => setShowHelp(!showHelp)}
           className={styles.skillGuideButton}
-          title="Toggle quick tips"
+          title="Toggle quick start tips"
         >
-          💡 {showHelp ? 'Hide' : 'Show'} Tips
+          💡
         </button>
         <button
           onClick={() => setSkillGuideOpen(true)}
           className={styles.skillGuideButton}
-          title="View skill documentation"
+          title="View detailed skill documentation"
         >
-          📘 Skill Guide
+          📘
         </button>
       </div>
 
@@ -705,10 +1003,17 @@ export function UARPanel() {
       {/* DOCUMENTS */}
       <div className={styles.box}>
         <div className={styles.sectionHeader}>
-          <strong className={styles.sectionTitle}>Documents</strong>
+          <strong className={styles.sectionTitle} title="Manage documents, upload files, and select input paths">Documents</strong>
           <span className={styles.sectionInfo}>
             library: {libraryPath}
           </span>
+          <button
+            onClick={() => setTipsPopupOpen(true)}
+            className={styles.skillGuideButton}
+            title="View tips"
+          >
+            💡
+          </button>
           <button
             onClick={() => setPickerOpen(true)}
             disabled={isRunning}
@@ -717,102 +1022,105 @@ export function UARPanel() {
           >📂 Pick…</button>
         </div>
 
-        {/* Drop zone */}
-        <div
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          onDragEnter={onDragOver}
-          onDragLeave={onDragLeave}
-          onClick={() => fileInputRef.current?.click()}
-          className={`${styles.dropZone} ${dragActive ? styles.dropZoneActive : ''}`}
-        >
-          <div className={styles.dropZoneIcon}>{dragActive ? '⬇️' : '📥'}</div>
-          <div className={styles.dropZoneText}>
-            {dragActive ? 'Drop here to add to library' : 'Drop files here, or click to choose'}
-          </div>
-          <div className={styles.dropZoneSubtext}>
-            PDFs · DOCX · XLSX · IPYNB · Parquet · Markdown · Code · Data · max 50MB each
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            aria-label="Upload files to library"
-            className={styles.hiddenInput}
-            onChange={(e: any) => {
-              if (e.target.files?.length) uploadFiles(e.target.files)
-              e.target.value = ''
-            }}
-          />
-        </div>
-        {uploadMsg && <div className={styles.uploadMessage}>{uploadMsg}</div>}
+        <div className={styles.sectionWithTips}>
+          <div className={styles.sectionContent}>
+            {/* Drop zone */}
+            <div
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onClick={() => fileInputRef.current?.click()}
+              className={`${styles.dropZone} ${dragActive ? styles.dropZoneActive : ''}`}
+            >
+              <div className={styles.dropZoneIcon}>{dragActive ? '⬇️' : '📥'}</div>
+              <div className={styles.dropZoneText}>
+                {dragActive ? 'Drop here to add to library' : 'Drop files here, or click to choose'}
+              </div>
+              <div className={styles.dropZoneSubtext}>
+                PDFs · DOCX · XLSX · IPYNB · Parquet · Markdown · Code · Data · max 50MB each
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                aria-label="Upload files to library"
+                className={styles.hiddenInput}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  if (e.target.files?.length) uploadFiles(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+            {uploadMsg && <div className={styles.uploadMessage}>{uploadMsg}</div>}
 
-        {/* Library list */}
-        <div className={styles.presetsContainer}>
-          <div className={styles.label}>
-            📚 Library ({library.length}{libBusy && ' · refreshing…'})
-            <button onClick={refreshLibrary} className={styles.refreshButton}>↻</button>
-            {libraryPath && (
-              <button onClick={() => onPick(libraryPath)} className={styles.useAllButton} title="Use whole library as input_path">
-                use all
-              </button>
-            )}
-          </div>
-          {library.length === 0 ? (
-            <div className={styles.emptyLibrary}>(empty — drop files above)</div>
-          ) : (
-            <div className={styles.libraryList}>
-              {library.map((f) => (
-                <div key={f.path}
-                  className={`${styles.libraryItem} ${inputPath === f.path ? styles.libraryItemSelected : ''}`}
-                >
-                  <span className={styles.libraryItemName} onClick={() => onPick(f.path)} title={f.path}>
-                    📄 {f.name}
-                  </span>
-                  <span className={styles.libraryItemSize}>{human(f.size)}</span>
-                  <button onClick={() => deleteLibFile(f.name)} disabled={isRunning} className={styles.deleteButton} title="Delete">✕</button>
+            {/* Library list */}
+            <div className={styles.presetsContainer}>
+              <div className={styles.label}>
+                📚 Library ({library.length}{libBusy && ' · refreshing…'})
+                <button onClick={refreshLibrary} className={styles.refreshButton} title="Refresh library list">↻</button>
+                {libraryPath && (
+                  <button onClick={() => onPick(libraryPath)} className={styles.useAllButton} title="Use whole library as input_path">
+                    use all
+                  </button>
+                )}
+              </div>
+              {library.length === 0 ? (
+                <div className={styles.emptyLibrary}>(empty — drop files above)</div>
+              ) : (
+                <div className={styles.libraryList}>
+                  {library.map((f) => (
+                    <div key={f.path}
+                      className={`${styles.libraryItem} ${inputPath === f.path ? styles.libraryItemSelected : ''}`}
+                    >
+                      <span className={styles.libraryItemName} onClick={() => onPick(f.path)} title={f.path}>
+                        📄 {f.name}
+                      </span>
+                      <span className={styles.libraryItemSize}>{human(f.size)}</span>
+                      <button onClick={() => deleteLibFile(f.name)} disabled={isRunning} className={styles.deleteButton} title="Delete">✕</button>
+                    </div>
+                  ))}
                 </div>
+              )}
+            </div>
+
+            <div className={styles.presetsContainer}>
+              <div className={styles.label} title="Quick access to pre-configured project directories">Presets</div>
+              {presets.length === 0 && <span className={styles.loadingText}>(loading…)</span>}
+              {presets.map((p) => (
+                <button key={p.path} disabled={isRunning} onClick={() => onPick(p.path)} className={chip(inputPath === p.path, isRunning)} title={p.path}>
+                  {p.name}
+                </button>
               ))}
             </div>
-          )}
-        </div>
 
-        <div className={styles.presetsContainer}>
-          <div className={styles.label}>Presets</div>
-          {presets.length === 0 && <span className={styles.loadingText}>(loading…)</span>}
-          {presets.map((p) => (
-            <button key={p.path} disabled={isRunning} onClick={() => onPick(p.path)} className={chip(inputPath === p.path, isRunning)} title={p.path}>
-              {p.name}
-            </button>
-          ))}
-        </div>
+            {recent.length > 0 && (
+              <div className={styles.recentContainer}>
+                <div className={styles.label} title="Recently used paths for quick access">
+                  Recent
+                  <button onClick={clearRecent} className={styles.clearButton} title="Clear recent paths history">clear</button>
+                </div>
+                {recent.map((p) => (
+                  <button key={p} disabled={isRunning} onClick={() => onPick(p)} className={chip(inputPath === p, isRunning)} title={p}>
+                    {p.length > 40 ? '…' + p.slice(-40) : p}
+                  </button>
+                ))}
+              </div>
+            )}
 
-        {recent.length > 0 && (
-          <div className={styles.recentContainer}>
-            <div className={styles.label}>
-              Recent
-              <button onClick={clearRecent} className={styles.clearButton}>clear</button>
+            <div>
+              <label className={styles.label} title="Specify which files or folder to process">input_path</label>
+              <div className={styles.inputGroup}>
+                <input
+                  value={inputPath}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputPath(e.target.value)}
+                  placeholder="(none — doc_ingest will warn)"
+                  disabled={isRunning}
+                  className={styles.input}
+                />
+                <button onClick={copyPath} disabled={!inputPath} className={styles.iconButton} title="Copy path to clipboard">📋</button>
+                <button onClick={() => setInputPath('')} disabled={!inputPath || isRunning} className={styles.iconButton} title="Clear input path">✕</button>
+              </div>
             </div>
-            {recent.map((p) => (
-              <button key={p} disabled={isRunning} onClick={() => onPick(p)} className={chip(inputPath === p, isRunning)} title={p}>
-                {p.length > 40 ? '…' + p.slice(-40) : p}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div>
-          <label className={styles.label}>input_path</label>
-          <div className={styles.inputGroup}>
-            <input
-              value={inputPath}
-              onChange={(e: any) => setInputPath(e.target.value)}
-              placeholder="(none — doc_ingest will warn)"
-              disabled={isRunning}
-              className={styles.input}
-            />
-            <button onClick={copyPath} disabled={!inputPath} className={styles.iconButton} title="Copy path">📋</button>
-            <button onClick={() => setInputPath('')} disabled={!inputPath || isRunning} className={styles.iconButton} title="Clear">✕</button>
           </div>
         </div>
       </div>
@@ -820,185 +1128,411 @@ export function UARPanel() {
       {/* GOAL + SKILLS */}
       <div className={styles.box}>
         <div className={styles.marginBottom12}>
-          <label className={styles.label}>Goal</label>
-          <input
-            value={goal}
-            onChange={(e: any) => setGoal(e.target.value)}
-            placeholder="What do you want to accomplish?"
-            disabled={isRunning}
-            className={`${styles.input} ${styles.widthFull}`}
-          />
-          <datalist id="goal-templates">
-            {GOAL_TEMPLATES.map((g) => <option key={g} value={g} />)}
-          </datalist>
-          <div className={styles.marginTop4}>
-            {GOAL_TEMPLATES.map((g) => (
-              <button key={g} onClick={() => setGoal(g)} disabled={isRunning} className={`${chip(goal === g, isRunning)} ${styles.smallButton}`}>
-                {g.length > 30 ? g.slice(0, 30) + '…' : g}
-              </button>
-            ))}
+          <label className={styles.label} title="Describe what you want to accomplish - guides AI processing">
+            Goal
+            <button
+              onClick={() => setTipsPopupOpen(true)}
+              className={styles.skillGuideButton}
+              title="View tips"
+            >
+              💡
+            </button>
+          </label>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <input
+                value={goal}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGoal(e.target.value)}
+                placeholder="What do you want to accomplish?"
+                disabled={isRunning}
+                className={`${styles.input} ${styles.widthFull}`}
+              />
+              <datalist id="goal-templates">
+                {GOAL_TEMPLATES.map((g) => <option key={g} value={g} />)}
+              </datalist>
+              <div className={styles.marginTop4}>
+                {GOAL_TEMPLATES.map((g) => (
+                  <button key={g} onClick={() => setGoal(g)} disabled={isRunning} className={`${chip(goal === g, isRunning)} ${styles.smallButton}`} title={g}>
+                    {g.length > 30 ? g.slice(0, 30) + '…' : g}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
         <div>
-          <label className={styles.label}>
+          <label className={styles.label} title="Select skills to execute in sequence">
             Skills
+            <button
+              onClick={() => setTipsPopupOpen(true)}
+              className={styles.skillGuideButton}
+              title="View tips"
+            >
+              💡
+            </button>
             <button onClick={() => toggleAllGroups(false)} className={styles.collapseAllButton} disabled={isRunning} title="Collapse all">
               ▼
             </button>
             <button onClick={() => toggleAllGroups(true)} className={styles.collapseAllButton} disabled={isRunning} title="Expand all">
               ▲
             </button>
+            <button onClick={() => {
+              setSelectedSkills([])
+              setSkillHistory((history) => [...history.slice(0, skillHistoryIndex + 1), []])
+              setSkillHistoryIndex((prev) => prev + 1)
+            }} className={styles.collapseAllButton} disabled={isRunning} title="Clear all selected skills">
+              ✕
+            </button>
+            <button onClick={undoSkills} className={styles.collapseAllButton} disabled={isRunning || skillHistoryIndex === 0} title="Undo">
+              ↶
+            </button>
+            <button onClick={redoSkills} className={styles.collapseAllButton} disabled={isRunning || skillHistoryIndex === skillHistory.length - 1} title="Redo">
+              ↷
+            </button>
           </label>
-          <div className={styles.skillsContainer}>
-            {SKILL_GROUPS.map((group) => {
-              const isCollapsed = collapsedGroups[group.name]
-              return (
-                <div key={group.name} className={styles.skillGroup}>
-                  <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)}>
-                    <span className={styles.skillGroupIcon}>{group.icon}</span>
-                    <span className={styles.skillGroupName}>{group.name}</span>
-                    <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
-                  </div>
-                  {!isCollapsed && (
-                    <div className={styles.skillGroupSkills}>
-                      {group.skills.map((s) => (
-                        <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
-                          {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
-                        </button>
-                      ))}
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.skillsContainer}>
+                {SKILL_GROUPS.map((group) => {
+                  const isCollapsed = collapsedGroups[group.name]
+                  return (
+                    <div key={group.name} className={styles.skillGroup}>
+                      <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
+                        <span className={styles.skillGroupIcon}>{group.icon}</span>
+                        <span className={styles.skillGroupName}>{group.name}</span>
+                        <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
+                      </div>
+                      {!isCollapsed && (
+                        <div className={styles.skillGroupSkills}>
+                          {group.skills.map((s) => (
+                            <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
+                              {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  )
+                })}
+              </div>
+              <div className={styles.orderText} title="Skills execute in this order">
+                <span>Order:</span>
+                {selectedSkills.length === 0 ? (
+                  <span>(none)</span>
+                ) : (
+                  <div className={styles.orderChips}>
+                    {selectedSkills.map((skill, index) => (
+                      <div
+                        key={skill}
+                        className={styles.orderChip}
+                        draggable={!isRunning}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', String(index))
+                          e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          const fromIndex = parseInt(e.dataTransfer.getData('text/plain'))
+                          const toIndex = index
+                          if (fromIndex !== toIndex) {
+                            setSelectedRecipes([]) // Clear recipes when manually reordering
+                            setSelectedSkills((prev) => {
+                              const newSkills = [...prev]
+                              const [moved] = newSkills.splice(fromIndex, 1)
+                              newSkills.splice(toIndex, 0, moved)
+                              // Update history atomically
+                              setSkillHistory((history) => {
+                                const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                setSkillHistoryIndex((idx) => idx + 1)
+                                return newHistory
+                              })
+                              return newSkills
+                            })
+                          }
+                        }}
+                      >
+                        {skill}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedRecipes([]) // Clear recipes when manually modifying skills
+                            setSelectedSkills((prev) => {
+                              const newSkills = [...prev]
+                              newSkills.splice(index + 1, 0, skill)
+                              // Update history atomically
+                              setSkillHistory((history) => {
+                                const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                setSkillHistoryIndex((idx) => idx + 1)
+                                return newHistory
+                              })
+                              return newSkills
+                            })
+                          }}
+                          className={styles.orderChipAction}
+                          disabled={isRunning}
+                          title={`Duplicate ${skill}`}
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedRecipes([]) // Clear recipes when manually modifying skills
+                            setSelectedSkills((prev) => {
+                              const newSkills = prev.filter((_, i) => i !== index)
+                              // Update history atomically
+                              setSkillHistory((history) => {
+                                const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                setSkillHistoryIndex((idx) => idx + 1)
+                                return newHistory
+                              })
+                              return newSkills
+                            })
+                          }}
+                          className={styles.orderChipAction}
+                          disabled={isRunning}
+                          title={`Remove ${skill}`}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Recipes */}
+              <div className={styles.presetsContainer}>
+                <label className={styles.label} title="Pre-configured skill combinations for common workflows">
+                  Recipes
+                  <button onClick={undoRecipes} className={styles.collapseAllButton} disabled={isRunning || recipeHistoryIndex === 0} title="Undo">
+                    ↶
+                  </button>
+                  <button onClick={redoRecipes} className={styles.collapseAllButton} disabled={isRunning || recipeHistoryIndex === recipeHistory.length - 1} title="Redo">
+                    ↷
+                  </button>
+                </label>
+                <div className={styles.recipeContainer}>
+                  {recipes.map((r, index) => (
+                    <div
+                      key={r.id}
+                      className={styles.recipeChip}
+                      draggable={!isRunning}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', String(index))
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'))
+                        const toIndex = index
+                        if (fromIndex !== toIndex) {
+                          setRecipes((prev) => {
+                            const newRecipes = [...prev]
+                            const [moved] = newRecipes.splice(fromIndex, 1)
+                            newRecipes.splice(toIndex, 0, moved)
+                            // Update history atomically
+                            setRecipeHistory((history) => {
+                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              setRecipeHistoryIndex((idx) => idx + 1)
+                              return newHistory
+                            })
+                            return newRecipes
+                          })
+                        }
+                      }}
+                    >
+                      <button
+                        title={r.hint}
+                        onClick={() => {
+                          setSelectedRecipes((prev) =>
+                            prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id]
+                          )
+                        }}
+                        className={`${styles.presetButton} ${selectedRecipes.includes(r.id) ? styles.chipActive : ''}`}
+                      >
+                        {selectedRecipes.includes(r.id) ? '✓ ' : ''}{r.label}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setRecipes((prev) => {
+                            const newRecipes = [...prev]
+                            // Use crypto.randomUUID() with fallback for browser compatibility
+                            const generateId = () => {
+                              try {
+                                return crypto.randomUUID()
+                              } catch {
+                                return Math.random().toString(36).substr(2, 9)
+                              }
+                            }
+                            const newId = `${r.id}-copy-${generateId()}`
+                            newRecipes.splice(index + 1, 0, { ...r, id: newId })
+                            // Update history atomically
+                            setRecipeHistory((history) => {
+                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              setRecipeHistoryIndex((idx) => idx + 1)
+                              return newHistory
+                            })
+                            return newRecipes
+                          })
+                        }}
+                        className={styles.orderChipAction}
+                        disabled={isRunning}
+                        title={`Duplicate ${r.label}`}
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setRecipes((prev) => {
+                            const newRecipes = prev.filter((_, i) => i !== index)
+                            // Update history atomically
+                            setRecipeHistory((history) => {
+                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              setRecipeHistoryIndex((idx) => idx + 1)
+                              return newHistory
+                            })
+                            return newRecipes
+                          })
+                        }}
+                        className={styles.orderChipAction}
+                        disabled={isRunning}
+                        title={`Remove ${r.label}`}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              )
-            })}
-          </div>
-          <div className={styles.orderText}>
-            Order: {selectedSkills.length ? selectedSkills.join(' → ') : '(none)'}
-          </div>
+              </div>
 
-          {/* Recipes */}
-          <div className={styles.presetsContainer}>
-            <label className={styles.label}>Recipes</label>
-            <div className={styles.recipeContainer}>
-              {RECIPES.map((r) => (
-                <button key={r.id}
-                  title={r.hint}
-                  onClick={() => setSelectedSkills([...r.skills])}
-                  className={styles.presetButton}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Advanced overrides */}
-          <div className={styles.advancedOverrides}>
-            <label className={`${styles.label} ${styles.marginBottom6}`}>Advanced</label>
-            <div className={styles.advancedOverridesContainer}>
-              {selectedSkills.includes('graphrag_query') && (
-                <label className={styles.advancedOverride}>
-                  GraphRAG method:
-                  <select value={graphragMethod} onChange={(e) => setGraphragMethod(e.target.value as any)} className={styles.advancedOverrideSelect}>
-                    <option value="local">local (entity)</option>
-                    <option value="global">global (thematic)</option>
-                  </select>
-                </label>
-              )}
-              {selectedSkills.includes('ollama_generate') && (
-                <label className={styles.advancedOverride}>
-                  Ollama model:
-                  <input
-                    value={ollamaModel}
-                    onChange={(e) => setOllamaModel(e.target.value)}
-                    placeholder="e.g. llama3.2"
-                    className={styles.advancedOverrideInput}
-                  />
-                </label>
-              )}
-              {(selectedSkills.includes('autonomi_upload') || selectedSkills.includes('autonomi_download') || selectedSkills.includes('autonomi_status')) && (
-                <>
-                  <label className={styles.advancedOverride}>
-                    Autonomi key:
-                    <input
-                      type="password"
-                      value={autonomiKey}
-                      onChange={(e) => setAutonomiKey(e.target.value)}
-                      placeholder="private key"
-                      className={styles.advancedOverrideInput}
-                    />
-                  </label>
-                  <label className={styles.advancedOverride}>
-                    Autonomi network:
-                    <select value={autonomiNetwork} onChange={(e) => setAutonomiNetwork(e.target.value as any)} className={styles.advancedOverrideSelect}>
-                      <option value="testnet">testnet</option>
-                      <option value="mainnet">mainnet</option>
-                    </select>
-                  </label>
-                  {selectedSkills.includes('autonomi_upload') && (
-                    <label className={styles.advancedOverride}>
-                      Public:
-                      <input
-                        type="checkbox"
-                        checked={autonomiPublic}
-                        onChange={(e) => setAutonomiPublic(e.target.checked)}
-                        className={styles.advancedOverrideCheckbox}
-                      />
+              {/* Advanced overrides */}
+              <div className={styles.advancedOverrides}>
+                <label className={`${styles.label} ${styles.marginBottom6}`} title="Additional options for selected skills">Advanced</label>
+                <div className={styles.advancedOverridesContainer}>
+                  {selectedSkills.includes('graphrag_query') && (
+                    <label className={styles.advancedOverride} title="Choose entity-centric (local) or thematic (global) analysis">
+                      GraphRAG method:
+                      <select value={graphragMethod} onChange={(e) => setGraphragMethod(e.target.value as any)} className={styles.advancedOverrideSelect}>
+                        <option value="local">local (entity)</option>
+                        <option value="global">global (thematic)</option>
+                      </select>
                     </label>
                   )}
-                  {selectedSkills.includes('autonomi_download') && (
-                    <label className={styles.advancedOverride}>
-                      Autonomi address:
+                  {selectedSkills.includes('ollama_generate') && (
+                    <label className={styles.advancedOverride} title="Specify which Ollama model to use">
+                      Ollama model:
                       <input
-                        value={autonomiAddress}
-                        onChange={(e) => setAutonomiAddress(e.target.value)}
-                        placeholder="address from upload"
+                        value={ollamaModel}
+                        onChange={(e) => setOllamaModel(e.target.value)}
+                        placeholder="e.g. llama3.2"
                         className={styles.advancedOverrideInput}
                       />
                     </label>
                   )}
-                </>
-              )}
+                  {(selectedSkills.includes('autonomi_upload') || selectedSkills.includes('autonomi_download') || selectedSkills.includes('autonomi_status')) && (
+                    <>
+                      <label className={styles.advancedOverride} title="Your Autonomi private key for authentication">
+                        Autonomi key:
+                        <input
+                          type="password"
+                          value={autonomiKey}
+                          onChange={(e) => setAutonomiKey(e.target.value)}
+                          placeholder="private key"
+                          className={styles.advancedOverrideInput}
+                        />
+                      </label>
+                      <label className={styles.advancedOverride} title="Choose testnet for development or mainnet for production">
+                        Autonomi network:
+                        <select value={autonomiNetwork} onChange={(e) => setAutonomiNetwork(e.target.value as any)} className={styles.advancedOverrideSelect}>
+                          <option value="testnet">testnet</option>
+                          <option value="mainnet">mainnet</option>
+                        </select>
+                      </label>
+                      {selectedSkills.includes('autonomi_upload') && (
+                        <label className={styles.advancedOverride} title="Make uploaded files publicly accessible">
+                          Public:
+                          <input
+                            type="checkbox"
+                            checked={autonomiPublic}
+                            onChange={(e) => setAutonomiPublic(e.target.checked)}
+                            className={styles.advancedOverrideCheckbox}
+                          />
+                        </label>
+                      )}
+                      {selectedSkills.includes('autonomi_download') && (
+                        <label className={styles.advancedOverride} title="Address of file to download (from previous upload)">
+                          Autonomi address:
+                          <input
+                            value={autonomiAddress}
+                            onChange={(e) => setAutonomiAddress(e.target.value)}
+                            placeholder="address from upload"
+                            className={styles.advancedOverrideInput}
+                          />
+                        </label>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* RUN */}
-      <div className={styles.presetsContainer}>
-        <button
-          onClick={runStream}
-          disabled={!canRun}
-          className={styles.runButton}
-        >
-          {isRunning ? '⏳ Running…' : '▶ Run Stream'}
-        </button>
-        {isRunning && (
+      <div className={styles.box}>
+        <div className={styles.sectionHeader}>
+          <strong title="Execute selected skills and monitor execution">Run</strong>
           <button
-            onClick={stopStream}
-            className={styles.stopButton}
+            onClick={() => setTipsPopupOpen(true)}
+            className={styles.skillGuideButton}
+            title="View tips"
           >
-            ⏹ Stop
+            💡
           </button>
-        )}
-        {isRunning && (
-          <span className={styles.runStatus}>
-            {currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s
-          </span>
-        )}
-        <button onClick={clearEvents} className={styles.clearEventsButton}>
-          Clear Events
-        </button>
-      </div>
-
-      <div className={styles.statusText}>
-        Status: {isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
-        {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
+        </div>
+        <div className={styles.presetsContainer}>
+          <button
+            onClick={runStream}
+            disabled={!canRun}
+            className={styles.runButton}
+            title={isRunning ? 'Currently running' : 'Execute selected skills in sequence'}
+          >
+            {isRunning ? '⏳ Running…' : '▶ Run Stream'}
+          </button>
+          {isRunning && (
+            <button
+              onClick={stopStream}
+              disabled={isStopping}
+              className={styles.stopButton}
+              title={isStopping ? 'Stopping...' : 'Abort current run'}
+            >
+              {isStopping ? '⏳ Stopping…' : '⏹ Stop'}
+            </button>
+          )}
+          {(isRunning || isStopping) && (
+            <span className={styles.runStatus}>
+              {isStopping ? 'Stopping' : currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s
+            </span>
+          )}
+          <button onClick={clearEvents} className={styles.clearEventsButton} title="Clear event history from display">
+            Clear Events
+          </button>
+        </div>
+        <div className={styles.statusText} title="Current system status">
+          Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
+          {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
+        </div>
       </div>
 
       {ingested && (
-        <div className={styles.box}>
+        <div className={styles.box} title="Documents processed by doc_ingest skill">
           <strong>Ingested documents</strong>
           {ingested.warning && <div className={styles.ingestedWarning}>{ingested.warning}</div>}
           <div className={styles.ingestedList}>
@@ -1017,7 +1551,7 @@ export function UARPanel() {
       )}
 
       {ollama && (
-        <div className={styles.box}>
+        <div className={styles.box} title="Response from Ollama LLM">
           <div className={styles.ollamaResponseHeader}>
             <strong>🦙 Ollama response</strong>
             <span className={styles.ollamaResponseInfo}>
@@ -1036,18 +1570,47 @@ export function UARPanel() {
       )}
 
       <div className={styles.box}>
-        <strong>Events ({events.length})</strong>
-        <div className={styles.eventsContainer}>
-          <pre className={styles.eventsPre}>
-            {JSON.stringify(events.slice(-50), null, 2)}
-          </pre>
+        <div className={styles.sectionHeader}>
+          <strong title="Real-time execution events from skills">Events ({events.length})</strong>
+          <button
+            onClick={() => setTipsPopupOpen(true)}
+            className={styles.skillGuideButton}
+            title="View tips"
+          >
+            💡
+          </button>
+        </div>
+        <div className={styles.sectionWithTips}>
+          <div className={styles.sectionContent}>
+            <div className={styles.eventsContainer}>
+              <pre className={styles.eventsPre}>
+                {JSON.stringify(events.slice(-50), null, 2)}
+              </pre>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className={styles.graphContainer}>
-        <ReactFlow nodes={nodes} edges={edges} fitView>
-          <Background />
-        </ReactFlow>
+      <div className={styles.box}>
+        <div className={styles.sectionHeader}>
+          <strong title="Visualizes dependencies and relationships">Dependency Graph</strong>
+          <button
+            onClick={() => setTipsPopupOpen(true)}
+            className={styles.skillGuideButton}
+            title="View tips"
+          >
+            💡
+          </button>
+        </div>
+        <div className={styles.sectionWithTips}>
+          <div className={styles.sectionContent}>
+            <div className={styles.graphContainer}>
+              <ReactFlow nodes={nodes} edges={edges} fitView>
+                <Background />
+              </ReactFlow>
+            </div>
+          </div>
+        </div>
       </div>
 
       {skillGuideOpen && (
@@ -1056,7 +1619,7 @@ export function UARPanel() {
           className={styles.skillGuideModalOverlay}
         >
           <div
-            onClick={(e: any) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
             className={styles.skillGuideModalContent}
           >
             <div className={styles.skillGuideModalHeader}>
@@ -1074,6 +1637,354 @@ export function UARPanel() {
           </div>
         </div>
       )}
+
+      {tipsPopupOpen && (
+        <div ref={tipsPopupRef} className={styles.tipsPopup}>
+          <div className={styles.tipsPopupHeader}>
+            <span className={styles.tipsPopupTitle}>Tips</span>
+            <button
+              onClick={() => setTipsPopupOpen(false)}
+              className={styles.tipsPopupClose}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Documents Section */}
+          <div className={styles.tipsPopupSection}>
+            <div
+              className={styles.tipsPopupSectionHeader}
+              onClick={() => toggleTipSection('Documents')}
+              title="Click to expand/collapse Documents tips"
+            >
+              <span className={styles.tipsPopupSectionTitle}>Documents</span>
+              <span>{expandedTipSections['Documents'] ? '▼' : '▶'}</span>
+            </div>
+            {expandedTipSections['Documents'] && (
+              <div className={styles.tipsPopupSectionContent}>
+                <ul>
+                  <li><strong>Upload files</strong> by dragging them into the drop zone or clicking to browse</li>
+                  <li><strong>Supported formats</strong>: PDF, DOCX, XLSX, IPYNB, Parquet, Markdown, code files (Python, TS, JS, JSON, etc.), and data files</li>
+                  <li><strong>File size limit</strong>: 50MB per file to ensure smooth processing</li>
+                  <li><strong>Library</strong> stores uploaded files for reuse across sessions - files persist on the server</li>
+                  <li><strong>Presets</strong> are quick shortcuts to common project directories configured by the admin</li>
+                  <li><strong>input_path</strong> specifies which files/folders skills will process - can be a single file or entire directory</li>
+                  <li><strong>Recent</strong> tracks your last 8 used paths for quick re-access</li>
+                  <li><strong>Best practice</strong>: Upload related documents together, then use the library path as input_path for batch processing</li>
+                  <li><strong>Pick folder</strong>: Use the file picker to browse the project structure and select specific directories</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Goal Section */}
+          <div className={styles.tipsPopupSection}>
+            <div
+              className={styles.tipsPopupSectionHeader}
+              onClick={() => toggleTipSection('Goal')}
+              title="Click to expand/collapse Goal tips"
+            >
+              <span className={styles.tipsPopupSectionTitle}>Goal</span>
+              <span>{expandedTipSections['Goal'] ? '▼' : '▶'}</span>
+            </div>
+            {expandedTipSections['Goal'] && (
+              <div className={styles.tipsPopupSectionContent}>
+                <ul>
+                  <li><strong>Be specific</strong> about what you want to accomplish - vague goals lead to generic results</li>
+                  <li><strong>Use templates</strong> for common tasks (click the buttons below the goal input)</li>
+                  <li><strong>The goal guides the AI</strong> in how to process your documents - it's the instruction for all downstream skills</li>
+                  <li><strong>Good examples</strong>: "Summarize the architecture focusing on data flow", "Find all security vulnerabilities in the authentication module", "Generate API documentation for the REST endpoints", "Extract and explain the key design patterns used"</li>
+                  <li><strong>Poor examples</strong>: "Summarize this", "Look at the code", "Tell me about it" - too vague</li>
+                  <li><strong>Combine with skills</strong>: Different goals work better with different skill combinations (e.g., dependency analysis vs. summarization)</li>
+                  <li><strong>Iterate</strong>: Start with a simple goal, then refine based on results</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Skills Section */}
+          <div className={styles.tipsPopupSection}>
+            <div
+              className={styles.tipsPopupSectionHeader}
+              onClick={() => toggleTipSection('Skills')}
+              title="Click to expand/collapse Skills tips"
+            >
+              <span className={styles.tipsPopupSectionTitle}>Skills</span>
+              <span>{expandedTipSections['Skills'] ? '▼' : '▶'}</span>
+            </div>
+            {expandedTipSections['Skills'] && (
+              <div className={styles.tipsPopupSectionContent}>
+                <ul>
+                  <li><strong>doc_ingest</strong> must be first to read files into context - without it, other skills have no data to process</li>
+                  <li><strong>Skill order matters</strong>: Skills execute sequentially, with each receiving the output of previous skills</li>
+                  <li><strong>Recipes</strong> provide pre-configured skill combinations for common workflows - use them as starting points</li>
+                  <li><strong>AI/LLM skills</strong> require API keys (set in environment) or local services (Ollama, LM Studio must be running)</li>
+                  <li><strong>Advanced options</strong> appear dynamically when relevant skills are selected (e.g., GraphRAG method, Ollama model)</li>
+                  <li><strong>Skill dependencies</strong>: Some skills require specific outputs from earlier skills (e.g., graphrag_query needs graphrag_index first)</li>
+                  <li><strong>Hover over skills</strong> to see descriptions of what each skill does</li>
+                  <li><strong>Collapse/expand groups</strong> to focus on specific skill categories</li>
+                  <li><strong>Clear selection</strong> by clicking selected skills again to deselect them</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Skill Groups */}
+          {SKILL_GROUPS.map((group) => (
+            <div key={group.name} className={styles.tipsPopupSection}>
+              <div
+                className={styles.tipsPopupSectionHeader}
+                onClick={() => toggleTipSection(group.name)}
+                title={`Click to expand/collapse ${group.name} tips`}
+              >
+                <span className={styles.tipsPopupSectionTitle}>{group.name}</span>
+                <span>{expandedTipSections[group.name] ? '▼' : '▶'}</span>
+              </div>
+              {expandedTipSections[group.name] && (
+                <div className={styles.tipsPopupSectionContent}>
+                  <ul>
+                    {group.name === 'Core UAR' && (
+                      <>
+                        <li><strong>doc_ingest</strong>: Reads files from input_path into context - parses documents and extracts content for downstream skills</li>
+                        <li><strong>dependency_map</strong>: Builds dependency graph between artifacts - analyzes imports, references, and relationships to map codebase structure</li>
+                        <li><strong>section_sum</strong>: Summarizes document sections - breaks down long documents into digestible section summaries</li>
+                        <li><strong>sum_review</strong>: Final review of pipeline outputs - synthesizes all previous skill outputs into a cohesive summary</li>
+                        <li><strong>Typical workflow</strong>: doc_ingest → dependency_map → section_sum → sum_review for comprehensive codebase analysis</li>
+                      </>
+                    )}
+                    {group.name === 'AI / LLM' && (
+                      <>
+                        <li><strong>Ollama</strong>: Local models (requires Ollama running locally) - supports llama3, mistral, codellama and more</li>
+                        <li><strong>OpenAI</strong>: GPT models (requires OPENAI_API_KEY) - GPT-4, GPT-3.5 for chat, completion, and embeddings</li>
+                        <li><strong>LM Studio</strong>: Local models (requires LM Studio running) - run local LLMs with a GUI interface</li>
+                        <li><strong>Anthropic</strong>: Claude models (requires ANTHROPIC_API_KEY) - Claude 3 Opus, Sonnet, Haiku for high-quality reasoning</li>
+                        <li><strong>Gemini</strong>: Google models (requires GEMINI_API_KEY) - Gemini Pro for multimodal capabilities</li>
+                        <li><strong>Mistral</strong>: Mistral models (requires MISTRAL_API_KEY) - Mistral 7B, Mixtral for efficient inference</li>
+                        <li><strong>Groq</strong>: Ultra-fast inference (requires GROQ_API_KEY) - LPU acceleration for real-time responses</li>
+                        <li><strong>Hugging Face</strong>: HF models (requires HF_API_KEY) - Access thousands of models via HF Inference API</li>
+                        <li><strong>Together</strong>: Together models (requires TOGETHER_API_KEY) - Optimized open-source models with fast inference</li>
+                        <li><strong>Optuna</strong>: Hyperparameter optimization - automated tuning for ML models, distributed optimization (requires optuna)</li>
+                        <li><strong>AutoGluon</strong>: AutoML with ensemble methods - automated ML with stacking, multi-modal support (requires autogluon)</li>
+                        <li><strong>PyCaret</strong>: Low-code ML - classification, regression, clustering, anomaly detection (requires pycaret)</li>
+                        <li><strong>FLAML</strong>: Efficient AutoML - fast hyperparameter tuning, resource-efficient (requires flaml)</li>
+                        <li><strong>ChromaDB</strong>: Vector database - semantic search, embeddings storage, RAG backend (requires chromadb)</li>
+                        <li><strong>Choosing a provider</strong>: Local (Ollama/LM Studio) for privacy/privacy, cloud APIs for better models/speed</li>
+                      </>
+                    )}
+                    {group.name === 'GraphRAG' && (
+                      <>
+                        <li><strong>graphrag_init</strong>: One-time workspace setup - initializes GraphRAG configuration and directories</li>
+                        <li><strong>graphrag_index</strong>: Build knowledge graph (slow, one-time) - extracts entities, relationships, and community structure from documents</li>
+                        <li><strong>graphrag_query</strong>: Query the index with metadata - ask natural language questions against the knowledge graph</li>
+                        <li><strong>Methods</strong>: Local (entity-centric) for detailed analysis, Global (thematic) for high-level insights</li>
+                        <li><strong>Use case</strong>: Best for large document collections where you need to understand relationships and themes</li>
+                        <li><strong>Workflow</strong>: Run init once, then index once per dataset, then query as many times as needed</li>
+                        <li><strong>Performance</strong>: Indexing is computationally expensive - budget time for large datasets</li>
+                      </>
+                    )}
+                    {group.name === 'Autonomi' && (
+                      <>
+                        <li><strong>autonomi_upload</strong>: Upload to decentralized storage - stores files on the Autonomi network with content addressing</li>
+                        <li><strong>autonomi_download</strong>: Download by address - retrieve files using the address returned from upload</li>
+                        <li><strong>autonomi_status</strong>: Check connectivity and wallet - verifies Autonomi client is running and wallet is configured</li>
+                        <li><strong>Requirements</strong>: autonomi package installed, wallet with tokens for upload operations</li>
+                        <li><strong>Network</strong>: Choose testnet for development, mainnet for production storage</li>
+                        <li><strong>Public option</strong>: When uploading, choose whether to make files publicly accessible or private</li>
+                        <li><strong>Use case</strong>: Permanent, decentralized storage for important documents and datasets</li>
+                      </>
+                    )}
+                    {group.name === 'ALM' && (
+                      <>
+                        <li><strong>alm_analyze</strong>: Analyze grammar specifications - parses BNF, EBNF, and other formal grammar definitions</li>
+                        <li><strong>alm_generate</strong>: Generate token sequences - produces valid sequences following grammar rules from a given prefix</li>
+                        <li><strong>alm_verify</strong>: Validate against grammar - checks if text conforms to the specified grammar rules</li>
+                        <li><strong>Requirements</strong>: ALM service running (separate service dependency)</li>
+                        <li><strong>Use cases</strong>: Code generation, data format validation, protocol testing, formal language processing</li>
+                        <li><strong>Workflow</strong>: Analyze grammar first, then generate sequences, verify outputs as needed</li>
+                      </>
+                    )}
+                    {group.name === 'STEM' && (
+                      <>
+                        <li><strong>math_compute</strong>: Symbolic math with SymPy - solve equations, differentiate, integrate, simplify expressions</li>
+                        <li><strong>cipher_ops</strong>: Cryptographic operations - encrypt/decrypt data, hash functions, digital signatures</li>
+                        <li><strong>physics_compute</strong>: Physics & astronomy calculations - unit conversions, coordinate transforms, cosmology computations</li>
+                        <li><strong>diff_eq_solve</strong>: Differential equations with diffeqpy - solve ODE/PDE systems, symbolic optimization, fast solvers</li>
+                        <li><strong>cern_root</strong>: CERN ROOT data analysis - particle physics data processing, large dataset analysis, statistical methods</li>
+                        <li><strong>scipy_opt</strong>: SciPy optimization - linear/nonlinear programming, integration, interpolation, eigenvalue problems</li>
+                        <li><strong>quantum_circuit</strong>: Quantum computing with Qiskit - build quantum circuits, run on IBM Q, implement quantum algorithms</li>
+                        <li><strong>quantum_ml</strong>: Quantum ML with PennyLane - quantum neural networks, quantum chemistry, hybrid quantum-classical models</li>
+                        <li><strong>chem_analysis</strong>: Computational chemistry with RDKit - molecular analysis, conformer generation, chemical properties</li>
+                        <li><strong>bio_compute</strong>: Bioinformatics with Biopython - DNA/RNA/protein analysis, sequence alignment, structure prediction</li>
+                        <li><strong>relativity</strong>: General relativity with EinsteinPy - spacetime metrics, geodesics, gravitational physics calculations</li>
+                        <li><strong>data_viz_3d</strong>: 3D visualization with PyVista - mesh analysis, VTK integration, scientific 3D plotting</li>
+                        <li><strong>Requirements</strong>: sympy, pycryptodome, astropy, diffeqpy, root-cern, scipy, qiskit, pennylane, rdkit, biopython, einsteinpy, pyvista</li>
+                        <li><strong>Use cases</strong>: Scientific computing, particle physics, quantum computing, computational chemistry, bioinformatics, relativity research</li>
+                        <li><strong>Integration</strong>: Combine with doc_ingest to process scientific papers, research data, and technical documentation</li>
+                      </>
+                    )}
+                    {group.name === 'Hardware / Embedded' && (
+                      <>
+                        <li><strong>fpga_verify</strong>: FPGA verification with cocotb - Python testbenches for Verilog/SystemVerilog, works with major simulators</li>
+                        <li><strong>verilog_parse</strong>: Verilog HDL processing with Pyverilog - parser, code analysis, code generation for RTL design</li>
+                        <li><strong>myhdl_design</strong>: Hardware design with MyHDL - Python to Verilog/VHDL conversion, simulation, hardware description in Python</li>
+                        <li><strong>riscv_sim</strong>: RISC-V simulation with riscemu - emulator for RISC-V assembly programs, symbol support, flexible execution</li>
+                        <li><strong>riscv_cycle</strong>: Cycle-accurate RISC-V with py-v - CPU simulator, RTL modeling library, precise timing analysis</li>
+                        <li><strong>verilator_sim</strong>: Verilog simulation with Verilator - high-speed SystemVerilog to C++/SystemC conversion, fast simulation</li>
+                        <li><strong>micropython</strong>: MicroPython for embedded - ESP32/ESP8266 programming, microcontroller development, IoT applications</li>
+                        <li><strong>platformio</strong>: Embedded development with PlatformIO - Arduino, ESP32, STM32 support, CI/CD integration, team collaboration</li>
+                        <li><strong>Requirements</strong>: cocotb, pyverilog, myhdl, riscemu, py-v, verilator, micropython, platformio</li>
+                        <li><strong>Use cases</strong>: FPGA design verification, RISC-V processor simulation, embedded systems development, IoT programming</li>
+                        <li><strong>Workflow</strong>: Design hardware in Python/HDL, simulate with emulators, deploy to FPGAs or microcontrollers</li>
+                      </>
+                    )}
+                    {group.name === 'Computer Vision' && (
+                      <>
+                        <li><strong>yolo_detect</strong>: Object detection with YOLO - real-time detection, custom training on your own datasets</li>
+                        <li><strong>opencv_process</strong>: Image processing with OpenCV - filters, transforms, edge detection, feature extraction</li>
+                        <li><strong>video_analyze</strong>: Video analysis - motion detection, object tracking, frame extraction, stream processing</li>
+                        <li><strong>face_recognize</strong>: Face recognition - detection, identification, emotion analysis, age estimation</li>
+                        <li><strong>Requirements</strong>: ultralytics, opencv-python, face_recognition, numpy, pillow</li>
+                        <li><strong>Use cases</strong>: Object detection in images/videos, surveillance, biometrics, image enhancement</li>
+                        <li><strong>Performance</strong>: GPU acceleration recommended for real-time video processing</li>
+                      </>
+                    )}
+                    {group.name === 'Blockchain / Web3' && (
+                      <>
+                        <li><strong>web3_eth</strong>: Ethereum interaction with web3.py - smart contracts, transactions, blockchain queries</li>
+                        <li><strong>solana_tx</strong>: Solana transactions - SPL tokens, wallet management, high-speed transactions</li>
+                        <li><strong>smart_contract</strong>: Smart contract deployment - Solidity contracts, deployment, interaction, testing</li>
+                        <li><strong>nft_mint</strong>: NFT minting - ERC-721/1155 tokens, metadata, IPFS integration</li>
+                        <li><strong>Requirements</strong>: web3, solana-py, brownie, eth-account, wallet provider</li>
+                        <li><strong>Use cases</strong>: DeFi applications, NFT marketplaces, tokenized assets, blockchain integration</li>
+                        <li><strong>Networks</strong>: Testnets for development (Goerli, Sepolia), mainnets for production</li>
+                      </>
+                    )}
+                    {group.name === 'MLOps' && (
+                      <>
+                        <li><strong>mlflow_track</strong>: ML experiment tracking with MLflow - metrics, parameters, artifacts, reproducibility</li>
+                        <li><strong>mlflow_deploy</strong>: ML model deployment - serving, batch inference, REST APIs, Docker containers</li>
+                        <li><strong>kubeflow_pipe</strong>: ML pipelines with Kubeflow - workflow orchestration on Kubernetes, scalable pipelines</li>
+                        <li><strong>model_reg</strong>: Model registry - versioning, staging, promotion, lifecycle management</li>
+                        <li><strong>Requirements</strong>: mlflow, kfp, kubernetes, docker, cloud storage</li>
+                        <li><strong>Use cases</strong>: Experiment tracking, model deployment, pipeline orchestration, reproducible ML</li>
+                        <li><strong>Integration</strong>: Works with most ML frameworks (PyTorch, TensorFlow, scikit-learn)</li>
+                      </>
+                    )}
+                    {group.name === 'Security' && (
+                      <>
+                        <li><strong>pentest_scan</strong>: Penetration testing - vulnerability scanning, security assessment, exploit testing</li>
+                        <li><strong>osint_recon</strong>: OSINT reconnaissance - gather intelligence on targets, subdomain enumeration, data collection</li>
+                        <li><strong>crypto_analyze</strong>: Cryptographic analysis - hash cracking, encryption analysis, key management</li>
+                        <li><strong>security_audit</strong>: Security audit - code review, dependency vulnerabilities, compliance checking</li>
+                        <li><strong>Requirements</strong>: nmap, python-nmap, requests, shodan, hashcat, pycryptodome, bandit, safety</li>
+                        <li><strong>Use cases</strong>: Security assessment, vulnerability management, compliance auditing, threat analysis</li>
+                        <li><strong>Legal</strong>: Only use on systems you own or have explicit permission to test</li>
+                      </>
+                    )}
+                    {group.name === 'Data Engineering' && (
+                      <>
+                        <li><strong>airflow_dag</strong>: Workflow orchestration with Airflow - DAGs, scheduling, monitoring, dependencies</li>
+                        <li><strong>dbt_transform</strong>: Data transformation with dbt - SQL models, testing, documentation, data quality</li>
+                        <li><strong>snowflake_etl</strong>: Snowflake ETL - data loading, warehousing, analytics, cloud data platform</li>
+                        <li><strong>spark_process</strong>: Big data processing with PySpark - ETL, analytics on large datasets, distributed computing</li>
+                        <li><strong>Requirements</strong>: apache-airflow, dbt-core, snowflake-connector-python, pyspark, jupyter</li>
+                        <li><strong>Use cases</strong>: Data pipelines, ETL workflows, data warehousing, big data analytics</li>
+                        <li><strong>Infrastructure</strong>: Requires cloud platforms or on-premise clusters for production</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Run Section */}
+          <div className={styles.tipsPopupSection}>
+            <div
+              className={styles.tipsPopupSectionHeader}
+              onClick={() => toggleTipSection('Run')}
+              title="Click to expand/collapse Run tips"
+            >
+              <span className={styles.tipsPopupSectionTitle}>Run</span>
+              <span>{expandedTipSections['Run'] ? '▼' : '▶'}</span>
+            </div>
+            {expandedTipSections['Run'] && (
+              <div className={styles.tipsPopupSectionContent}>
+                <ul>
+                  <li><strong>Run Stream</strong> executes selected skills in sequence with real-time event updates - skills run one after another</li>
+                  <li><strong>Stop button</strong> appears during execution to abort the current run - useful if a skill is taking too long or you made a mistake</li>
+                  <li><strong>Clear Events</strong> removes previous run data from the display - doesn't affect the server, just the UI</li>
+                  <li><strong>Status bar</strong> shows running state, event count, and graph availability - monitor progress at a glance</li>
+                  <li><strong>Execution time</strong> and current skill are displayed while running - track which skill is active and total duration</li>
+                  <li><strong>Prerequisites</strong>: Goal must be non-empty and at least one skill must be selected to enable the Run button</li>
+                  <li><strong>Event limit</strong>: System stops after 1000 events to prevent memory issues - large runs may need to be split</li>
+                  <li><strong>Error handling</strong>: Errors are displayed in the error box with details and copy functionality</li>
+                  <li><strong>Concurrency</strong>: Only one run at a time - the Run button is disabled while another run is in progress</li>
+                  <li><strong>Streaming</strong>: Events stream in real-time via Server-Sent Events - you see progress as it happens</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Events Section */}
+          <div className={styles.tipsPopupSection}>
+            <div
+              className={styles.tipsPopupSectionHeader}
+              onClick={() => toggleTipSection('Events')}
+              title="Click to expand/collapse Events tips"
+            >
+              <span className={styles.tipsPopupSectionTitle}>Events</span>
+              <span>{expandedTipSections['Events'] ? '▼' : '▶'}</span>
+            </div>
+            {expandedTipSections['Events'] && (
+              <div className={styles.tipsPopupSectionContent}>
+                <ul>
+                  <li><strong>Events</strong> show real-time execution details from each skill - JSON-formatted log of what's happening</li>
+                  <li><strong>Display limit</strong>: Shows the last 50 events in the UI (full history available in server logs)</li>
+                  <li><strong>Event types</strong>: skill_start, skill_complete, error, orchestration_plan, and more</li>
+                  <li><strong>skill_start</strong>: Indicates a skill has begun execution - includes skill name and metadata</li>
+                  <li><strong>skill_complete</strong>: Indicates a skill finished successfully - includes results and output data</li>
+                  <li><strong>error</strong>: Something went wrong - includes error message and context for debugging</li>
+                  <li><strong>orchestration_plan</strong>: Shows the execution plan before skills run - useful for understanding workflow</li>
+                  <li><strong>Debugging</strong>: Use events to understand execution flow and identify where failures occur</li>
+                  <li><strong>JSON format</strong>: Allows for programmatic analysis and export if needed</li>
+                  <li><strong>Timestamps</strong>: Each event includes timing information for performance analysis</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Graph Section */}
+          <div className={styles.tipsPopupSection}>
+            <div
+              className={styles.tipsPopupSectionHeader}
+              onClick={() => toggleTipSection('Graph')}
+              title="Click to expand/collapse Dependency Graph tips"
+            >
+              <span className={styles.tipsPopupSectionTitle}>Dependency Graph</span>
+              <span>{expandedTipSections['Graph'] ? '▼' : '▶'}</span>
+            </div>
+            {expandedTipSections['Graph'] && (
+              <div className={styles.tipsPopupSectionContent}>
+                <ul>
+                  <li><strong>Dependency Graph</strong> visualizes relationships between artifacts in your codebase</li>
+                  <li><strong>Generation</strong>: Created by skills like dependency_map and GraphRAG - different skills produce different graph types</li>
+                  <li><strong>Nodes</strong> represent files, skills, or entities depending on the graph type - labeled with names/types</li>
+                  <li><strong>Edges</strong> show dependencies, relationships, or data flow between nodes - arrows indicate direction</li>
+                  <li><strong>Interactive controls</strong>: Drag to pan, scroll to zoom, click nodes for details (if supported)</li>
+                  <li><strong>Use cases</strong>: Understand codebase structure, identify circular dependencies, visualize data flow</li>
+                  <li><strong>dependency_map graphs</strong>: Show file imports, function calls, and module dependencies</li>
+                  <li><strong>GraphRAG graphs</strong>: Show entities, relationships, and communities extracted from documents</li>
+                  <li><strong>Layout</strong>: Automatic grid layout - nodes arranged in rows for readability</li>
+                  <li><strong>Background</strong>: Dotted grid helps with spatial orientation and alignment</li>
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+export default UARPanel
