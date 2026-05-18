@@ -12,35 +12,18 @@ dependencies = [
   "uvicorn>=0.27,<1.0",
   "httpx>=0.27,<1.0",
   "pydantic>=2.0,<3.0",
-  "pypdf>=4.0",
-  "python-docx>=1.1",
-  "openpyxl>=3.1",
-  "nbformat>=5.9",
-  "pandas>=2.0",
-  "pyarrow>=14.0",
-  "python-multipart>=0.0.9",
-  "rfc8785>=0.1.0",
-  # Advanced document processing
-  "unstructured[local-inference]>=0.12",
-  "docling>=2.0",
-  # Agent orchestration
-  "autogen>=0.4",
-  "crewai>=0.80",
-  # Advanced RAG
-  "llama-index>=0.10",
-  "llama-index-graph-stores-neo4j>=0.1",
-  # Pipeline orchestration
-  "dagster>=1.7",
-  "dagster-webserver>=1.7",
-  # Knowledge graph
-  "neo4j>=5.0",
-  # Vector databases
-  "chromadb>=0.4",
-  "qdrant-client>=1.9",
+  "pypdf>=4.0,<5.0",
+  "python-docx>=1.1,<2.0",
+  "openpyxl>=3.1,<4.0",
+  "nbformat>=5.9,<6.0",
+  "pandas>=2.0,<3.0",
+  "pyarrow>=14.0,<16.0",
+  "python-multipart>=0.0.9,<1.0",
+  "rfc8785>=0.1.0,<1.0",
   # Additional utilities
-  "tenacity>=8.0",
-  "rich>=13.0",
-  "typer>=0.9",
+  "tenacity>=8.0,<9.0",
+  "rich>=13.0,<14.0",
+  "typer>=0.9,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -53,11 +36,45 @@ dev = [
   "mypy>=1.0,<2.0",
   "types-requests>=2.31,<3.0",
 ]
+# Advanced integrations (heavy dependencies)
+advanced = [
+  "unstructured[local-inference]>=0.12,<1.0",
+  "docling>=2.0,<3.0",
+  "autogen>=0.4,<1.0",
+  "crewai>=0.80,<1.0",
+  "llama-index>=0.10,<1.0",
+  "llama-index-graph-stores-neo4j>=0.1,<1.0",
+  "dagster>=1.7,<2.0",
+  "dagster-webserver>=1.7,<2.0",
+  "neo4j>=5.0,<6.0",
+  "chromadb>=0.4,<1.0",
+  "qdrant-client>=1.9,<2.0",
+]
+# Individual integration groups for selective installation
+doc-processing = [
+  "unstructured[local-inference]>=0.12,<1.0",
+  "docling>=2.0,<3.0",
+]
+agent-orchestration = [
+  "autogen>=0.4,<1.0",
+  "crewai>=0.80,<1.0",
+]
+advanced-rag = [
+  "llama-index>=0.10,<1.0",
+  "llama-index-graph-stores-neo4j>=0.1,<1.0",
+  "neo4j>=5.0,<6.0",
+  "chromadb>=0.4,<1.0",
+  "qdrant-client>=1.9,<2.0",
+]
+pipeline-orchestration = [
+  "dagster>=1.7,<2.0",
+  "dagster-webserver>=1.7,<2.0",
+]
 graphrag = [
-  "graphrag>=1.0",
+  "graphrag>=1.0,<2.0",
 ]
 autonomi = [
-  "autonomi>=0.3",
+  "autonomi>=0.3,<1.0",
 ]
 
 [tool.setuptools.packages.find]
