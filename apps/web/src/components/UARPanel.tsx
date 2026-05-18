@@ -2,6 +2,7 @@ import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import ReactFlow, { Background } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { SkillGuide } from './SkillGuide'
+import styles from './UARPanel.module.css'
 
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
@@ -22,6 +23,9 @@ const AVAILABLE_SKILLS = [
   { id: 'alm_analyze',      label: 'alm_analyze',      desc: 'Analyze formal grammar specifications (BNF, EBNF) with ALM (requires ALM service)' },
   { id: 'alm_generate',     label: 'alm_generate',     desc: 'Generate token sequences from a prefix using ALM (requires ALM service)' },
   { id: 'alm_verify',       label: 'alm_verify',       desc: 'Validate text against ALM grammar (requires ALM service)' },
+  { id: 'math_compute',    label: 'math_compute',    desc: 'Symbolic math with SymPy: solve, differentiate, integrate, simplify (requires sympy)' },
+  { id: 'cipher_ops',      label: 'cipher_ops',      desc: 'Cryptographic operations: encrypt, decrypt, hash, sign (requires pycryptodome)' },
+  { id: 'physics_compute', label: 'physics_compute', desc: 'Physics & astronomy: unit conversion, coordinate transforms, cosmology (requires astropy)' },
 ]
 
 const GOAL_TEMPLATES = [
@@ -126,136 +130,114 @@ function FilePicker(props: {
   )
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-      }}
-    >
-      <div
-        onClick={(e: any) => e.stopPropagation()}
-        style={{
-          width: 'min(820px, 92vw)', maxHeight: '86vh', background: '#fff',
-          borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.25)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}
-      >
+    <div onClick={onClose} className={styles.modalOverlay}>
+      <div onClick={(e: any) => e.stopPropagation()} className={styles.modalContent}>
         {/* Header */}
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e3e5e8', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className={styles.modalHeader}>
           <strong>Pick a folder or file</strong>
-          <span style={{ fontSize: 11, color: '#888' }}>(must be within PROJECT_ROOT)</span>
-          <button onClick={onClose} style={{ marginLeft: 'auto', padding: '4px 10px' }}>✕</button>
+          <span className={styles.modalHeaderInfo}>(must be within PROJECT_ROOT)</span>
+          <button onClick={onClose} className={styles.modalCloseButton}>✕</button>
         </div>
 
         {/* Presets row */}
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f3f5', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <span style={{ fontSize: 12, color: '#666', alignSelf: 'center' }}>Quick:</span>
-          <button onClick={() => load(projectRoot)} style={{ padding: '2px 10px', fontSize: 12 }}>/ root</button>
+        <div className={styles.presetsRow}>
+          <span className={styles.quickLabel}>Quick:</span>
+          <button onClick={() => load(projectRoot)} className={styles.presetButton}>/ root</button>
           {presets.map((p) => (
-            <button key={p.path} onClick={() => load(p.path)} style={{ padding: '2px 10px', fontSize: 12 }}>
+            <button key={p.path} onClick={() => load(p.path)} className={styles.presetButton}>
               {p.name}
             </button>
           ))}
         </div>
 
         {/* Breadcrumbs + nav */}
-        <div style={{ padding: '8px 16px', background: '#fafbfc', borderBottom: '1px solid #f1f3f5', fontSize: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+        <div className={styles.navRow}>
           <button
             onClick={() => data?.parent && load(data.parent)}
             disabled={!data?.parent || busy}
             title="Parent"
-            style={{ padding: '2px 8px' }}
+            className={styles.navButton}
           >⬆</button>
-          <button onClick={() => data && load(data.path, true)} disabled={busy || !data?.is_dir} style={{ padding: '2px 8px' }} title="Recursive listing">⤓</button>
-          <button onClick={() => data && load(data.path)} disabled={busy} style={{ padding: '2px 8px' }} title="Reload">⟳</button>
-          <span style={{ marginLeft: 6, color: '#666' }}>
+          <button onClick={() => data && load(data.path, true)} disabled={busy || !data?.is_dir} className={styles.navButton} title="Recursive listing">⤓</button>
+          <button onClick={() => data && load(data.path)} disabled={busy} className={styles.navButton} title="Reload">⟳</button>
+          <span className={styles.breadcrumbContainer}>
             {breadcrumbs.map((b, i) => (
               <span key={b.path}>
-                <a
-                  onClick={() => load(b.path)}
-                  style={{ cursor: 'pointer', color: '#0366d6', textDecoration: 'underline' }}
-                >{b.label}</a>
-                {i < breadcrumbs.length - 1 && <span style={{ color: '#aaa' }}> / </span>}
+                <a onClick={() => load(b.path)} className={styles.breadcrumbLink}>{b.label}</a>
+                {i < breadcrumbs.length - 1 && <span className={styles.breadcrumbSeparator}> / </span>}
               </span>
             ))}
           </span>
         </div>
 
         {/* Filter + manual path */}
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f3f5', display: 'flex', gap: 8 }}>
+        <div className={styles.filterRow}>
           <input
             placeholder="Filter (filename contains…)"
             value={filter}
             onChange={(e: any) => setFilter(e.target.value)}
-            style={{ flex: 1, padding: 6, border: '1px solid #ccc', borderRadius: 4, fontSize: 13 }}
+            className={styles.filterInput}
           />
           <input
             placeholder="Or type a path and press Enter"
             value={path}
             onChange={(e: any) => setPath(e.target.value)}
             onKeyDown={(e: any) => { if (e.key === 'Enter') load(path) }}
-            style={{ flex: 2, padding: 6, border: '1px solid #ccc', borderRadius: 4, fontSize: 13, fontFamily: 'monospace' }}
+            className={styles.pathInput}
           />
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: 'auto', minHeight: 240 }}>
-          {err && <div style={{ padding: 12, color: '#b00', fontSize: 13 }}>Error: {err}</div>}
-          {busy && <div style={{ padding: 12, color: '#666', fontSize: 13 }}>Loading…</div>}
+        <div className={styles.modalBody}>
+          {err && <div className={styles.errorText}>Error: {err}</div>}
+          {busy && <div className={styles.loadingText}>Loading…</div>}
           {!busy && !err && data && (
             <>
-              <div style={{ padding: '4px 16px', fontSize: 11, color: '#666', background: '#fcfcfd' }}>
+              <div className={styles.statsBar}>
                 <strong>{data.dir_count}</strong> dirs · <strong>{data.file_count}</strong> files
                 {data.total_bytes > 0 && <> · <strong>{human(data.total_bytes)}</strong></>}
-                {data.truncated && <span style={{ color: '#b00' }}> · truncated</span>}
-                {data.recursive && <span style={{ color: '#17a2b8' }}> · recursive</span>}
+                {data.truncated && <span className={styles.truncatedText}> · truncated</span>}
+                {data.recursive && <span className={styles.recursiveText}> · recursive</span>}
                 {Object.keys(data.by_extension).length > 0 && (
-                  <span style={{ marginLeft: 8 }}>
+                  <span className={styles.extensionInfo}>
                     {Object.entries(data.by_extension).sort((a, b) => b[1] - a[1])
                       .slice(0, 8).map(([k, v]) => `${k}:${v}`).join('  ')}
                   </span>
                 )}
               </div>
-              <div style={{ fontFamily: 'monospace', fontSize: 13 }}>
+              <div className={styles.fileList}>
                 {filtered.map((e) => (
                   <div
                     key={e.path}
                     onClick={() => e.is_dir ? load(e.path) : onPick(e.path)}
                     onDoubleClick={() => onPick(e.path)}
-                    style={{
-                      display: 'flex', justifyContent: 'space-between',
-                      padding: '4px 16px', borderBottom: '1px solid #f5f6f7',
-                      cursor: 'pointer', background: e.is_dir ? '#fafbff' : '#fff',
-                    }}
+                    className={`${styles.fileItem} ${e.is_dir ? styles.fileItemDir : ''}`}
                     title={e.is_dir ? 'Click to open' : 'Click to select this file'}
-                    onMouseEnter={(ev: any) => ev.currentTarget.style.background = '#eef2ff'}
-                    onMouseLeave={(ev: any) => ev.currentTarget.style.background = e.is_dir ? '#fafbff' : '#fff'}
                   >
                     <span>
                       {e.is_dir ? '📁 ' : '📄 '}
-                      <span style={{ fontWeight: e.is_dir ? 600 : 400 }}>{e.name}</span>
+                      <span className={`${e.is_dir ? styles.fileIconDir : styles.fileIcon}`}>{e.name}</span>
                       {e.is_dir && '/'}
                     </span>
-                    <span style={{ color: '#888' }}>{e.is_dir ? '' : human(e.size)}</span>
+                    <span className={styles.fileSize}>{e.is_dir ? '' : human(e.size)}</span>
                   </div>
                 ))}
-                {filtered.length === 0 && <div style={{ padding: 16, color: '#888' }}>(no entries)</div>}
+                {filtered.length === 0 && <div className={styles.noEntries}>(no entries)</div>}
               </div>
             </>
           )}
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '10px 16px', borderTop: '1px solid #e3e5e8', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#666', flex: 1, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div className={styles.modalFooter}>
+          <span className={styles.selectedPath}>
             Selected: {data?.path || '(none)'}
           </span>
-          <button onClick={onClose} style={{ padding: '6px 14px' }}>Cancel</button>
+          <button onClick={onClose} className={styles.footerButton}>Cancel</button>
           <button
             onClick={() => data && onPick(data.path)}
             disabled={!data}
-            style={{ padding: '6px 14px', background: '#007bff', color: '#fff', border: 'none', borderRadius: 4 }}
+            className={styles.primaryButton}
           >
             Use this folder
           </button>
@@ -573,19 +555,15 @@ export function UARPanel() {
 
   const canRun = !isRunning && goal.trim().length > 0 && selectedSkills.length > 0
 
-  const box: any = { border: '1px solid #dee2e6', borderRadius: 6, padding: 14, marginBottom: 16, background: '#fff' }
-  const label: any = { display: 'block', fontSize: 12, color: '#555', marginBottom: 4 }
-  const chip = (active: boolean, disabled = false): any => ({
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '4px 10px', margin: '2px 4px 2px 0',
-    border: '1px solid ' + (active ? '#3a7bd5' : '#ccc'), borderRadius: 999,
-    background: active ? '#e7f1ff' : '#fff', color: active ? '#0b3d91' : '#222',
-    fontFamily: 'monospace', fontSize: 12,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  })
+  const chip = (active: boolean, disabled = false): string => {
+    const base = styles.chip
+    if (active) return `${base} ${styles.chipActive}`
+    if (disabled) return `${base} ${styles.chipDisabled}`
+    return base
+  }
 
   return (
-    <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
+    <div className={styles.container}>
       <FilePicker
         open={pickerOpen}
         initialPath={inputPath || libraryPath || projectRoot}
@@ -595,12 +573,12 @@ export function UARPanel() {
         onPick={onPick}
       />
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>UAR Live System</h3>
-        <span style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>{projectRoot}</span>
+      <div className={styles.header}>
+        <h3 className={styles.headerTitle}>UAR Live System</h3>
+        <span className={styles.projectRoot}>{projectRoot}</span>
         <button
           onClick={() => setSkillGuideOpen(true)}
-          style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+          className={styles.skillGuideButton}
           title="View skill documentation"
         >
           📘 Skill Guide
@@ -608,26 +586,26 @@ export function UARPanel() {
       </div>
 
       {error && (
-        <div style={{ background: '#fee', border: '1px solid #fcc', padding: 10, marginBottom: 16, borderRadius: 4 }}>
+        <div className={styles.errorBox}>
           <strong>Error:</strong> {error.message}
-          {error.code && <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>[{error.code}]</span>}
-          {error.requestId && <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>req: {error.requestId}</span>}
-          <button onClick={() => setError(null)} style={{ marginLeft: 10, padding: '2px 8px' }}>Dismiss</button>
-          <button onClick={() => { navigator.clipboard.writeText(JSON.stringify(error, null, 2)).catch(() => {}) }} style={{ marginLeft: 6, padding: '2px 8px', fontSize: 11 }}>Copy</button>
+          {error.code && <span className={styles.errorCode}>[{error.code}]</span>}
+          {error.requestId && <span className={styles.errorCode}>req: {error.requestId}</span>}
+          <button onClick={() => setError(null)} className={styles.dismissButton}>Dismiss</button>
+          <button onClick={() => { navigator.clipboard.writeText(JSON.stringify(error, null, 2)).catch(() => {}) }} className={styles.copyButton}>Copy</button>
         </div>
       )}
 
       {/* DOCUMENTS */}
-      <div style={box}>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-          <strong>Documents</strong>
-          <span style={{ fontSize: 11, color: '#888', marginLeft: 12, fontFamily: 'monospace' }}>
+      <div className={styles.box}>
+        <div className={styles.sectionHeader}>
+          <strong className={styles.sectionTitle}>Documents</strong>
+          <span className={styles.sectionInfo}>
             library: {libraryPath}
           </span>
           <button
             onClick={() => setPickerOpen(true)}
             disabled={isRunning}
-            style={{ marginLeft: 'auto', padding: '6px 14px', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 600 }}
+            className={styles.pickButton}
             title="Open file picker"
           >📂 Pick…</button>
         </div>
@@ -639,23 +617,13 @@ export function UARPanel() {
           onDragEnter={onDragOver}
           onDragLeave={onDragLeave}
           onClick={() => fileInputRef.current?.click()}
-          style={{
-            border: `2px dashed ${dragActive ? '#0d6efd' : '#ced4da'}`,
-            borderRadius: 6,
-            padding: '18px 14px',
-            textAlign: 'center',
-            background: dragActive ? '#e7f1ff' : '#fafbfc',
-            color: '#555',
-            cursor: 'pointer',
-            transition: 'all .15s',
-            marginBottom: 10,
-          }}
+          className={`${styles.dropZone} ${dragActive ? styles.dropZoneActive : ''}`}
         >
-          <div style={{ fontSize: 24, marginBottom: 4 }}>{dragActive ? '⬇️' : '📥'}</div>
-          <div style={{ fontWeight: 600 }}>
+          <div className={styles.dropZoneIcon}>{dragActive ? '⬇️' : '📥'}</div>
+          <div className={styles.dropZoneText}>
             {dragActive ? 'Drop here to add to library' : 'Drop files here, or click to choose'}
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+          <div className={styles.dropZoneSubtext}>
             PDFs · DOCX · XLSX · IPYNB · Parquet · Markdown · Code · Data · max 50MB each
           </div>
           <input
@@ -663,67 +631,63 @@ export function UARPanel() {
             type="file"
             multiple
             aria-label="Upload files to library"
-            style={{ display: 'none' }}
+            className={styles.hiddenInput}
             onChange={(e: any) => {
               if (e.target.files?.length) uploadFiles(e.target.files)
               e.target.value = ''
             }}
           />
         </div>
-        {uploadMsg && <div style={{ fontSize: 12, color: '#0a4', marginBottom: 8 }}>{uploadMsg}</div>}
+        {uploadMsg && <div className={styles.uploadMessage}>{uploadMsg}</div>}
 
         {/* Library list */}
-        <div style={{ marginBottom: 10 }}>
-          <div style={label}>
+        <div className={styles.presetsContainer}>
+          <div className={styles.label}>
             📚 Library ({library.length}{libBusy && ' · refreshing…'})
-            <button onClick={refreshLibrary} style={{ marginLeft: 8, fontSize: 11, padding: '0 6px' }}>↻</button>
+            <button onClick={refreshLibrary} className={styles.refreshButton}>↻</button>
             {libraryPath && (
-              <button onClick={() => onPick(libraryPath)} style={{ marginLeft: 4, fontSize: 11, padding: '0 6px' }} title="Use whole library as input_path">
+              <button onClick={() => onPick(libraryPath)} className={styles.useAllButton} title="Use whole library as input_path">
                 use all
               </button>
             )}
           </div>
           {library.length === 0 ? (
-            <div style={{ fontSize: 12, color: '#888' }}>(empty — drop files above)</div>
+            <div className={styles.emptyLibrary}>(empty — drop files above)</div>
           ) : (
-            <div style={{ maxHeight: 150, overflow: 'auto', border: '1px solid #eef', borderRadius: 4, fontFamily: 'monospace', fontSize: 12 }}>
+            <div className={styles.libraryList}>
               {library.map((f) => (
                 <div key={f.path}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '3px 8px', borderBottom: '1px solid #f5f6f7',
-                    background: inputPath === f.path ? '#e7f1ff' : '#fff',
-                  }}
+                  className={`${styles.libraryItem} ${inputPath === f.path ? styles.libraryItemSelected : ''}`}
                 >
-                  <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => onPick(f.path)} title={f.path}>
+                  <span className={styles.libraryItemName} onClick={() => onPick(f.path)} title={f.path}>
                     📄 {f.name}
                   </span>
-                  <span style={{ color: '#888' }}>{human(f.size)}</span>
-                  <button onClick={() => deleteLibFile(f.name)} disabled={isRunning} style={{ padding: '0 6px', fontSize: 11, color: '#b00' }} title="Delete">✕</button>
+                  <span className={styles.libraryItemSize}>{human(f.size)}</span>
+                  <button onClick={() => deleteLibFile(f.name)} disabled={isRunning} className={styles.deleteButton} title="Delete">✕</button>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div style={{ marginBottom: 8 }}>
-          <div style={label}>Presets</div>
-          {presets.length === 0 && <span style={{ fontSize: 12, color: '#888' }}>(loading…)</span>}
+        <div className={styles.presetsContainer}>
+          <div className={styles.label}>Presets</div>
+          {presets.length === 0 && <span className={styles.loadingText}>(loading…)</span>}
           {presets.map((p) => (
-            <button key={p.path} disabled={isRunning} onClick={() => onPick(p.path)} style={chip(inputPath === p.path, isRunning)} title={p.path}>
+            <button key={p.path} disabled={isRunning} onClick={() => onPick(p.path)} className={chip(inputPath === p.path, isRunning)} title={p.path}>
               {p.name}
             </button>
           ))}
         </div>
 
         {recent.length > 0 && (
-          <div style={{ marginBottom: 8 }}>
-            <div style={label}>
+          <div className={styles.recentContainer}>
+            <div className={styles.label}>
               Recent
-              <button onClick={clearRecent} style={{ marginLeft: 8, fontSize: 11, padding: '0 6px' }}>clear</button>
+              <button onClick={clearRecent} className={styles.clearButton}>clear</button>
             </div>
             {recent.map((p) => (
-              <button key={p} disabled={isRunning} onClick={() => onPick(p)} style={chip(inputPath === p, isRunning)} title={p}>
+              <button key={p} disabled={isRunning} onClick={() => onPick(p)} className={chip(inputPath === p, isRunning)} title={p}>
                 {p.length > 40 ? '…' + p.slice(-40) : p}
               </button>
             ))}
@@ -731,39 +695,38 @@ export function UARPanel() {
         )}
 
         <div>
-          <label style={label}>input_path</label>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <label className={styles.label}>input_path</label>
+          <div className={styles.inputGroup}>
             <input
               value={inputPath}
               onChange={(e: any) => setInputPath(e.target.value)}
               placeholder="(none — doc_ingest will warn)"
               disabled={isRunning}
-              style={{ flex: 1, padding: 8, border: '1px solid #ccc', borderRadius: 4, fontFamily: 'monospace', fontSize: 13 }}
+              className={styles.input}
             />
-            <button onClick={copyPath} disabled={!inputPath} style={{ padding: '6px 10px' }} title="Copy path">📋</button>
-            <button onClick={() => setInputPath('')} disabled={!inputPath || isRunning} style={{ padding: '6px 10px' }} title="Clear">✕</button>
+            <button onClick={copyPath} disabled={!inputPath} className={styles.iconButton} title="Copy path">📋</button>
+            <button onClick={() => setInputPath('')} disabled={!inputPath || isRunning} className={styles.iconButton} title="Clear">✕</button>
           </div>
         </div>
       </div>
 
       {/* GOAL + SKILLS */}
-      <div style={box}>
-        <div style={{ marginBottom: 12 }}>
-          <label style={label}>Goal</label>
+      <div className={styles.box}>
+        <div className={styles.marginBottom12}>
+          <label className={styles.label}>Goal</label>
           <input
             value={goal}
             onChange={(e: any) => setGoal(e.target.value)}
-            placeholder="What should UAR do?"
+            placeholder="What do you want to accomplish?"
             disabled={isRunning}
-            list="goal-templates"
-            style={{ padding: 8, width: '100%', border: '1px solid #ccc', borderRadius: 4 }}
+            className={`${styles.input} ${styles.widthFull}`}
           />
           <datalist id="goal-templates">
             {GOAL_TEMPLATES.map((g) => <option key={g} value={g} />)}
           </datalist>
-          <div style={{ marginTop: 4 }}>
+          <div className={styles.marginTop4}>
             {GOAL_TEMPLATES.map((g) => (
-              <button key={g} onClick={() => setGoal(g)} disabled={isRunning} style={{ ...chip(goal === g, isRunning), fontSize: 11, padding: '2px 8px' }}>
+              <button key={g} onClick={() => setGoal(g)} disabled={isRunning} className={`${chip(goal === g, isRunning)} ${styles.smallButton}`}>
                 {g.length > 30 ? g.slice(0, 30) + '…' : g}
               </button>
             ))}
@@ -771,27 +734,27 @@ export function UARPanel() {
         </div>
 
         <div>
-          <label style={label}>Skills</label>
+          <label className={styles.label}>Skills</label>
           <div>
             {AVAILABLE_SKILLS.map((s) => (
-              <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} style={chip(selectedSkills.includes(s.id), isRunning)}>
+              <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
                 {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
               </button>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+          <div className={styles.orderText}>
             Order: {selectedSkills.length ? selectedSkills.join(' → ') : '(none)'}
           </div>
 
           {/* Recipes */}
-          <div style={{ marginTop: 8 }}>
-            <label style={label}>Recipes</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div className={styles.presetsContainer}>
+            <label className={styles.label}>Recipes</label>
+            <div className={styles.recipeContainer}>
               {RECIPES.map((r) => (
                 <button key={r.id}
                   title={r.hint}
                   onClick={() => setSelectedSkills([...r.skills])}
-                  style={{ padding: '4px 10px', fontSize: 12, borderRadius: 4, border: '1px solid #ddd', background: '#f8f9fa', cursor: 'pointer' }}
+                  className={styles.presetButton}
                 >
                   {r.label}
                 </button>
@@ -800,65 +763,67 @@ export function UARPanel() {
           </div>
 
           {/* Advanced overrides */}
-          <div style={{ marginTop: 8, padding: 8, borderRadius: 4, background: '#f8f9fa', border: '1px solid #eee' }}>
-            <label style={{ ...label, marginBottom: 6 }}>Advanced</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div className={styles.advancedOverrides}>
+            <label className={`${styles.label} ${styles.marginBottom6}`}>Advanced</label>
+            <div className={styles.advancedOverridesContainer}>
               {selectedSkills.includes('graphrag_query') && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                <label className={styles.advancedOverride}>
                   GraphRAG method:
-                  <select value={graphragMethod} onChange={(e) => setGraphragMethod(e.target.value as any)} style={{ fontSize: 12, padding: 2 }}>
+                  <select value={graphragMethod} onChange={(e) => setGraphragMethod(e.target.value as any)} className={styles.advancedOverrideSelect}>
                     <option value="local">local (entity)</option>
                     <option value="global">global (thematic)</option>
                   </select>
                 </label>
               )}
               {selectedSkills.includes('ollama_generate') && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
+                <label className={styles.advancedOverride}>
                   Ollama model:
-                  <input type="text"
+                  <input
                     value={ollamaModel}
                     onChange={(e) => setOllamaModel(e.target.value)}
-                    placeholder="e.g. qwen2.5:7b"
-                    style={{ fontSize: 12, padding: '2px 6px', width: 140 }}
+                    placeholder="e.g. llama3.2"
+                    className={styles.advancedOverrideInput}
                   />
                 </label>
               )}
               {(selectedSkills.includes('autonomi_upload') || selectedSkills.includes('autonomi_download') || selectedSkills.includes('autonomi_status')) && (
                 <>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
-                    Private key:
-                    <input type="password"
+                  <label className={styles.advancedOverride}>
+                    Autonomi key:
+                    <input
+                      type="password"
                       value={autonomiKey}
                       onChange={(e) => setAutonomiKey(e.target.value)}
-                      placeholder="0x... (or set AUTONOMI_PRIVATE_KEY env)"
-                      style={{ fontSize: 12, padding: '2px 6px', width: 220 }}
+                      placeholder="private key"
+                      className={styles.advancedOverrideInput}
                     />
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
-                    Network:
-                    <select value={autonomiNetwork} onChange={(e) => setAutonomiNetwork(e.target.value as any)} style={{ fontSize: 12, padding: 2 }}>
+                  <label className={styles.advancedOverride}>
+                    Autonomi network:
+                    <select value={autonomiNetwork} onChange={(e) => setAutonomiNetwork(e.target.value as any)} className={styles.advancedOverrideSelect}>
                       <option value="testnet">testnet</option>
                       <option value="mainnet">mainnet</option>
                     </select>
                   </label>
                   {selectedSkills.includes('autonomi_upload') && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
-                      <input type="checkbox"
+                    <label className={styles.advancedOverride}>
+                      Public:
+                      <input
+                        type="checkbox"
                         checked={autonomiPublic}
                         onChange={(e) => setAutonomiPublic(e.target.checked)}
-                        style={{ margin: 0 }}
+                        className={styles.advancedOverrideCheckbox}
                       />
-                      Public upload
                     </label>
                   )}
                   {selectedSkills.includes('autonomi_download') && (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#555' }}>
-                      Address:
-                      <input type="text"
+                    <label className={styles.advancedOverride}>
+                      Autonomi address:
+                      <input
                         value={autonomiAddress}
                         onChange={(e) => setAutonomiAddress(e.target.value)}
-                        placeholder="autonomi address or data map"
-                        style={{ fontSize: 12, padding: '2px 6px', width: 200 }}
+                        placeholder="address from upload"
+                        className={styles.advancedOverrideInput}
                       />
                     </label>
                   )}
@@ -870,95 +835,85 @@ export function UARPanel() {
       </div>
 
       {/* RUN */}
-      <div style={{ marginBottom: 16 }}>
+      <div className={styles.presetsContainer}>
         <button
           onClick={runStream}
           disabled={!canRun}
-          style={{
-            padding: '10px 20px', marginRight: 10, fontSize: 14, fontWeight: 600,
-            background: !canRun ? '#ccc' : '#28a745', color: '#fff',
-            border: 'none', borderRadius: 4,
-            cursor: !canRun ? 'not-allowed' : 'pointer',
-          }}
+          className={styles.runButton}
         >
           {isRunning ? '⏳ Running…' : '▶ Run Stream'}
         </button>
         {isRunning && (
           <button
             onClick={stopStream}
-            style={{
-              padding: '10px 20px', fontSize: 14, fontWeight: 600,
-              background: '#dc3545', color: '#fff',
-              border: 'none', borderRadius: 4,
-              cursor: 'pointer',
-            }}
+            className={styles.stopButton}
           >
             ⏹ Stop
           </button>
         )}
         {isRunning && (
-          <span style={{ marginLeft: 16, fontSize: 13, color: '#666' }}>
+          <span className={styles.runStatus}>
             {currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s
           </span>
         )}
-        <button onClick={clearEvents} style={{ padding: '10px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4 }}>
+        <button onClick={clearEvents} className={styles.clearButton}>
           Clear Events
         </button>
       </div>
 
-      <div style={{ marginBottom: 16, fontSize: 13, color: '#666' }}>
+      <div className={styles.statusText}>
         Status: {isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
         {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
       </div>
 
       {ingested && (
-        <div style={box}>
+        <div className={styles.box}>
           <strong>Ingested documents</strong>
-          {ingested.warning && <div style={{ color: '#a66', fontSize: 12, marginTop: 4 }}>{ingested.warning}</div>}
-          <div style={{ maxHeight: 220, overflow: 'auto', marginTop: 8, fontSize: 12, fontFamily: 'monospace' }}>
+          {ingested.warning && <div className={styles.ingestedWarning}>{ingested.warning}</div>}
+          <div className={styles.ingestedList}>
             {(ingested.documents || []).map((d: any, i: number) => (
-              <div key={i} style={{ padding: '4px 6px', borderBottom: '1px solid #f1f3f5' }}>
-                <div style={{ fontWeight: 600 }}>{d.path || d.name || `#${i}`}</div>
-                {d.error ? <div style={{ color: '#b00' }}>error: {d.error}</div>
-                  : <div style={{ color: '#666' }}>{d.size ? human(d.size) : ''}{d.type ? ` · ${d.type}` : ''}</div>}
+              <div key={i} className={styles.ingestedItem}>
+                <div className={styles.ingestedItemName}>{d.path || d.name || `#${i}`}</div>
+                {d.error ? <div className={styles.ingestedItemError}>error: {d.error}</div>
+                  : <div className={styles.ingestedItemInfo}>{d.size ? human(d.size) : ''}{d.type ? ` · ${d.type}` : ''}</div>}
               </div>
             ))}
             {(!ingested.documents || ingested.documents.length === 0) && !ingested.warning && (
-              <div style={{ color: '#888' }}>(no documents)</div>
+              <div className={styles.ingestedEmpty}>(no documents)</div>
             )}
           </div>
         </div>
       )}
 
       {ollama && (
-        <div style={box}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <div className={styles.box}>
+          <div className={styles.ollamaResponseHeader}>
             <strong>🦙 Ollama response</strong>
-            <span style={{ fontSize: 11, color: '#666' }}>
+            <span className={styles.ollamaResponseInfo}>
               {ollama.model} · status: {ollama.status}
               {typeof ollama.documents_used === 'number' && <> · {ollama.documents_used} docs</>}
               {typeof ollama.context_chars === 'number' && <> · {ollama.context_chars} chars context</>}
             </span>
           </div>
-          {ollama.error && <div style={{ color: '#b00', fontSize: 13, marginTop: 6 }}>Error: {ollama.error}</div>}
+          {ollama.error && <div className={styles.ollamaError}>Error: {ollama.error}</div>}
           {ollama.response && (
-            <pre style={{ marginTop: 8, padding: 10, background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, maxHeight: 360, overflow: 'auto' }}>
+            <pre className={styles.ollamaResponse}>
               {ollama.response}
             </pre>
           )}
         </div>
       )}
 
-      <div style={box}>
+      <div className={styles.box}>
         <strong>Events ({events.length})</strong>
-        <div style={{ background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: 4, maxHeight: 280, overflow: 'auto', marginTop: 6 }}>
-          <pre style={{ margin: 0, padding: 10, fontSize: 12 }}>
+        <div className={styles.eventsContainer}>
+          <pre className={styles.eventsPre}>
             {JSON.stringify(events.slice(-50), null, 2)}
           </pre>
         </div>
       </div>
 
-      <div style={{ height: 400, border: '1px solid #dee2e6', borderRadius: 4 }}>
+      <div className={styles.graphContainer}>
         <ReactFlow nodes={nodes} edges={edges} fitView>
           <Background />
         </ReactFlow>
@@ -967,37 +922,22 @@ export function UARPanel() {
       {skillGuideOpen && (
         <div
           onClick={() => setSkillGuideOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
+          className={styles.skillGuideModalOverlay}
         >
           <div
             onClick={(e: any) => e.stopPropagation()}
-            style={{
-              width: 'min(700px, 90vw)',
-              maxHeight: '85vh',
-              background: '#fff',
-              borderRadius: 8,
-              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-              overflow: 'hidden'
-            }}
+            className={styles.skillGuideModalContent}
           >
-            <div style={{ padding: 16, borderBottom: '1px solid #dee2e6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h4 style={{ margin: 0 }}>📘 Skill Guide</h4>
+            <div className={styles.skillGuideModalHeader}>
+              <strong>Skill Guide</strong>
               <button
                 onClick={() => setSkillGuideOpen(false)}
-                style={{ padding: '4px 10px', border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer' }}
+                className={styles.modalCloseButton}
               >
                 ✕
               </button>
             </div>
-            <div style={{ maxHeight: 'calc(85vh - 60px)', overflow: 'auto' }}>
+            <div className={styles.skillGuideModalBody}>
               <SkillGuide />
             </div>
           </div>
