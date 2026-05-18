@@ -39,6 +39,31 @@ This project uses semantic versioning for release tags.
 
 ## [Unreleased]
 
+### Added
+- UOR-ADDR-1 bounded shape recursion implementation
+  - Typed JSON value handling with case distinction (CT-T)
+  - Bounded recursion depth enforcement (CT-B) with max 1000 levels
+  - JCS-RFC8785 canonicalization for standard compliance
+  - Unicode NFC normalization for consistent string representation
+  - Content-derived address computation with SHA-256 digests
+  - Maximum array length (10,000) and object key count (10,000) limits
+  - Comprehensive test suite for UOR alignment validation
+  - Note: Native Python implementation aligned with UOR Foundation Rust specification
+    (no official Python uor-addr package exists on PyPI)
+- Dependency compliance documentation (docs/DEPENDENCY_COMPLIANCE.md)
+- Autonomi experimental status warnings in configuration and documentation
+
+### Changed
+- Environment variable renamed: `ENABLE_METRICS` → `METRICS_ENABLED` for consistency
+  - Backward compatibility maintained: `ENABLE_METRICS` still supported
+  - New deployments should use `METRICS_ENABLED`
+
+### Fixed
+- Race condition in rate limit headers - now uses actual state from rate limit check
+- Added `graphrag_init` to available skills in web UI
+- Timeout validation minimum changed from 0 to 0.1s to prevent zero timeout
+- Removed redundant import in config.py
+
 ### Planned / Deferred
 - Parallel executor expansion
 - Replay timeline UI

@@ -19,6 +19,33 @@ UOR-aligned agent execution layer for modular goal-driven agent workflows.
 - Node.js 18+ (for web interface)
 - Docker (optional)
 
+### Tested Environments
+
+UAR has been tested and validated on the following environments:
+
+**Python Versions:**
+- Python 3.10
+- Python 3.11
+- Python 3.12
+
+**Operating Systems:**
+- macOS (Apple Silicon and Intel)
+- Linux (Ubuntu 22.04, Debian 12)
+- Windows 11 (via WSL2)
+
+**Dependencies:**
+- FastAPI 0.110.0
+- Pydantic 2.0+
+- uvicorn 0.24.0+
+- rfc8785 >=0.1.0
+
+**Optional Integrations:**
+- Ollama 0.1.0+ (for local LLM inference)
+- GraphRAG 0.3.0+ (for knowledge graph operations)
+- Autonomi Python SDK (experimental, network-dependent)
+
+**Note:** Autonomi integration is marked as experimental due to network stability and SDK maturity issues. Use with caution in production environments.
+
 ### Installation
 
 ```bash
@@ -67,8 +94,15 @@ goal = {"goal": "Summarize this document", "input_path": "docs/README.md"}
 - `dependency_map`: Code dependency analysis
 - `sum_review`: Summary review and validation
 - `ollama_generate`: Local AI generation via Ollama
-- `graphrag_skills`: Graph-based retrieval augmentation
-- `atomic_lang_model`: Formal language model analysis, generation, and verification
+- `graphrag_init`: Initialize GraphRAG workspace
+- `graphrag_index`: Build GraphRAG knowledge graph
+- `graphrag_query`: Query GraphRAG index (local/global methods)
+- `autonomi_upload`: Upload files to Autonomi decentralized storage (experimental)
+- `autonomi_download`: Download files from Autonomi (experimental)
+- `autonomi_status`: Check Autonomi connectivity and wallet status (experimental)
+- `alm_analyze`: Analyze formal grammar specifications (BNF, EBNF)
+- `alm_generate`: Generate token sequences from a prefix
+- `alm_verify`: Validate text against ALM grammar
 
 ## Development
 

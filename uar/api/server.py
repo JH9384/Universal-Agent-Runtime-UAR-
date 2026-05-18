@@ -30,10 +30,16 @@ from .middleware import (
 from .tracing import trace_span
 from uar.api.metrics import get_metrics_collector
 
+# Constants
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+CHUNK_SIZE = 1024 * 64  # 64KB
+DEFAULT_BROWSE_LIMIT = 200
+BACKPRESSURE_DELAY = 0.1  # seconds
+SHUTDOWN_SLEEP = 0.1  # seconds
+
 # Backpressure configuration
 BACKPRESSURE_ENABLED = os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
 BACKPRESSURE_THRESHOLD = int(os.getenv("BACKPRESSURE_THRESHOLD", "100"))  # Max buffered events
-BACKPRESSURE_DELAY = float(os.getenv("BACKPRESSURE_DELAY", "0.1"))  # Delay in seconds when backpressure triggered
 
 # Configure logging
 logging.basicConfig(
@@ -61,7 +67,7 @@ async def lifespan(app: FastAPI):
     # Shutdown - drain in-flight requests
     logger.info("UAR API shutting down, draining requests (5s grace period)...")
     import asyncio
-    await asyncio.sleep(0.1)  # Let any in-flight requests complete
+    await asyncio.sleep(SHUTDOWN_SLEEP)  # Let any in-flight requests complete
     logger.info("UAR API shutdown complete")
 
 
@@ -567,7 +573,10 @@ def _library_dir():
 
 
 # Upload limits
-MAX_UPLOAD_BYTES = int(__import__("os").getenv("UAR_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))  # 50MB
+DEFAULT_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+MAX_UPLOAD_BYTES = int(
+    os.getenv("UAR_MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES))
+)  # 50MB
 ALLOWED_UPLOAD_EXTS = {
     ".pdf", ".docx", ".xlsx", ".xlsm", ".ipynb", ".parquet", ".feather",
     ".txt", ".md", ".rst", ".tex", ".bib", ".csv", ".tsv", ".json", ".jsonl",
@@ -657,7 +666,7 @@ async def docs_upload(files: List[UploadFile] = File(...)):
         try:
             with open(dest, "wb") as out:
                 while True:
-                    chunk = await upload.read(1024 * 64)
+                    chunk = await upload.read(CHUNK_SIZE)
                     if not chunk:
                         break
                     size += len(chunk)
@@ -747,7 +756,7 @@ async def docs_library_delete(name: str):
     400: {"model": ErrorResponse, "description": "Validation error"},
     500: {"model": ErrorResponse, "description": "Internal server error"}
 })
-async def docs_browse(path: str, limit: int = 200, recursive: bool = False):
+async def docs_browse(path: str, limit: int = DEFAULT_BROWSE_LIMIT, recursive: bool = False):
     """
     Directory/file browser. When recursive=false (default), lists the
     immediate children of a directory (navigable). When recursive=true,
@@ -839,8 +848,9 @@ async def get_status(
         "user": user_info,
         "available_skills": [
             "section_sum", "doc_ingest", "dependency_map",
-            "sum_review", "ollama_generate", "graphrag_index",
-            "graphrag_query", "autonomi_upload", "autonomi_download",
-            "autonomi_status"
+            "sum_review", "ollama_generate", "graphrag_init",
+            "graphrag_index", "graphrag_query", "autonomi_upload",
+            "autonomi_download", "autonomi_status", "alm_analyze",
+            "alm_generate", "alm_verify"
         ]
     }

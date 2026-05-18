@@ -27,14 +27,26 @@ from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
 
+# Constants
+DEFAULT_FAILURE_THRESHOLD = 3
+DEFAULT_RECOVERY_TIMEOUT = 60.0  # seconds
+DEFAULT_MAX_NODES = 10000
+DEFAULT_CLI_TIMEOUT = 3600  # seconds (1 hour)
+DEFAULT_QUERY_TIMEOUT = 600  # seconds (10 minutes)
+REDUCE_MAX_TOKENS = 1000
+
 # Resolve allowed root from environment with fallback to cwd
 _allowed_root_env = os.getenv("PROJECT_ROOT")
 ALLOWED_ROOT = Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
 
-_graphrag_cb = CircuitBreaker("graphrag", failure_threshold=2, recovery_timeout=60.0)
+_graphrag_cb = CircuitBreaker(
+    "graphrag",
+    failure_threshold=DEFAULT_FAILURE_THRESHOLD,
+    recovery_timeout=DEFAULT_RECOVERY_TIMEOUT,
+)
 
 # Graph size limits to prevent unbounded growth
-MAX_NODES = int(os.getenv("GRAPHRAG_MAX_NODES", "10000"))
+MAX_NODES = int(os.getenv("GRAPHRAG_MAX_NODES", str(DEFAULT_MAX_NODES)))
 MAX_EDGES = int(os.getenv("GRAPHRAG_MAX_EDGES", "50000"))
 MAX_ENTITY_LIMIT = int(os.getenv("GRAPHRAG_MAX_ENTITY_LIMIT", "5000"))
 
@@ -220,7 +232,7 @@ global_search:
   max_tokens: 8000
   data_max_tokens: 8000
   map_max_tokens: 500
-  reduce_max_tokens: 1000
+  reduce_max_tokens: REDUCE_MAX_TOKENS
   concurrency: 2
 """
 
@@ -299,12 +311,12 @@ def _stage_inputs(source_dir: Path, input_dir: Path) -> int:
     return staged
 
 
-def _run_cli(args: list[str], cwd: Path, timeout: int = 3600) -> dict:
+def _run_cli(args: list[str], cwd: Path, timeout: int = DEFAULT_CLI_TIMEOUT) -> dict:
     """Run graphrag CLI. Returns {returncode, stdout, stderr}."""
     return _graphrag_cb.call(_run_cli_impl, args, cwd, timeout)
 
 
-def _run_cli_impl(args: list[str], cwd: Path, timeout: int = 3600) -> dict:
+def _run_cli_impl(args: list[str], cwd: Path, timeout: int = DEFAULT_CLI_TIMEOUT) -> dict:
     """Internal implementation of graphrag CLI runner."""
     try:
         proc = subprocess.run(
@@ -392,7 +404,7 @@ def graphrag_index(ctx):
             "input_path": str(source),
         }
 
-    timeout = int(meta.get("timeout_sec") or 3600)
+    timeout = int(meta.get("timeout_sec") or DEFAULT_CLI_TIMEOUT)
     result = _run_cli(
         ["graphrag", "index", "--root", str(root)],
         cwd=root,
@@ -446,7 +458,7 @@ def graphrag_query(ctx):
     if not query.strip():
         return {"status": "failed", "error": "Empty query"}
 
-    timeout = int(meta.get("timeout_sec") or 600)
+    timeout = int(meta.get("timeout_sec") or DEFAULT_QUERY_TIMEOUT)
     result = _run_cli(
         ["graphrag", "query", "--root", str(root), "--method", method, "--query", query],
         cwd=root,

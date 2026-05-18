@@ -6,6 +6,14 @@ from typing import List, Optional
 
 from .exceptions import ValidationError, PathSecurityError
 
+# Constants
+MIN_GOAL_LENGTH = 3
+MAX_GOAL_LENGTH = 10000
+MAX_SKILLS = 20
+MAX_SKILL_NAME_LENGTH = 100
+DEFAULT_TIMEOUT_SECONDS = 5.0
+MIN_TIMEOUT_SECONDS = 0.1  # Minimum 100ms to prevent zero timeout
+MAX_TIMEOUT_SECONDS = 300  # 5 minutes
 
 def validate_goal(goal: str) -> str:
     """Validate goal input"""
@@ -16,11 +24,17 @@ def validate_goal(goal: str) -> str:
         raise ValidationError("Goal must be a string", field="goal")
     
     goal = goal.strip()
-    if len(goal) < 3:
-        raise ValidationError("Goal must be at least 3 characters long", field="goal")
-    
-    if len(goal) > 10000:
-        raise ValidationError("Goal cannot exceed 10,000 characters", field="goal")
+    if len(goal) < MIN_GOAL_LENGTH:
+        raise ValidationError(
+            f"Goal must be at least {MIN_GOAL_LENGTH} characters long",
+            field="goal"
+        )
+
+    if len(goal) > MAX_GOAL_LENGTH:
+        raise ValidationError(
+            f"Goal cannot exceed {MAX_GOAL_LENGTH} characters",
+            field="goal"
+        )
     
     # Check for potentially dangerous content
     dangerous_patterns = [
@@ -48,8 +62,11 @@ def validate_skills(skills: Optional[List[str]]) -> List[str]:
     if not isinstance(skills, list):
         raise ValidationError("Skills must be a list", field="skills")
     
-    if len(skills) > 20:
-        raise ValidationError("Cannot specify more than 20 skills", field="skills")
+    if len(skills) > MAX_SKILLS:
+        raise ValidationError(
+            f"Cannot specify more than {MAX_SKILLS} skills",
+            field="skills"
+        )
     
     validated_skills = []
     for skill in skills:
@@ -60,8 +77,11 @@ def validate_skills(skills: Optional[List[str]]) -> List[str]:
         if not skill:
             raise ValidationError("Skill names cannot be empty", field="skills")
         
-        if len(skill) > 100:
-            raise ValidationError("Skill name cannot exceed 100 characters", field="skills")
+        if len(skill) > MAX_SKILL_NAME_LENGTH:
+            raise ValidationError(
+                f"Skill name cannot exceed {MAX_SKILL_NAME_LENGTH} characters",
+                field="skills"
+            )
         
         # Validate skill name format (alphanumeric, underscores, hyphens)
         if not re.match(r'^[a-zA-Z0-9_-]+$', skill):
@@ -198,15 +218,21 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
 def validate_timeout(timeout_seconds: Optional[float]) -> float:
     """Validate timeout value"""
     if timeout_seconds is None:
-        return 5.0  # Default timeout
+        return DEFAULT_TIMEOUT_SECONDS  # Default timeout
     
     if not isinstance(timeout_seconds, (int, float)):
         raise ValidationError("Timeout must be a number", field="timeout_seconds")
     
-    if timeout_seconds <= 0:
-        raise ValidationError("Timeout must be positive", field="timeout_seconds")
-    
-    if timeout_seconds > 300:  # 5 minutes max
-        raise ValidationError("Timeout cannot exceed 300 seconds", field="timeout_seconds")
+    if timeout_seconds < MIN_TIMEOUT_SECONDS:
+        raise ValidationError(
+            f"Timeout must be at least {MIN_TIMEOUT_SECONDS} seconds",
+            field="timeout_seconds"
+        )
+
+    if timeout_seconds > MAX_TIMEOUT_SECONDS:
+        raise ValidationError(
+            f"Timeout cannot exceed {MAX_TIMEOUT_SECONDS} seconds",
+            field="timeout_seconds"
+        )
     
     return float(timeout_seconds)

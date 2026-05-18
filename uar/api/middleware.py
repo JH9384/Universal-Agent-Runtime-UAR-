@@ -13,21 +13,27 @@ import logging
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from uar.api.security import get_security_manager
 from uar.api.metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
+
+# Constants
+DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
+DEFAULT_CLEANUP_THRESHOLD = 1024  # number of entries
+DEFAULT_CLEANUP_INTERVAL = 100  # number of requests between cleanups
+DEFAULT_MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024  # 10MB
+DEFAULT_MAX_ENTRIES = 10000  # maximum total entries to prevent unbounded growth
 
 def _load_rate_limits() -> Dict[str, Dict[str, int]]:
     """Load rate limits from environment variables with safe defaults"""
     return {
         "default": {
             "requests": int(os.getenv("RATE_LIMIT_ANONYMOUS", "10")),
-            "window": int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+            "window": int(os.getenv("RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW)))
         },
         "authenticated": {
             "requests": int(os.getenv("RATE_LIMIT_AUTHENTICATED", "100")),
-            "window": int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+            "window": int(os.getenv("RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW)))
         },
     }
 
@@ -37,12 +43,18 @@ RATE_LIMITS = _load_rate_limits()
 
 # Thread-safe in-memory rate limiter (for production, use Redis)
 class RateLimiter:
-    def __init__(self, cleanup_threshold: int = 1024, cleanup_interval: int = 100):
+    def __init__(
+        self,
+        cleanup_threshold: int = DEFAULT_CLEANUP_THRESHOLD,
+        cleanup_interval: int = DEFAULT_CLEANUP_INTERVAL,
+        max_entries: int = DEFAULT_MAX_ENTRIES,
+    ):
         self.requests: Dict[str, deque] = defaultdict(deque)
         self._lock = threading.Lock()
         self._request_count = 0
         self._cleanup_threshold = cleanup_threshold
         self._cleanup_interval = cleanup_interval
+        self._max_entries = max_entries
     
     def is_allowed(self, key: str, limit: int, window: int) -> bool:
         now = time.time()
@@ -62,9 +74,15 @@ class RateLimiter:
 
             # Periodic cleanup: only check every N requests to avoid overhead
             # and use double-check pattern to avoid race conditions
-            if (self._request_count % self._cleanup_interval == 0 and 
+            if (self._request_count % self._cleanup_interval == 0 and
                 len(self.requests) > self._cleanup_threshold):
                 self._evict_empty_unlocked()
+
+            # Enforce maximum entry cap to prevent unbounded growth
+            # If we exceed max_entries, evict oldest entries by key count
+            if len(self.requests) > self._max_entries:
+                self._enforce_max_entries_unlocked()
+
             return True
 
     def _evict_empty_unlocked(self) -> int:
@@ -76,6 +94,26 @@ class RateLimiter:
                 self.requests.pop(k, None)  # Use pop with default to avoid KeyError
                 removed += 1
         return removed
+
+    def _enforce_max_entries_unlocked(self) -> None:
+        """Enforce maximum entry cap to prevent unbounded memory growth.
+
+        Must be called while holding lock. Evicts oldest entries by
+        removing keys with the oldest request timestamps.
+        """
+        # Sort keys by oldest request timestamp (first element in deque)
+        sorted_keys = sorted(
+            self.requests.keys(),
+            key=lambda k: (
+                self.requests[k][0] if len(self.requests[k]) > 0
+                else float('inf')
+            )
+        )
+
+        # Remove oldest entries until we're under the cap
+        to_remove = len(self.requests) - self._max_entries
+        for k in sorted_keys[:to_remove]:
+            self.requests.pop(k, None)
 
     def evict_empty(self) -> int:
         """Drop keys whose window is empty to bound memory over time."""
@@ -135,13 +173,19 @@ def get_rate_limit_for_tier(tier: str) -> tuple[int, int]:
 def rate_limit_middleware(request: Request, credentials: Optional[HTTPAuthorizationCredentials]):
     """Rate limiting middleware"""
     rate_limit_key = get_rate_limit_key(request, credentials)
-    
+
     tier = "authenticated"
     if not credentials or credentials.credentials not in API_KEYS:
         tier = "default"
-    
+
     limit, window = get_rate_limit_for_tier(tier)
-    
+
+    # Store rate limit info in request state for later use in response headers
+    request.state.rate_limit_tier = tier
+    request.state.rate_limit_key = rate_limit_key
+    request.state.rate_limit = limit
+    request.state.rate_limit_window = window
+
     if not rate_limiter.is_allowed(rate_limit_key, limit, window):
         logger.warning(f"Rate limit exceeded for {rate_limit_key}")
         raise HTTPException(
@@ -240,7 +284,9 @@ def apply_middleware(app):
     )
     
     # Request body size limiter
-    max_body_size = int(os.getenv("MAX_REQUEST_BODY_BYTES", "10485760"))  # 10MB default
+    max_body_size = int(
+        os.getenv("MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_REQUEST_BODY_BYTES))
+    )  # 10MB default
 
     @app.middleware("http")
     async def limit_request_body(request: Request, call_next):
@@ -301,15 +347,20 @@ def apply_middleware(app):
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Correlation-ID"] = correlation_id
 
-        # Add rate limit headers if available from rate limiter
-        rate_limit_key = get_rate_limit_key(request, None)
-        with rate_limiter._lock:
-            requests_made = len(rate_limiter.requests[rate_limit_key])
-            window = RATE_LIMITS["default"]["window"]
-            limit = RATE_LIMITS["default"]["requests"]
-            remaining = max(0, limit - requests_made)
-            response.headers["X-RateLimit-Limit"] = str(limit)
-            response.headers["X-RateLimit-Remaining"] = str(remaining)
-            response.headers["X-RateLimit-Window"] = str(window)
+        # Add rate limit headers using stored state from
+        # rate_limit_middleware to avoid race condition
+        if (hasattr(request.state, 'rate_limit_key') and
+            hasattr(request.state, 'rate_limit') and
+            hasattr(request.state, 'rate_limit_window')):
+            with rate_limiter._lock:
+                requests_made = len(
+                    rate_limiter.requests[request.state.rate_limit_key]
+                )
+                limit = request.state.rate_limit
+                window = request.state.rate_limit_window
+                remaining = max(0, limit - requests_made)
+                response.headers["X-RateLimit-Limit"] = str(limit)
+                response.headers["X-RateLimit-Remaining"] = str(remaining)
+                response.headers["X-RateLimit-Window"] = str(window)
 
         return response

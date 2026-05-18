@@ -4,20 +4,20 @@ from .exceptions import SkillNotFoundError, ValidationError
 
 
 class SkillRegistry:
-    def __init__(self):
+    def __init__(self) -> None:
         self._skills: Dict[str, Callable] = {}
 
-    def register(self, name: str, fn: Callable):
+    def register(self, name: str, fn: Callable) -> None:
         """Register a skill with validation"""
         if not name or not isinstance(name, str):
             raise ValidationError("Skill name must be a non-empty string", field="name")
-        
+
         if not callable(fn):
             raise ValidationError("Skill function must be callable", field="function")
-        
+
         if name in self._skills:
             raise ValidationError(f"Skill '{name}' is already registered", field="name")
-        
+
         self._skills[name] = fn
 
     def get(self, name: str) -> Callable:
@@ -29,7 +29,7 @@ class SkillRegistry:
     def list(self) -> List[str]:
         """List all registered skills"""
         return list(self._skills.keys())
-    
+
     def is_registered(self, name: str) -> bool:
         """Check if a skill is registered"""
         return name in self._skills
@@ -38,8 +38,8 @@ class SkillRegistry:
 registry = SkillRegistry()
 
 
-def register_skill(name: str):
-    def decorator(fn: Callable):
+def register_skill(name: str) -> Callable[[Callable], Callable]:
+    def decorator(fn: Callable) -> Callable:
         registry.register(name, fn)
         return fn
 

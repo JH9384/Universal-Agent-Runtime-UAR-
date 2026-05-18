@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import ReactFlow, { Background } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { SkillGuide } from './SkillGuide'
 
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
@@ -12,6 +13,7 @@ const AVAILABLE_SKILLS = [
   { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize document sections' },
   { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of pipeline outputs' },
   { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
+  { id: 'graphrag_init',   label: 'graphrag_init',   desc: 'Initialize GraphRAG workspace (one-time setup)' },
   { id: 'graphrag_index',  label: 'graphrag_index',  desc: 'Build a GraphRAG knowledge graph over input_path (slow; one-time)' },
   { id: 'graphrag_query',  label: 'graphrag_query',  desc: 'Query the GraphRAG index. Metadata: graphrag_method=local|global' },
   { id: 'autonomi_upload',   label: 'autonomi_upload',   desc: 'Upload file/dir to Autonomi decentralized storage (requires autonomi package + wallet)' },
@@ -275,6 +277,9 @@ export function UARPanel() {
   const [isRunning, setIsRunning] = useState(false)
   const [error, setError] = useState<UARError | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [skillGuideOpen, setSkillGuideOpen] = useState(false)
+  const [currentSkill, setCurrentSkill] = useState<string>('')
+  const [startTime, setStartTime] = useState<number>(0)
   // Advanced overrides
   const [graphragMethod, setGraphragMethod] = useState<'local' | 'global'>('local')
   const [ollamaModel, setOllamaModel] = useState<string>('')
@@ -306,6 +311,8 @@ export function UARPanel() {
       abortControllerRef.current = null
     }
     setIsRunning(false)
+    setCurrentSkill('')
+    setStartTime(0)
   }, [])
 
   useEffect(() => cleanup, [cleanup])
@@ -462,6 +469,8 @@ export function UARPanel() {
     if (Object.keys(meta).length) body.metadata = meta
 
     try {
+      setCurrentSkill(selectedSkills[0] || 'Starting')
+      setStartTime(Date.now())
       const res = await fetch('/api/uar/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -500,6 +509,8 @@ export function UARPanel() {
                 const next = prev.length >= MAX_EVENTS ? prev.slice(1) : prev
                 return [...next, json]
               })
+              if (json.type === 'skill_start' && json.skill) setCurrentSkill(json.skill)
+              if (json.type === 'skill_complete' && json.skill) setCurrentSkill(`Completed: ${json.skill}`)
               if (json.type === 'orchestration_plan' && json.payload?.graph) setGraph(json.payload.graph)
               if (json.run?.final_context?.dependency_map) setGraph(json.run.final_context.dependency_map)
               if (json.type === 'error' && json.error) setError({ message: json.error, timestamp: Date.now() })
@@ -587,6 +598,13 @@ export function UARPanel() {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
         <h3 style={{ margin: 0 }}>UAR Live System</h3>
         <span style={{ fontSize: 11, color: '#888', fontFamily: 'monospace' }}>{projectRoot}</span>
+        <button
+          onClick={() => setSkillGuideOpen(true)}
+          style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+          title="View skill documentation"
+        >
+          📘 Skill Guide
+        </button>
       </div>
 
       {error && (
@@ -866,9 +884,22 @@ export function UARPanel() {
           {isRunning ? '⏳ Running…' : '▶ Run Stream'}
         </button>
         {isRunning && (
-          <button onClick={stopStream} style={{ padding: '10px 16px', marginRight: 10, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 4 }}>
-            ■ Stop
+          <button
+            onClick={stopStream}
+            style={{
+              padding: '10px 20px', fontSize: 14, fontWeight: 600,
+              background: '#dc3545', color: '#fff',
+              border: 'none', borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          >
+            ⏹ Stop
           </button>
+        )}
+        {isRunning && (
+          <span style={{ marginLeft: 16, fontSize: 13, color: '#666' }}>
+            {currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s
+          </span>
         )}
         <button onClick={clearEvents} style={{ padding: '10px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4 }}>
           Clear Events
@@ -932,6 +963,46 @@ export function UARPanel() {
           <Background />
         </ReactFlow>
       </div>
+
+      {skillGuideOpen && (
+        <div
+          onClick={() => setSkillGuideOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
+          <div
+            onClick={(e: any) => e.stopPropagation()}
+            style={{
+              width: 'min(700px, 90vw)',
+              maxHeight: '85vh',
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{ padding: 16, borderBottom: '1px solid #dee2e6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h4 style={{ margin: 0 }}>📘 Skill Guide</h4>
+              <button
+                onClick={() => setSkillGuideOpen(false)}
+                style={{ padding: '4px 10px', border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ maxHeight: 'calc(85vh - 60px)', overflow: 'auto' }}>
+              <SkillGuide />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

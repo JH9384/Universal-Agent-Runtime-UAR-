@@ -21,36 +21,52 @@ Think of it like:
 
 ---
 
-## Step 1 — Install basics
+## Choose Your Setup Path
 
-You need:
+Pick the setup that matches your needs:
 
-- Python (3.10+)
-- Node (for UI, optional)
-- Ollama (for local AI)
+### 🚀 Quick Start (5 minutes)
+**Best for**: Try it out, minimal features
+- Python 3.10+ only
+- No external dependencies
+- Core skills only (no AI, no GraphRAG)
 
-Install Ollama:
-https://ollama.com
+### ⚡ Standard Setup (10 minutes)
+**Best for**: Full experience, local AI
+- Python 3.10+
+- Ollama (for AI features)
+- All core skills + AI generation
 
-Then run:
-
-```bash
-ollama pull llama3.2:3b
-```
-
----
-
-## Step 2 — Start Ollama
-
-```bash
-ollama serve
-```
-
-Leave this running.
+### 🎯 Full Setup (15 minutes)
+**Best for**: Complete feature set
+- Python 3.10+
+- Node.js 18+ (for web UI)
+- Ollama (for AI)
+- All 14 skills + web interface
 
 ---
 
-## Step 3 — Start UAR
+## 🚀 Quick Start (Minimal)
+
+### Step 1 — Install Python
+
+You need Python 3.10 or newer.
+
+Check your version:
+
+```bash
+python --version
+```
+
+### Step 2 — Setup Configuration
+
+Copy the minimal configuration:
+
+```bash
+cp .env.minimal .env
+```
+
+### Step 3 — Start UAR
 
 From the project folder:
 
@@ -64,11 +80,67 @@ You should see a server start on:
 http://127.0.0.1:8000
 ```
 
----
-
-## Step 4 — Run your first task
+### Step 4 — Run Your First Task
 
 Open a new terminal and run:
+
+```bash
+curl http://localhost:8000/api/uar/run \
+  -H "Content-Type: application/json" \
+  -d '{"goal":"Summarize this project","skills":["doc_ingest","section_sum"]}'
+```
+
+**What just happened:**
+- You gave the system a goal
+- It used skills to read files and summarize
+- It returned a response
+
+That's it! You're running UAR with minimal setup.
+
+---
+
+## ⚡ Standard Setup (with Ollama AI)
+
+### Step 1 — Install Ollama
+
+Download from: https://ollama.com
+
+Then pull a model:
+
+```bash
+ollama pull llama3.2:3b
+```
+
+### Step 2 — Start Ollama
+
+```bash
+ollama serve
+```
+
+Leave this running.
+
+### Step 3 — Setup Configuration
+
+Copy the minimal configuration:
+
+```bash
+cp .env.minimal .env
+```
+
+Add Ollama settings to `.env`:
+
+```bash
+echo "OLLAMA_HOST=http://127.0.0.1:11434" >> .env
+echo "OLLAMA_MODEL=llama3.2:3b" >> .env
+```
+
+### Step 4 — Start UAR
+
+```bash
+make up
+```
+
+### Step 5 — Run AI-Powered Task
 
 ```bash
 curl http://localhost:8000/api/uar/run \
@@ -76,49 +148,82 @@ curl http://localhost:8000/api/uar/run \
   -d '{"goal":"Explain gravity simply","skills":["ollama_generate"]}'
 ```
 
----
-
-## What just happened
-
+**What just happened:**
 - You gave the system a goal
-- It used a skill (ollama_generate)
-- It called your local AI (Ollama)
-- It returned a response
+- It used Ollama to generate an AI response
+- It returned the answer
 
 ---
 
-## Step 5 — (Optional) UI
+## 🎯 Full Setup (with Web UI)
+
+### Step 1 — Install Node.js
+
+You need Node.js 18+ for the web interface.
+
+Check: `node --version`
+
+### Step 2 — Install Ollama (for AI)
+
+Download from: https://ollama.com
+
+```bash
+ollama pull llama3.2:3b
+ollama serve
+```
+
+### Step 3 — Setup Configuration
+
+```bash
+cp .env.minimal .env
+echo "OLLAMA_HOST=http://127.0.0.1:11434" >> .env
+echo "OLLAMA_MODEL=llama3.2:3b" >> .env
+```
+
+### Step 4 — Start Everything
 
 ```bash
 make up-full
 ```
 
-Open browser:
+This starts both the API server and web UI.
 
+### Step 5 — Open Web Interface
+
+Open your browser to:
+
+```text
 http://localhost:5173
+```
+
+You'll see:
+- File picker for documents
+- Skill selector with 14 skills
+- Pre-configured recipes
+- Real-time event streaming
 
 ---
 
-## Mental model
+## Mental Model
 
-You don’t need to understand the code.
+You don't need to understand the code.
 
 Just know:
 
-- Goal → what you want
-- Skills → how it does it
-- Output → result
+- **Goal** → what you want
+- **Skills** → how it does it
+- **Output** → result
 
 ---
 
-## Common issues
+## Common Issues
 
 ### Nothing happens
 
-Check:
+Check the server is running:
 
 ```bash
-ollama serve
+curl http://localhost:8000/api/health
 ```
 
 ### Error about model
@@ -129,10 +234,32 @@ Run:
 ollama pull llama3.2:3b
 ```
 
+### Configuration errors
+
+Validate your setup:
+
+```bash
+python scripts/validate_config.py
+```
+
+This will check your `.env` file and provide helpful guidance.
+
+### Want more features?
+
+See `.env.example` for all optional features:
+- GraphRAG (knowledge graphs)
+- Autonomi (decentralized storage)
+- ALM (formal language analysis)
+
 ---
 
-## That’s it
+## That's It
 
-If you can run one goal successfully, you’re onboarded.
+If you can run one goal successfully, you're onboarded.
 
 Everything else is just expansion.
+
+**Next steps:**
+- Try different skills
+- Explore the web UI recipes
+- Add optional features from `.env.example`

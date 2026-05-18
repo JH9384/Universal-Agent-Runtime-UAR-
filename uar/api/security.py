@@ -3,6 +3,7 @@ Security utilities for UAR API.
 """
 import os
 import logging
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -10,14 +11,14 @@ logger = logging.getLogger(__name__)
 class SecurityManager:
     """Manages security configuration and validation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.secret_key = os.getenv("SECRET_KEY")
         self.api_keys = self._load_api_keys()
 
-    def _load_api_keys(self) -> dict:
+    def _load_api_keys(self) -> Dict[str, Dict[str, str]]:
         """Load API keys from environment variable."""
         api_keys_str = os.getenv("API_KEYS", "")
-        keys = {}
+        keys: Dict[str, Dict[str, str]] = {}
         if api_keys_str:
             for key_part in api_keys_str.split(","):
                 parts = key_part.split(":")
@@ -28,7 +29,7 @@ class SecurityManager:
                     keys[key_id] = {"user": user, "tier": tier}
         return keys
 
-    def validate_api_key(self, key: str) -> dict:
+    def validate_api_key(self, key: str) -> Optional[Dict[str, str]]:
         """Validate an API key and return user info."""
         if key in self.api_keys:
             return self.api_keys[key]
@@ -40,7 +41,7 @@ class SecurityManager:
 
 
 # Global security manager instance
-_security_manager = None
+_security_manager: Optional[SecurityManager] = None
 
 
 def get_security_manager() -> SecurityManager:

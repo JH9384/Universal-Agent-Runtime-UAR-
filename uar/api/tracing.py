@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def init_tracing() -> None:
         _enabled = False
 
 
-def get_tracer():
+def get_tracer() -> Optional[Any]:
     """Get the OpenTelemetry tracer instance."""
     if _tracer is None:
         init_tracing()
@@ -68,20 +68,20 @@ def is_enabled() -> bool:
     return _enabled
 
 
-def trace_span(name: str, attributes: Optional[dict] = None):
+def trace_span(name: str, attributes: Optional[dict] = None) -> Any:
     """Context manager for tracing a span.
-    
+
     Usage:
         with trace_span("skill_execution", {"skill": "doc_ingest"}):
             # code to trace
     """
     if not _enabled:
         return NoOpSpan()
-    
+
     tracer = get_tracer()
     if tracer is None:
         return NoOpSpan()
-    
+
     return tracer.start_as_current_span(name, attributes=attributes or {})
 
 

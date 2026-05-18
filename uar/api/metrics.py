@@ -17,14 +17,14 @@ class RequestMetrics:
 class MetricsCollector:
     """Collects and aggregates request metrics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         self._endpoint_metrics: Dict[str, RequestMetrics] = defaultdict(RequestMetrics)
         self._total_requests = 0
         self._total_errors = 0
         self._start_time = time.time()
 
-    def record_request(self, endpoint: str, duration: float, error: bool = False):
+    def record_request(self, endpoint: str, duration: float, error: bool = False) -> None:
         """Record a request metric."""
         with self._lock:
             self._total_requests += 1

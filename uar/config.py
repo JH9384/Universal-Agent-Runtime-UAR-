@@ -1,12 +1,28 @@
 """Production configuration management for UAR"""
 
 import os
+import secrets
 import sys
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 import logging
 import logging.config
 
+# Constants
+DEFAULT_API_PORT = 8000
+DEFAULT_API_WORKERS = 1
+DEFAULT_RATE_LIMIT_ANONYMOUS = 10
+DEFAULT_RATE_LIMIT_AUTHENTICATED = 100
+DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
+DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+DEFAULT_MAX_FILES = 1000
+DEFAULT_OLLAMA_TIMEOUT = 60  # seconds
+DEFAULT_AUTONOMI_TIMEOUT = 300  # seconds (5 minutes)
+DEFAULT_METRICS_PORT = 9090
+SECRET_KEY_LENGTH = 32
+MAX_PORT_NUMBER = 65535
+MIN_PYTHON_MAJOR = 3
+MIN_PYTHON_MINOR = 10
 
 class Config:
     """Centralized configuration management"""
@@ -18,8 +34,8 @@ class Config:
         """Load configuration from environment variables"""
         # API Configuration
         self.api_host = os.getenv("API_HOST", "127.0.0.1")
-        self.api_port = int(os.getenv("API_PORT", "8000"))
-        self.api_workers = int(os.getenv("API_WORKERS", "1"))
+        self.api_port = int(os.getenv("API_PORT", str(DEFAULT_API_PORT)))
+        self.api_workers = int(os.getenv("API_WORKERS", str(DEFAULT_API_WORKERS)))
         
         # Security Configuration
         self.secret_key = os.getenv("SECRET_KEY", self._generate_secret_key())
@@ -28,24 +44,30 @@ class Config:
         
         # Rate Limiting
         self.rate_limit_enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
-        self.rate_limit_anonymous = int(os.getenv("RATE_LIMIT_ANONYMOUS", "10"))
-        self.rate_limit_authenticated = int(os.getenv("RATE_LIMIT_AUTHENTICATED", "100"))
-        self.rate_limit_window = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+        self.rate_limit_anonymous = int(
+            os.getenv("RATE_LIMIT_ANONYMOUS", str(DEFAULT_RATE_LIMIT_ANONYMOUS))
+        )
+        self.rate_limit_authenticated = int(
+            os.getenv("RATE_LIMIT_AUTHENTICATED", str(DEFAULT_RATE_LIMIT_AUTHENTICATED))
+        )
+        self.rate_limit_window = int(
+            os.getenv("RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW))
+        )
         
         # File Storage
         self.runs_dir = Path(os.getenv("RUNS_DIR", "runs"))
-        self.max_file_size = int(os.getenv("MAX_FILE_SIZE", str(10 * 1024 * 1024)))  # 10MB
-        self.max_files = int(os.getenv("MAX_FILES", "1000"))
+        self.max_file_size = int(os.getenv("MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE)))  # 10MB
+        self.max_files = int(os.getenv("MAX_FILES", str(DEFAULT_MAX_FILES)))
         
         # Ollama Configuration
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-        self.ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
-        
+        self.ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", str(DEFAULT_OLLAMA_TIMEOUT)))
+
         # Production Settings
         self.cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
-        self.max_request_size = int(os.getenv("MAX_REQUEST_SIZE", str(10 * 1024 * 1024)))  # 10MB
-        self.max_request_body_bytes = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(10 * 1024 * 1024)))  # 10MB
+        self.max_request_size = int(os.getenv("MAX_REQUEST_SIZE", str(DEFAULT_MAX_FILE_SIZE)))  # 10MB
+        self.max_request_body_bytes = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_FILE_SIZE)))  # 10MB
 
         # Library and storage paths
         project_root = Path(__file__).parent.parent.parent
@@ -55,22 +77,30 @@ class Config:
         # Autonomi Network Configuration
         self.autonomi_private_key = os.getenv("AUTONOMI_PRIVATE_KEY")
         self.autonomi_network = os.getenv("AUTONOMI_NETWORK", "testnet")
-        self.autonomi_timeout_sec = int(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))
+        self.autonomi_timeout_sec = int(
+            os.getenv("AUTONOMI_TIMEOUT_SEC", str(DEFAULT_AUTONOMI_TIMEOUT))
+        )
 
-        # Monitoring
-        self.enable_metrics = os.getenv("ENABLE_METRICS", "false").lower() == "true"
-        self.metrics_port = int(os.getenv("METRICS_PORT", "9090"))
-    
+        # Metrics Configuration
+        # Support both new METRICS_ENABLED and legacy ENABLE_METRICS
+        # for backward compatibility. Treat empty string as unset.
+        metrics_env = os.getenv("METRICS_ENABLED") or os.getenv(
+            "ENABLE_METRICS", "true"
+        )
+        self.metrics_enabled = metrics_env.lower() == "true"
+        self.metrics_port = int(
+            os.getenv("METRICS_PORT", str(DEFAULT_METRICS_PORT))
+        )
+
     def _generate_secret_key(self) -> str:
         """Generate a secret key for development - always generates a new key."""
-        import secrets
-        return secrets.token_urlsafe(32)
-    
+        return secrets.token_urlsafe(SECRET_KEY_LENGTH)
+
     @property
     def is_production(self) -> bool:
         """Check if running in production mode"""
         return not self.debug and os.getenv("ENVIRONMENT") == "production"
-    
+
     # Known placeholder values shipped in templates / docs that must never
     # be accepted in production.
     _PLACEHOLDER_SECRETS = {
@@ -96,7 +126,7 @@ class Config:
         """Validate configuration and return any issues"""
         issues = []
         
-        if self.api_port < 1 or self.api_port > 65535:
+        if self.api_port < 1 or self.api_port > MAX_PORT_NUMBER:
             issues.append(f"Invalid API port: {self.api_port}")
         
         if self.rate_limit_anonymous <= 0 or self.rate_limit_authenticated <= 0:
@@ -172,8 +202,11 @@ def validate_environment() -> list[str]:
     issues = []
     
     # Check Python version
-    if sys.version_info < (3, 10):
-        issues.append(f"Python 3.10+ required, found {sys.version_info.major}.{sys.version_info.minor}")
+    if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):
+        issues.append(
+            f"Python {MIN_PYTHON_MAJOR}.{MIN_PYTHON_MINOR}+ required, "
+            f"found {sys.version_info.major}.{sys.version_info.minor}"
+        )
     
     # Check required directories are writable
     test_dirs = [

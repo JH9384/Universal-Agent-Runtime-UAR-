@@ -9,6 +9,14 @@ from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
 
+# Constants
+# File size and count limits to prevent resource exhaustion
+FILE_SIZE_LIMIT_MB = 10
+MAX_FILE_SIZE = FILE_SIZE_LIMIT_MB * 1024 * 1024  # 10MB per file
+MAX_FILES = 1000  # maximum number of files to process
+TOTAL_SIZE_LIMIT_MB = 100
+MAX_TOTAL_SIZE = TOTAL_SIZE_LIMIT_MB * 1024 * 1024  # 100MB total limit to prevent memory exhaustion
+
 # Resolve allowed root from environment or use current working directory
 # In production, set PROJECT_ROOT env var to ensure consistent path resolution
 _allowed_root_env = os.getenv("PROJECT_ROOT") or os.getenv("RUNS_DIR")
@@ -59,9 +67,6 @@ ALLOWED_EXTENSIONS = {
 # Still NOT supported (would need extra deps):
 # .mat .nb (Mathematica) .fits .h5 .hdf5 .nc .npz .npy
 # .doc (legacy Word) .xls (legacy Excel) .pptx (python-pptx)
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-MAX_FILES = 1000
-MAX_TOTAL_SIZE = 100 * 1024 * 1024  # 100MB total limit to prevent memory exhaustion
 
 
 def _extract_pdf(file_path: Path) -> str:
