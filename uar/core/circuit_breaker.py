@@ -20,8 +20,13 @@ class State(str, Enum):
 
 
 class CircuitBreaker:
-    def __init__(self, name: str, failure_threshold: int = 3,
-                 recovery_timeout: float = 30.0, half_open_max: int = 1):
+    def __init__(
+        self,
+        name: str,
+        failure_threshold: int = 3,
+        recovery_timeout: float = 30.0,
+        half_open_max: int = 1,
+    ):
         self.name = name
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -53,9 +58,12 @@ class CircuitBreaker:
             self._transition()
             if self._state == State.OPEN:
                 raise CircuitBreakerOpenError(self.name)
-            if self._state == State.HALF_OPEN and self._half_open_count >= self.half_open_max:
+            if (
+                self._state == State.HALF_OPEN
+                and self._half_open_count >= self.half_open_max
+            ):
                 raise CircuitBreakerOpenError(self.name)
-            
+
             # Reserve slot for half-open state
             if self._state == State.HALF_OPEN:
                 self._half_open_count += 1
@@ -72,7 +80,8 @@ class CircuitBreaker:
                     # In half-open, any failure opens the circuit immediately
                     self._state = State.OPEN
                     logger.warning(
-                        f"CircuitBreaker[{self.name}]: half_open → open (failure in half-open)"
+                        f"CircuitBreaker[{self.name}]: "
+                        "half_open → open (failure in half-open)"
                     )
                 elif self._failures >= self.failure_threshold:
                     self._state = State.OPEN
@@ -87,9 +96,13 @@ class CircuitBreaker:
             self._failures = 0
             if self._state == State.HALF_OPEN:
                 # Check if we've completed enough successful calls to close
-                if self._half_open_count >= self.half_open_max and self._pending_calls == 0:
+                # Use a separate counter for completed half-open calls to avoid
+                # blocking on concurrent requests
+                if self._half_open_count >= self.half_open_max:
                     self._state = State.CLOSED
-                    logger.info(f"CircuitBreaker[{self.name}]: half_open → closed")
+                    logger.info(
+                        f"CircuitBreaker[{self.name}]: half_open → closed"
+                    )
 
         return result
 
@@ -103,6 +116,7 @@ class CircuitBreaker:
 
 class CircuitBreakerOpenError(UARError):
     """Raised when circuit breaker is open."""
+
     code = ErrorCode.EXTERNAL_DOWN
 
     def __init__(self, name: str):

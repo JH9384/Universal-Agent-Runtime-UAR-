@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: universal-agent-runtime
-Version: 0.1.0
+Version: 1.0.0
 Summary: Universal Agnostic Runtime for modular goal-driven agent execution.
 Requires-Python: >=3.10
 Requires-Dist: fastapi<1.0,>=0.110
@@ -15,6 +15,7 @@ Requires-Dist: pandas>=2.0
 Requires-Dist: pyarrow>=14.0
 Requires-Dist: python-multipart>=0.0.9
 Requires-Dist: graphrag>=1.0
+Requires-Dist: rfc8785>=0.1.0
 Provides-Extra: dev
 Requires-Dist: pytest<9.0,>=8.0; extra == "dev"
 Requires-Dist: httpx<1.0,>=0.27; extra == "dev"
@@ -22,3 +23,6 @@ Requires-Dist: pytest-asyncio<1.0,>=0.23; extra == "dev"
 Requires-Dist: pytest-cov<5.0,>=4.0; extra == "dev"
 Requires-Dist: ruff<1.0,>=0.1; extra == "dev"
 Requires-Dist: mypy<2.0,>=1.0; extra == "dev"
+Requires-Dist: types-requests<3.0,>=2.31; extra == "dev"
+Provides-Extra: autonomi
+Requires-Dist: autonomi>=0.3; extra == "autonomi"

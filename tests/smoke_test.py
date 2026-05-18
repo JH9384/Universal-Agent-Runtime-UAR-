@@ -10,8 +10,12 @@ def main():
 
     base = "http://localhost:8000"
 
-    obj1 = requests.post(f"{base}/objects", json={"content": 10}).json()["digest"]
-    obj2 = requests.post(f"{base}/objects", json={"content": 20}).json()["digest"]
+    obj1 = requests.post(f"{base}/objects", json={"content": 10}).json()[
+        "digest"
+    ]
+    obj2 = requests.post(f"{base}/objects", json={"content": 20}).json()[
+        "digest"
+    ]
 
     workflow = {
         "name": "smoke",

@@ -48,6 +48,7 @@ class TestRunWithTimeout:
 
     def test_successful_execution(self):
         """Function that completes successfully returns result"""
+
         def successful_fn(ctx):
             return "success"
 
@@ -58,6 +59,7 @@ class TestRunWithTimeout:
 
     def test_timeout_raises_error(self):
         """Function that times out raises TimeoutError"""
+
         def slow_fn(ctx):
             time.sleep(2.0)
             return "should not reach here"
@@ -69,6 +71,7 @@ class TestRunWithTimeout:
 
     def test_exception_propagates(self):
         """Function that raises exception propagates the exception"""
+
         def failing_fn(ctx):
             raise ValueError("test error")
 
@@ -127,7 +130,9 @@ class TestExecutor:
         )
 
         executor = Executor()
-        events = list(executor.iter_events(strategy, goal, timeout_seconds=1.0))
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
 
         assert len(events) >= 2
         assert events[0]["type"] == "start"

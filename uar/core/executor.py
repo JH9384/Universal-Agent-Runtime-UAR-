@@ -23,26 +23,67 @@ SKILL_RETRY_POLICIES = {
 
 def get_max_retries(skill_name: str) -> int:
     """Get max retries for a skill, with default fallback."""
-    return SKILL_RETRY_POLICIES.get(skill_name, SKILL_RETRY_POLICIES["default"])
+    return SKILL_RETRY_POLICIES.get(
+        skill_name, SKILL_RETRY_POLICIES["default"]
+    )
 
 
 def _run_with_timeout(fn, ctx, timeout_seconds):
-    """Run a function with timeout using thread pool with proper cleanup."""
+    """Run a function with timeout using thread pool with proper cleanup.
+
+    Note: Thread cancellation in Python is cooperative - future.cancel()
+    signals the thread to cancel but doesn't guarantee immediate
+    termination. Skills should periodically check for cancellation if
+    they support it.
+
+    IMPORTANT: Due to Python's threading model, cancelled threads may
+    continue running in the background for a short time. The brief
+    wait after cancel() allows the thread to clean up, but doesn't
+    guarantee immediate termination. For true isolation, consider
+    using multiprocessing instead of threading for long-running skills.
+    """
+    # Validate timeout to prevent negative or zero values
+    timeout_seconds = max(0.1, timeout_seconds)
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(fn, ctx)
         try:
             return future.result(timeout=timeout_seconds)
         except concurrent.futures.TimeoutError as exc:
-            # Cancel the future if possible
+            # Cancel the future - this signals cancellation but doesn't
+            # guarantee the thread stops immediately (Python limitation)
             future.cancel()
+            # Wait briefly for the thread to clean up
+            try:
+                future.result(timeout=0.1)
+            except (
+                concurrent.futures.TimeoutError,
+                concurrent.futures.CancelledError,
+            ):
+                pass
             raise TimeoutError(timeout_seconds) from exc
         except Exception:
             # Ensure future is cancelled on any exception
             future.cancel()
+            try:
+                future.result(timeout=0.1)
+            except (
+                concurrent.futures.TimeoutError,
+                concurrent.futures.CancelledError,
+            ):
+                pass
             raise
 
 
-def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None, error=None, correlation_id: str = ""):
+def _event(
+    event_type: str,
+    run_id: str,
+    goal_id: str,
+    skill=None,
+    payload=None,
+    error=None,
+    correlation_id: str = "",
+):
     return {
         "schema_version": "uar.event.v1",
         "type": event_type,
@@ -57,14 +98,22 @@ def _event(event_type: str, run_id: str, goal_id: str, skill=None, payload=None,
 
 
 class Executor:
-    def iter_events(self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0, correlation_id: str = "") -> Iterator[dict]:
+    def iter_events(
+        self,
+        strategy: StrategySpec,
+        goal,
+        timeout_seconds: float = 5.0,
+        correlation_id: str = "",
+    ) -> Iterator[dict]:
         """Execute strategy and yield events with proper error handling"""
         # Validate inputs
         timeout_seconds = validate_timeout(timeout_seconds)
-        
+
         if not strategy.ordered_skills:
-            raise ValidationError("At least one skill must be specified", field="skills")
-        
+            raise ValidationError(
+                "At least one skill must be specified", field="skills"
+            )
+
         run_id = str(uuid.uuid4())
         ctx = PipelineContext(goal=goal)
         outputs = []
@@ -72,22 +121,31 @@ class Executor:
 
         # Local helper so every event carries the correlation ID
         def _ev(event_type: str, skill=None, payload=None, error=None):
-            return _event(event_type, run_id, strategy.goal_id,
-                          skill=skill, payload=payload, error=error,
-                          correlation_id=correlation_id)
+            return _event(
+                event_type,
+                run_id,
+                strategy.goal_id,
+                skill=skill,
+                payload=payload,
+                error=error,
+                correlation_id=correlation_id,
+            )
 
         # Validate all skills exist before execution
         missing_skills = []
         for skill_name in strategy.ordered_skills:
             if not registry.is_registered(skill_name):
                 missing_skills.append(skill_name)
-        
+
         if missing_skills:
             # Return failed run instead of raising
             error_msg = f"Skill(s) not found: {', '.join(missing_skills)}"
             yield _ev(
                 "start",
-                payload={"goal": goal.objective, "skills": strategy.ordered_skills},
+                payload={
+                    "goal": goal.objective,
+                    "skills": strategy.ordered_skills,
+                },
             )
             yield _ev(
                 "complete",
@@ -102,16 +160,19 @@ class Executor:
 
         yield _ev(
             "start",
-            payload={"goal": goal.objective, "skills": strategy.ordered_skills},
+            payload={
+                "goal": goal.objective,
+                "skills": strategy.ordered_skills,
+            },
         )
 
         for skill_name in strategy.ordered_skills:
             yield _ev("skill_start", skill=skill_name)
-            
+
             # Retry logic for skill execution
             max_retries = get_max_retries(skill_name)
             last_error = None
-            
+
             for attempt in range(max_retries + 1):
                 try:
                     fn = registry.get(skill_name)
@@ -128,11 +189,15 @@ class Executor:
                     last_error = exc
                     if attempt < max_retries:
                         # Retry with exponential backoff
-                        backoff = min(2 ** attempt, 5)  # Max 5 seconds
+                        backoff = min(2**attempt, 5)  # Max 5 seconds
                         yield _ev(
                             "skill_retry",
                             skill=skill_name,
-                            payload={"attempt": attempt + 1, "backoff": backoff, "error": str(exc)},
+                            payload={
+                                "attempt": attempt + 1,
+                                "backoff": backoff,
+                                "error": str(exc),
+                            },
                         )
                         time.sleep(backoff)
                     else:
@@ -158,7 +223,9 @@ class Executor:
         # Optional sum_review skill - only run when explicitly opted in via
         # goal metadata, so implicit execution does not diverge from the
         # requested skill list.
-        opt_in_review = bool(getattr(goal, "metadata", {}).get("auto_sum_review"))
+        opt_in_review = bool(
+            getattr(goal, "metadata", {}).get("auto_sum_review")
+        )
         if (
             opt_in_review
             and registry.is_registered("sum_review")
@@ -167,7 +234,9 @@ class Executor:
             skill_name = "sum_review"
             yield _ev("skill_start", skill=skill_name)
             try:
-                summary = _run_with_timeout(registry.get(skill_name), ctx, timeout_seconds)
+                summary = _run_with_timeout(
+                    registry.get(skill_name), ctx, timeout_seconds
+                )
                 outputs.append({skill_name: summary})
                 yield _ev(
                     "skill_complete",
@@ -188,14 +257,18 @@ class Executor:
             },
         )
 
-    def run(self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0) -> RunRecord:
+    def run(
+        self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0
+    ) -> RunRecord:
         """Execute strategy and return RunRecord"""
         timeout_seconds = validate_timeout(timeout_seconds)
-        events = list(self.iter_events(strategy, goal, timeout_seconds=timeout_seconds))
-        
+        events = list(
+            self.iter_events(strategy, goal, timeout_seconds=timeout_seconds)
+        )
+
         if not events:
             raise ValidationError("No events generated during execution")
-        
+
         start_event = events[0]
         complete_event = events[-1]
         payload = complete_event.get("payload", {})

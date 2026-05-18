@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Any
 
+
 class UORObjectIn(BaseModel):
     mediaType: str = "application/json"
     mode: str = "immutable"

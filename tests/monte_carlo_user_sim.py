@@ -42,7 +42,9 @@ def simulate_user(skill: float) -> tuple[bool, str | None]:
     Higher skill reduces friction.
     """
     for step in STEPS:
-        adjusted_success = min(0.99, max(0.01, step.base_success + (skill - 0.5) * 0.25))
+        adjusted_success = min(
+            0.99, max(0.01, step.base_success + (skill - 0.5) * 0.25)
+        )
         if random.random() > adjusted_success:
             return False, step.name
     return True, None
@@ -75,9 +77,13 @@ def run_trials(n: int = 10_000, seed: int = 42) -> None:
 
     print()
     print("Interpretation:")
-    print("- The largest failure points should become UI helpers or clearer docs.")
+    print(
+        "- The largest failure points should become UI helpers or clearer docs."
+    )
     print("- If execute_sum/run_workflow dominate, add copy-paste templates.")
-    print("- If digest-copy steps dominate, add UI affordances or clearer labels.")
+    print(
+        "- If digest-copy steps dominate, add UI affordances or clearer labels."
+    )
 
 
 if __name__ == "__main__":

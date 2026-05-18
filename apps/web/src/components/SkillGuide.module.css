@@ -1,0 +1,164 @@
+.container {
+  padding: 20px;
+  font-family: system-ui, sans-serif;
+}
+
+.title {
+  margin: 0 0 16px 0;
+}
+
+.filterContainer {
+  margin-bottom: 16px;
+}
+
+.filterLabel {
+  font-size: 12px;
+  color: #666;
+  margin-right: 8px;
+}
+
+.filterButton {
+  padding: 4px 10px;
+  margin: 2px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.filterButton:hover {
+  background: #f0f0f0;
+}
+
+.filterButton.active {
+  background: #e7f1ff;
+}
+
+.skillList {
+  display: grid;
+  gap: 8px;
+}
+
+.skillCard {
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #fff;
+  transition: all 0.15s;
+}
+
+.skillCard:hover {
+  background: #f8f9fa;
+}
+
+.skillHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skillLabel {
+  font-family: monospace;
+}
+
+.skillCategory {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #e9ecef;
+  border-radius: 4px;
+  color: #495057;
+}
+
+.skillDescription {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  width: min(600px, 90vw);
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  overflow: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modalTitle {
+  margin: 0;
+  font-family: monospace;
+}
+
+.closeButton {
+  padding: 4px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.closeButton:hover {
+  background: #f0f0f0;
+}
+
+.modalSection {
+  margin-bottom: 12px;
+}
+
+.modalCategory {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  color: #495057;
+}
+
+.modalLabel {
+  font-size: 12px;
+  color: #555;
+}
+
+.modalText {
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.exampleBox {
+  font-size: 13px;
+  margin-top: 4px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.prerequisite {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  margin: 2px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  color: #856404;
+}

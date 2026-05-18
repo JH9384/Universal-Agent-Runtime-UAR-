@@ -46,11 +46,11 @@ def cmd_list(args):
     """List stored runs."""
     store = JsonRunStore()
     records = store.list_all()
-    
+
     if not records:
         print("No stored runs found.")
         return
-    
+
     print(f"Found {len(records)} stored runs:")
     for i, record in enumerate(records, 1):
         summary = replay_summary(record)
@@ -59,7 +59,7 @@ def cmd_list(args):
         print(f"   Status: {summary['status']}")
         print(f"   Skills: {', '.join(summary['skills'])}")
         print(f"   Events: {summary['event_count']}")
-        if summary['errors']:
+        if summary["errors"]:
             print(f"   Errors: {', '.join(summary['errors'])}")
         print()
 
@@ -68,18 +68,18 @@ def cmd_replay(args):
     """Replay a stored run."""
     store = JsonRunStore()
     records = store.list_all()
-    
+
     if not records:
         print("No stored runs found.")
         return
-    
+
     if args.index < 1 or args.index > len(records):
         print(f"Invalid index. Must be between 1 and {len(records)}")
         return
-    
+
     record = records[args.index - 1]
     summary = replay_summary(record)
-    
+
     print(f"Replaying run {args.index}:")
     print(f"Run ID: {summary['run_id']}")
     print(f"Goal ID: {summary['goal_id']}")
@@ -87,22 +87,30 @@ def cmd_replay(args):
     print(f"Skills: {', '.join(summary['skills'])}")
     print(f"Event count: {summary['event_count']}")
     print(f"Outputs: {summary['outputs']}")
-    
+
     if args.verbose:
         print("\nEvent stream:")
         for event in record.events:
-            print(f"  [{event['type']}] {event['skill']}: {event.get('timestamp')}")
-            if event.get('error'):
+            print(
+                f"  [{event['type']}] {event['skill']}: {event.get('timestamp')}"
+            )
+            if event.get("error"):
                 print(f"    Error: {event['error']}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="UAR CLI - Universal Agent Runtime")
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    parser = argparse.ArgumentParser(
+        description="UAR CLI - Universal Agent Runtime"
+    )
+    subparsers = parser.add_subparsers(
+        dest="command", help="Available commands"
+    )
 
     # Run command
     run_parser = subparsers.add_parser("run", help="Run a UAR goal")
-    run_parser.add_argument("--goal", required=True, help="Goal objective text")
+    run_parser.add_argument(
+        "--goal", required=True, help="Goal objective text"
+    )
     run_parser.add_argument("--skills", help="Comma-separated skill list")
     run_parser.add_argument("--input", help="Path for doc ingestion")
 
@@ -111,8 +119,12 @@ def main():
 
     # Replay command
     replay_parser = subparsers.add_parser("replay", help="Replay a stored run")
-    replay_parser.add_argument("--index", type=int, required=True, help="Run index to replay")
-    replay_parser.add_argument("--verbose", action="store_true", help="Show full event stream")
+    replay_parser.add_argument(
+        "--index", type=int, required=True, help="Run index to replay"
+    )
+    replay_parser.add_argument(
+        "--verbose", action="store_true", help="Show full event stream"
+    )
 
     args = parser.parse_args()
 

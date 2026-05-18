@@ -14,7 +14,11 @@ def _read_sse_events(response):
             continue
         for frame in chunk.strip().split("\n\n"):
             lines = frame.splitlines()
-            data_lines = [line.removeprefix("data: ") for line in lines if line.startswith("data: ")]
+            data_lines = [
+                line.removeprefix("data: ")
+                for line in lines
+                if line.startswith("data: ")
+            ]
             if data_lines:
                 events.append(json.loads("".join(data_lines)))
     return events
@@ -46,7 +50,16 @@ def test_streaming_event_contract_shape():
         assert response.status_code == 200
         events = _read_sse_events(response)
 
-    required_keys = {"schema_version", "type", "run_id", "goal_id", "skill", "timestamp", "payload", "error"}
+    required_keys = {
+        "schema_version",
+        "type",
+        "run_id",
+        "goal_id",
+        "skill",
+        "timestamp",
+        "payload",
+        "error",
+    }
     for event in events:
         assert required_keys.issubset(event.keys())
         assert event["schema_version"] == "uar.event.v1"
@@ -59,7 +72,9 @@ def test_run_and_stream_final_output_parity():
     assert run_response.status_code == 200
     run_record = run_response.json()
 
-    with client.stream("POST", "/api/uar/stream", json=payload) as stream_response:
+    with client.stream(
+        "POST", "/api/uar/stream", json=payload
+    ) as stream_response:
         assert stream_response.status_code == 200
         events = _read_sse_events(stream_response)
 

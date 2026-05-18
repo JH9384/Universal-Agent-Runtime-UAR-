@@ -1,6 +1,7 @@
 """
 Security utilities for UAR API.
 """
+
 import os
 import logging
 from typing import Dict, Optional

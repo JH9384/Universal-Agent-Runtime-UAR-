@@ -9,8 +9,12 @@ client = TestClient(app)
 
 
 def test_executor_reports_missing_skill_failure():
-    goal = GoalSpec(id="missing-skill", user_intent="missing", objective="missing")
-    strategy = StrategySpec(goal_id=goal.id, ordered_skills=["not_a_real_skill"])
+    goal = GoalSpec(
+        id="missing-skill", user_intent="missing", objective="missing"
+    )
+    strategy = StrategySpec(
+        goal_id=goal.id, ordered_skills=["not_a_real_skill"]
+    )
 
     result = Executor().run(strategy, goal)
 

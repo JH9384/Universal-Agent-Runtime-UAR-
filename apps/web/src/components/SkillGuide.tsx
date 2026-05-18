@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import styles from './SkillGuide.module.css'
 
 type Skill = {
   id: string
@@ -162,22 +163,15 @@ export function SkillGuide() {
     : SKILLS.filter(s => s.category === filterCategory)
 
   return (
-    <div style={{ padding: 20, fontFamily: 'system-ui, sans-serif' }}>
-      <h3 style={{ margin: '0 0 16px 0' }}>📘 Skill Guide</h3>
+    <div className={styles.container}>
+      <h3 className={styles.title}>📘 Skill Guide</h3>
 
       {/* Category Filter */}
-      <div style={{ marginBottom: 16 }}>
-        <span style={{ fontSize: 12, color: '#666', marginRight: 8 }}>Filter:</span>
+      <div className={styles.filterContainer}>
+        <span className={styles.filterLabel}>Filter:</span>
         <button
           onClick={() => setFilterCategory('All')}
-          style={{
-            padding: '4px 10px',
-            margin: '2px',
-            border: '1px solid #ccc',
-            borderRadius: 4,
-            background: filterCategory === 'All' ? '#e7f1ff' : '#fff',
-            cursor: 'pointer'
-          }}
+          className={`${styles.filterButton} ${filterCategory === 'All' ? styles.active : ''}`}
         >
           All
         </button>
@@ -185,14 +179,7 @@ export function SkillGuide() {
           <button
             key={cat}
             onClick={() => setFilterCategory(cat)}
-            style={{
-              padding: '4px 10px',
-              margin: '2px',
-              border: '1px solid #ccc',
-              borderRadius: 4,
-              background: filterCategory === cat ? '#e7f1ff' : '#fff',
-              cursor: 'pointer'
-            }}
+            className={`${styles.filterButton} ${filterCategory === cat ? styles.active : ''}`}
           >
             {cat}
           </button>
@@ -200,35 +187,20 @@ export function SkillGuide() {
       </div>
 
       {/* Skill List */}
-      <div style={{ display: 'grid', gap: 8 }}>
+      <div className={styles.skillList}>
         {filteredSkills.map(skill => (
           <div
             key={skill.id}
             onClick={() => setSelectedSkill(skill)}
-            style={{
-              padding: 12,
-              border: '1px solid #dee2e6',
-              borderRadius: 6,
-              cursor: 'pointer',
-              background: '#fff',
-              transition: 'all 0.15s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#f8f9fa'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
+            className={styles.skillCard}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <strong style={{ fontFamily: 'monospace' }}>{skill.label}</strong>
-              <span style={{
-                fontSize: 11,
-                padding: '2px 6px',
-                background: '#e9ecef',
-                borderRadius: 4,
-                color: '#495057'
-              }}>
+            <div className={styles.skillHeader}>
+              <strong className={styles.skillLabel}>{skill.label}</strong>
+              <span className={styles.skillCategory}>
                 {skill.category}
               </span>
             </div>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+            <div className={styles.skillDescription}>
               {skill.desc}
             </div>
           </div>
@@ -239,91 +211,53 @@ export function SkillGuide() {
       {selectedSkill && (
         <div
           onClick={() => setSelectedSkill(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
+          className={styles.modalOverlay}
         >
           <div
             onClick={(e: any) => e.stopPropagation()}
-            style={{
-              width: 'min(600px, 90vw)',
-              maxHeight: '80vh',
-              background: '#fff',
-              borderRadius: 8,
-              padding: 20,
-              overflow: 'auto',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
-            }}
+            className={styles.modalContent}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h4 style={{ margin: 0, fontFamily: 'monospace' }}>{selectedSkill.label}</h4>
+            <div className={styles.modalHeader}>
+              <h4 className={styles.modalTitle}>{selectedSkill.label}</h4>
               <button
                 onClick={() => setSelectedSkill(null)}
-                style={{ padding: '4px 10px', border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer' }}
+                className={styles.closeButton}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <span style={{
-                fontSize: 11,
-                padding: '4px 8px',
-                background: '#e9ecef',
-                borderRadius: 4,
-                color: '#495057'
-              }}>
+            <div className={styles.modalSection}>
+              <span className={styles.modalCategory}>
                 {selectedSkill.category}
               </span>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <strong style={{ fontSize: 12, color: '#555' }}>Description:</strong>
-              <div style={{ fontSize: 14, marginTop: 4 }}>{selectedSkill.desc}</div>
+            <div className={styles.modalSection}>
+              <strong className={styles.modalLabel}>Description:</strong>
+              <div className={styles.modalText}>{selectedSkill.desc}</div>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <strong style={{ fontSize: 12, color: '#555' }}>When to use:</strong>
-              <div style={{ fontSize: 14, marginTop: 4 }}>{selectedSkill.useCase}</div>
+            <div className={styles.modalSection}>
+              <strong className={styles.modalLabel}>When to use:</strong>
+              <div className={styles.modalText}>{selectedSkill.useCase}</div>
             </div>
 
-            <div style={{ marginBottom: 12 }}>
-              <strong style={{ fontSize: 12, color: '#555' }}>Example:</strong>
-              <div style={{
-                fontSize: 13,
-                marginTop: 4,
-                padding: 8,
-                background: '#f8f9fa',
-                borderRadius: 4,
-                fontFamily: 'monospace'
-              }}>
+            <div className={styles.modalSection}>
+              <strong className={styles.modalLabel}>Example:</strong>
+              <div className={styles.exampleBox}>
                 {selectedSkill.example}
               </div>
             </div>
 
             {selectedSkill.prerequisites && (
-              <div style={{ marginBottom: 12 }}>
-                <strong style={{ fontSize: 12, color: '#555' }}>Prerequisites:</strong>
-                <div style={{ marginTop: 4 }}>
+              <div className={styles.modalSection}>
+                <strong className={styles.modalLabel}>Prerequisites:</strong>
+                <div>
                   {selectedSkill.prerequisites.map(prereq => (
                     <span
                       key={prereq}
-                      style={{
-                        display: 'inline-block',
-                        fontSize: 11,
-                        padding: '2px 8px',
-                        margin: '2px',
-                        background: '#fff3cd',
-                        border: '1px solid #ffc107',
-                        borderRadius: 4,
-                        color: '#856404'
-                      }}
+                      className={styles.prerequisite}
                     >
                       {prereq}
                     </span>
@@ -333,8 +267,8 @@ export function SkillGuide() {
             )}
 
             <div>
-              <strong style={{ fontSize: 12, color: '#555' }}>Output:</strong>
-              <div style={{ fontSize: 14, marginTop: 4 }}>{selectedSkill.output}</div>
+              <strong className={styles.modalLabel}>Output:</strong>
+              <div className={styles.modalText}>{selectedSkill.output}</div>
             </div>
           </div>
         </div>

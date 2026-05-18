@@ -25,31 +25,34 @@ class ConfigValidator:
             "fix": (
                 "Generate a secure key: "
                 "python -c 'import secrets; print(secrets.token_urlsafe(32))'"
-            )
+            ),
         },
         "API_KEYS": {
             "description": "API authentication keys",
             "default_warning": "No API keys configured - auth disabled",
-            "fix": "Add API keys in format: key:user:tier,key2:user2:tier2"
-        }
+            "fix": "Add API keys in format: key:user:tier,key2:user2:tier2",
+        },
     }
 
     OPTIONAL_FEATURES = {
         "OLLAMA_HOST": {
             "name": "Ollama AI",
             "description": "Local AI model generation",
-            "benefit": "Enable ollama_generate skill for AI analysis"
+            "benefit": "Enable ollama_generate skill for AI analysis",
         },
         "AUTONOMI_PRIVATE_KEY": {
             "name": "Autonomi Storage",
             "description": "Decentralized storage",
-            "benefit": "Enable autonomi_upload/download for storage"
+            "benefit": "Enable autonomi_upload/download for storage",
         },
         "ALM_SERVICE_URL": {
-            "name": "Atomic Language Model",
-            "description": "Formal language analysis",
-            "benefit": "Enable ALM skills for grammar analysis"
-        }
+            "description": "ALM service endpoint",
+            "default": "http://localhost:5001/api/v1",
+        },
+        "ALM_TIMEOUT_SEC": {
+            "description": "ALM request timeout in seconds",
+            "default": "30",
+        },
     }
 
     def __init__(self, env_file: str = ".env"):
@@ -77,14 +80,16 @@ class ConfigValidator:
         """Check required configuration variables."""
         for var, info in self.REQUIRED_VARS.items():
             if var not in self.env_vars:
-                self.issues.append((
-                    var,
-                    "Missing",
-                    f"{info['description']}\nFix: {info['fix']}"
-                ))
+                self.issues.append(
+                    (
+                        var,
+                        "Missing",
+                        f"{info['description']}\nFix: {info['fix']}",
+                    )
+                )
             elif var == "SECRET_KEY" and self.env_vars[var] in [
                 "your-secret-key-here-must-be-changed-in-production",
-                "dev-secret-key-change-in-production"
+                "dev-secret-key-change-in-production",
             ]:
                 self.warnings.append((var, info["default_warning"]))
 
@@ -103,9 +108,9 @@ class ConfigValidator:
         # Check for deprecated variable names
         deprecated = {
             "ENABLE_METRICS": "METRICS_ENABLED",
-            "enable_metrics": "metrics_enabled"
+            "enable_metrics": "metrics_enabled",
         }
-        
+
         for old, new in deprecated.items():
             if old in self.env_vars:
                 self.issues.append(
@@ -113,7 +118,7 @@ class ConfigValidator:
                         old,
                         "Deprecated",
                         f"Variable name changed to {new}\n"
-                        f"Fix: Rename {old} to {new}"
+                        f"Fix: Rename {old} to {new}",
                     )
                 )
 
@@ -129,7 +134,7 @@ class ConfigValidator:
                             (
                                 f"Port {port} is out of valid range (1-65535)\n"
                                 "Fix: Use a port between 1 and 65535"
-                            )
+                            ),
                         )
                     )
             except ValueError:
@@ -140,7 +145,7 @@ class ConfigValidator:
                         (
                             f"Port must be a number, got '{self.env_vars['API_PORT']}'\n"
                             "Fix: Use a valid port number"
-                        )
+                        ),
                     )
                 )
 
@@ -148,20 +153,20 @@ class ConfigValidator:
         """Run all validation checks."""
         print(f"🔍 Validating {self.env_file}...")
         print()
-        
+
         if not self.env_file.exists():
             print(f"⚠️  {self.env_file} not found")
             print("💡 Copy .env.minimal to .env for a quick start:")
             print("   cp .env.minimal .env")
             return False
-        
+
         self.validate_required()
         self.check_common_issues()
         self.check_optional_features()
-        
+
         # Print results
         self._print_results()
-        
+
         return len(self.issues) == 0
 
     def _print_results(self) -> None:
@@ -175,7 +180,7 @@ class ConfigValidator:
                 for line in message.split("\n"):
                     print(f"   {line}")
                 print()
-        
+
         # Warnings
         if self.warnings:
             print("⚠️  Warnings:")
@@ -183,7 +188,7 @@ class ConfigValidator:
             for var, message in self.warnings:
                 print(f"   {var}: {message}")
             print()
-        
+
         # Suggestions
         if self.suggestions:
             print("💡 Optional Features (disabled):")
@@ -192,7 +197,7 @@ class ConfigValidator:
                 for line in suggestion.split("\n"):
                     print(f"   {line}")
                 print()
-        
+
         # Summary
         if not self.issues and not self.warnings:
             print("✅ Configuration is valid!")

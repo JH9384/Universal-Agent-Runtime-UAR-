@@ -14,7 +14,7 @@ def test_uor_critical_identity_offline():
     # Based on UOR public identity: neg(bnot(x)) = succ(x) in R_8
     x = 42
     n = 8
-    mod = 2 ** n
+    mod = 2**n
 
     bnot_x = x ^ (mod - 1)  # bitwise NOT in n-bit ring
     neg_bnot_x = (-bnot_x) % mod
@@ -30,7 +30,7 @@ def test_uor_object_shape_alignment():
         "mediaType": "application/json",
         "attributes": {},
         "links": [],
-        "content": {}
+        "content": {},
     }
 
     assert "digest" in obj
@@ -178,10 +178,124 @@ def test_round_trip_conversion():
         "number": 42,
         "string": "hello",
         "array": [1, 2, 3],
-        "object": {"nested": "value"}
+        "object": {"nested": "value"},
     }
 
     json_value = JsonValue.from_python(original)
     recovered = json_value.to_python()
 
     assert recovered == original
+
+
+def test_boundary_array_length_exact_limit():
+    """CT-B: Array at exact MAX_ARRAY_LENGTH should be accepted."""
+    # Create array with exactly MAX_ARRAY_LENGTH elements
+    exact_array = list(range(MAX_ARRAY_LENGTH))
+    json_value = JsonValue.from_python(exact_array)
+    assert json_value.case == JsonCase.ARRAY
+    assert len(json_value.value) == MAX_ARRAY_LENGTH
+
+
+def test_boundary_object_keys_exact_limit():
+    """CT-B: Object with exactly MAX_OBJECT_KEYS should be accepted."""
+    # Create object with exactly MAX_OBJECT_KEYS keys
+    exact_obj = {str(i): i for i in range(MAX_OBJECT_KEYS)}
+    json_value = JsonValue.from_python(exact_obj)
+    assert json_value.case == JsonCase.OBJECT
+    assert len(json_value.value) == MAX_OBJECT_KEYS
+
+
+def test_boundary_recursion_depth_exact_limit():
+    """CT-B: Structure at exactly MAX_RECURSION_DEPTH should be accepted."""
+    # Create structure with exactly MAX_RECURSION_DEPTH depth
+    deep_obj = []
+    current = deep_obj
+    for _ in range(MAX_RECURSION_DEPTH):
+        current.append([])
+        current = current[-1]
+    # Add one more element at the deepest level
+    current.append("leaf")
+
+    json_value = JsonValue.from_python(deep_obj)
+    assert json_value.case == JsonCase.ARRAY
+
+
+def test_integration_real_world_api_response():
+    """Integration test with real-world API response structure."""
+    # Simulate a typical API response with nested structures
+    api_response = {
+        "id": "req_12345",
+        "timestamp": 1715025600.0,
+        "status": "completed",
+        "result": {
+            "data": [
+                {"name": "Alice", "age": 30, "active": True},
+                {"name": "Bob", "age": 25, "active": False},
+            ],
+            "metadata": {
+                "total": 2,
+                "page": 1,
+                "per_page": 10,
+            },
+        },
+        "errors": None,
+    }
+
+    json_value = JsonValue.from_python(api_response)
+    digest = json_value.compute_digest()
+
+    # Verify digest format
+    assert digest.startswith("sha256:")
+    assert len(digest.split(":")[1]) == 64
+
+    # Verify round-trip
+    recovered = json_value.to_python()
+    assert recovered == api_response
+
+
+def test_integration_nested_mixed_types():
+    """Integration test with deeply nested mixed types."""
+    complex_obj = {
+        "level1": {
+            "level2": {
+                "level3": {
+                    "array": [1, "two", 3.0, True, None, {"nested": "value"}],
+                    "object": {"a": 1, "b": 2, "c": 3},
+                }
+            }
+        },
+        "metadata": {
+            "version": "1.0",
+            "tags": ["tag1", "tag2", "tag3"],
+            "config": {"enabled": True, "timeout": 30.5},
+        },
+    }
+
+    json_value = JsonValue.from_python(complex_obj)
+    canonical_bytes = json_value.to_canonical_bytes()
+
+    # Verify canonicalization is deterministic
+    json_value2 = JsonValue.from_python(complex_obj)
+    canonical_bytes2 = json_value2.to_canonical_bytes()
+    assert canonical_bytes == canonical_bytes2
+
+    # Verify digest is consistent
+    digest1 = json_value.compute_digest()
+    digest2 = json_value2.compute_digest()
+    assert digest1 == digest2
+
+
+def test_integration_unicode_normalization():
+    """Integration test for Unicode NFC normalization."""
+    # Different Unicode representations should normalize to same digest
+    obj1 = {"text": "café"}  # Combined é
+    obj2 = {"text": "cafe\u0301"}  # Decomposed e + combining acute
+
+    json_value1 = JsonValue.from_python(obj1)
+    json_value2 = JsonValue.from_python(obj2)
+
+    digest1 = json_value1.compute_digest()
+    digest2 = json_value2.compute_digest()
+
+    # NFC normalization should make these identical
+    assert digest1 == digest2

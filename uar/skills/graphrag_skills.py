@@ -37,7 +37,9 @@ REDUCE_MAX_TOKENS = 1000
 
 # Resolve allowed root from environment with fallback to cwd
 _allowed_root_env = os.getenv("PROJECT_ROOT")
-ALLOWED_ROOT = Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
+ALLOWED_ROOT = (
+    Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
+)
 
 _graphrag_cb = CircuitBreaker(
     "graphrag",
@@ -56,32 +58,38 @@ GRAPH_SCHEMA_VERSION = "v1"  # Current graph schema version
 
 def _check_graph_size_limits(root: Path) -> tuple[bool, str]:
     """Check if existing graph exceeds size limits.
-    
+
     Returns (within_limits, error_message).
     """
     entities_path = root / "output" / "create_final_entities.parquet"
     relationships_path = root / "output" / "create_final_relationships.parquet"
-    
+
     if not entities_path.exists() or not relationships_path.exists():
         return True, ""  # No graph yet, within limits
-    
+
     try:
         import pandas as pd
-        
+
         # Count entities (nodes)
         entities_df = pd.read_parquet(entities_path)
         entity_count = len(entities_df)
-        
+
         # Count relationships (edges)
         relationships_df = pd.read_parquet(relationships_path)
         edge_count = len(relationships_df)
-        
+
         if entity_count > MAX_NODES:
-            return False, f"Graph exceeds node limit ({entity_count} > {MAX_NODES})"
-        
+            return (
+                False,
+                f"Graph exceeds node limit ({entity_count} > {MAX_NODES})",
+            )
+
         if edge_count > MAX_EDGES:
-            return False, f"Graph exceeds edge limit ({edge_count} > {MAX_EDGES})"
-        
+            return (
+                False,
+                f"Graph exceeds edge limit ({edge_count} > {MAX_EDGES})",
+            )
+
         return True, ""
     except Exception as e:
         logger.warning(f"Failed to check graph size limits: {e}")
@@ -90,7 +98,7 @@ def _check_graph_size_limits(root: Path) -> tuple[bool, str]:
 
 def _get_graph_schema_version(root: Path) -> str:
     """Get the schema version of an existing graph.
-    
+
     Returns the schema version string (e.g., "v1") or "unknown" if not found.
     """
     version_file = root / "schema_version.txt"
@@ -99,7 +107,9 @@ def _get_graph_schema_version(root: Path) -> str:
     return "unknown"
 
 
-def _set_graph_schema_version(root: Path, version: str = GRAPH_SCHEMA_VERSION) -> None:
+def _set_graph_schema_version(
+    root: Path, version: str = GRAPH_SCHEMA_VERSION
+) -> None:
     """Set the schema version for a graph."""
     version_file = root / "schema_version.txt"
     version_file.write_text(version, encoding="utf-8")
@@ -107,23 +117,27 @@ def _set_graph_schema_version(root: Path, version: str = GRAPH_SCHEMA_VERSION) -
 
 def _check_schema_compatibility(root: Path) -> tuple[bool, str]:
     """Check if existing graph schema is compatible with current version.
-    
+
     Returns (is_compatible, error_message).
     """
     current_version = _get_graph_schema_version(root)
     if current_version == "unknown":
         # No version file, assume compatible for new graphs
         return True, ""
-    
+
     if current_version != GRAPH_SCHEMA_VERSION:
-        return False, f"Graph schema version mismatch: existing={current_version}, current={GRAPH_SCHEMA_VERSION}. Run graphrag_init to reset."
-    
+        return (
+            False,
+            f"Graph schema version mismatch: existing={current_version}, current={GRAPH_SCHEMA_VERSION}. Run graphrag_init to reset.",
+        )
+
     return True, ""
 
 
 def _check_ollama_health() -> tuple[bool, str]:
     """Check if Ollama is reachable. Returns (is_healthy, error_message)."""
     import httpx
+
     try:
         ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
         r = httpx.get(f"{ollama_host.rstrip('/')}/api/tags", timeout=5.0)
@@ -132,6 +146,7 @@ def _check_ollama_health() -> tuple[bool, str]:
         return False, f"Ollama returned HTTP {r.status_code}"
     except Exception as e:
         return False, f"Ollama unreachable: {e}"
+
 
 SETTINGS_YAML = """\
 encoding_model: cl100k_base
@@ -253,7 +268,9 @@ def _write_settings(root: Path) -> Path:
     """Write settings.yaml into the workspace, overwriting each time."""
     settings_path = root / "settings.yaml"
     content = SETTINGS_YAML.format(
-        ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/"),
+        ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip(
+            "/"
+        ),
         chat_model=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
         embed_model=os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text"),
     )
@@ -292,13 +309,17 @@ def _stage_inputs(source_dir: Path, input_dir: Path) -> int:
     input_dir.mkdir(parents=True, exist_ok=True)
 
     staged = 0
-    paths = [source_dir] if source_dir.is_file() else list(source_dir.rglob("*"))
+    paths = (
+        [source_dir] if source_dir.is_file() else list(source_dir.rglob("*"))
+    )
     for p in paths:
         if not p.is_file():
             continue
         if p.suffix.lower() not in ALLOWED_EXTENSIONS:
             continue
-        doc = _read_file_safely(p, source_dir if source_dir.is_dir() else source_dir.parent)
+        doc = _read_file_safely(
+            p, source_dir if source_dir.is_dir() else source_dir.parent
+        )
         text = (doc.get("text") or "").strip()
         if not text or doc.get("error"):
             continue
@@ -311,12 +332,16 @@ def _stage_inputs(source_dir: Path, input_dir: Path) -> int:
     return staged
 
 
-def _run_cli(args: list[str], cwd: Path, timeout: int = DEFAULT_CLI_TIMEOUT) -> dict:
+def _run_cli(
+    args: list[str], cwd: Path, timeout: int = DEFAULT_CLI_TIMEOUT
+) -> dict:
     """Run graphrag CLI. Returns {returncode, stdout, stderr}."""
     return _graphrag_cb.call(_run_cli_impl, args, cwd, timeout)
 
 
-def _run_cli_impl(args: list[str], cwd: Path, timeout: int = DEFAULT_CLI_TIMEOUT) -> dict:
+def _run_cli_impl(
+    args: list[str], cwd: Path, timeout: int = DEFAULT_CLI_TIMEOUT
+) -> dict:
     """Internal implementation of graphrag CLI runner."""
     try:
         proc = subprocess.run(
@@ -332,9 +357,17 @@ def _run_cli_impl(args: list[str], cwd: Path, timeout: int = DEFAULT_CLI_TIMEOUT
             "stderr": proc.stderr[-20000:],
         }
     except subprocess.TimeoutExpired as e:
-        return {"returncode": -1, "stdout": "", "stderr": f"timeout after {timeout}s: {e}"}
+        return {
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"timeout after {timeout}s: {e}",
+        }
     except FileNotFoundError as e:
-        return {"returncode": -1, "stdout": "", "stderr": f"graphrag CLI not found: {e}"}
+        return {
+            "returncode": -1,
+            "stdout": "",
+            "stderr": f"graphrag CLI not found: {e}",
+        }
 
 
 @register_skill("graphrag_init")
@@ -365,20 +398,23 @@ def graphrag_index(ctx):
             "status": "failed",
             "error": f"Ollama health check failed: {error_msg}. Ensure Ollama is running.",
         }
-    
+
     root = _ensure_workspace()
     meta = ctx.goal.metadata or {}
     src = meta.get("input_path") or str(_project_root() / ".uar_library")
     source = Path(src).resolve()
-    
+
     # Validate path security
     try:
         validate_path_security(source, ALLOWED_ROOT)
     except Exception as e:
         return {"status": "failed", "error": f"Path security violation: {e}"}
-    
+
     if not source.exists():
-        return {"status": "failed", "error": f"input_path does not exist: {source}"}
+        return {
+            "status": "failed",
+            "error": f"input_path does not exist: {source}",
+        }
 
     # Check graph size limits before indexing
     within_limits, limit_error = _check_graph_size_limits(root)
@@ -432,7 +468,10 @@ def graphrag_query(ctx):
     root = _graphrag_root()
     settings = root / "settings.yaml"
     if not settings.exists():
-        return {"status": "failed", "error": f"No GraphRAG workspace at {root}. Run graphrag_index first."}
+        return {
+            "status": "failed",
+            "error": f"No GraphRAG workspace at {root}. Run graphrag_index first.",
+        }
 
     # Check graph size limits before querying
     within_limits, limit_error = _check_graph_size_limits(root)
@@ -460,7 +499,16 @@ def graphrag_query(ctx):
 
     timeout = int(meta.get("timeout_sec") or DEFAULT_QUERY_TIMEOUT)
     result = _run_cli(
-        ["graphrag", "query", "--root", str(root), "--method", method, "--query", query],
+        [
+            "graphrag",
+            "query",
+            "--root",
+            str(root),
+            "--method",
+            method,
+            "--query",
+            query,
+        ],
         cwd=root,
         timeout=timeout,
     )

@@ -8,7 +8,9 @@ from uar.core.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
-_ollama_cb = CircuitBreaker("ollama", failure_threshold=3, recovery_timeout=30.0)
+_ollama_cb = CircuitBreaker(
+    "ollama", failure_threshold=3, recovery_timeout=30.0
+)
 
 # Limit on how much document context we send to the model (chars).
 # Defaults to ~12k chars (~3k tokens) — safe for most local models.
@@ -53,7 +55,9 @@ def _build_context_block(docs: list) -> str:
         snippet = text[:PER_DOC_CHAR_LIMIT]
         block = f"\n--- FILE: {path} ---\n{snippet}\n"
         if used + len(block) > MAX_DOC_CONTEXT_CHARS:
-            parts.append(f"\n[... {len(docs) - len(parts)} more files truncated ...]\n")
+            parts.append(
+                f"\n[... {len(docs) - len(parts)} more files truncated ...]\n"
+            )
             break
         parts.append(block)
         used += len(block)
@@ -80,7 +84,9 @@ def ollama_generate(ctx):
       ollama_model     — model name override
     """
     host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-    model = ctx.goal.metadata.get("ollama_model") or os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+    model = ctx.goal.metadata.get("ollama_model") or os.getenv(
+        "OLLAMA_MODEL", "llama3.2:3b"
+    )
     timeout = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
     system = ctx.goal.metadata.get("ollama_system")
 
@@ -92,7 +98,11 @@ def ollama_generate(ctx):
         context_chars = 0
     else:
         docs = _gather_documents(ctx)
-        used_docs = sum(1 for d in docs if isinstance(d, dict) and not d.get("error") and d.get("text"))
+        used_docs = sum(
+            1
+            for d in docs
+            if isinstance(d, dict) and not d.get("error") and d.get("text")
+        )
         context = _build_context_block(docs)
         context_chars = len(context)
         objective = ctx.goal.objective or "Review the provided documents."
@@ -111,7 +121,13 @@ def ollama_generate(ctx):
         payload["system"] = system
 
     try:
-        response = _ollama_cb.call(lambda: httpx.post(f"{host.rstrip('/')}/api/generate", json=payload, timeout=timeout))
+        response = _ollama_cb.call(
+            lambda: httpx.post(
+                f"{host.rstrip('/')}/api/generate",
+                json=payload,
+                timeout=timeout,
+            )
+        )
         response.raise_for_status()
         data = response.json()
     except Exception as exc:

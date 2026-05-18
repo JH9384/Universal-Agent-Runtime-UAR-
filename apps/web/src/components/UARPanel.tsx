@@ -856,7 +856,7 @@ export function UARPanel() {
             {currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s
           </span>
         )}
-        <button onClick={clearEvents} className={styles.clearButton}>
+        <button onClick={clearEvents} className={styles.clearEventsButton}>
           Clear Events
         </button>
       </div>

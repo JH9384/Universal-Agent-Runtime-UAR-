@@ -1,8 +1,9 @@
 import { UARPanel } from './components/UARPanel'
+import styles from './App.module.css'
 
 export default function App() {
   return (
-    <div style={{ padding: 20 }}>
+    <div className={styles.container}>
       <UARPanel />
     </div>
   )

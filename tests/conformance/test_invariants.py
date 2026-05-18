@@ -58,7 +58,9 @@ def test_object_roundtrip_and_verify(uar):
     assert fetched.status_code == 200
     assert fetched.json()["content"] == 42
 
-    verified = client.post("/agents/verifier/verify", json={"object": obj["digest"]})
+    verified = client.post(
+        "/agents/verifier/verify", json={"object": obj["digest"]}
+    )
     assert verified.status_code == 200
     assert verified.json()["verified"] is True
 
@@ -127,7 +129,9 @@ def test_lineage_records_execution_event(uar):
         },
     ).json()
 
-    trace = client.get("/agents/lineage/trace", params={"digest": run["output"]})
+    trace = client.get(
+        "/agents/lineage/trace", params={"digest": run["output"]}
+    )
     assert trace.status_code == 200
     events = [event["event"] for event in trace.json()["events"]]
     assert "created" in events
@@ -145,8 +149,14 @@ def test_workflow_chaining_uses_normalized_values(uar):
             "name": "chain-normalization",
             "inputs": [a["digest"], b["digest"]],
             "steps": [
-                {"runtimeName": "sum_contents", "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT}},
-                {"runtimeName": "identity_value", "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT}},
+                {
+                    "runtimeName": "sum_contents",
+                    "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT},
+                },
+                {
+                    "runtimeName": "identity_value",
+                    "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT},
+                },
             ],
         },
     )
@@ -187,7 +197,11 @@ def test_constraint_requires_agent_specific_capability(uar):
 
     allowed = client.post(
         "/agents/constraint/check",
-        json={"agent": "verifier", "action": "verify", "target": obj["digest"]},
+        json={
+            "agent": "verifier",
+            "action": "verify",
+            "target": obj["digest"],
+        },
     )
     assert allowed.status_code == 200
     assert allowed.json()["allowed"] is True

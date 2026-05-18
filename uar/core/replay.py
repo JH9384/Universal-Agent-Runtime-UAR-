@@ -23,9 +23,13 @@ class EventContractError(ValueError):
 def validate_runtime_event(event: dict) -> None:
     missing = REQUIRED_EVENT_KEYS.difference(event.keys())
     if missing:
-        raise EventContractError(f"RuntimeEvent missing keys: {sorted(missing)}")
+        raise EventContractError(
+            f"RuntimeEvent missing keys: {sorted(missing)}"
+        )
     if event["schema_version"] != EVENT_SCHEMA_VERSION:
-        raise EventContractError(f"Unsupported RuntimeEvent schema: {event['schema_version']}")
+        raise EventContractError(
+            f"Unsupported RuntimeEvent schema: {event['schema_version']}"
+        )
     if not isinstance(event.get("payload"), dict):
         raise EventContractError("RuntimeEvent payload must be a dict")
 
@@ -39,21 +43,31 @@ def validate_event_stream(events: Iterable[dict]) -> list[dict]:
         validate_runtime_event(event)
 
     if event_list[0]["type"] != "start":
-        raise EventContractError("RuntimeEvent stream must start with a start event")
+        raise EventContractError(
+            "RuntimeEvent stream must start with a start event"
+        )
     if event_list[-1]["type"] != TERMINAL_EVENT_TYPE:
-        raise EventContractError("RuntimeEvent stream must end with a complete event")
+        raise EventContractError(
+            "RuntimeEvent stream must end with a complete event"
+        )
 
     run_ids = {event["run_id"] for event in event_list}
     goal_ids = {event["goal_id"] for event in event_list}
     if len(run_ids) != 1:
-        raise EventContractError("RuntimeEvent stream contains multiple run_ids")
+        raise EventContractError(
+            "RuntimeEvent stream contains multiple run_ids"
+        )
     if len(goal_ids) != 1:
-        raise EventContractError("RuntimeEvent stream contains multiple goal_ids")
+        raise EventContractError(
+            "RuntimeEvent stream contains multiple goal_ids"
+        )
 
     return event_list
 
 
-def run_record_from_events(events: Iterable[dict], skills: Optional[List[str]] = None) -> RunRecord:
+def run_record_from_events(
+    events: Iterable[dict], skills: Optional[List[str]] = None
+) -> RunRecord:
     event_list = validate_event_stream(events)
     start_event = event_list[0]
     final_event = event_list[-1]

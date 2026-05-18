@@ -33,15 +33,20 @@ logger = logging.getLogger(__name__)
 
 # Resolve allowed root from environment or use current working directory
 _allowed_root_env = os.getenv("PROJECT_ROOT") or os.getenv("RUNS_DIR")
-ALLOWED_ROOT = Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
+ALLOWED_ROOT = (
+    Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
+)
 
-_autonomi_cb = CircuitBreaker("autonomi", failure_threshold=3, recovery_timeout=60.0)
+_autonomi_cb = CircuitBreaker(
+    "autonomi", failure_threshold=3, recovery_timeout=60.0
+)
 
 
 def _get_autonomi():
     """Lazy import autonomi bindings. Returns None if not installed."""
     try:
         import autonomi
+
         return autonomi
     except ImportError:
         return None
@@ -49,7 +54,7 @@ def _get_autonomi():
 
 def _resolve_input_path(ctx) -> Path | None:
     """Resolve upload source from metadata or prior doc_ingest step.
-    
+
     Validates path security before returning.
     """
     raw = ctx.goal.metadata.get("input_path")
@@ -75,7 +80,9 @@ def _resolve_input_path(ctx) -> Path | None:
                         if resolved.exists():
                             return resolved
                     except Exception as e:
-                        logger.warning(f"Path security validation failed for {p}: {e}")
+                        logger.warning(
+                            f"Path security validation failed for {p}: {e}"
+                        )
                         continue
     return None
 
@@ -83,6 +90,7 @@ def _resolve_input_path(ctx) -> Path | None:
 def _wallet_and_payment(autonomi_mod, private_key: str, network_name: str):
     """Create wallet and payment option from private key."""
     from autonomi import Wallet, Network, PaymentOption
+
     net = Network(network_name.lower() == "mainnet")
     if private_key.startswith("0x"):
         private_key = private_key[2:]
@@ -94,6 +102,7 @@ def _wallet_and_payment(autonomi_mod, private_key: str, network_name: str):
 # ---------------------------------------------------------------------------
 # Skill: autonomi_upload
 # ---------------------------------------------------------------------------
+
 
 @register_skill("autonomi_upload")
 def autonomi_upload(ctx):
@@ -113,7 +122,10 @@ def autonomi_upload(ctx):
 
     source = ctx.goal.metadata.get("autonomi_source")
     if not source:
-        return {"status": "failed", "error": "Missing autonomi_source in metadata"}
+        return {
+            "status": "failed",
+            "error": "Missing autonomi_source in metadata",
+        }
 
     src = Path(source).resolve()
     try:
@@ -128,15 +140,13 @@ def autonomi_upload(ctx):
     if not src.is_file():
         raise ValueError(f"Path is neither file nor directory: {src}")
 
-    network_name = (
-        ctx.goal.metadata.get("autonomi_network")
-        or os.getenv("AUTONOMI_NETWORK", "testnet")
+    network_name = ctx.goal.metadata.get("autonomi_network") or os.getenv(
+        "AUTONOMI_NETWORK", "testnet"
     )
     public = bool(ctx.goal.metadata.get("autonomi_public", False))
 
-    private_key = (
-        ctx.goal.metadata.get("autonomi_private_key")
-        or os.getenv("AUTONOMI_PRIVATE_KEY")
+    private_key = ctx.goal.metadata.get("autonomi_private_key") or os.getenv(
+        "AUTONOMI_PRIVATE_KEY"
     )
 
     timeout = float(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))
@@ -144,6 +154,7 @@ def autonomi_upload(ctx):
     # Async upload ---------------------------------------------------------
     async def _do():
         from autonomi import Client
+
         client = await Client.init()
         if public:
             result = await client.file_upload_public(str(src))
@@ -155,7 +166,9 @@ def autonomi_upload(ctx):
         return result
 
     try:
-        result = _autonomi_cb.call(lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout)))
+        result = _autonomi_cb.call(
+            lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout))
+        )
         return {
             "status": "completed",
             "address": str(result) if result else None,
@@ -178,6 +191,7 @@ def autonomi_upload(ctx):
 # ---------------------------------------------------------------------------
 # Skill: autonomi_download
 # ---------------------------------------------------------------------------
+
 
 @register_skill("autonomi_download")
 def autonomi_download(ctx):
@@ -207,18 +221,22 @@ def autonomi_download(ctx):
             "error": "No autonomi_address provided in metadata.",
         }
 
-    network_name = (
-        ctx.goal.metadata.get("autonomi_network")
-        or os.getenv("AUTONOMI_NETWORK", "testnet")
+    network_name = ctx.goal.metadata.get("autonomi_network") or os.getenv(
+        "AUTONOMI_NETWORK", "testnet"
     )
     public = bool(ctx.goal.metadata.get("autonomi_public", False))
 
     # Destination -----------------------------------------------------------
     dest_raw = ctx.goal.metadata.get("autonomi_dest")
     if not dest_raw:
-        dest_raw = str(ALLOWED_ROOT / ".uar_library" / "downloads" / Path(str(address)).name)
+        dest_raw = str(
+            ALLOWED_ROOT
+            / ".uar_library"
+            / "downloads"
+            / Path(str(address)).name
+        )
     dest = Path(dest_raw).resolve()
-    
+
     # Validate destination path security
     try:
         validate_path_security(dest, ALLOWED_ROOT)
@@ -228,7 +246,7 @@ def autonomi_download(ctx):
             "error": f"Destination path security violation: {e}",
             "address": address,
         }
-    
+
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     timeout = float(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))
@@ -236,6 +254,7 @@ def autonomi_download(ctx):
     # Async download --------------------------------------------------------
     async def _do():
         from autonomi import Client
+
         client = await Client.init()
         if public:
             await client.file_download_public(address, str(dest))
@@ -244,7 +263,9 @@ def autonomi_download(ctx):
         return str(dest)
 
     try:
-        _autonomi_cb.call(lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout)))
+        _autonomi_cb.call(
+            lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout))
+        )
         return {
             "status": "completed",
             "dest_path": str(dest),
@@ -267,6 +288,7 @@ def autonomi_download(ctx):
 # Skill: autonomi_status
 # ---------------------------------------------------------------------------
 
+
 @register_skill("autonomi_status")
 def autonomi_status(ctx):
     """Check Autonomi client availability and wallet status.
@@ -282,13 +304,11 @@ def autonomi_status(ctx):
             "error": "autonomi Python package not installed",
         }
 
-    private_key = (
-        ctx.goal.metadata.get("autonomi_private_key")
-        or os.getenv("AUTONOMI_PRIVATE_KEY")
+    private_key = ctx.goal.metadata.get("autonomi_private_key") or os.getenv(
+        "AUTONOMI_PRIVATE_KEY"
     )
-    network_name = (
-        ctx.goal.metadata.get("autonomi_network")
-        or os.getenv("AUTONOMI_NETWORK", "testnet")
+    network_name = ctx.goal.metadata.get("autonomi_network") or os.getenv(
+        "AUTONOMI_NETWORK", "testnet"
     )
 
     result = {
@@ -302,12 +322,15 @@ def autonomi_status(ctx):
     if private_key:
         try:
             from autonomi import Wallet, Network
+
             net = Network(network_name.lower() == "mainnet")
             if private_key.startswith("0x"):
                 private_key = private_key[2:]
             wallet = Wallet.new_from_private_key(net, private_key)
             # Expose wallet address if available
-            result["wallet_address"] = str(getattr(wallet, "address", "unavailable"))
+            result["wallet_address"] = str(
+                getattr(wallet, "address", "unavailable")
+            )
             # Redact private key from result
             result["has_wallet"] = True
         except Exception as exc:

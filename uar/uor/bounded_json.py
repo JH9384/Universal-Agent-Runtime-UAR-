@@ -19,6 +19,7 @@ MAX_OBJECT_KEYS = 10000
 
 class JsonCase(IntEnum):
     """Typed JSON case tags for case distinction (CT-T)."""
+
     NULL = 0
     FALSE = 1
     TRUE = 2
@@ -45,7 +46,8 @@ class JsonValue:
         """Convert Python object to typed JsonValue with recursion bounds (CT-B)."""
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
-                f"Recursion depth exceeds maximum of {MAX_RECURSION_DEPTH}"
+                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
 
         if obj is None:
@@ -61,25 +63,33 @@ class JsonValue:
         elif isinstance(obj, list):
             if len(obj) > MAX_ARRAY_LENGTH:
                 raise ValueError(
-                    f"Array length exceeds maximum of {MAX_ARRAY_LENGTH}"
+                    f"Array length {len(obj)} exceeds maximum of {MAX_ARRAY_LENGTH}. "
+                    "Reduce array size or increase MAX_ARRAY_LENGTH."
                 )
             return cls(
                 [cls.from_python(item, depth + 1) for item in obj],
-                JsonCase.ARRAY
+                JsonCase.ARRAY,
             )
         elif isinstance(obj, dict):
             if len(obj) > MAX_OBJECT_KEYS:
                 raise ValueError(
-                    f"Object key count exceeds maximum of {MAX_OBJECT_KEYS}"
+                    f"Object key count {len(obj)} exceeds maximum of {MAX_OBJECT_KEYS}. "
+                    "Reduce number of keys or increase MAX_OBJECT_KEYS."
                 )
             # Sort keys for canonical ordering
             sorted_obj = dict(sorted(obj.items()))
             return cls(
-                {k: cls.from_python(v, depth + 1) for k, v in sorted_obj.items()},
-                JsonCase.OBJECT
+                {
+                    k: cls.from_python(v, depth + 1)
+                    for k, v in sorted_obj.items()
+                },
+                JsonCase.OBJECT,
             )
         else:
-            raise TypeError(f"Unsupported type for JsonValue: {type(obj)}")
+            raise TypeError(
+                f"Unsupported type {type(obj).__name__} for JsonValue. "
+                f"Supported types: None, bool, int, float, str, list, dict."
+            )
 
     def to_canonical_bytes(self, depth: int = 0) -> bytes:
         """Generate canonical bytes representation with case tag prefix.
@@ -90,7 +100,8 @@ class JsonValue:
         """
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
-                f"Recursion depth exceeds maximum of {MAX_RECURSION_DEPTH}"
+                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
 
         # Convert to Python object for JCS canonicalization
@@ -103,27 +114,34 @@ class JsonValue:
         try:
             canonical = rfc8785.dumps(normalized_obj)
         except Exception as e:
-            raise ValueError(f"JCS canonicalization failed: {e}")
+            raise ValueError(
+                f"JCS canonicalization failed: {e}. "
+                "Ensure the object contains only JSON-serializable types."
+            ) from e
 
         # Add case tag prefix for UOR case distinction (CT-T)
         case_byte = bytes([self.case.value])
-        return case_byte + canonical.encode('utf-8')
+        return case_byte + canonical.encode("utf-8")
 
     def _apply_nfc_normalization(self, obj: Any, depth: int = 0) -> Any:
         """Apply Unicode NFC normalization to all strings."""
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
-                f"Recursion depth exceeds maximum of {MAX_RECURSION_DEPTH}"
+                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
 
         if isinstance(obj, str):
-            return unicodedata.normalize('NFC', obj)
+            return unicodedata.normalize("NFC", obj)
         elif isinstance(obj, list):
-            return [self._apply_nfc_normalization(item, depth + 1)
-                    for item in obj]
+            return [
+                self._apply_nfc_normalization(item, depth + 1) for item in obj
+            ]
         elif isinstance(obj, dict):
-            return {k: self._apply_nfc_normalization(v, depth + 1)
-                    for k, v in obj.items()}
+            return {
+                k: self._apply_nfc_normalization(v, depth + 1)
+                for k, v in obj.items()
+            }
         else:
             return obj
 
@@ -135,9 +153,18 @@ class JsonValue:
     def to_python(self, depth: int = 0) -> Any:
         """Convert back to Python object with recursion bounds."""
         if depth > MAX_RECURSION_DEPTH:
-            raise RecursionError(f"Recursion depth exceeds maximum of {MAX_RECURSION_DEPTH}")
+            raise RecursionError(
+                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
+            )
 
-        if self.case in (JsonCase.NULL, JsonCase.FALSE, JsonCase.TRUE, JsonCase.NUMBER, JsonCase.STRING):
+        if self.case in (
+            JsonCase.NULL,
+            JsonCase.FALSE,
+            JsonCase.TRUE,
+            JsonCase.NUMBER,
+            JsonCase.STRING,
+        ):
             return self.value
         elif self.case == JsonCase.ARRAY:
             return [item.to_python(depth + 1) for item in self.value]
@@ -169,7 +196,7 @@ def canonicalize_json(obj: Any) -> str:
     json_value = JsonValue.from_python(obj)
     canonical_bytes = json_value.to_canonical_bytes()
     # Use strict decoding to prevent silent data corruption
-    return canonical_bytes.decode('utf-8', errors='strict')
+    return canonical_bytes.decode("utf-8", errors="strict")
 
 
 def compute_uor_digest(obj: Any) -> str:

@@ -24,12 +24,18 @@ if current_dir not in sys.path:
 try:
     from uar.skills.atomic_lang_model import AtomicLanguageModelSkill
 except ModuleNotFoundError:
-    atomic_lang_model_path = os.path.join(current_dir, "uar", "skills", "atomic_lang_model.py")
-    spec = importlib.util.spec_from_file_location("uar.skills.atomic_lang_model", atomic_lang_model_path)
+    atomic_lang_model_path = os.path.join(
+        current_dir, "uar", "skills", "atomic_lang_model.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "uar.skills.atomic_lang_model", atomic_lang_model_path
+    )
     atomic_lang_model_module = importlib.util.module_from_spec(spec)
     sys.modules["uar.skills.atomic_lang_model"] = atomic_lang_model_module
     spec.loader.exec_module(atomic_lang_model_module)
-    AtomicLanguageModelSkill = atomic_lang_model_module.AtomicLanguageModelSkill
+    AtomicLanguageModelSkill = (
+        atomic_lang_model_module.AtomicLanguageModelSkill
+    )
 
 # Use an explicit "fork" context for child execution so worker processes
 # inherit the parent interpreter state (including ad-hoc test-loaded modules).
@@ -40,6 +46,7 @@ try:
 except ValueError:  # pragma: no cover - platforms without fork
     _MP_CTX = mp.get_context()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -47,7 +54,10 @@ async def lifespan(app: FastAPI):
     seed_standard_runtimes()
     yield
 
-app = FastAPI(title="Universal Agent Runtime (UAR)", version="1.0.0", lifespan=lifespan)
+
+app = FastAPI(
+    title="Universal Agent Runtime (UAR)", version="1.0.0", lifespan=lifespan
+)
 
 DB_PATH = "uar.sqlite3"
 DEFAULT_TIMEOUT_SECONDS = 2.0
@@ -134,9 +144,15 @@ def db() -> sqlite3.Connection:
 
 def init_db() -> None:
     with db() as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS objects (digest TEXT PRIMARY KEY, record_json TEXT NOT NULL)")
-        conn.execute("CREATE TABLE IF NOT EXISTS lineage (digest TEXT NOT NULL, event_json TEXT NOT NULL)")
-        conn.execute("CREATE TABLE IF NOT EXISTS runtime_registry (name TEXT PRIMARY KEY, digest TEXT NOT NULL)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS objects (digest TEXT PRIMARY KEY, record_json TEXT NOT NULL)"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS lineage (digest TEXT NOT NULL, event_json TEXT NOT NULL)"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_registry (name TEXT PRIMARY KEY, digest TEXT NOT NULL)"
+        )
         conn.commit()
 
 
@@ -148,7 +164,9 @@ def load_db() -> None:
         for row in conn.execute("SELECT digest, record_json FROM objects"):
             STORE[row["digest"]] = json.loads(row["record_json"])
         for row in conn.execute("SELECT digest, event_json FROM lineage"):
-            LINEAGE.setdefault(row["digest"], []).append(json.loads(row["event_json"]))
+            LINEAGE.setdefault(row["digest"], []).append(
+                json.loads(row["event_json"])
+            )
         for row in conn.execute("SELECT name, digest FROM runtime_registry"):
             RUNTIME_REGISTRY[row["name"]] = row["digest"]
 
@@ -186,7 +204,9 @@ def add_lineage(digest: str, event: Dict[str, Any]) -> None:
 
 
 def canonical_digest(payload: Any) -> str:
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
@@ -196,7 +216,9 @@ def timestamp() -> float:
 
 def get_obj(digest: str) -> Dict[str, Any]:
     if digest not in STORE:
-        raise HTTPException(status_code=404, detail=f"Object not found: {digest}")
+        raise HTTPException(
+            status_code=404, detail=f"Object not found: {digest}"
+        )
     return STORE[digest]
 
 
@@ -232,7 +254,10 @@ def create_record(
     }
     STORE[digest] = record
     persist_object(record)
-    add_lineage(digest, {"event": "created", "agent": "system", "timestamp": timestamp()})
+    add_lineage(
+        digest,
+        {"event": "created", "agent": "system", "timestamp": timestamp()},
+    )
     return record
 
 
@@ -240,16 +265,29 @@ def validate_code(code: str) -> None:
     try:
         tree = ast.parse(code, mode="eval")
     except SyntaxError as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid runtime syntax: {exc}") from exc
+        raise HTTPException(
+            status_code=400, detail=f"Invalid runtime syntax: {exc}"
+        ) from exc
 
     for node in ast.walk(tree):
         if not isinstance(node, ALLOWED_AST_NODES):
-            raise HTTPException(status_code=400, detail=f"Disallowed syntax: {type(node).__name__}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Disallowed syntax: {type(node).__name__}",
+            )
         if isinstance(node, ast.Name) and node.id not in ALLOWED_NAMES:
-            raise HTTPException(status_code=400, detail=f"Disallowed name: {node.id}")
+            raise HTTPException(
+                status_code=400, detail=f"Disallowed name: {node.id}"
+            )
         if isinstance(node, ast.Call):
-            if not isinstance(node.func, ast.Name) or node.func.id not in ALLOWED_BUILTINS:
-                raise HTTPException(status_code=400, detail="Only approved builtin calls are allowed")
+            if (
+                not isinstance(node.func, ast.Name)
+                or node.func.id not in ALLOWED_BUILTINS
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only approved builtin calls are allowed",
+                )
 
 
 def extract_runtime_code(runtime_obj: Dict[str, Any]) -> str:
@@ -264,15 +302,23 @@ def extract_runtime_code(runtime_obj: Dict[str, Any]) -> str:
     )
 
 
-def resolve_runtime(runtime_name: Optional[str], runtime_object: Optional[str]) -> Tuple[str, Dict[str, Any]]:
+def resolve_runtime(
+    runtime_name: Optional[str], runtime_object: Optional[str]
+) -> Tuple[str, Dict[str, Any]]:
     if runtime_name:
         if runtime_name not in RUNTIME_REGISTRY:
-            raise HTTPException(status_code=404, detail=f"Runtime not registered: {runtime_name}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Runtime not registered: {runtime_name}",
+            )
         digest = RUNTIME_REGISTRY[runtime_name]
         return digest, get_obj(digest)
     if runtime_object:
         return runtime_object, get_obj(runtime_object)
-    raise HTTPException(status_code=400, detail="Provide runtimeName, runtimeObject, or parameters.code")
+    raise HTTPException(
+        status_code=400,
+        detail="Provide runtimeName, runtimeObject, or parameters.code",
+    )
 
 
 def _safe_child_exec(
@@ -305,13 +351,21 @@ def _safe_child_exec(
         }
         result = eval(code, {"__builtins__": ALLOWED_BUILTINS}, local_scope)
         result_queue.put({"ok": True, "result": result})
-    except BaseException as exc:  # child process should never leak exceptions outward
-        result_queue.put({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+    except (
+        BaseException
+    ) as exc:  # child process should never leak exceptions outward
+        result_queue.put(
+            {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        )
 
 
-def run_code(code: str, input_objects: List[Dict[str, Any]], parameters: Dict[str, Any]) -> Any:
+def run_code(
+    code: str, input_objects: List[Dict[str, Any]], parameters: Dict[str, Any]
+) -> Any:
     validate_code(code)
-    timeout_seconds = float(parameters.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
+    timeout_seconds = float(
+        parameters.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
+    )
     memory_mb = int(parameters.get("memory_mb", DEFAULT_MEMORY_MB))
     timeout_seconds = max(0.1, min(timeout_seconds, 10.0))
     memory_mb = max(32, min(memory_mb, 512))
@@ -332,10 +386,14 @@ def run_code(code: str, input_objects: List[Dict[str, Any]], parameters: Dict[st
     try:
         payload = result_queue.get_nowait()
     except queue.Empty as exc:
-        raise HTTPException(status_code=400, detail="Execution failed without result") from exc
+        raise HTTPException(
+            status_code=400, detail="Execution failed without result"
+        ) from exc
 
     if not payload.get("ok"):
-        raise HTTPException(status_code=400, detail=f"Execution failed: {payload.get('error')}")
+        raise HTTPException(
+            status_code=400, detail=f"Execution failed: {payload.get('error')}"
+        )
     return payload.get("result")
 
 
@@ -367,12 +425,15 @@ def register_runtime_object(
     )
     RUNTIME_REGISTRY[name] = record["digest"]
     persist_runtime(name, record["digest"])
-    add_lineage(record["digest"], {
-        "event": "registered_runtime",
-        "agent": "runtime_registry",
-        "runtimeName": name,
-        "timestamp": timestamp(),
-    })
+    add_lineage(
+        record["digest"],
+        {
+            "event": "registered_runtime",
+            "agent": "runtime_registry",
+            "runtimeName": name,
+            "timestamp": timestamp(),
+        },
+    )
     return record
 
 
@@ -406,13 +467,18 @@ def execute_runtime(
     input_objects = [get_obj(digest) for digest in inputs]
 
     if runtime_name or runtime_object:
-        runtime_digest, runtime_obj = resolve_runtime(runtime_name, runtime_object)
+        runtime_digest, runtime_obj = resolve_runtime(
+            runtime_name, runtime_object
+        )
         code = extract_runtime_code(runtime_obj)
     elif isinstance(parameters.get("code"), str):
         code = parameters["code"]
         runtime_digest = None
     else:
-        raise HTTPException(status_code=400, detail="Provide runtimeName, runtimeObject, or parameters.code")
+        raise HTTPException(
+            status_code=400,
+            detail="Provide runtimeName, runtimeObject, or parameters.code",
+        )
 
     result = run_code(code, input_objects, parameters)
     output = create_record(
@@ -420,7 +486,11 @@ def execute_runtime(
         mode="immutable",
         attributes={"agent": "execution", "kind": "execution-output"},
         links=[{"rel": "used", "target": digest} for digest in inputs]
-        + ([{"rel": "runtime", "target": runtime_digest}] if runtime_digest else []),
+        + (
+            [{"rel": "runtime", "target": runtime_digest}]
+            if runtime_digest
+            else []
+        ),
         content={"result": result},
     )
     execution_record = create_record(
@@ -429,7 +499,11 @@ def execute_runtime(
         attributes={"agent": "execution", "kind": "execution-record"},
         links=[
             *[{"rel": "input", "target": digest} for digest in inputs],
-            *([{"rel": "runtime", "target": runtime_digest}] if runtime_digest else []),
+            *(
+                [{"rel": "runtime", "target": runtime_digest}]
+                if runtime_digest
+                else []
+            ),
             {"rel": "output", "target": output["digest"]},
         ],
         content={
@@ -441,23 +515,29 @@ def execute_runtime(
             "timestamp": timestamp(),
         },
     )
-    add_lineage(output["digest"], {
-        "event": "executed",
-        "agent": "execution",
-        "inputs": inputs,
-        "runtimeName": runtime_name,
-        "runtimeObject": runtime_digest,
-        "executionRecord": execution_record["digest"],
-        "timestamp": timestamp(),
-    })
-    if runtime_digest:
-        add_lineage(runtime_digest, {
-            "event": "used_as_runtime",
+    add_lineage(
+        output["digest"],
+        {
+            "event": "executed",
             "agent": "execution",
-            "output": output["digest"],
+            "inputs": inputs,
+            "runtimeName": runtime_name,
+            "runtimeObject": runtime_digest,
             "executionRecord": execution_record["digest"],
             "timestamp": timestamp(),
-        })
+        },
+    )
+    if runtime_digest:
+        add_lineage(
+            runtime_digest,
+            {
+                "event": "used_as_runtime",
+                "agent": "execution",
+                "output": output["digest"],
+                "executionRecord": execution_record["digest"],
+                "timestamp": timestamp(),
+            },
+        )
     return {
         "status": "completed",
         "output": output["digest"],
@@ -551,16 +631,24 @@ class DelegationReq(BaseModel):
 
 
 class AtomicLangModelAnalyzeReq(BaseModel):
-    grammar_spec: str = Field(..., description="Formal grammar specification (e.g., BNF, EBNF)")
+    grammar_spec: str = Field(
+        ..., description="Formal grammar specification (e.g., BNF, EBNF)"
+    )
 
 
 class AtomicLangModelGenerateReq(BaseModel):
-    prefix: str = Field(..., description="Starting text sequence for generation")
-    count: int = Field(5, description="Number of tokens to generate", ge=1, le=50)
+    prefix: str = Field(
+        ..., description="Starting text sequence for generation"
+    )
+    count: int = Field(
+        5, description="Number of tokens to generate", ge=1, le=50
+    )
 
 
 class AtomicLangModelVerifyReq(BaseModel):
-    text: str = Field(..., description="Text to validate for syntax and semantics")
+    text: str = Field(
+        ..., description="Text to validate for syntax and semantics"
+    )
 
 
 @app.get("/")
@@ -622,7 +710,9 @@ def create_object(obj: UORObjectIn):
 
 
 @app.get("/objects")
-def read_object(digest: str = Query(..., description="Object digest, e.g. sha256:<hash>")):
+def read_object(
+    digest: str = Query(..., description="Object digest, e.g. sha256:<hash>"),
+):
     return get_obj(digest)
 
 
@@ -635,7 +725,11 @@ def register_runtime(req: RuntimeRegisterReq):
         tags=req.tags,
         attributes=req.attributes,
     )
-    return {"name": req.name, "runtimeObject": record["digest"], "record": record}
+    return {
+        "name": req.name,
+        "runtimeObject": record["digest"],
+        "record": record,
+    }
 
 
 @app.get("/runtimes")
@@ -655,7 +749,9 @@ def list_runtimes():
 @app.get("/runtimes/{name}")
 def get_runtime(name: str):
     if name not in RUNTIME_REGISTRY:
-        raise HTTPException(status_code=404, detail=f"Runtime not registered: {name}")
+        raise HTTPException(
+            status_code=404, detail=f"Runtime not registered: {name}"
+        )
     digest = RUNTIME_REGISTRY[name]
     return {"name": name, "digest": digest, "record": get_obj(digest)}
 
@@ -679,12 +775,14 @@ def locator_query(req: QueryReq):
                 ok = False
                 break
         if ok:
-            matches.append({
-                "digest": digest,
-                "mediaType": obj.get("mediaType"),
-                "mode": obj.get("mode"),
-                "attributes": obj.get("attributes", {}),
-            })
+            matches.append(
+                {
+                    "digest": digest,
+                    "mediaType": obj.get("mediaType"),
+                    "mode": obj.get("mode"),
+                    "attributes": obj.get("attributes", {}),
+                }
+            )
     return {"matches": matches[: req.limit]}
 
 
@@ -723,12 +821,15 @@ def composer_compose(req: ComposeReq):
         links=[{"rel": "contains", "target": digest} for digest in req.inputs],
         content={"items": req.inputs},
     )
-    add_lineage(created["digest"], {
-        "event": "composed",
-        "agent": "composer",
-        "inputs": req.inputs,
-        "timestamp": timestamp(),
-    })
+    add_lineage(
+        created["digest"],
+        {
+            "event": "composed",
+            "agent": "composer",
+            "inputs": req.inputs,
+            "timestamp": timestamp(),
+        },
+    )
     return {"created": created["digest"], "inputs": req.inputs}
 
 
@@ -750,18 +851,28 @@ def workflow_run_agent(req: WorkflowRunReq):
 @app.post("/workflows/run")
 def workflow_run(req: WorkflowRunReq):
     if not req.steps:
-        raise HTTPException(status_code=400, detail="Workflow requires at least one step")
+        raise HTTPException(
+            status_code=400, detail="Workflow requires at least one step"
+        )
     current_inputs = list(req.inputs)
     step_results = []
     workflow_id = str(uuid.uuid4())
 
     for index, step in enumerate(req.steps, start=1):
-        step_inputs = current_inputs if step.usePreviousOutput or index == 1 else list(req.inputs)
+        step_inputs = (
+            current_inputs
+            if step.usePreviousOutput or index == 1
+            else list(req.inputs)
+        )
         result = execute_runtime(
             runtime_name=step.runtimeName,
             runtime_object=step.runtimeObject,
             inputs=step_inputs,
-            parameters={**step.parameters, "workflow_id": workflow_id, "step": index},
+            parameters={
+                **step.parameters,
+                "workflow_id": workflow_id,
+                "step": index,
+            },
         )
         step_results.append({"step": index, **result})
         current_inputs = [result["output"]]
@@ -769,10 +880,20 @@ def workflow_run(req: WorkflowRunReq):
     workflow_record = create_record(
         mediaType="application/vnd.uar.workflow-record+json",
         mode="immutable",
-        attributes={"agent": "workflow", "kind": "workflow-record", "workflowName": req.name},
+        attributes={
+            "agent": "workflow",
+            "kind": "workflow-record",
+            "workflowName": req.name,
+        },
         links=[
-            *[{"rel": "initial_input", "target": digest} for digest in req.inputs],
-            *[{"rel": "step_output", "target": item["output"]} for item in step_results],
+            *[
+                {"rel": "initial_input", "target": digest}
+                for digest in req.inputs
+            ],
+            *[
+                {"rel": "step_output", "target": item["output"]}
+                for item in step_results
+            ],
         ],
         content={
             "workflow_id": workflow_id,
@@ -782,13 +903,16 @@ def workflow_run(req: WorkflowRunReq):
             "timestamp": timestamp(),
         },
     )
-    add_lineage(workflow_record["digest"], {
-        "event": "workflow_completed",
-        "agent": "workflow",
-        "workflow_id": workflow_id,
-        "final_output": step_results[-1]["output"],
-        "timestamp": timestamp(),
-    })
+    add_lineage(
+        workflow_record["digest"],
+        {
+            "event": "workflow_completed",
+            "agent": "workflow",
+            "workflow_id": workflow_id,
+            "final_output": step_results[-1]["output"],
+            "timestamp": timestamp(),
+        },
+    )
     return {
         "status": "completed",
         "workflowRecord": workflow_record["digest"],
@@ -798,7 +922,9 @@ def workflow_run(req: WorkflowRunReq):
 
 
 @app.get("/agents/lineage/trace")
-def lineage_trace(digest: str = Query(..., description="Object digest, e.g. sha256:<hash>")):
+def lineage_trace(
+    digest: str = Query(..., description="Object digest, e.g. sha256:<hash>"),
+):
     get_obj(digest)
     return {"object": digest, "events": LINEAGE.get(digest, [])}
 
@@ -809,7 +935,9 @@ def constraint_check(req: ConstraintReq):
     allowed = req.agent in AGENTS and req.action in AGENTS[req.agent]
     return {
         "allowed": allowed,
-        "reason": "capability-authorized" if allowed else "unknown-agent-or-action",
+        "reason": "capability-authorized"
+        if allowed
+        else "unknown-agent-or-action",
         "violations": [] if allowed else ["capability-not-found"],
     }
 
@@ -823,7 +951,10 @@ def bridge_ingest(req: BridgeReq):
         links=[],
         content={"normalized": req.normalize, "source": req.source},
     )
-    return {"object": created["digest"], "normalizationRecord": created["digest"]}
+    return {
+        "object": created["digest"],
+        "normalizationRecord": created["digest"],
+    }
 
 
 @app.post("/agents/inference/analyze")
@@ -834,7 +965,9 @@ def inference_analyze(req: InferenceReq):
         mediaType="application/vnd.uar.analysis+json",
         mode="immutable",
         attributes={"task": req.task, "agent": "inference"},
-        links=[{"rel": "analyzed", "target": digest} for digest in req.objects],
+        links=[
+            {"rel": "analyzed", "target": digest} for digest in req.objects
+        ],
         content={"finding_id": str(uuid.uuid4()), "findings": []},
     )
     return {"findings": [], "analysisRecord": created["digest"]}
@@ -845,7 +978,11 @@ def delegation_plan(req: DelegationReq):
     for digest in req.inputs:
         get_obj(digest)
     allowed = req.allowedAgents or ["verifier", "execution", "lineage"]
-    plan = [{"step": i + 1, "agent": agent} for i, agent in enumerate(allowed) if agent in AGENTS]
+    plan = [
+        {"step": i + 1, "agent": agent}
+        for i, agent in enumerate(allowed)
+        if agent in AGENTS
+    ]
     created = create_record(
         mediaType="application/vnd.uar.plan+json",
         mode="immutable",

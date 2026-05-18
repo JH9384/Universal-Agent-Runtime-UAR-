@@ -359,5 +359,6 @@ class TestCircuitBreakerError:
     def test_error_code(self):
         """Error has correct error code"""
         from uar.core.exceptions import ErrorCode
+
         error = CircuitBreakerOpenError("test-service")
         assert error.code == ErrorCode.EXTERNAL_DOWN

@@ -10,13 +10,19 @@ class SkillRegistry:
     def register(self, name: str, fn: Callable) -> None:
         """Register a skill with validation"""
         if not name or not isinstance(name, str):
-            raise ValidationError("Skill name must be a non-empty string", field="name")
+            raise ValidationError(
+                "Skill name must be a non-empty string", field="name"
+            )
 
         if not callable(fn):
-            raise ValidationError("Skill function must be callable", field="function")
+            raise ValidationError(
+                "Skill function must be callable", field="function"
+            )
 
         if name in self._skills:
-            raise ValidationError(f"Skill '{name}' is already registered", field="name")
+            raise ValidationError(
+                f"Skill '{name}' is already registered", field="name"
+            )
 
         self._skills[name] = fn
 

@@ -37,22 +37,30 @@ class SkillBenchmark:
             )
             elapsed = time.time() - start_time
 
-            status = "success" if events[-1]["payload"]["status"] == "completed" else "failed"
-            self.results.append({
-                "skill": skill_name,
-                "elapsed_seconds": elapsed,
-                "status": status,
-                "event_count": len(events),
-            })
+            status = (
+                "success"
+                if events[-1]["payload"]["status"] == "completed"
+                else "failed"
+            )
+            self.results.append(
+                {
+                    "skill": skill_name,
+                    "elapsed_seconds": elapsed,
+                    "status": status,
+                    "event_count": len(events),
+                }
+            )
             return elapsed, status
         except Exception as e:
             elapsed = time.time() - start_time
-            self.results.append({
-                "skill": skill_name,
-                "elapsed_seconds": elapsed,
-                "status": f"error: {str(e)}",
-                "event_count": 0,
-            })
+            self.results.append(
+                {
+                    "skill": skill_name,
+                    "elapsed_seconds": elapsed,
+                    "status": f"error: {str(e)}",
+                    "event_count": 0,
+                }
+            )
             return elapsed, f"error: {str(e)}"
 
     def print_summary(self):
@@ -64,16 +72,20 @@ class SkillBenchmark:
         print("-" * 60)
 
         for result in self.results:
-            print(f"{result['skill']:<30} "
-                  f"{result['elapsed_seconds']:<12.3f} "
-                  f"{result['status']:<15}")
+            print(
+                f"{result['skill']:<30} "
+                f"{result['elapsed_seconds']:<12.3f} "
+                f"{result['status']:<15}"
+            )
 
         print("=" * 60)
 
         # Calculate statistics
         successful = [r for r in self.results if r["status"] == "success"]
         if successful:
-            avg_time = sum(r["elapsed_seconds"] for r in successful) / len(successful)
+            avg_time = sum(r["elapsed_seconds"] for r in successful) / len(
+                successful
+            )
             max_time = max(r["elapsed_seconds"] for r in successful)
             min_time = min(r["elapsed_seconds"] for r in successful)
             print(f"Average time (successful): {avg_time:.3f}s")
@@ -98,7 +110,9 @@ def main():
         # unless those services are available
     ]
 
-    goal = GoalSpec(id="benchmark", user_intent="benchmark", objective="Test goal")
+    goal = GoalSpec(
+        id="benchmark", user_intent="benchmark", objective="Test goal"
+    )
 
     for skill in skills_to_benchmark:
         print(f"\nBenchmarking: {skill}")
@@ -110,6 +124,7 @@ def main():
 
     # Save results to file for comparison
     import json
+
     with open("benchmark_results.json", "w") as f:
         json.dump(benchmark.results, f, indent=2)
     print("\nResults saved to benchmark_results.json")

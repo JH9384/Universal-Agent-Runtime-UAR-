@@ -35,7 +35,9 @@ class JsonRunStore:
         self._lock_file.touch(exist_ok=True)
         lock_fd = open(self._lock_file, "w")
         try:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_SH if shared else fcntl.LOCK_EX)
+            fcntl.flock(
+                lock_fd.fileno(), fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+            )
             yield lock_fd
         finally:
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)

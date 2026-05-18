@@ -23,7 +23,9 @@ class OrchestrationPlan:
         return [node.skill for node in self.nodes]
 
     def to_strategy(self) -> StrategySpec:
-        return StrategySpec(goal_id=self.goal_id, ordered_skills=self.ordered_skills())
+        return StrategySpec(
+            goal_id=self.goal_id, ordered_skills=self.ordered_skills()
+        )
 
     def to_graph(self) -> dict[str, Any]:
         return {
