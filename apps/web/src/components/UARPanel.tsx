@@ -9,6 +9,53 @@ const RECENT_KEY = 'uar.recentPaths'
 const RECIPES_KEY = 'uar.recipes'
 const RECENT_MAX = 8
 
+// TypeScript interfaces for type safety
+interface GraphNode {
+  id?: string
+  skill?: string
+  type?: string
+  [key: string]: any
+}
+
+interface GraphEdge {
+  from?: string
+  to?: string
+  [key: string]: any
+}
+
+interface IngestedDocument {
+  name: string
+  path: string
+  size?: number
+  [key: string]: any
+}
+
+interface RejectionItem {
+  name: string
+  reason: string
+}
+
+interface ErrorResponse {
+  message?: string
+  error?: string
+}
+
+interface JobStatus {
+  rejected?: RejectionItem[]
+  [key: string]: any
+}
+
+interface RunRequestMetadata {
+  graphrag_method?: string
+  graphrag_query?: string
+  ollama_model?: string
+  autonomi_private_key?: string
+  autonomi_network?: string
+  autonomi_public?: boolean
+  autonomi_address?: string
+  [key: string]: any
+}
+
 const SKILL_GROUPS = [
   {
     name: 'Core UAR',
@@ -274,8 +321,8 @@ function FilePicker(props: {
       const j = await r.json()
       if (!r.ok) setErr(j.message || j.error || `HTTP ${r.status}`)
       else { setData(j); setPath(j.path || p) }
-    } catch (e: any) {
-      setErr(e?.message || 'Browse failed')
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Browse failed')
     } finally { setBusy(false) }
   }, [])
 
@@ -610,15 +657,15 @@ export function UARPanel() {
       } else {
         const okN = (j.saved || []).length
         const badN = (j.rejected || []).length
-        const rejNotes = (j.rejected || []).map((x: any) => `${x.name} (${x.reason})`).join(', ')
+        const rejNotes = (j.rejected || []).map((x: RejectionItem) => `${x.name} (${x.reason})`).join(', ')
         setUploadMsg(`Saved ${okN}${badN ? ` · rejected ${badN}: ${rejNotes}` : ''}`)
         await refreshLibrary()
         // If exactly one file uploaded, pre-select it
         if (okN === 1) setInputPath(j.saved[0].path)
         else if (okN > 0 && j.library) setInputPath(j.library)
       }
-    } catch (e: any) {
-      setUploadMsg(`Upload error: ${e?.message || 'unknown'}`)
+    } catch (e: unknown) {
+      setUploadMsg(`Upload error: ${e instanceof Error ? e.message : 'unknown'}`)
     }
   }, [refreshLibrary])
 
@@ -631,8 +678,8 @@ export function UARPanel() {
         const j = await r.json().catch(() => ({}))
         setUploadMsg(`Delete failed: ${j.message || r.status}`)
       }
-    } catch (e: any) {
-      setUploadMsg(`Delete error: ${e?.message}`)
+    } catch (e: unknown) {
+      setUploadMsg(`Delete error: ${e instanceof Error ? e.message : 'unknown'}`)
     }
   }
 
@@ -796,9 +843,9 @@ export function UARPanel() {
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
 
-    const body: any = { goal, skills: selectedSkills }
+    const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata } = { goal, skills: selectedSkills }
     if (inputPath.trim()) { body.input_path = inputPath.trim(); pushRecent(inputPath.trim()) }
-    const meta: any = {}
+    const meta: RunRequestMetadata = {}
     if (selectedSkills.includes('graphrag_query')) {
       meta.graphrag_method = graphragMethod
       meta.graphrag_query = goal
@@ -892,7 +939,7 @@ export function UARPanel() {
   const { nodes, edges } = useMemo(() => {
     if (!graph) return { nodes: [], edges: [] }
     const nodeIndex = new Map<string, string>()
-    const nodes = (graph.nodes || []).map((n: any, i: number) => {
+    const nodes = (graph.nodes || []).map((n: GraphNode, i: number) => {
       const nodeId = n.id || n.skill || String(i)
       nodeIndex.set(nodeId, String(i))
       return {
@@ -902,9 +949,9 @@ export function UARPanel() {
       }
     })
     const edges = (graph.edges || [])
-      .map((e: any, i: number) => {
-        const source = nodeIndex.get(e.from)
-        const target = nodeIndex.get(e.to)
+      .map((e: GraphEdge, i: number) => {
+        const source = e.from ? nodeIndex.get(e.from) : undefined
+        const target = e.to ? nodeIndex.get(e.to) : undefined
         if (source === undefined || target === undefined) return null
         return { id: String(i), source, target }
       })
@@ -1536,7 +1583,7 @@ export function UARPanel() {
           <strong>Ingested documents</strong>
           {ingested.warning && <div className={styles.ingestedWarning}>{ingested.warning}</div>}
           <div className={styles.ingestedList}>
-            {(ingested.documents || []).map((d: any, i: number) => (
+            {(ingested.documents || []).map((d: IngestedDocument, i: number) => (
               <div key={i} className={styles.ingestedItem}>
                 <div className={styles.ingestedItemName}>{d.path || d.name || `#${i}`}</div>
                 {d.error ? <div className={styles.ingestedItemError}>error: {d.error}</div>
