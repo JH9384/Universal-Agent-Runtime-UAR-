@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 tests/test_api.py
+tests/test_api_comprehensive.py
 tests/test_cli.py
 tests/test_error_handling.py
 tests/test_failure_paths.py

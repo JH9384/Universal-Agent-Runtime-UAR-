@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.1",
@@ -14,10 +17,16 @@
     "react-dom": "^18.3.1",
     "reactflow": "^11.11.4",
     "typescript": "^5.5.4",
-    "vite": "^8.0.10"
+    "vite": "^6.0.1"
   },
   "devDependencies": {
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/user-event": "^14.5.1",
     "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "@vitest/ui": "^1.1.0",
+    "jsdom": "^23.0.1",
+    "vitest": "^1.1.0"
   }
 }
