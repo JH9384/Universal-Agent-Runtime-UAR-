@@ -28,6 +28,7 @@ from uar.core.exceptions import UARError, ValidationError, PathSecurityError
 from uar.core.planner import SimplePlanner
 from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
+from uar.api.advanced_endpoints import router as advanced_router
 from uar.core.validation import (
     validate_goal,
     validate_skills,
@@ -85,6 +86,7 @@ import uar.skills.mistral_skills  # noqa
 import uar.skills.groq_skills  # noqa
 import uar.skills.huggingface_skills  # noqa
 import uar.skills.together_skills  # noqa
+import uar.skills.advanced_integrations  # noqa
 
 
 # Lifespan for graceful startup/shutdown
@@ -131,6 +133,9 @@ app.add_middleware(
     allow_methods=[CORS_ALLOW_METHODS] if CORS_ALLOW_METHODS != "*" else ["*"],
     allow_headers=[CORS_ALLOW_HEADERS] if CORS_ALLOW_HEADERS != "*" else ["*"],
 )
+
+# Include advanced integrations router
+app.include_router(advanced_router)
 
 store = JsonRunStore()
 
@@ -317,23 +322,72 @@ async def run_goal(
 
         except ValidationError as e:
             logger.warning(f"[{request_id}] Validation error: {str(e)}")
+            # Provide user-friendly error messages based on field
+            user_message = str(e)
+            if e.field == "goal":
+                user_message = (
+                    f"Invalid goal: {str(e)}. "
+                    "Please provide a clear goal description "
+                    "(3-10,000 characters)."
+                )
+            elif e.field == "skills":
+                user_message = (
+                    f"Invalid skills: {str(e)}. "
+                    "Please check that the skills are available "
+                    "in the system."
+                )
+            elif e.field == "input_path":
+                user_message = (
+                    f"Invalid input path: {str(e)}. "
+                    "Please provide a valid path within the "
+                    "project directory."
+                )
+            elif e.field == "timeout_seconds":
+                user_message = (
+                    f"Invalid timeout: {str(e)}. "
+                    "Please provide a timeout between 1 and "
+                    "300 seconds."
+                )
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "Validation error",
-                    "message": str(e),
+                    "message": user_message,
                     "field": e.field,
                     "request_id": request_id,
+                    "suggestion": (
+                        "Check your request parameters and try again. "
+                        "For help, see the API documentation."
+                    ),
                 },
             )
         except UARError as e:
             logger.error(f"[{request_id}] UAR error: {str(e)}")
+            # Provide more context for UARError types
+            error_type = type(e).__name__
+            suggestion = "Please check your request and try again."
+            if "Path" in error_type:
+                suggestion = (
+                    "Please verify the file path exists and "
+                    "is accessible."
+                )
+            elif "Permission" in error_type:
+                suggestion = "Please check file permissions and try again."
+            elif "Timeout" in error_type:
+                suggestion = (
+                    "Consider increasing the timeout or reducing "
+                    "the task complexity."
+                )
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "UAR error",
                     "message": str(e),
+                    "error_type": error_type,
                     "request_id": request_id,
+                    "suggestion": suggestion,
                 },
             )
         except Exception as e:
@@ -345,8 +399,15 @@ async def run_goal(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "error": "Internal server error",
-                    "message": "An unexpected error occurred",
+                    "message": (
+                        "An unexpected error occurred while "
+                        "processing your request"
+                    ),
                     "request_id": request_id,
+                    "suggestion": (
+                        "Please try again later. If the problem persists, "
+                        "contact support with the request ID."
+                    ),
                 },
             )
 
