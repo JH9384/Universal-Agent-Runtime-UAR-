@@ -48,18 +48,62 @@ UAR has been tested and validated on the following environments:
 
 ### Installation
 
+UAR offers multiple installation options depending on your use case. The base installation is lightweight (~100MB), while optional integrations can be added as needed.
+
+#### Base Installation (Recommended for Getting Started)
+
 ```bash
 # Clone repository
 git clone https://github.com/JH9384/Universal-Agent-Runtime-UAR-.git
 cd Universal-Agent-Runtime-UAR-
 
-# Install Python dependencies
+# Install base dependencies (core functionality only)
 pip install -e .
 
 # Install web dependencies (optional)
 cd apps/web
 npm install
 npm run build
+```
+
+**Includes:** Core runtime, document processing (basic), API server, CLI tools
+
+#### Full Installation (All Advanced Integrations)
+
+```bash
+# Install with all advanced integrations
+pip install -e ".[advanced]"
+```
+
+**Includes:** All base features + AutoGen, CrewAI, LlamaIndex, Dagster, Neo4j, ChromaDB, Qdrant, Docling, Unstructured
+
+#### Selective Installation (By Feature)
+
+```bash
+# Document processing (PDF, DOCX, images, tables)
+pip install -e ".[doc-processing]"
+
+# Agent orchestration (multi-agent workflows)
+pip install -e ".[agent-orchestration]"
+
+# Advanced RAG (knowledge graphs, vector databases)
+pip install -e ".[advanced-rag]"
+
+# Pipeline orchestration (Dagster workflows)
+pip install -e ".[pipeline-orchestration]"
+
+# GraphRAG (knowledge graph operations)
+pip install -e ".[graphrag]"
+
+# Autonomi (decentralized storage - experimental)
+pip install -e ".[autonomi]"
+```
+
+#### Development Installation
+
+```bash
+# Install with development tools
+pip install -e ".[dev]"
 ```
 
 ### Run Locally

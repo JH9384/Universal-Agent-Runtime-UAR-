@@ -596,23 +596,72 @@ async def stream_goal(
 
         except ValidationError as e:
             logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
+            # Provide user-friendly error messages based on field
+            user_message = str(e)
+            if e.field == "goal":
+                user_message = (
+                    f"Invalid goal: {str(e)}. "
+                    "Please provide a clear goal description "
+                    "(3-10,000 characters)."
+                )
+            elif e.field == "skills":
+                user_message = (
+                    f"Invalid skills: {str(e)}. "
+                    "Please check that the skills are available "
+                    "in the system."
+                )
+            elif e.field == "input_path":
+                user_message = (
+                    f"Invalid input path: {str(e)}. "
+                    "Please provide a valid path within the "
+                    "project directory."
+                )
+            elif e.field == "timeout_seconds":
+                user_message = (
+                    f"Invalid timeout: {str(e)}. "
+                    "Please provide a timeout between 1 and "
+                    "300 seconds."
+                )
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "Validation error",
-                    "message": str(e),
+                    "message": user_message,
                     "field": e.field,
                     "request_id": request_id,
+                    "suggestion": (
+                        "Check your request parameters and try again. "
+                        "For help, see the API documentation."
+                    ),
                 },
             )
         except UARError as e:
             logger.error(f"[{request_id}] Stream UAR error: {str(e)}")
+            # Provide more context for UARError types
+            error_type = type(e).__name__
+            suggestion = "Please check your request and try again."
+            if "Path" in error_type:
+                suggestion = (
+                    "Please verify the file path exists and "
+                    "is accessible."
+                )
+            elif "Permission" in error_type:
+                suggestion = "Please check file permissions and try again."
+            elif "Timeout" in error_type:
+                suggestion = (
+                    "Consider increasing the timeout or reducing "
+                    "the task complexity."
+                )
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "UAR error",
                     "message": str(e),
+                    "error_type": error_type,
                     "request_id": request_id,
+                    "suggestion": suggestion,
                 },
             )
         except Exception as e:
@@ -624,8 +673,15 @@ async def stream_goal(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "error": "Internal server error",
-                    "message": "An unexpected error occurred",
+                    "message": (
+                        "An unexpected error occurred while "
+                        "processing your request"
+                    ),
                     "request_id": request_id,
+                    "suggestion": (
+                        "Please try again later. If the problem persists, "
+                        "contact support with the request ID."
+                    ),
                 },
             )
 
