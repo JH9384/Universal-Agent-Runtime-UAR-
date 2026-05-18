@@ -77,6 +77,14 @@ import uar.skills.atomic_lang_model  # noqa
 import uar.skills.math_compute  # noqa
 import uar.skills.cipher_ops  # noqa
 import uar.skills.physics_compute  # noqa
+import uar.skills.openai_skills  # noqa
+import uar.skills.lm_studio_skills  # noqa
+import uar.skills.anthropic_skills  # noqa
+import uar.skills.gemini_skills  # noqa
+import uar.skills.mistral_skills  # noqa
+import uar.skills.groq_skills  # noqa
+import uar.skills.huggingface_skills  # noqa
+import uar.skills.together_skills  # noqa
 
 
 # Lifespan for graceful startup/shutdown
@@ -1159,5 +1167,32 @@ async def get_status(
             "alm_analyze",
             "alm_generate",
             "alm_verify",
+            "cipher_ops",
+            "math_compute",
+            "physics_compute",
+            "openai_chat",
+            "openai_completion",
+            "openai_embedding",
+            "lm_studio_chat",
+            "lm_studio_completion",
+            "lm_studio_embedding",
+            "anthropic_chat",
+            "anthropic_completion",
+            "anthropic_embedding",
+            "gemini_chat",
+            "gemini_completion",
+            "gemini_embedding",
+            "mistral_chat",
+            "mistral_completion",
+            "mistral_embedding",
+            "groq_chat",
+            "groq_completion",
+            "groq_embedding",
+            "huggingface_chat",
+            "huggingface_completion",
+            "huggingface_embedding",
+            "together_chat",
+            "together_completion",
+            "together_embedding",
         ],
     }

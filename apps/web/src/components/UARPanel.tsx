@@ -24,6 +24,29 @@ const SKILL_GROUPS = [
     icon: '🧠',
     skills: [
       { id: 'ollama_generate', label: 'ollama_generate', desc: 'Send goal + ingested docs to local Ollama model (requires Ollama running)' },
+      { id: 'openai_chat', label: 'openai_chat', desc: 'Chat with OpenAI GPT models (requires openai package + OPENAI_API_KEY)' },
+      { id: 'openai_completion', label: 'openai_completion', desc: 'Text completion with OpenAI models (requires openai package + OPENAI_API_KEY)' },
+      { id: 'openai_embedding', label: 'openai_embedding', desc: 'Generate embeddings for text (requires openai package + OPENAI_API_KEY)' },
+      { id: 'lm_studio_chat', label: 'lm_studio_chat', desc: 'Chat with local LM Studio models (requires LM Studio running)' },
+      { id: 'lm_studio_completion', label: 'lm_studio_completion', desc: 'Text completion with LM Studio (requires LM Studio running)' },
+      { id: 'lm_studio_embedding', label: 'lm_studio_embedding', desc: 'Generate embeddings with LM Studio (requires LM Studio running)' },
+      { id: 'anthropic_chat', label: 'anthropic_chat', desc: 'Chat with Claude models (requires anthropic package + ANTHROPIC_API_KEY)' },
+      { id: 'anthropic_completion', label: 'anthropic_completion', desc: 'Text completion with Claude (requires anthropic package + ANTHROPIC_API_KEY)' },
+      { id: 'anthropic_embedding', label: 'anthropic_embedding', desc: 'Generate embeddings with Claude (not currently supported by Anthropic API)' },
+      { id: 'gemini_chat', label: 'gemini_chat', desc: 'Chat with Gemini models (requires google-generativeai package + GEMINI_API_KEY)' },
+      { id: 'gemini_completion', label: 'gemini_completion', desc: 'Text completion with Gemini (requires google-generativeai package + GEMINI_API_KEY)' },
+      { id: 'gemini_embedding', label: 'gemini_embedding', desc: 'Generate embeddings with Gemini (requires google-generativeai package + GEMINI_API_KEY)' },
+      { id: 'mistral_chat', label: 'mistral_chat', desc: 'Chat with Mistral models (requires openai package + MISTRAL_API_KEY)' },
+      { id: 'mistral_completion', label: 'mistral_completion', desc: 'Text completion with Mistral (requires openai package + MISTRAL_API_KEY)' },
+      { id: 'mistral_embedding', label: 'mistral_embedding', desc: 'Generate embeddings with Mistral (requires openai package + MISTRAL_API_KEY)' },
+      { id: 'groq_chat', label: 'groq_chat', desc: 'Ultra-fast chat with Groq (requires openai package + GROQ_API_KEY)' },
+      { id: 'groq_completion', label: 'groq_completion', desc: 'Ultra-fast completion with Groq (requires openai package + GROQ_API_KEY)' },
+      { id: 'huggingface_chat', label: 'huggingface_chat', desc: 'Chat with HF models (requires openai package + HF_API_KEY)' },
+      { id: 'huggingface_completion', label: 'huggingface_completion', desc: 'Text completion with HF (requires openai package + HF_API_KEY)' },
+      { id: 'huggingface_embedding', label: 'huggingface_embedding', desc: 'Generate embeddings with HF (requires openai package + HF_API_KEY)' },
+      { id: 'together_chat', label: 'together_chat', desc: 'Chat with Together models (requires openai package + TOGETHER_API_KEY)' },
+      { id: 'together_completion', label: 'together_completion', desc: 'Text completion with Together (requires openai package + TOGETHER_API_KEY)' },
+      { id: 'together_embedding', label: 'together_embedding', desc: 'Generate embeddings with Together (requires openai package + TOGETHER_API_KEY)' },
     ]
   },
   {
@@ -318,6 +341,12 @@ export function UARPanel() {
   const [dragActive, setDragActive] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    SKILL_GROUPS.forEach(g => initial[g.name] = false)
+    return initial
+  })
   const [recent, setRecent] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') } catch { return [] }
   })
@@ -446,6 +475,16 @@ export function UARPanel() {
     setSelectedSkills((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     )
+  }
+
+  const toggleGroup = (groupName: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }))
+  }
+
+  const toggleAllGroups = (expand: boolean) => {
+    const newState: Record<string, boolean> = {}
+    SKILL_GROUPS.forEach(g => newState[g.name] = !expand)
+    setCollapsedGroups(newState)
   }
 
   const onPick = (p: string) => {
@@ -615,6 +654,13 @@ export function UARPanel() {
         <h3 className={styles.headerTitle}>UAR Live System</h3>
         <span className={styles.projectRoot}>{projectRoot}</span>
         <button
+          onClick={() => setShowHelp(!showHelp)}
+          className={styles.skillGuideButton}
+          title="Toggle quick tips"
+        >
+          💡 {showHelp ? 'Hide' : 'Show'} Tips
+        </button>
+        <button
           onClick={() => setSkillGuideOpen(true)}
           className={styles.skillGuideButton}
           title="View skill documentation"
@@ -622,6 +668,29 @@ export function UARPanel() {
           📘 Skill Guide
         </button>
       </div>
+
+      {showHelp && (
+        <div className={styles.helpBox}>
+          <div className={styles.helpSection}>
+            <strong>Quick Start:</strong>
+            <ul className={styles.helpList}>
+              <li>1. <strong>Select documents</strong> from the library or upload files</li>
+              <li>2. <strong>Set a goal</strong> describing what you want to accomplish</li>
+              <li>3. <strong>Choose skills</strong> to apply (use recipes for quick workflows)</li>
+              <li>4. <strong>Run</strong> and monitor the execution in real-time</li>
+            </ul>
+          </div>
+          <div className={styles.helpSection}>
+            <strong>Pro Tips:</strong>
+            <ul className={styles.helpList}>
+              <li>Use <strong>Recipes</strong> for common workflows</li>
+              <li><strong>doc_ingest</strong> reads files from your input_path</li>
+              <li>Skills execute in the order shown</li>
+              <li>Hover over skills for descriptions</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className={styles.errorBox}>
@@ -772,23 +841,37 @@ export function UARPanel() {
         </div>
 
         <div>
-          <label className={styles.label}>Skills</label>
-          <div>
-            {SKILL_GROUPS.map((group) => (
-              <div key={group.name} className={styles.skillGroup}>
-                <div className={styles.skillGroupHeader}>
-                  <span className={styles.skillGroupIcon}>{group.icon}</span>
-                  <span className={styles.skillGroupName}>{group.name}</span>
+          <label className={styles.label}>
+            Skills
+            <button onClick={() => toggleAllGroups(false)} className={styles.collapseAllButton} disabled={isRunning} title="Collapse all">
+              ▼
+            </button>
+            <button onClick={() => toggleAllGroups(true)} className={styles.collapseAllButton} disabled={isRunning} title="Expand all">
+              ▲
+            </button>
+          </label>
+          <div className={styles.skillsContainer}>
+            {SKILL_GROUPS.map((group) => {
+              const isCollapsed = collapsedGroups[group.name]
+              return (
+                <div key={group.name} className={styles.skillGroup}>
+                  <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)}>
+                    <span className={styles.skillGroupIcon}>{group.icon}</span>
+                    <span className={styles.skillGroupName}>{group.name}</span>
+                    <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
+                  </div>
+                  {!isCollapsed && (
+                    <div className={styles.skillGroupSkills}>
+                      {group.skills.map((s) => (
+                        <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
+                          {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className={styles.skillGroupSkills}>
-                  {group.skills.map((s) => (
-                    <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(selectedSkills.includes(s.id), isRunning)}>
-                      {selectedSkills.includes(s.id) ? '✓ ' : ''}{s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div className={styles.orderText}>
             Order: {selectedSkills.length ? selectedSkills.join(' → ') : '(none)'}

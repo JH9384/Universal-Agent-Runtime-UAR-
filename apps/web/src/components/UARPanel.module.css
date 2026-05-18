@@ -36,6 +36,33 @@
   background: #f0f0f0;
 }
 
+.helpBox {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.helpSection {
+  margin-bottom: 8px;
+}
+
+.helpSection:last-child {
+  margin-bottom: 0;
+}
+
+.helpList {
+  margin: 4px 0 0 16px;
+  padding: 0;
+}
+
+.helpList li {
+  margin-bottom: 4px;
+  color: #555;
+}
+
 .errorBox {
   background: #fee;
   border: 1px solid #fcc;
@@ -584,6 +611,65 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.skillsContainer {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.skillsContainer::-webkit-scrollbar {
+  width: 6px;
+}
+
+.skillsContainer::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.skillsContainer::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.skillsContainer::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+.skillGroupHeader {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.skillGroupHeader:hover {
+  background: #f5f6f7;
+}
+
+.collapseIcon {
+  margin-left: auto;
+  font-size: 12px;
+  color: #666;
+}
+
+.collapseAllButton {
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 0 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+}
+
+.collapseAllButton:hover {
+  color: #333;
+}
+
+.collapseAllButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .recipeContainer {
