@@ -2,19 +2,41 @@
 
 Provides SHACL (Shapes Constraint Language) validation for UOR objects,
 enforcing advanced constraints beyond JSON Schema.
+
+Heavy dependencies (``pyshacl``, ``rdflib``) are optional; when absent,
+this module still imports cleanly and :data:`SHACL_AVAILABLE` is ``False``
+so callers can degrade gracefully.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 try:
-    import pyshacl
-    from rdflib import Graph, Literal, Namespace, URIRef
+    import pyshacl  # type: ignore[import-not-found]
+    from rdflib import (  # type: ignore[import-not-found]
+        Graph,
+        Literal,
+        Namespace,
+        URIRef,
+    )
+
     SHACL_AVAILABLE = True
 except ImportError:
     SHACL_AVAILABLE = False
-    logging.warning("pyshacl not available. Install with: pip install pyshacl rdflib")
+    logging.getLogger(__name__).warning(
+        "pyshacl not available. Install with: pip install pyshacl rdflib"
+    )
+
+    # Sentinels so module-level annotations referencing these names do
+    # not raise NameError at class-definition time.
+    pyshacl = None  # type: ignore[assignment]
+    Graph = None  # type: ignore[assignment,misc]
+    Literal = None  # type: ignore[assignment,misc]
+    Namespace = None  # type: ignore[assignment,misc]
+    URIRef = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 

@@ -2,19 +2,47 @@
 
 Provides support for JSON-LD, Turtle, OWL, and other RDF formats
 for UOR objects, enabling semantic interoperability.
+
+``rdflib`` is an optional dependency; when absent this module imports
+cleanly and :data:`RDFLIB_AVAILABLE` is ``False`` so callers can
+degrade gracefully.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
+from typing import Any, Dict, Optional, Union
 
 try:
-    from rdflib import Graph, Literal, Namespace, URIRef, BNode
-    from rdflib.namespace import RDF, RDFS, XSD, OWL
+    from rdflib import (  # type: ignore[import-not-found]
+        BNode,
+        Graph,
+        Literal,
+        Namespace,
+        URIRef,
+    )
+    from rdflib.namespace import (  # type: ignore[import-not-found]
+        OWL,
+        RDF,
+        RDFS,
+        XSD,
+    )
+
     RDFLIB_AVAILABLE = True
 except ImportError:
     RDFLIB_AVAILABLE = False
-    logging.warning("rdflib not available. Install with: pip install rdflib")
+    logging.getLogger(__name__).warning(
+        "rdflib not available. Install with: pip install rdflib"
+    )
+
+    # Sentinels for clean module-level annotations without rdflib.
+    BNode = None  # type: ignore[assignment,misc]
+    Graph = None  # type: ignore[assignment,misc]
+    Literal = None  # type: ignore[assignment,misc]
+    Namespace = None  # type: ignore[assignment,misc]
+    URIRef = None  # type: ignore[assignment,misc]
+    OWL = RDF = RDFS = XSD = None  # type: ignore[assignment]
 
 try:
     import json

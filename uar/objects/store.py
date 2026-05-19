@@ -25,7 +25,22 @@ DEFAULT_DB_FILENAME = "uar.sqlite3"
 
 
 def _resolve_default_db_path() -> str:
-    """Return DB path from env vars, falling back to a CWD-relative file."""
+    """Return DB path from settings, with env-var fallback.
+
+    Resolution order:
+      1. ``uar.config.config.uor_db_path`` (centralized settings)
+      2. ``UOR_DB_PATH`` env var (preferred legacy)
+      3. ``DB_PATH`` env var (oldest legacy)
+      4. ``DEFAULT_DB_FILENAME`` (CWD-relative)
+    """
+    try:
+        from uar.config import config
+
+        path = getattr(config, "uor_db_path", None)
+        if path is not None:
+            return str(path)
+    except Exception:  # pragma: no cover - circular-import safety net
+        pass
     return (
         os.getenv("UOR_DB_PATH")
         or os.getenv("DB_PATH")

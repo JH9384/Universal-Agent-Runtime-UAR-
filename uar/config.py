@@ -116,6 +116,23 @@ class Config:
             os.getenv("UAR_GRAPHRAG_ROOT", project_root / ".uar_graphrag")
         )
 
+        # UOR object/runtime store (consolidated from apps/api-python).
+        # Path priority: UOR_DB_PATH (preferred) > legacy DB_PATH >
+        # default ./uar.sqlite3 next to the runtime working directory.
+        self.uor_db_path = Path(
+            os.getenv("UOR_DB_PATH")
+            or os.getenv("DB_PATH")
+            or "uar.sqlite3"
+        )
+
+        # Optional UOR extensions (atlas, prism, sigmatics, ego-guard).
+        # Off by default so missing optional deps never break the
+        # default-import path; opt in via env.
+        self.uor_extensions_enabled = (
+            os.getenv("UAR_ENABLE_UOR_EXTENSIONS", "false").lower()
+            == "true"
+        )
+
         # Autonomi Network Configuration
         self.autonomi_private_key = os.getenv("AUTONOMI_PRIVATE_KEY")
         self.autonomi_network = os.getenv("AUTONOMI_NETWORK", "testnet")
