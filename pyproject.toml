@@ -56,7 +56,7 @@ advanced = [
   "dagster>=1.7,<2.0",
   "dagster-webserver>=1.7,<2.0",
   "neo4j>=5.0,<6.0",
-  "chromadb>=0.4,<1.0",
+  "chromadb>=0.4,<2.0",
   "qdrant-client>=1.9,<2.0",
 ]
 # Individual integration groups for selective installation
@@ -72,7 +72,7 @@ advanced-rag = [
   "llama-index>=0.10,<1.0",
   "llama-index-graph-stores-neo4j>=0.1,<1.0",
   "neo4j>=5.0,<6.0",
-  "chromadb>=0.4,<1.0",
+  "chromadb>=0.4,<2.0",
   "qdrant-client>=1.9,<2.0",
 ]
 pipeline-orchestration = [
