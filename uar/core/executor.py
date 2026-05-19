@@ -220,24 +220,39 @@ def get_max_retries(skill_name: str) -> int:
 def _expand_execution_order(
     execution_order: List[Dict[str, Any]]
 ) -> List[str]:
-    """Expand execution_order with recipes into skill list.
+    """Expand execution_order with recipes into a flat skill list.
 
-    Args:
-        execution_order: List of items with type ('skill'|'recipe')
-            and content
+    See :func:`_expand_execution_order_with_markers` for the variant
+    that also returns recipe boundary metadata for event emission.
+    """
+    skills, _ = _expand_execution_order_with_markers(execution_order)
+    return skills
 
-    Returns:
-        Flattened list of skill names in execution order
+
+def _expand_execution_order_with_markers(
+    execution_order: List[Dict[str, Any]]
+) -> tuple[List[str], List[Dict[str, Any]]]:
+    """Expand execution_order, returning ``(skills, recipe_markers)``.
+
+    ``recipe_markers`` is a list of
+    ``{"index": <int>, "kind": "start"|"end", "recipe_id": <str>,
+    "instance_id": <str>}`` records describing where in ``skills``
+    each recipe block begins (inclusive) and ends (exclusive). The
+    executor consumes this to emit ``recipe_start``/``recipe_end``
+    events while preserving the existing flattened execution path.
 
     Raises:
-        ValidationError: If an unknown recipe is referenced
+        ValidationError: If an unknown recipe is referenced.
     """
     from .exceptions import ValidationError
 
-    skills = []
+    skills: List[str] = []
+    markers: List[Dict[str, Any]] = []
+
     for i, item in enumerate(execution_order):
         item_type = item.get('type')
         content = item.get('content')
+        instance_id = item.get('id', '') if isinstance(item, dict) else ''
 
         if item_type == 'recipe':
             if content is None:
@@ -246,40 +261,63 @@ def _expand_execution_order(
                     f"missing content field"
                 )
             recipe = DEFAULT_RECIPES.get(content)
-            if recipe:
-                recipe_skills = recipe.get('skills', [])
-                # Validate that recipe_skills is a list
-                if not isinstance(recipe_skills, list):
-                    logger.warning(
-                        f"Recipe {content} has invalid skills type: "
-                        f"{type(recipe_skills)}. Expected list."
-                    )
-                    recipe_skills = []
-                # Filter out None values and ensure all items are strings
-                valid_skills = []
-                for s in recipe_skills:
-                    if s is not None and isinstance(s, str):
-                        valid_skills.append(s)
-                    else:
-                        logger.warning(
-                            f"Recipe {content} has invalid skill: "
-                            f"{s} (type: {type(s)}). Skipping."
-                        )
-                skills.extend(valid_skills)
-            else:
+            if recipe is None:
                 raise ValidationError(
                     f"execution_order[{i}] references unknown recipe: "
                     f"{content}. Available recipes: "
                     f"{list(DEFAULT_RECIPES.keys())}"
                 )
+            recipe_skills = recipe.get('skills', [])
+            if not isinstance(recipe_skills, list):
+                logger.warning(
+                    "Recipe %s has invalid skills type: %s. Expected list.",
+                    content,
+                    type(recipe_skills),
+                )
+                recipe_skills = []
+
+            valid_skills = [
+                s for s in recipe_skills
+                if isinstance(s, str) and s
+            ]
+            for skipped in (
+                s for s in recipe_skills if not isinstance(s, str) or not s
+            ):
+                logger.warning(
+                    "Recipe %s has invalid skill: %s. Skipping.",
+                    content,
+                    skipped,
+                )
+
+            start_index = len(skills)
+            markers.append(
+                {
+                    "index": start_index,
+                    "kind": "start",
+                    "recipe_id": content,
+                    "instance_id": instance_id,
+                }
+            )
+            skills.extend(valid_skills)
+            markers.append(
+                {
+                    "index": len(skills),
+                    "kind": "end",
+                    "recipe_id": content,
+                    "instance_id": instance_id,
+                }
+            )
         elif item_type == 'skill':
             if content is not None:
                 skills.append(content)
         else:
             logger.warning(
-                f"execution_order[{i}] has invalid type: {item_type}"
+                "execution_order[%d] has invalid type: %s",
+                i,
+                item_type,
             )
-    return skills
+
+    return skills, markers
 
 
 # Skills that modify context and must run sequentially
@@ -399,9 +437,15 @@ class Executor:
 
         # Check for execution_order in goal metadata
         execution_order = getattr(goal, "metadata", {}).get("execution_order")
+        recipe_markers: List[Dict[str, Any]] = []
         if execution_order and isinstance(execution_order, list):
-            # Expand execution_order to skill list
-            ordered_skills = _expand_execution_order(execution_order)
+            # Expand execution_order to a flat skill list AND collect
+            # recipe-boundary markers so the runtime can emit
+            # ``recipe_start``/``recipe_end`` events while still
+            # executing the flattened sequence.
+            ordered_skills, recipe_markers = (
+                _expand_execution_order_with_markers(execution_order)
+            )
             if ordered_skills:
                 strategy = StrategySpec(
                     goal_id=strategy.goal_id,
@@ -413,7 +457,8 @@ class Executor:
                     goal_id=strategy.goal_id,
                     payload={
                         "execution_order": execution_order,
-                        "expanded_skills": ordered_skills
+                        "expanded_skills": ordered_skills,
+                        "recipe_markers": recipe_markers,
                     },
                     correlation_id=correlation_id
                 )
