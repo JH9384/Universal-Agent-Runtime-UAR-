@@ -517,6 +517,34 @@ function FilePicker(props: {
 export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [inputPath, setInputPath] = useState('')
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('uar.darkMode')
+      if (saved !== null) {
+        return saved === 'true'
+      }
+      // Respect system preference if no saved value
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+    } catch {
+      // Fallback to system preference when localStorage is disabled
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+    }
+  })
+
+  // Apply dark mode to document and persist preference
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    try {
+      localStorage.setItem('uar.darkMode', String(darkMode))
+    } catch {
+      // localStorage disabled (e.g., private browsing mode)
+      // Silently continue - preference will use system default on reload
+    }
+  }, [darkMode])
   const initialSkills = ['doc_ingest', 'dependency_map', 'sum_review']
   const [skillLastPositions, setSkillLastPositions] = useState<Record<string, number>>(() => {
     const positions: Record<string, number> = {}
@@ -569,6 +597,7 @@ export function UARPanel() {
 
   const [events, setEvents] = useState<any[]>([])
   const [graph, setGraph] = useState<any>(null)
+  const [selectedNode, setSelectedNode] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [error, setError] = useState<UARError | null>(null)
@@ -613,6 +642,40 @@ export function UARPanel() {
     sections.forEach(s => initial[s] = keySections.includes(s))
     return initial
   })
+  const [tipsTargetSection, setTipsTargetSection] = useState<string | null>(null)
+
+  // Expand target section when tips popup opens, collapse others
+  useEffect(() => {
+    if (tipsPopupOpen && tipsTargetSection) {
+      setExpandedTipSections(prev => {
+        const updated: Record<string, boolean> = {}
+        const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
+        sections.forEach(s => {
+          updated[s] = s === tipsTargetSection
+        })
+        return updated
+      })
+      setTipsTargetSection(null)
+      // Focus on the expanded section header when popup opens
+      // Use requestAnimationFrame for better timing than setTimeout(0)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const sectionHeaders = tipsPopupRef.current?.querySelectorAll('[data-section]')
+          if (sectionHeaders) {
+            for (const header of sectionHeaders) {
+            if ((header as HTMLElement).dataset.section === tipsTargetSection) {
+              (header as HTMLElement).focus()
+              if ('scrollIntoView' in header) {
+                (header as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+              break
+            }
+          }
+        }
+        })
+      })
+    }
+  }, [tipsPopupOpen, tipsTargetSection])
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     SKILL_GROUPS.forEach(g => initial[g.name] = false)
@@ -1237,10 +1300,29 @@ export function UARPanel() {
     const nodes = (graph.nodes || []).map((n: GraphNode, i: number) => {
       const nodeId = n.id || n.skill || String(i)
       nodeIndex.set(nodeId, String(i))
+      const nodeType = n.type || 'skill'
+      // Color coding based on node type
+      const typeColors: Record<string, string> = {
+        skill: '#3b82f6',
+        file: '#10b981',
+        module: '#f59e0b',
+        function: '#8b5cf6',
+        entity: '#ec4899',
+        default: '#6b7280'
+      }
       return {
         id: String(i),
-        data: { label: n.skill || String(nodeId).split('/').pop(), type: n.type || 'skill' },
+        data: { label: n.skill || String(nodeId).split('/').pop(), type: nodeType },
         position: { x: (i % 5) * 180, y: Math.floor(i / 5) * 120 },
+        style: {
+          background: typeColors[nodeType] || typeColors.default,
+          color: 'white',
+          border: '1px solid #ffffff',
+          borderRadius: '8px',
+          padding: '8px 12px',
+          fontSize: '12px',
+          fontWeight: '500'
+        }
       }
     })
     const edges = (graph.edges || [])
@@ -1248,7 +1330,14 @@ export function UARPanel() {
         const source = e.from ? nodeIndex.get(e.from) : undefined
         const target = e.to ? nodeIndex.get(e.to) : undefined
         if (source === undefined || target === undefined) return null
-        return { id: String(i), source, target }
+        return { 
+          id: String(i), 
+          source, 
+          target,
+          label: e.type || '',
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+          labelStyle: { fontSize: '10px', fill: '#6b7280' }
+        }
       })
       .filter(Boolean)
     return { nodes, edges }
@@ -1292,6 +1381,13 @@ export function UARPanel() {
 
       <div className={styles.header}>
         <h3 className={styles.headerTitle}>🤖 Universal Agent Runtime (UAR)</h3>
+        <button
+          onClick={() => setDarkMode(!darkMode)}
+          className={styles.skillGuideButton}
+          title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {darkMode ? '☀️' : '🌙'}
+        </button>
         <button
           onClick={() => setShowHelp(!showHelp)}
           className={styles.skillGuideButton}
@@ -1350,7 +1446,10 @@ export function UARPanel() {
             library: {libraryPath}
           </span>
           <button
-            onClick={() => setTipsPopupOpen(true)}
+            onClick={() => {
+              setTipsTargetSection('Documents')
+              setTipsPopupOpen(true)
+            }}
             className={styles.skillGuideButton}
             title="View tips"
           >
@@ -1473,7 +1572,10 @@ export function UARPanel() {
           <label className={styles.label} title="Describe what you want to accomplish - guides AI processing">
             Goal
             <button
-              onClick={() => setTipsPopupOpen(true)}
+              onClick={() => {
+                setTipsTargetSection('Goal')
+                setTipsPopupOpen(true)
+              }}
               className={styles.skillGuideButton}
               title="View tips"
             >
@@ -1507,7 +1609,10 @@ export function UARPanel() {
           <label className={styles.label} title="Select skills to execute in sequence">
             Skills
             <button
-              onClick={() => setTipsPopupOpen(true)}
+              onClick={() => {
+                setTipsTargetSection('Skills')
+                setTipsPopupOpen(true)
+              }}
               className={styles.skillGuideButton}
               title="View tips"
             >
@@ -1565,7 +1670,7 @@ export function UARPanel() {
                 })}
               </div>
               <div className={styles.orderText} title="Skills execute in this order">
-                <span>Order:</span>
+                <strong>Order:</strong>
                 {unifiedOrder.length > 0 && (
                   <button
                     onClick={() => {
@@ -1732,7 +1837,7 @@ export function UARPanel() {
               {/* Recipes */}
               <div className={styles.presetsContainer}>
                 <label className={styles.label} title="Pre-configured skill combinations for common workflows">
-                  Recipes
+                  <strong>Recipes</strong>
                   <a
                     onClick={() => setRecipesPopupOpen(true)}
                     className={styles.libraryLink}
@@ -1887,7 +1992,10 @@ export function UARPanel() {
         <div className={styles.sectionHeader}>
           <strong title="Execute selected skills and monitor execution">Run</strong>
           <button
-            onClick={() => setTipsPopupOpen(true)}
+            onClick={() => {
+              setTipsTargetSection('Run')
+              setTipsPopupOpen(true)
+            }}
             className={styles.skillGuideButton}
             title="View tips"
           >
@@ -1970,7 +2078,10 @@ export function UARPanel() {
         <div className={styles.sectionHeader}>
           <strong title="Real-time execution events from skills">Events ({events.length})</strong>
           <button
-            onClick={() => setTipsPopupOpen(true)}
+            onClick={() => {
+              setTipsTargetSection('Events')
+              setTipsPopupOpen(true)
+            }}
             className={styles.skillGuideButton}
             title="View tips"
           >
@@ -1992,20 +2103,94 @@ export function UARPanel() {
         <div className={styles.sectionHeader}>
           <strong title="Visualizes dependencies and relationships">Dependency Graph</strong>
           <button
-            onClick={() => setTipsPopupOpen(true)}
+            onClick={() => {
+              setTipsTargetSection('Graph')
+              setTipsPopupOpen(true)
+            }}
             className={styles.skillGuideButton}
             title="View tips"
           >
             💡
           </button>
+          {graph && (
+            <button
+              onClick={() => {
+                const data = JSON.stringify(graph, null, 2)
+                const blob = new Blob([data], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'dependency-graph.json'
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+              className={styles.skillGuideButton}
+              title="Export graph as JSON"
+            >
+              📥
+            </button>
+          )}
         </div>
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             <div className={styles.graphContainer}>
-              <ReactFlow nodes={nodes} edges={edges} fitView>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                fitView
+                onNodeClick={(e, node) => {
+                  setSelectedNode(graph?.nodes?.[parseInt(node.id)])
+                }}
+                onPaneClick={() => setSelectedNode(null)}
+              >
                 <Background />
               </ReactFlow>
             </div>
+            {graph && (
+              <div className={styles.graphLegend}>
+                <strong>Legend:</strong>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendColor} ${styles.legendColorSkill}`}></span>
+                  <span>Skill</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendColor} ${styles.legendColorFile}`}></span>
+                  <span>File</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendColor} ${styles.legendColorModule}`}></span>
+                  <span>Module</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendColor} ${styles.legendColorFunction}`}></span>
+                  <span>Function</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendColor} ${styles.legendColorEntity}`}></span>
+                  <span>Entity</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendColor} ${styles.legendColorOther}`}></span>
+                  <span>Other</span>
+                </div>
+              </div>
+            )}
+            {selectedNode && (
+              <div className={styles.nodeDetails}>
+                <div className={styles.nodeDetailsHeader}>
+                  <strong>Node Details</strong>
+                  <button onClick={() => setSelectedNode(null)} className={styles.closeButton}>✕</button>
+                </div>
+                <div className={styles.nodeDetailsContent}>
+                  <p><strong>ID:</strong> {selectedNode.id || selectedNode.skill || 'N/A'}</p>
+                  <p><strong>Skill:</strong> {selectedNode.skill || 'N/A'}</p>
+                  <p><strong>Type:</strong> {selectedNode.type || 'skill'}</p>
+                  {selectedNode.metadata && (
+                    <p><strong>Metadata:</strong> {JSON.stringify(selectedNode.metadata, null, 2)}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2053,6 +2238,7 @@ export function UARPanel() {
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Documents')}
               title="Click to expand/collapse Documents tips"
+              data-section="Documents"
             >
               <span className={styles.tipsPopupSectionTitle}>Documents</span>
               <span>{expandedTipSections['Documents'] ? '▼' : '▶'}</span>
@@ -2080,6 +2266,7 @@ export function UARPanel() {
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Goal')}
               title="Click to expand/collapse Goal tips"
+              data-section="Goal"
             >
               <span className={styles.tipsPopupSectionTitle}>Goal</span>
               <span>{expandedTipSections['Goal'] ? '▼' : '▶'}</span>
@@ -2105,6 +2292,7 @@ export function UARPanel() {
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Skills')}
               title="Click to expand/collapse Skills tips"
+              data-section="Skills"
             >
               <span className={styles.tipsPopupSectionTitle}>Skills</span>
               <span>{expandedTipSections['Skills'] ? '▼' : '▶'}</span>
@@ -2133,6 +2321,7 @@ export function UARPanel() {
                 className={styles.tipsPopupSectionHeader}
                 onClick={() => toggleTipSection(group.name)}
                 title={`Click to expand/collapse ${group.name} tips`}
+                data-section={group.name}
               >
                 <span className={styles.tipsPopupSectionTitle}>{group.name}</span>
                 <span>{expandedTipSections[group.name] ? '▼' : '▶'}</span>
@@ -2301,6 +2490,7 @@ export function UARPanel() {
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Run')}
               title="Click to expand/collapse Run tips"
+              data-section="Run"
             >
               <span className={styles.tipsPopupSectionTitle}>Run</span>
               <span>{expandedTipSections['Run'] ? '▼' : '▶'}</span>
@@ -2329,6 +2519,7 @@ export function UARPanel() {
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Events')}
               title="Click to expand/collapse Events tips"
+              data-section="Events"
             >
               <span className={styles.tipsPopupSectionTitle}>Events</span>
               <span>{expandedTipSections['Events'] ? '▼' : '▶'}</span>
@@ -2357,6 +2548,7 @@ export function UARPanel() {
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Graph')}
               title="Click to expand/collapse Dependency Graph tips"
+              data-section="Graph"
             >
               <span className={styles.tipsPopupSectionTitle}>Dependency Graph</span>
               <span>{expandedTipSections['Graph'] ? '▼' : '▶'}</span>
@@ -2431,7 +2623,21 @@ export function UARPanel() {
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <strong>📚 Recipes Library</strong>
-              <button className={styles.modalCloseButton} onClick={() => setRecipesPopupOpen(false)}>✕</button>
+              <div className={styles.modalHeaderButtons}>
+                <button
+                  className={styles.primaryButton}
+                  onClick={() => {
+                    setEditingRecipe({ id: '', label: '', skills: [], hint: '' })
+                    setEditRecipeLabel('')
+                    setEditRecipeSkills('')
+                    setEditRecipeHint('')
+                  }}
+                  title="Create new recipe"
+                >
+                  + New Recipe
+                </button>
+                <button className={styles.modalCloseButton} onClick={() => setRecipesPopupOpen(false)}>✕</button>
+              </div>
             </div>
             <div className={styles.modalBody}>
               {editingRecipe ? (
@@ -2460,14 +2666,21 @@ export function UARPanel() {
                   <button
                     className={styles.createFolderButton}
                     onClick={() => {
-                      const updatedRecipe: Recipe = {
-                        id: editingRecipe.id,
+                      const newRecipe: Recipe = {
+                        id: editingRecipe.id || `custom_${Date.now()}`,
                         label: editRecipeLabel || editingRecipe.label,
                         skills: editRecipeSkills.split(',').map(s => s.trim()).filter(s => s),
                         hint: editRecipeHint || editingRecipe.hint
                       }
                       setRecipes((prev) => {
-                        const newRecipes = prev.map(r => r.id === editingRecipe.id ? updatedRecipe : r)
+                        let newRecipes
+                        if (editingRecipe.id) {
+                          // Update existing recipe
+                          newRecipes = prev.map(r => r.id === editingRecipe.id ? newRecipe : r)
+                        } else {
+                          // Add new recipe
+                          newRecipes = [...prev, newRecipe]
+                        }
                         setRecipeHistory((history) => {
                           const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
                           setRecipeHistoryIndex((idx) => idx + 1)

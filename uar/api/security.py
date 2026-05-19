@@ -10,25 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class SecurityManager:
-    """Manages security configuration and validation."""
+    """Manages API keys and security policies."""
 
-    def __init__(self) -> None:
-        self.secret_key = os.getenv("SECRET_KEY")
-        self.api_keys = self._load_api_keys()
-
-    def _load_api_keys(self) -> Dict[str, Dict[str, str]]:
-        """Load API keys from environment variable."""
-        api_keys_str = os.getenv("API_KEYS", "")
-        keys: Dict[str, Dict[str, str]] = {}
-        if api_keys_str:
-            for key_part in api_keys_str.split(","):
-                parts = key_part.split(":")
-                if len(parts) >= 2:
-                    key_id = parts[0]
-                    user = parts[1]
-                    tier = parts[2] if len(parts) > 2 else "default"
-                    keys[key_id] = {"user": user, "tier": tier}
-        return keys
+    def __init__(self):
+        # Import from middleware to use single source of truth
+        from .middleware import API_KEYS
+        self.api_keys = API_KEYS
 
     def validate_api_key(self, key: str) -> Optional[Dict[str, str]]:
         """Validate an API key and return user info."""

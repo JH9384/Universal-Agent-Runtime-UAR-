@@ -1,6 +1,7 @@
 from typing import Iterable, List, Optional
 
 from uar.core.contracts import RunRecord
+from uar.core.exceptions import EventContractError
 
 EVENT_SCHEMA_VERSION = "uar.event.v1"
 REQUIRED_EVENT_KEYS = {
@@ -14,10 +15,6 @@ REQUIRED_EVENT_KEYS = {
     "error",
 }
 TERMINAL_EVENT_TYPE = "complete"
-
-
-class EventContractError(ValueError):
-    pass
 
 
 def validate_runtime_event(event: dict) -> None:

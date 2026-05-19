@@ -549,13 +549,19 @@ body {
   gap: 10px;
 }
 
+.modalHeaderButtons {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .modalHeaderInfo {
   font-size: 11px;
   color: #888;
 }
 
 .modalCloseButton {
-  margin-left: auto;
   padding: 4px 10px;
   background: none;
   border: none;
@@ -1412,8 +1418,87 @@ body {
 
 .graphContainer {
   height: 400px;
-  border: 1px solid #dee2e6;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.graphLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.legendColor {
+  width: 16px;
+  height: 16px;
   border-radius: 4px;
+  border: 1px solid #ffffff;
+}
+
+.legendColorSkill {
+  background: #3b82f6;
+}
+
+.legendColorFile {
+  background: #10b981;
+}
+
+.legendColorModule {
+  background: #f59e0b;
+}
+
+.legendColorFunction {
+  background: #8b5cf6;
+}
+
+.legendColorEntity {
+  background: #ec4899;
+}
+
+.legendColorOther {
+  background: #6b7280;
+}
+
+.nodeDetails {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  z-index: 10;
+  min-width: 250px;
+}
+
+.nodeDetailsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+.nodeDetailsContent {
+  font-size: 12px;
+}
+
+.nodeDetailsContent p {
+  margin: 4px 0;
 }
 
 .skillGuideModalOverlay {
@@ -1472,4 +1557,212 @@ body {
 
 .hiddenInput {
   display: none;
+}
+
+/* Dark mode styles */
+.dark .container {
+  background-color: #1a1a1a;
+  color: #e5e5e5;
+}
+
+.dark .header {
+  background-color: #2d2d2d;
+  border-bottom-color: #404040;
+}
+
+.dark .headerTitle {
+  color: #e5e5e5;
+}
+
+.dark .section {
+  background-color: #2d2d2d;
+  border-color: #404040;
+}
+
+.dark .sectionHeader {
+  color: #e5e5e5;
+}
+
+.dark .input,
+.dark .textarea {
+  background-color: #1a1a1a;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+.dark .chip {
+  background-color: #3d3d3d;
+  color: #e5e5e5;
+  border-color: #505050;
+}
+
+.dark .chipActive {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.dark .button {
+  background-color: #3d3d3d;
+  color: #e5e5e5;
+  border-color: #505050;
+}
+
+.dark .button:hover {
+  background-color: #4d4d4d;
+}
+
+.dark .eventItem {
+  background-color: #2d2d2d;
+  border-color: #404040;
+}
+
+.dark .modalOverlay {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+.dark .modalContent {
+  background-color: #2d2d2d;
+  border-color: #404040;
+}
+
+.dark .helpBox {
+  background-color: #2d2d2d;
+  border-color: #404040;
+}
+
+.dark .tipsPopup {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+.dark .tipsPopupSection {
+  border-color: #404040;
+}
+
+.dark .tipsPopupSectionHeader {
+  color: #e5e5e5;
+}
+
+.dark .tipsPopupSectionContent {
+  color: #e5e5e5;
+}
+
+.dark .graphLegend {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+.dark .nodeDetails {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+/* Mobile responsive design */
+@media (max-width: 768px) {
+  .container {
+    padding: 8px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .headerTitle {
+    font-size: 16px;
+  }
+
+  .section {
+    padding: 12px;
+  }
+
+  .sectionHeader {
+    font-size: 14px;
+  }
+
+  .chip {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .input,
+  .textarea {
+    font-size: 14px;
+  }
+
+  .button {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .eventItem {
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  .skillGuideButton {
+    padding: 6px 10px;
+    font-size: 16px;
+  }
+
+  .tipsPopup {
+    width: 95vw;
+    max-width: none;
+    left: 2.5vw;
+    right: 2.5vw;
+  }
+
+  .nodeDetails {
+    position: fixed;
+    bottom: 0;
+    top: auto;
+    left: 0;
+    right: 0;
+    border-radius: 12px 12px 0 0;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .graphLegend {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .legendItem {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerTitle {
+    font-size: 14px;
+  }
+
+  .section {
+    padding: 8px;
+  }
+
+  .chip {
+    font-size: 11px;
+    padding: 3px 6px;
+  }
+
+  .button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .eventItem {
+    padding: 6px;
+    font-size: 11px;
+  }
+
+  .modalContent {
+    width: 95vw;
+    max-height: 90vh;
+  }
 }

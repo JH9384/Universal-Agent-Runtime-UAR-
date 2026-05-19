@@ -56,7 +56,9 @@ class TestInputValidation:
         long_goal = "x" * 10001
         with pytest.raises(ValidationError) as exc_info:
             validate_goal(long_goal)
-        assert "cannot exceed 10,000 characters" in str(exc_info.value)
+        # Handle locale-independent number formatting
+        error_msg = str(exc_info.value).replace(",", "")
+        assert "cannot exceed 10000 characters" in error_msg
 
     def test_validate_goal_dangerous_content(self):
         """Test goal with dangerous content"""

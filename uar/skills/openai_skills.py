@@ -31,6 +31,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
 
 
 @register_skill("openai_chat")
+@with_circuit_breaker("openai", failure_threshold=5, recovery_timeout=60.0)
 def openai_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with OpenAI GPT models.
 
@@ -160,6 +162,7 @@ def openai_chat(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("openai_completion")
+@with_circuit_breaker("openai", failure_threshold=5, recovery_timeout=60.0)
 def openai_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with OpenAI models.
 
@@ -225,6 +228,7 @@ def openai_completion(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("openai_embedding")
+@with_circuit_breaker("openai", failure_threshold=5, recovery_timeout=60.0)
 def openai_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings for text using OpenAI.
 

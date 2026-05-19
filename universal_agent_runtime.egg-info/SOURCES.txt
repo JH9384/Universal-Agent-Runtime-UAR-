@@ -11,6 +11,8 @@ tests/test_failure_paths.py
 tests/test_flexible_graphrag.py
 tests/test_graph_integrity.py
 tests/test_guardrails.py
+tests/test_integration.py
+tests/test_performance.py
 tests/test_pipeline.py
 tests/test_security_integration.py
 tests/test_security_paths.py
@@ -32,7 +34,9 @@ uar/api/server.py
 uar/api/tracing.py
 uar/cli/run.py
 uar/core/agent_framework.py
+uar/core/cache.py
 uar/core/circuit_breaker.py
+uar/core/circuit_breaker_decorator.py
 uar/core/contracts.py
 uar/core/crewai_integration.py
 uar/core/dagster_orchestration.py
@@ -40,12 +44,16 @@ uar/core/exceptions.py
 uar/core/executor.py
 uar/core/flexible_graphrag.py
 uar/core/guardrails.py
+uar/core/json_utils.py
 uar/core/llamaindex_rag.py
 uar/core/orchestrator.py
 uar/core/planner.py
+uar/core/recipes.py
 uar/core/registry.py
 uar/core/replay.py
+uar/core/retry_decorator.py
 uar/core/validation.py
+uar/core/validation_utils.py
 uar/memory/json_store.py
 uar/skills/advanced_integrations.py
 uar/skills/anthropic_skills.py

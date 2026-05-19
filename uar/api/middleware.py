@@ -4,9 +4,9 @@ import os
 import threading
 import time
 import uuid
-from collections import defaultdict, deque
+from collections import defaultdict, deque, OrderedDict
 from functools import wraps
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 import json
 import logging
@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 # Constants
 DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
 DEFAULT_CLEANUP_THRESHOLD = 1024  # number of entries
-DEFAULT_CLEANUP_INTERVAL = 100  # number of requests between cleanups
+DEFAULT_CLEANUP_INTERVAL = int(
+    os.getenv("RATE_LIMIT_CLEANUP_INTERVAL", "100")
+)  # number of requests between cleanups
 DEFAULT_MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 DEFAULT_MAX_ENTRIES = (
     10000  # maximum total entries to prevent unbounded growth
@@ -45,11 +47,76 @@ def _load_rate_limits() -> Dict[str, Dict[str, int]]:
     }
 
 
+def _load_skill_rate_limits() -> Dict[str, Dict[str, int]]:
+    """Load skill-specific rate limits from environment variables.
+
+    Skills can have different rate limits based on their cost:
+    - Expensive skills (LLM calls): stricter limits
+    - Local skills: relaxed limits
+    - I/O intensive skills: moderate limits
+
+    Format: SKILL_RATE_LIMITS=skill1:requests:window,skill2:requests:window
+    Example: SKILL_RATE_LIMITS=ollama_generate:5:60,doc_ingest:20:60
+    """
+    skill_limits = {}
+    skill_limits_str = os.getenv("SKILL_RATE_LIMITS", "")
+
+    # Default skill rate limits
+    default_skill_limits = {
+        # LLM/Generation skills (expensive)
+        "ollama_generate": {"requests": 5, "window": 60},
+        "openai_chat": {"requests": 5, "window": 60},
+        "anthropic_chat": {"requests": 5, "window": 60},
+        "gemini_chat": {"requests": 5, "window": 60},
+        # GraphRAG (computationally expensive)
+        "graphrag_index": {"requests": 2, "window": 300},
+        "graphrag_query": {"requests": 10, "window": 60},
+        # Document processing (I/O intensive)
+        "doc_ingest": {"requests": 20, "window": 60},
+        # Local skills (relaxed)
+        "dependency_map": {"requests": 50, "window": 60},
+        "sum_review": {"requests": 50, "window": 60},
+    }
+
+    if skill_limits_str:
+        for skill_entry in skill_limits_str.split(","):
+            parts = skill_entry.strip().split(":")
+            if len(parts) == 3:
+                skill = parts[0].strip()
+                try:
+                    requests = int(parts[1].strip())
+                    window = int(parts[2].strip())
+                    skill_limits[skill] = {
+                        "requests": requests,
+                        "window": window
+                    }
+                except ValueError:
+                    logger.warning(
+                        f"Skipping invalid skill rate limit entry "
+                        f"(non-numeric values): {skill_entry}"
+                    )
+            else:
+                logger.warning(
+                    f"Skipping invalid skill rate limit entry: {skill_entry}"
+                )
+
+    # Merge with defaults (env vars override defaults)
+    for skill, limits in default_skill_limits.items():
+        if skill not in skill_limits:
+            skill_limits[skill] = limits
+
+    return skill_limits
+
+
 # Rate limiting configuration (loaded from environment)
 RATE_LIMITS = _load_rate_limits()
+SKILL_RATE_LIMITS = _load_skill_rate_limits()
 
 
 # Thread-safe in-memory rate limiter (for production, use Redis)
+# NOTE: All OrderedDict operations are protected by self._lock to ensure
+# thread-safety across all Python implementations. Do not rely on GIL for
+# atomicity - explicit locking is required.
 class RateLimiter:
     def __init__(
         self,
@@ -63,42 +130,34 @@ class RateLimiter:
         self._cleanup_threshold = cleanup_threshold
         self._cleanup_interval = cleanup_interval
         self._max_entries = max_entries
-        # Track keys in order of first request for O(1) oldest key access
-        self._key_order: deque[str] = deque()
-        # Use a set for O(1) membership checks alongside deque ordering
-        self._key_set: set[str] = set()
+        # Use OrderedDict for O(1) access and ordered iteration
+        # This eliminates the race condition between deque and set
+        # All operations on _key_order are protected by self._lock
+        self._key_order: OrderedDict[str, float] = OrderedDict()
 
-    def is_allowed(self, key: str, limit: int, window: int) -> bool:
+    def is_allowed(
+        self, key: str, limit: int, window: int
+    ) -> tuple[bool, int]:
         now = time.time()
 
         with self._lock:
             request_times = self.requests[key]
 
-            # Track new keys in order (only if not already tracked)
-            # Use set for O(1) membership check instead of deque's O(n)
-            if key not in self._key_set:
-                self._key_order.append(key)
-                self._key_set.add(key)
+            # Track keys with timestamp for LRU eviction
+            # OrderedDict provides O(1) access and maintains insertion order
+            if key not in self._key_order:
+                self._key_order[key] = now
             else:
-                # Key already tracked - move to end to track recent use
-                # This is safe because we hold the lock
-                # Ensure consistency: only move if it's actually in the deque
-                if key in self._key_order:
-                    self._key_order.remove(key)
-                    self._key_order.append(key)
-                else:
-                    # Inconsistent state: in set but not in deque
-                    # Remove from set and re-add to both to ensure consistency
-                    self._key_set.discard(key)
-                    self._key_order.append(key)
-                    self._key_set.add(key)
+                # Move to end to mark as recently used
+                self._key_order.move_to_end(key)
 
             # Remove old requests outside the window
             while request_times and request_times[0] <= now - window:
                 request_times.popleft()
 
             if len(request_times) >= limit:
-                return False
+                # Return remaining count (which is 0 since limit exceeded)
+                return False, 0
 
             request_times.append(now)
             self._request_count += 1
@@ -116,7 +175,9 @@ class RateLimiter:
             if len(self.requests) > self._max_entries:
                 self._enforce_max_entries_unlocked()
 
-            return True
+            # Calculate remaining count while still holding the lock
+            remaining = max(0, limit - len(request_times))
+            return True, remaining
 
     def _evict_empty_unlocked(self) -> int:
         """Drop empty keys - must be called while holding lock."""
@@ -127,13 +188,8 @@ class RateLimiter:
                 self.requests.pop(
                     k, None
                 )  # Use pop with default to avoid KeyError
-                # Remove from key_order tracking if present
-                try:
-                    self._key_order.remove(k)
-                except ValueError:
-                    pass  # Key not in order deque, ignore
-                # Remove from key_set as well
-                self._key_set.discard(k)
+                # Remove from OrderedDict tracking if present
+                self._key_order.pop(k, None)
                 removed += 1
         return removed
 
@@ -141,23 +197,42 @@ class RateLimiter:
         """Enforce maximum entry cap to prevent unbounded memory growth.
 
         Must be called while holding lock. Evicts oldest entries by
-        removing keys in order of first request (O(1) with deque).
+        removing keys in order of first request (O(1) with OrderedDict).
         """
         # Remove oldest entries until we're under the cap
-        # Using _key_order deque gives O(1) access to oldest keys
+        # OrderedDict provides O(1) access to oldest keys
+        # via popitem(last=False)
         to_remove = len(self.requests) - self._max_entries
         removed_count = 0
         while removed_count < to_remove and self._key_order:
-            oldest_key = self._key_order.popleft()
+            oldest_key, _ = self._key_order.popitem(last=False)
             if oldest_key in self.requests:
                 self.requests.pop(oldest_key, None)
-                self._key_set.discard(oldest_key)
                 removed_count += 1
 
     def evict_empty(self) -> int:
         """Drop keys whose window is empty to bound memory over time."""
         with self._lock:
             return self._evict_empty_unlocked()
+
+    def get_remaining(self, key: str, limit: int, window: int) -> int:
+        """Get remaining requests without incrementing the counter.
+
+        Args:
+            key: Rate limit key
+            limit: Request limit
+            window: Time window in seconds
+
+        Returns:
+            Number of remaining requests allowed
+        """
+        now = time.time()
+        with self._lock:
+            request_times = self.requests[key]
+            # Remove old requests outside the window
+            while request_times and request_times[0] <= now - window:
+                request_times.popleft()
+            return max(0, limit - len(request_times))
 
 
 rate_limiter = RateLimiter()
@@ -168,7 +243,6 @@ def reset_rate_limiter():
     with rate_limiter._lock:
         rate_limiter.requests.clear()
         rate_limiter._key_order.clear()
-        rate_limiter._key_set.clear()
         rate_limiter._request_count = 0
 
 
@@ -227,25 +301,163 @@ def get_rate_limit_for_tier(tier: str) -> tuple[int, int]:
     return config["requests"], config["window"]
 
 
+def _extract_skill_from_request(request: Request) -> Optional[str]:
+    """Extract skill name from request if available.
+
+    For run/stream endpoints, extracts the first skill from the skills list.
+    Returns None if no skill can be determined.
+    """
+    try:
+        # Import RECIPE_MAP from shared module to avoid circular import
+        from uar.core.recipes import RECIPE_MAP
+
+        # Try to get body from state if already parsed by middleware
+        # This is the preferred method as it uses FastAPI's official API
+        if hasattr(request.state, "_parsed_body"):
+            body = request.state._parsed_body
+            if isinstance(body, dict):
+                if "skills" in body and body["skills"]:
+                    return body["skills"][0]
+                if "execution_order" in body and body["execution_order"]:
+                    first_item = body["execution_order"][0]
+                    if isinstance(first_item, dict):
+                        if first_item.get("type") == "skill":
+                            return first_item.get("content")
+                        elif first_item.get("type") == "recipe":
+                            # Return first skill from recipe if available
+                            content = first_item.get("content")
+                            if (
+                                content is not None
+                                and isinstance(content, str)
+                            ):
+                                recipe_skills = RECIPE_MAP.get(content)
+                                if recipe_skills and recipe_skills:
+                                    return recipe_skills[0]
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+        pass
+
+    return None
+
+
+def _extract_skill_from_request_data(
+    skills: Optional[List[str]],
+    execution_order: Optional[List[Dict[str, Any]]]
+) -> Optional[str]:
+    """Extract skill name from request data for WebSocket endpoints.
+
+    Args:
+        skills: List of skill names
+        execution_order: Execution order with skills and recipes
+
+    Returns:
+        First skill name or None
+    """
+    from uar.core.recipes import RECIPE_MAP
+
+    skill_name = None
+    if skills and len(skills) > 0:
+        skill_name = skills[0]
+    elif execution_order and len(execution_order) > 0:
+        first_item = execution_order[0]
+        if first_item.get('type') == 'skill':
+            content = first_item.get('content')
+            if content is not None and isinstance(content, str):
+                skill_name = content
+        elif first_item.get('type') == 'recipe':
+            content = first_item.get('content')
+            if content is not None and isinstance(content, str):
+                recipe = RECIPE_MAP.get(content)
+                if recipe and len(recipe) > 0:
+                    skill_name = recipe[0]
+
+    return skill_name
+
+
+def check_rate_limit(
+    rate_limit_key: str,
+    tier: str,
+    skill_name: Optional[str]
+) -> tuple[int, int, str]:
+    """Check rate limit and return limit, window, and rate limit type.
+
+    Args:
+        rate_limit_key: Unique key for rate limiting
+        tier: User tier (authenticated or default)
+        skill_name: First skill name for skill-specific limits
+
+    Returns:
+        Tuple of (limit, window, rate_limit_type)
+    """
+    # Check for skill-specific rate limits
+    if skill_name and skill_name in SKILL_RATE_LIMITS:
+        limit = SKILL_RATE_LIMITS[skill_name]["requests"]
+        window = SKILL_RATE_LIMITS[skill_name]["window"]
+        rate_limit_type = "skill"
+    else:
+        limit, window = get_rate_limit_for_tier(tier)
+        rate_limit_type = "tier"
+
+    return limit, window, rate_limit_type
+
+
+def build_rate_limit_key(
+    client_ip: str,
+    credentials: Optional[HTTPAuthorizationCredentials]
+) -> tuple[str, str]:
+    """Build rate limit key and determine tier from credentials.
+
+    Shared function for both HTTP and WebSocket endpoints to ensure
+    consistent rate limiting logic.
+
+    Args:
+        client_ip: Client IP address
+        credentials: Optional HTTP authorization credentials
+
+    Returns:
+        Tuple of (rate_limit_key, tier)
+    """
+    if credentials and credentials.credentials in API_KEYS:
+        user_info = API_KEYS[credentials.credentials]
+        tier = "authenticated"
+        rate_limit_key = f"auth:{user_info['user']}:{client_ip}"
+    else:
+        tier = "default"
+        rate_limit_key = f"anon:{client_ip}"
+
+    return rate_limit_key, tier
+
+
 def rate_limit_middleware(
     request: Request, credentials: Optional[HTTPAuthorizationCredentials]
 ):
-    """Rate limiting middleware"""
-    rate_limit_key = get_rate_limit_key(request, credentials)
+    """Rate limiting middleware with skill-specific limits"""
+    # Use shared function to get rate limit key and tier in one call
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
 
-    tier = "authenticated"
-    if not credentials or credentials.credentials not in API_KEYS:
-        tier = "default"
-
-    limit, window = get_rate_limit_for_tier(tier)
+    # Check for skill-specific rate limits
+    skill_name = _extract_skill_from_request(request)
+    if skill_name and skill_name in SKILL_RATE_LIMITS:
+        limit = SKILL_RATE_LIMITS[skill_name]["requests"]
+        window = SKILL_RATE_LIMITS[skill_name]["window"]
+        rate_limit_type = "skill"
+    else:
+        limit, window = get_rate_limit_for_tier(tier)
+        rate_limit_type = "tier"
 
     # Store rate limit info in request state for later use in response headers
     request.state.rate_limit_tier = tier
     request.state.rate_limit_key = rate_limit_key
     request.state.rate_limit = limit
     request.state.rate_limit_window = window
+    request.state.rate_limit_type = rate_limit_type
+    if skill_name:
+        request.state.skill_name = skill_name
 
-    if not rate_limiter.is_allowed(rate_limit_key, limit, window):
+    allowed, remaining = rate_limiter.is_allowed(
+        rate_limit_key, limit, window
+    )
+    if not allowed:
         logger.warning(f"Rate limit exceeded for {rate_limit_key}")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -253,13 +465,13 @@ def rate_limit_middleware(
                 "error": "Rate limit exceeded",
                 "message": f"{limit} requests per {window} seconds allowed.",
                 "request_id": getattr(request.state, "request_id", "unknown"),
+                "skill": skill_name if skill_name else None,
+                "rate_limit_type": rate_limit_type,
             },
         )
 
-    # Capture remaining count immediately after check for accurate headers
-    with rate_limiter._lock:
-        requests_made = len(rate_limiter.requests.get(rate_limit_key, deque()))
-        request.state.rate_limit_remaining = max(0, limit - requests_made)
+    # Store remaining count from is_allowed (calculated while holding lock)
+    request.state.rate_limit_remaining = remaining
 
 
 def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
@@ -353,10 +565,22 @@ def _get_cors_origins() -> List[str]:
 
 
 def apply_middleware(app):
-    """Apply all middleware to FastAPI app"""
+    """Apply all middleware to FastAPI app
+
+    Middleware execution order in FastAPI:
+    1. add_middleware() runs BEFORE @app.middleware decorators
+    2. Among @app.middleware decorators, LAST registered runs FIRST (LIFO)
+
+    Actual execution order (outermost to innermost):
+    1. CORS (add_middleware) - outermost
+    2. log_requests (last @app.middleware registered)
+    3. parse_request_body (second to last @app.middleware)
+    4. limit_request_body (first @app.middleware registered)
+    """
     from fastapi.middleware.cors import CORSMiddleware
 
     # CORS middleware - uses environment variable with safe defaults
+    # Runs first (outermost) - add_middleware runs before decorators
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_get_cors_origins(),
@@ -366,6 +590,7 @@ def apply_middleware(app):
     )
 
     # Request body size limiter
+    # Runs last (innermost) - first @app.middleware registered
     max_body_size = int(
         os.getenv(
             "MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_REQUEST_BODY_BYTES)
@@ -391,7 +616,31 @@ def apply_middleware(app):
             )
         return await call_next(request)
 
+    # Request body parser - parses body early for rate limiting
+    # Runs second to last - second @app.middleware registered
+    @app.middleware("http")
+    async def parse_request_body(request: Request, call_next):
+        # Parse JSON body for POST/PUT/PATCH requests
+        # and store in state for rate limiting middleware
+        if request.method in ("POST", "PUT", "PATCH"):
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    body_bytes = await request.body()
+                    if body_bytes:
+                        body = json.loads(body_bytes)
+                        request.state._parsed_body = body
+                        # Store body bytes in state for potential re-use
+                        # Endpoints can access via
+                        # request.state._parsed_body_bytes
+                        request.state._parsed_body_bytes = body_bytes
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    # Invalid JSON, let the endpoint handle it
+                    pass
+        return await call_next(request)
+
     # Request logging middleware
+    # Runs second (outermost after CORS) - last @app.middleware registered
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
         start_time = time.time()
@@ -438,8 +687,8 @@ def apply_middleware(app):
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Correlation-ID"] = correlation_id
 
-        # Add rate limit headers using stored state from
-        # rate_limit_middleware to avoid race condition
+        # Add rate limit headers using stored remaining count from
+        # rate_limit_middleware to avoid race conditions
         if (
             hasattr(request.state, "rate_limit_key")
             and hasattr(request.state, "rate_limit")
@@ -447,8 +696,8 @@ def apply_middleware(app):
             and hasattr(request.state, "rate_limit_remaining")
         ):
             limit = request.state.rate_limit
-            remaining = request.state.rate_limit_remaining
             window = request.state.rate_limit_window
+            remaining = request.state.rate_limit_remaining
             response.headers["X-RateLimit-Limit"] = str(limit)
             response.headers["X-RateLimit-Remaining"] = str(remaining)
             response.headers["X-RateLimit-Window"] = str(window)

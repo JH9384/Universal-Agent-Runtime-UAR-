@@ -17,6 +17,8 @@ from fastapi import (
     Response,
     UploadFile,
     File,
+    WebSocket,
+    WebSocketDisconnect,
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -28,6 +30,7 @@ from uar.core.exceptions import UARError, ValidationError, PathSecurityError
 from uar.core.planner import SimplePlanner
 from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
+from uar.core.recipes import RECIPE_MAP
 from uar.api.advanced_endpoints import router as advanced_router
 from uar.core.validation import (
     validate_goal,
@@ -40,6 +43,7 @@ from .middleware import (
     rate_limit_middleware,
     auth_middleware,
     request_logging_middleware,
+    build_rate_limit_key,
 )
 from .tracing import trace_span
 from uar.api.metrics import get_metrics_collector
@@ -88,87 +92,6 @@ def _validate_recipes(recipes: List[Any]) -> List[Dict[str, Any]]:
             validated_recipes.append(recipe)
     return validated_recipes
 
-
-# Load recipes from shared config file
-def _load_recipes() -> List[Dict[str, Any]]:
-    """Load recipes from the shared configuration file."""
-    from pathlib import Path
-
-    # Check for environment variable override first
-    env_recipe_path = os.getenv("RECIPES_PATH")
-    if env_recipe_path:
-        recipe_path = Path(env_recipe_path)
-        if recipe_path.exists():
-            try:
-                with open(recipe_path, "r") as f:
-                    data = json.load(f)
-                    recipes = data.get("recipes", [])
-                    validated_recipes = _validate_recipes(recipes)
-                    if validated_recipes:
-                        return validated_recipes
-                    else:
-                        logger.warning(
-                            f"RECIPES_PATH {env_recipe_path} exists but "
-                            f"contains no valid recipes"
-                        )
-            except (json.JSONDecodeError, IOError) as e:
-                logger.warning(
-                    f"Failed to load recipes from RECIPES_PATH "
-                    f"{env_recipe_path}: {type(e).__name__}: {e}"
-                )
-
-    # Try to find recipes.json in the specs directory
-    # First check relative to the current file, then check common locations
-    current_dir = Path(__file__).parent.parent.parent
-    recipe_paths = [
-        current_dir / "specs" / "recipes.json",
-        Path.cwd() / "specs" / "recipes.json",
-        Path("/app") / "specs" / "recipes.json",  # Common Docker mount point
-    ]
-
-    for recipe_path in recipe_paths:
-        if recipe_path.exists():
-            try:
-                with open(recipe_path, "r") as f:
-                    data = json.load(f)
-                    recipes = data.get("recipes", [])
-                    validated_recipes = _validate_recipes(recipes)
-                    if validated_recipes:
-                        return validated_recipes
-                    else:
-                        logger.warning(
-                            f"Recipe file {recipe_path} exists but "
-                            f"contains no valid recipes"
-                        )
-            except (json.JSONDecodeError, IOError) as e:
-                logger.warning(
-                    f"Failed to load recipes from {recipe_path}: "
-                    f"{type(e).__name__}: {e}"
-                )
-                continue
-
-    # Fallback to hardcoded recipes if file not found or invalid
-    logger.warning("Could not find valid recipes.json, using fallback recipes")
-    return [
-        {"id": "review", "skills": ["doc_ingest", "ollama_generate"]},
-        {"id": "deps", "skills": ["doc_ingest", "dependency_map",
-         "sum_review"]},
-        {"id": "gr_index", "skills": ["graphrag_index"]},
-        {"id": "gr_query", "skills": ["graphrag_query"]},
-        {"id": "gr_full", "skills": ["graphrag_index", "graphrag_query"]},
-        {"id": "auto_up", "skills": ["autonomi_upload"]},
-        {"id": "auto_down", "skills": ["autonomi_download"]},
-        {"id": "auto_status", "skills": ["autonomi_status"]},
-    ]
-
-
-DEFAULT_RECIPES = _load_recipes()
-# Defensive check: only include recipes with valid 'id' field
-RECIPE_MAP = {
-    r["id"]: r["skills"]
-    for r in DEFAULT_RECIPES
-    if isinstance(r, dict) and "id" in r and "skills" in r
-}
 
 # Backpressure configuration
 BACKPRESSURE_ENABLED = (
@@ -442,29 +365,21 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         metadata.update(extras)
 
     # Handle execution_order with nested recipe structure
+    # Note: Recipe expansion is handled by the executor in
+    # _expand_execution_order() to ensure a single source of truth.
+    # We only store the execution_order here.
     skills = req.skills or []
     if req.execution_order:
-        # Store the execution order in metadata for the executor to use
+        # Store the execution order in metadata for the executor
         metadata["execution_order"] = req.execution_order
-        # Also expand recipes into skills for backward compatibility
-        # using the shared recipe configuration
-        expanded_skills: List[str] = []
-        for item in req.execution_order:
-            if item["type"] == "recipe":
-                recipe_skills = RECIPE_MAP.get(item["content"])
-                if recipe_skills is None:
-                    # This should not happen due to validation
-                    # but handle gracefully
-                    logger.warning(
-                        f"Unknown recipe ID in execution_order: "
-                        f"{item['content']}. "
-                        f"Available recipes: {list(RECIPE_MAP.keys())}"
-                    )
-                    recipe_skills = []
-                expanded_skills.extend(recipe_skills)
-            else:
-                expanded_skills.append(item["content"])
-        skills = expanded_skills
+        # For backward compatibility with old clients that don't use
+        # execution_order, if skills is empty but execution_order is
+        # provided, we don't expand here. The executor will handle
+        # expansion from execution_order. If both are provided,
+        # execution_order takes precedence.
+        if not skills:
+            # Empty skills list - executor will expand from execution_order
+            skills = []
 
     return GoalSpec(
         id=goal_id,
@@ -621,6 +536,310 @@ async def run_goal(
                     ),
                 },
             )
+
+
+@app.websocket("/api/uar/stream/ws")
+async def stream_goal_ws(
+    websocket: WebSocket,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Execute a goal and stream events via WebSocket for real-time updates"""
+    request_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
+
+    # Accept WebSocket immediately - rate limiting is applied after
+    # receiving the request body to allow skill-specific limits
+    await websocket.accept()
+    websocket.state.correlation_id = correlation_id
+
+    try:
+        # Receive the run request from WebSocket with timeout
+        # to prevent malicious clients from holding connections open
+        # indefinitely
+        websocket_timeout = int(
+            os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30")
+        )
+        try:
+            data = await asyncio.wait_for(
+                websocket.receive_json(),
+                timeout=websocket_timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"[{request_id}] WebSocket receive timeout after "
+                f"{websocket_timeout}s"
+            )
+            await websocket.send_json({
+                "type": "error",
+                "error": "Receive timeout",
+                "message": (
+                    f"No data received within {websocket_timeout} seconds"
+                ),
+                "request_id": request_id,
+                "code": "RECEIVE_TIMEOUT"
+            })
+            await websocket.close()
+            return
+
+        # Validate request size before parsing
+        # Use same limit as HTTP endpoints (10MB)
+        from uar.api.middleware import DEFAULT_MAX_REQUEST_BODY_BYTES
+        max_body_size = int(
+            os.getenv(
+                "MAX_REQUEST_BODY_BYTES",
+                str(DEFAULT_MAX_REQUEST_BODY_BYTES)
+            )
+        )
+        json_size = len(json.dumps(data))
+        if json_size > max_body_size:
+            logger.warning(
+                f"WebSocket request too large: {json_size} bytes > "
+                f"{max_body_size}"
+            )
+            await websocket.send_json({
+                "type": "error",
+                "error": "Request body too large",
+                "message": f"Maximum body size is {max_body_size} bytes",
+                "request_id": request_id,
+                "code": "BODY_TOO_LARGE"
+            })
+            await websocket.close()
+            return
+
+        try:
+            req = RunRequest(**data)
+        except ValidationError as e:
+            await websocket.send_json({
+                "type": "error",
+                "error": "Validation error",
+                "message": str(e),
+                "request_id": request_id,
+                "code": "VALIDATION_ERROR"
+            })
+            await websocket.close()
+            return
+
+        # Apply rate limiting with skill extraction
+        from uar.api.middleware import (
+            _extract_skill_from_request_data,
+            check_rate_limit,
+            rate_limiter,
+        )
+
+        # Generate rate limit key using shared function
+        client_ip = (
+            websocket.client.host if websocket.client else "unknown"
+        )
+        rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
+
+        # Extract first skill for skill-specific rate limiting
+        skill_name = _extract_skill_from_request_data(
+            req.skills, req.execution_order
+        )
+
+        # Check for skill-specific rate limits
+        limit, window, rate_limit_type = check_rate_limit(
+            rate_limit_key, tier, skill_name
+        )
+
+        try:
+            allowed, remaining = rate_limiter.is_allowed(
+                rate_limit_key, limit, window
+            )
+        except Exception as rate_limit_error:
+            logger.error(
+                f"[{request_id}] Rate limit check failed: "
+                f"{str(rate_limit_error)}"
+            )
+            await websocket.send_json({
+                "type": "error",
+                "error": "Rate limit check failed",
+                "message": "Internal error checking rate limit",
+                "request_id": request_id,
+                "code": "RATE_LIMIT_ERROR",
+            })
+            try:
+                await websocket.close(code=4000, reason="Rate limit error")
+            except Exception:
+                pass
+            return
+
+        if not allowed:
+            logger.warning(
+                f"WebSocket rate limit exceeded for {rate_limit_key}"
+            )
+            await websocket.send_json({
+                "type": "error",
+                "error": "Rate limit exceeded",
+                "message": (
+                    f"{limit} requests per {window} seconds allowed."
+                ),
+                "request_id": request_id,
+                "code": "RATE_LIMIT_EXCEEDED",
+                "skill": skill_name if skill_name else None,
+            })
+            # Use proper WebSocket close code 4000 (application error)
+            # Note: WebSocket close codes are limited to 0-999, 4000-4999
+            # 4000-4099 is reserved for application-specific codes
+            try:
+                await websocket.close(code=4000, reason="Rate limit exceeded")
+            except Exception as close_error:
+                # If close fails, try without code
+                logger.warning(
+                    f"[{request_id}] WebSocket close with code failed: "
+                    f"{str(close_error)}"
+                )
+                try:
+                    await websocket.close()
+                except Exception as fallback_error:
+                    logger.error(
+                        f"[{request_id}] WebSocket close fallback failed: "
+                        f"{str(fallback_error)}"
+                    )
+            return
+
+        # Get user info
+        user_info = auth_middleware(credentials)
+
+        # Log request (request_id generated at line 556)
+        user_str = user_info['user'] if user_info else 'anonymous'
+        logger.info(
+            f"[{request_id}] WebSocket request from {user_str}"
+        )
+
+        try:
+            goal = _build_goal(req)
+            strategy = SimplePlanner().plan(goal)
+
+            from uar.core.executor import Executor
+
+            executor = Executor()
+            timeout = req.timeout_seconds or 5.0
+            cid = getattr(websocket.state, "correlation_id", "")
+
+            def create_event(
+                event_type: str,
+                run_id: str,
+                skill=None,
+                payload=None,
+                error=None,
+            ):
+                """Create a properly formatted event."""
+                return {
+                    "schema_version": "uar.event.v1",
+                    "type": event_type,
+                    "run_id": run_id,
+                    "goal_id": strategy.goal_id,
+                    "skill": skill,
+                    "timestamp": time.time(),
+                    "correlation_id": cid,
+                    "payload": payload or {},
+                    "error": error,
+                }
+
+            # Execute and stream events
+            events = []
+            persisted = False
+            try:
+                for event in executor.iter_events(
+                    strategy, goal, timeout_seconds=timeout, correlation_id=cid
+                ):
+                    events.append(event)
+                    await websocket.send_json(event)
+
+                    # Persist to store on completion
+                    if event.get("type") == "complete":
+                        try:
+                            record = run_record_from_events(
+                                events, strategy.ordered_skills
+                            )
+                            store.append(record)
+                            persisted = True
+                            logger.info(
+                                f"[{request_id}] WebSocket stream completed "
+                                f"and persisted: {record.run_id}"
+                            )
+                        except Exception as persist_error:
+                            logger.error(
+                                f"[{request_id}] Failed to persist WebSocket "
+                                f"stream: {str(persist_error)}"
+                            )
+            except Exception as exec_error:
+                logger.error(
+                    f"[{request_id}] Error during executor.iter_events: "
+                    f"{str(exec_error)}",
+                    exc_info=True
+                )
+                # Send error event to client
+                await websocket.send_json({
+                    "type": "error",
+                    "error": str(exec_error),
+                    "error_type": type(exec_error).__name__,
+                    "request_id": request_id
+                })
+                raise
+
+            # Ensure persistence even if client disconnects
+            if events and not persisted:
+                try:
+                    record = run_record_from_events(
+                        events, strategy.ordered_skills
+                    )
+                    store.append(record)
+                    logger.info(
+                        f"[{request_id}] WebSocket stream persisted in "
+                        f"finally: {record.run_id}"
+                    )
+                except Exception:
+                    pass
+
+        except ValidationError as e:
+            await websocket.send_json({
+                "type": "error",
+                "error": str(e),
+                "error_type": "ValidationError",
+                "request_id": request_id
+            })
+        except Exception as e:
+            logger.error(
+                f"[{request_id}] WebSocket error: {str(e)}",
+                extra={
+                    "request_id": request_id,
+                    "client_host": (
+                        websocket.client.host
+                        if websocket.client
+                        else "unknown"
+                    ),
+                    "authenticated": credentials is not None,
+                }
+            )
+            await websocket.send_json({
+                "type": "error",
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "request_id": request_id
+            })
+
+    except WebSocketDisconnect:
+        logger.info(f"[{request_id}] WebSocket disconnected")
+    except Exception as e:
+        logger.error(
+            f"[{request_id}] WebSocket connection error: {str(e)}",
+            extra={
+                "request_id": request_id,
+                "client_host": (
+                    websocket.client.host
+                    if websocket.client
+                    else "unknown"
+                ),
+                "authenticated": credentials is not None,
+            }
+        )
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @app.get("/api/uar/skills")

@@ -1,4 +1,5 @@
 from typing import Callable, Dict, List
+from functools import lru_cache
 
 from .exceptions import SkillNotFoundError, ValidationError
 
@@ -32,8 +33,9 @@ class SkillRegistry:
             raise SkillNotFoundError(name)
         return self._skills[name]
 
+    @lru_cache(maxsize=1)
     def list(self) -> List[str]:
-        """List all registered skills"""
+        """List all registered skills (cached)"""
         return list(self._skills.keys())
 
     def is_registered(self, name: str) -> bool:

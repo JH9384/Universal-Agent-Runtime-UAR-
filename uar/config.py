@@ -184,7 +184,8 @@ class Config:
         # Check for production secret key requirement
         if self.is_production and self._is_default_secret_key():
             issues.append(
-                "Production deployment requires an explicitly set SECRET_KEY environment variable"
+                "Production deployment requires an explicitly set "
+                "SECRET_KEY environment variable"
             )
 
         return issues
@@ -196,10 +197,11 @@ class Config:
             "disable_existing_loggers": False,
             "formatters": {
                 "default": {
-                    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # noqa
                 },
                 "json": {
-                    "format": '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s"}',
+                    "format": '{"timestamp": "%(asctime)s", "level": "%(levelname)s", '  # noqa
+                    '"logger": "%(name)s", "message": "%(message)s"}',
                 },
             },
             "handlers": {
@@ -308,7 +310,8 @@ def validate_docker_environment() -> list[str]:
         for env_var in required_env:
             if not os.getenv(env_var):
                 issues.append(
-                    f"Required environment variable {env_var} not set in Docker"
+                    f"Required environment variable {env_var} "
+                    f"not set in Docker"
                 )
 
     return issues
