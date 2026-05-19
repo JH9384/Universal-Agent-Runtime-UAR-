@@ -25,6 +25,9 @@ def validate_goal(goal: str) -> str:
         raise ValidationError("Goal must be a string", field="goal")
 
     goal = goal.strip()
+    if not goal:
+        raise ValidationError("Goal cannot be empty", field="goal")
+
     if len(goal) < MIN_GOAL_LENGTH:
         raise ValidationError(
             f"Goal must be at least {MIN_GOAL_LENGTH} characters long",
@@ -33,7 +36,8 @@ def validate_goal(goal: str) -> str:
 
     if len(goal) > MAX_GOAL_LENGTH:
         raise ValidationError(
-            f"Goal cannot exceed {MAX_GOAL_LENGTH} characters", field="goal"
+            f"Goal cannot exceed {MAX_GOAL_LENGTH:,} characters",
+            field="goal"
         )
 
     # Check for potentially dangerous content

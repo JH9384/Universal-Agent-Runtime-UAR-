@@ -13,7 +13,7 @@ Key features:
 - Cross-runtime interoperability via MCP
 """
 
-import asyncio
+import inspect
 import logging
 from typing import Any, Dict, List, Optional, Callable
 from enum import Enum
@@ -22,7 +22,11 @@ from datetime import datetime
 import uuid
 
 try:
-    from autogen import AssistantAgent, UserProxyAgent, ConversableAgent
+    from autogen import (  # type: ignore
+        AssistantAgent,
+        UserProxyAgent,
+        ConversableAgent,
+    )
     AUTOGEN_AVAILABLE = True
 except ImportError:
     AUTOGEN_AVAILABLE = False
@@ -144,7 +148,11 @@ class Agent:
         
         for handler in handlers:
             try:
-                result = await handler(message) if asyncio else handler(message)
+                result = (
+                    await handler(message)
+                    if inspect.iscoroutinefunction(handler)
+                    else handler(message)
+                )
                 if result:
                     response = result
             except Exception as e:
@@ -204,29 +212,29 @@ class AgentOrchestrator:
                 content=f"Agent not found: {message.recipient_id}",
                 sender_id="orchestrator",
             )
-        
+
         self.message_history.append(message)
         return await recipient.receive_message(message)
-    
+
     def start_workflow(self, workflow_id: str, agent_ids: List[str]):
         """Start a multi-agent workflow."""
         self.active_workflows[workflow_id] = agent_ids
         logger.info(f"Started workflow {workflow_id} with agents: {agent_ids}")
-    
+
     def end_workflow(self, workflow_id: str):
         """End a workflow."""
         if workflow_id in self.active_workflows:
             del self.active_workflows[workflow_id]
             logger.info(f"Ended workflow {workflow_id}")
-    
+
     def get_workflow_status(self, workflow_id: str) -> Dict[str, Any]:
         """Get status of a workflow."""
         if workflow_id not in self.active_workflows:
             return {"status": "not_found"}
-        
+
         agent_ids = self.active_workflows[workflow_id]
         agents_status = {}
-        
+
         for agent_id in agent_ids:
             agent = self.agents.get(agent_id)
             if agent:
@@ -235,7 +243,7 @@ class AgentOrchestrator:
                     "active": agent.active,
                     "capabilities": [c.name for c in agent.capabilities],
                 }
-        
+
         return {
             "status": "active",
             "agents": agents_status,
@@ -245,10 +253,10 @@ class AgentOrchestrator:
 
 class AutoGenAdapter:
     """Adapter for AutoGen agents to work with UAR agent framework."""
-    
+
     def __init__(self):
         self.autogen_agents: Dict[str, ConversableAgent] = {}
-    
+
     def create_assistant_agent(
         self,
         agent_id: str,
@@ -260,7 +268,7 @@ class AutoGenAdapter:
         if not AUTOGEN_AVAILABLE:
             logger.error("AutoGen not available")
             return None
-        
+
         try:
             agent = AssistantAgent(
                 name=name,
@@ -272,7 +280,7 @@ class AutoGenAdapter:
         except Exception as e:
             logger.error(f"Failed to create AutoGen agent: {e}")
             return None
-    
+
     def create_user_proxy_agent(
         self,
         agent_id: str,
@@ -283,7 +291,7 @@ class AutoGenAdapter:
         if not AUTOGEN_AVAILABLE:
             logger.error("AutoGen not available")
             return None
-        
+
         try:
             agent = UserProxyAgent(
                 name=name,
@@ -294,7 +302,7 @@ class AutoGenAdapter:
         except Exception as e:
             logger.error(f"Failed to create UserProxy agent: {e}")
             return None
-    
+
     def get_agent(self, agent_id: str) -> Optional[ConversableAgent]:
         """Get an AutoGen agent by ID."""
         return self.autogen_agents.get(agent_id)
@@ -320,20 +328,20 @@ def create_uar_agent(
     """Create a UAR agent from a skill."""
     if agent_id is None:
         agent_id = f"uar_{skill_name}"
-    
-    from uar.core.registry import get_skill
-    
-    skill = get_skill(skill_name)
-    if not skill:
+
+    from uar.core.registry import registry
+
+    skill = registry.get(skill_name)
+    if skill is None:
         raise ValueError(f"Skill not found: {skill_name}")
-    
+
     capabilities = [
         AgentCapability(
             name=skill_name,
             description=skill.__doc__ or f"Skill: {skill_name}",
         )
     ]
-    
+
     return Agent(
         agent_id=agent_id,
         name=skill_name,
@@ -348,27 +356,27 @@ async def execute_agent_workflow(
     initial_message: str,
 ) -> Dict[str, Any]:
     """Execute a multi-agent workflow.
-    
+
     Args:
         workflow_id: Unique identifier for the workflow
         agent_sequence: List of agent IDs to execute in sequence
         initial_message: Initial message to start the workflow
-        
+
     Returns:
         Dictionary with workflow results
     """
     orchestrator = get_orchestrator()
-    
+
     # Start workflow
     orchestrator.start_workflow(workflow_id, agent_sequence)
-    
-    results = []
+
+    results: List[Dict[str, Any]] = []
     current_message = AgentMessage(
         type=MessageType.TEXT,
         content=initial_message,
         sender_id="workflow_initiator",
     )
-    
+
     for agent_id in agent_sequence:
         agent = orchestrator.get_agent(agent_id)
         if not agent:
@@ -378,19 +386,19 @@ async def execute_agent_workflow(
                 "error": "Agent not found",
             })
             continue
-        
+
         current_message.recipient_id = agent_id
         response = await orchestrator.route_message(current_message)
-        
+
         results.append({
             "agent_id": agent_id,
             "message": current_message.to_dict(),
             "response": response.to_dict() if response else None,
         })
-        
+
         if response:
             current_message = response
-    
+
     # End workflow
     orchestrator.end_workflow(workflow_id)
     return {

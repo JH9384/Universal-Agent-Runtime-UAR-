@@ -43,12 +43,12 @@ autonomi<1.0,>=0.3
 
 [dev]
 pytest<9.0,>=8.0
-httpx<1.0,>=0.27
 pytest-asyncio<1.0,>=0.23
 pytest-cov<5.0,>=4.0
 ruff<1.0,>=0.1
 mypy<2.0,>=1.0
 types-requests<3.0,>=2.31
+requests<3.0,>=2.31
 
 [doc-processing]
 unstructured[local-inference]<1.0,>=0.12
@@ -60,3 +60,11 @@ graphrag<2.0,>=1.0
 [pipeline-orchestration]
 dagster<2.0,>=1.7
 dagster-webserver<2.0,>=1.7
+
+[uor]
+numpy>=2.3.3
+dnspython<3.0,>=2.4
+pyshacl<1.0,>=0.20
+rdflib<8.0,>=7.0
+blake3<1.0,>=0.4
+cryptography<43.0,>=42.0

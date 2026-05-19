@@ -29,6 +29,10 @@ except ImportError:
     NEO4J_AVAILABLE = False
     logging.warning("Neo4j not available. Install with: pip install neo4j>=5.0")
 
+# Memgraph is compatible with Neo4j driver, but we flag it separately
+# for potential future-specific handling
+MEMGRAPH_AVAILABLE = NEO4J_AVAILABLE
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,6 +163,12 @@ class FlexibleGraphRAG:
                 logger.info(f"Connected to Neo4j: {connection_string}")
             except Exception as e:
                 logger.error(f"Failed to connect to Neo4j: {e}")
+        elif backend == GraphBackend.MEMGRAPH and MEMGRAPH_AVAILABLE:
+            try:
+                self.driver = GraphDatabase.driver(connection_string)
+                logger.info(f"Connected to Memgraph: {connection_string}")
+            except Exception as e:
+                logger.error(f"Failed to connect to Memgraph: {e}")
     
     def close(self):
         """Close database connection."""
@@ -184,9 +194,9 @@ class FlexibleGraphRAG:
         )
         self.entities[entity_id] = entity
         
-        # Also add to Neo4j if backend is Neo4j
-        if self.backend == GraphBackend.NEO4J and self.driver:
-            self._add_entity_to_neo4j(entity)
+        # Also add to Neo4j/Memgraph if backend is Neo4j or Memgraph
+        if self.backend in (GraphBackend.NEO4J, GraphBackend.MEMGRAPH) and self.driver:
+            self._add_entity_to_graph(entity)
         
         logger.info(f"Added entity: {entity_id} ({entity_type})")
         return entity
@@ -214,23 +224,23 @@ class FlexibleGraphRAG:
         )
         self.relations[relation_id] = relation
         
-        # Also add to Neo4j if backend is Neo4j
-        if self.backend == GraphBackend.NEO4J and self.driver:
-            self._add_relation_to_neo4j(relation)
+        # Also add to Neo4j/Memgraph if backend is Neo4j or Memgraph
+        if self.backend in (GraphBackend.NEO4J, GraphBackend.MEMGRAPH) and self.driver:
+            self._add_relation_to_graph(relation)
         
         logger.info(f"Added relation: {relation_id} ({relation_type})")
         return relation
     
-    def _add_entity_to_neo4j(self, entity: GraphEntity):
-        """Add entity to Neo4j database."""
+    def _add_entity_to_graph(self, entity: GraphEntity):
+        """Add entity to Neo4j or Memgraph database."""
         if not self.driver:
             return
-        
+
         query = f"""
         MERGE (e:{entity.entity_type} {{id: $id, name: $name}})
         SET e += $properties
         """
-        
+
         with self.driver.session() as session:
             session.run(
                 query,
@@ -238,12 +248,12 @@ class FlexibleGraphRAG:
                 name=entity.name,
                 properties=entity.properties,
             )
-    
-    def _add_relation_to_neo4j(self, relation: GraphRelation):
-        """Add relation to Neo4j database."""
+
+    def _add_relation_to_graph(self, relation: GraphRelation):
+        """Add relation to Neo4j or Memgraph database."""
         if not self.driver:
             return
-        
+
         source = self.entities.get(relation.source_id)
         target = self.entities.get(relation.target_id)
         if not source or not target:

@@ -7,6 +7,7 @@ Uses JCS-RFC8785 canonicalization with Unicode NFC normalization.
 
 import unicodedata
 import rfc8785
+import logging
 from typing import Any
 from enum import IntEnum
 import hashlib
@@ -15,6 +16,8 @@ import hashlib
 MAX_RECURSION_DEPTH = 1000
 MAX_ARRAY_LENGTH = 10000
 MAX_OBJECT_KEYS = 10000
+
+logger = logging.getLogger(__name__)
 
 
 class JsonCase(IntEnum):
@@ -43,12 +46,14 @@ class JsonValue:
 
     @classmethod
     def from_python(cls, obj: Any, depth: int = 0) -> "JsonValue":
-        """Convert Python object to typed JsonValue with recursion bounds (CT-B)."""
+        """Convert Python object to typed JsonValue with recursion bounds
+        (CT-B)."""
         if depth > MAX_RECURSION_DEPTH:
-            raise RecursionError(
+            msg = (
                 f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
                 "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
+            raise RecursionError(msg)
 
         if obj is None:
             return cls(obj, JsonCase.NULL)
@@ -62,20 +67,22 @@ class JsonValue:
             return cls(obj, JsonCase.STRING)
         elif isinstance(obj, list):
             if len(obj) > MAX_ARRAY_LENGTH:
-                raise ValueError(
+                msg = (
                     f"Array length {len(obj)} exceeds maximum of {MAX_ARRAY_LENGTH}. "
                     "Reduce array size or increase MAX_ARRAY_LENGTH."
                 )
+                raise ValueError(msg)
             return cls(
                 [cls.from_python(item, depth + 1) for item in obj],
                 JsonCase.ARRAY,
             )
         elif isinstance(obj, dict):
             if len(obj) > MAX_OBJECT_KEYS:
-                raise ValueError(
+                msg = (
                     f"Object key count {len(obj)} exceeds maximum of {MAX_OBJECT_KEYS}. "
                     "Reduce number of keys or increase MAX_OBJECT_KEYS."
                 )
+                raise ValueError(msg)
             # Sort keys for canonical ordering
             sorted_obj = dict(sorted(obj.items()))
             return cls(
@@ -96,7 +103,8 @@ class JsonValue:
 
         Implements in-surface canonicalization where the case tag byte
         is included in the serialization, ensuring case distinction.
-        Uses JCS-RFC8785 with Unicode NFC normalization per UOR-ADDR-1.
+        Uses JCS-RFC8785 with Unicode NFC normalization
+        per UOR-ADDR-1.
         """
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
@@ -114,10 +122,11 @@ class JsonValue:
         try:
             canonical = rfc8785.dumps(normalized_obj)
         except Exception as e:
-            raise ValueError(
+            msg = (
                 f"JCS canonicalization failed: {e}. "
                 "Ensure the object contains only JSON-serializable types."
-            ) from e
+            )
+            raise ValueError(msg) from e
 
         # Add case tag prefix for UOR case distinction (CT-T)
         case_byte = bytes([self.case.value])
@@ -139,16 +148,40 @@ class JsonValue:
             ]
         elif isinstance(obj, dict):
             return {
-                unicodedata.normalize("NFC", k): self._apply_nfc_normalization(v, depth + 1)
+                unicodedata.normalize("NFC", k):
+                self._apply_nfc_normalization(v, depth + 1)
                 for k, v in obj.items()
             }
         else:
             return obj
 
-    def compute_digest(self) -> str:
-        """Compute SHA-256 digest of canonical bytes (UOR content-derived address)."""
+    def compute_digest(self, algorithm: str = "sha256") -> str:
+        """Compute digest of canonical bytes with specified algorithm.
+
+        Args:
+            algorithm: Hash algorithm to use (sha256, sha3_256, blake3)
+
+        Returns:
+            Digest string in format "<algorithm>:<hex>"
+        """
         canonical = self.to_canonical_bytes()
-        return "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+        if algorithm == "sha256":
+            return "sha256:" + hashlib.sha256(canonical).hexdigest()
+        elif algorithm == "sha3_256":
+            return "sha3_256:" + hashlib.sha3_256(canonical).hexdigest()
+        elif algorithm == "blake3":
+            try:
+                import blake3  # type: ignore
+                return "blake3:" + blake3.blake3(canonical).hexdigest()
+            except ImportError:
+                logger.warning(
+                    "blake3 not available. Install with: pip install blake3"
+                )
+                # Fallback to SHA-256
+                return "sha256:" + hashlib.sha256(canonical).hexdigest()
+        else:
+            raise ValueError(f"Unsupported hash algorithm: {algorithm}")
 
     def to_python(self, depth: int = 0) -> Any:
         """Convert back to Python object with recursion bounds."""
@@ -199,14 +232,15 @@ def canonicalize_json(obj: Any) -> str:
     return canonical_bytes.decode("utf-8", errors="strict")
 
 
-def compute_uor_digest(obj: Any) -> str:
-    """Compute UOR content-derived address (SHA-256 of canonical form).
+def compute_uor_digest(obj: Any, algorithm: str = "sha256") -> str:
+    """Compute UOR content-derived address with specified algorithm.
 
     Args:
         obj: Python object to digest
+        algorithm: Hash algorithm to use (sha256, sha3_256, blake3)
 
     Returns:
-        UOR digest string in format "sha256:<hex>"
+        UOR digest string in format "<algorithm>:<hex>"
     """
     json_value = JsonValue.from_python(obj)
-    return json_value.compute_digest()
+    return json_value.compute_digest(algorithm)

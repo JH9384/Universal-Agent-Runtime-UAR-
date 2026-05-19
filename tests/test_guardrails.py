@@ -2,7 +2,6 @@
 Tests for guardrails and governance integration.
 """
 
-import pytest
 from uar.core.guardrails import (
     GuardrailType,
     ViolationSeverity,
@@ -26,7 +25,7 @@ def test_guardrail_violation_creation():
         message="Test violation message",
         agent_id="test_agent",
     )
-    
+
     assert violation.violation_id == "test_violation"
     assert violation.guardrail_type == GuardrailType.CONTENT_SAFETY
     assert violation.severity == ViolationSeverity.WARNING
@@ -54,14 +53,14 @@ def test_budget_tracking():
         max_tokens=1000,
         max_api_calls=100,
     )
-    
+
     budget.used_tokens = 500
     budget.used_api_calls = 50
-    
+
     assert budget.remaining_tokens() == 500
     assert budget.remaining_api_calls() == 50
     assert budget.is_exhausted() is False
-    
+
     budget.used_tokens = 1001
     assert budget.is_exhausted() is True
 
@@ -74,7 +73,7 @@ def test_blackboard_entry_creation():
         value="test_value",
         agent_id="test_agent",
     )
-    
+
     assert entry.entry_id == "test_entry"
     assert entry.key == "test_key"
     assert entry.value == "test_value"
@@ -89,13 +88,13 @@ def test_blackboard_locking():
         value="test_value",
         agent_id="agent1",
     )
-    
+
     assert entry.acquire_lock("agent1", ttl_seconds=60) is True
     assert entry.is_locked() is True
     assert entry.locked_by == "agent1"
-    
+
     assert entry.acquire_lock("agent2", ttl_seconds=60) is False
-    
+
     entry.release_lock("agent1")
     assert entry.is_locked() is False
 
@@ -103,18 +102,18 @@ def test_blackboard_locking():
 def test_shared_blackboard():
     """Test shared blackboard operations."""
     blackboard = SharedBlackboard()
-    
+
     entry_id = blackboard.propose(
         agent_id="test_agent",
         key="test_key",
         value="test_value",
     )
-    
+
     assert entry_id is not None
-    
+
     value = blackboard.get("test_key")
     assert value == "test_value"
-    
+
     status = blackboard.get_status()
     assert status["entry_count"] == 1
 
@@ -122,7 +121,7 @@ def test_shared_blackboard():
 def test_guardrail_checker():
     """Test guardrail checker."""
     checker = GuardrailChecker()
-    
+
     def test_checker(content):
         if "unsafe" in content.lower():
             return GuardrailViolation(
@@ -132,7 +131,7 @@ def test_guardrail_checker():
                 message="Unsafe content detected",
             )
         return None
-    
+
     checker.register_checker(GuardrailType.CONTENT_SAFETY, test_checker)
     
     violations = checker.check(
@@ -163,15 +162,18 @@ def test_governance_system_budget():
 def test_governance_system_budget_check():
     """Test governance system budget checking."""
     governance = GovernanceSystem()
-    
+
     governance.create_budget(
         agent_id="test_agent",
         max_tokens=1000,
         max_api_calls=100,
     )
-    
+
+    # Check if individual requests are within budget
+    # Test state persistence across calls
     assert governance.check_budget("test_agent", tokens=500) is True
-    assert governance.check_budget("test_agent", tokens=1000) is True
+    assert governance.check_budget("test_agent", tokens=500) is True
+    # This should fail because we've now used 1000 tokens total
     assert governance.check_budget("test_agent", tokens=1) is False
 
 
