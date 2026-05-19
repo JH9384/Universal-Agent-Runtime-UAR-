@@ -14,11 +14,10 @@ UAR is a Universal Agent Runtime: a constrained execution layer over identity-bo
 ## Run locally
 
 ```bash
-cd apps/api-python
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-fastapi dev main.py
+pip install -e '.[dev]'
+uvicorn uar.api.server:app --reload
 ```
 
 Open:
@@ -39,4 +38,6 @@ If tests fail, do not add features. Fix the failing invariant first.
 
 ## Canonical runtime status
 
-The `uar/` package is the authoritative runtime. `apps/api-python/main.py` is deprecated.
+The `uar/` package is the single authoritative runtime. UOR object/runtime
+endpoints are mounted by `uar/api/routers/uor.py`; conformance tests live
+in `tests/conformance/`.

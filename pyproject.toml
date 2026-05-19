@@ -97,7 +97,6 @@ pythonpath = ["."]
 [tool.mypy]
 python_version = "3.11"
 files = ["uar", "tests"]
-exclude = "apps/api-python/uar"
 
 [tool.ruff]
 line-length = 79

@@ -2,7 +2,10 @@
 
 ## Stabilization Mode
 
-UAR modular runtime (`uar/`) is authoritative. All conformance invariants pass (81/81). `apps/api-python/main.py` is deprecated and will be removed.
+UAR modular runtime (`uar/`) is the single authoritative app. UOR
+object/runtime/agent endpoints are served by `uar/api/routers/uor.py`,
+backed by `uar/objects/` (SQLite-persisted, thread-safe). The previous
+`apps/api-python/` reference implementation has been merged in and removed.
 
 ## Guarantees
 

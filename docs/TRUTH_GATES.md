@@ -7,8 +7,7 @@ This file defines what must be true before UAR claims a capability.
 A capability is not real until it can be run locally with:
 
 ```bash
-cd apps/api-python
-fastapi dev main.py
+uvicorn uar.api.server:app --reload
 ```
 
 ## Gate 2 — Has an Invariant

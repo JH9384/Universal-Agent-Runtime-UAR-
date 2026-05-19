@@ -133,6 +133,13 @@ async def lifespan(app: FastAPI):
     # Clean up orphaned temp files on startup
     library = _library_dir()
     _cleanup_orphaned_temp_files(library)
+    # Seed UOR standard runtimes (idempotent)
+    try:
+        from uar.objects import get_default_store, seed_standard_runtimes
+
+        seed_standard_runtimes(get_default_store())
+    except Exception as exc:  # noqa: BLE001 - non-fatal at startup
+        logger.warning("UOR runtime seeding skipped: %s", exc)
     yield
     # Shutdown - drain in-flight requests
     logger.info(
@@ -171,6 +178,12 @@ app.add_middleware(
 
 # Include advanced integrations router
 app.include_router(advanced_router)
+
+# Include consolidated UOR object/runtime/agent router (formerly
+# apps/api-python/main.py).
+from uar.api.routers import uor_router  # noqa: E402
+
+app.include_router(uor_router)
 
 store = JsonRunStore()
 

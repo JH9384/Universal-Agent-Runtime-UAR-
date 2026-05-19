@@ -1,7 +1,8 @@
-"""Manual smoke test for legacy/live-server workflow endpoints.
+"""Manual smoke test for the consolidated UAR UOR endpoints.
 
-This file is intentionally not part of default CI validation.
-Run manually only when a compatible server is running on localhost:8000.
+This file is intentionally not part of default CI validation. Run manually
+when a UAR server (``uvicorn uar.api.server:app``) is reachable. The
+endpoints exercised below are provided by ``uar/api/routers/uor.py``.
 """
 
 

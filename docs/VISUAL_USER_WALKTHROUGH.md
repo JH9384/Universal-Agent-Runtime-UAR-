@@ -13,11 +13,10 @@ create object → run runtime → run workflow → trace output
 ## 1. Start the server
 
 ```bash
-cd apps/api-python
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-fastapi dev main.py
+pip install -e '.[dev]'
+uvicorn uar.api.server:app --reload
 ```
 
 Expected screen clue:

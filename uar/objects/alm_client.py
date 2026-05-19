@@ -1,7 +1,16 @@
-from typing import Any, Dict, List
-import os
-import logging
+"""HTTP client for the Atomic Language Model (ALM) service.
+
+This is the class-style client used by the UOR ``/agents/atomic_lang_model/*``
+endpoints. The pipeline-style ``alm_*`` skills used by the executor live in
+:mod:`uar.skills.atomic_lang_model`.
+"""
+
+from __future__ import annotations
+
 import atexit
+import logging
+import os
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
