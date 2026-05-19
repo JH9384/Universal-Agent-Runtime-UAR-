@@ -551,6 +551,8 @@ export function UARPanel() {
     initialSkills.forEach((skill, idx) => positions[skill] = idx)
     return positions
   })
+  const skillLastPositionsRef = useRef(skillLastPositions)
+  skillLastPositionsRef.current = skillLastPositions
   const [recipes, setRecipes] = useState<Recipe[]>(() => {
     try {
       const saved = localStorage.getItem(RECIPES_KEY)
@@ -643,6 +645,7 @@ export function UARPanel() {
     return initial
   })
   const [tipsTargetSection, setTipsTargetSection] = useState<string | null>(null)
+  const [uorImageError, setUorImageError] = useState(false)
 
   // Expand target section when tips popup opens, collapse others
   useEffect(() => {
@@ -874,78 +877,48 @@ export function UARPanel() {
     }
   }
 
-  const toggleSkill = (id: string) => {
-    // Toggle skill: remove first instance if exists, otherwise add new instance
+  const addSkill = (id: string) => {
+    // Add skill: always add a new instance (use remove button to remove)
     setUnifiedOrder((prev) => {
-      // Check if skill already exists in order
-      const existingIndex = prev.findIndex(i => i.type === 'skill' && i.content === id)
-      
-      if (existingIndex >= 0) {
-        // Remove the first instance of this skill
-        const newOrder = [...prev]
-        newOrder.splice(existingIndex, 1)
-        // Update last positions for all skills after the removal point
-        setSkillLastPositions((prevPositions) => {
-          const newPositions = { ...prevPositions }
-          for (let i = existingIndex; i < newOrder.length; i++) {
-            if (newOrder[i].type === 'skill') {
-              newPositions[newOrder[i].content] = i
-            }
-          }
-          return newPositions
-        })
-        // selectedSkills is now derived from unifiedOrder, no need to set it
-        const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
-        setSkillHistory((history) => {
-          const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
-          setSkillHistoryIndex((idx) => idx + 1)
-          return newHistory
-        })
-        // Save unified order to history to preserve instance IDs
-        setUnifiedOrderHistory((history) => {
-          const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
-          setUnifiedOrderHistoryIndex((idx) => idx + 1)
-          return newHistory
-        })
-        return newOrder
-      } else {
-        // Add a new instance of the skill
-        const existingIds = new Set(prev.map(i => i.id))
-        const newInstance = {
-          id: generateUniqueId(existingIds),
-          type: 'skill' as const,
-          content: id
-        }
-        const newOrder = [...prev]
-        const lastPosition = skillLastPositions[id] ?? newOrder.length
-        // Insert at the last known position, or at the end if no position exists
-        const insertPosition = Math.min(lastPosition, newOrder.length)
-        newOrder.splice(insertPosition, 0, newInstance)
-        // Update last positions for all skills after the insertion point
-        setSkillLastPositions((prevPositions) => {
-          const newPositions = { ...prevPositions }
-          for (let i = insertPosition; i < newOrder.length; i++) {
-            if (newOrder[i].type === 'skill') {
-              newPositions[newOrder[i].content] = i
-            }
-          }
-          return newPositions
-        })
-        // selectedSkills is now derived from unifiedOrder, no need to set it
-        const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
-        setSkillHistory((history) => {
-          const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
-          setSkillHistoryIndex((idx) => idx + 1)
-          return newHistory
-        })
-        // Save unified order to history to preserve instance IDs
-        setUnifiedOrderHistory((history) => {
-          const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
-          setUnifiedOrderHistoryIndex((idx) => idx + 1)
-          return newHistory
-        })
-        return newOrder
+      // Add a new instance of the skill
+      const existingIds = new Set(prev.map(i => i.id))
+      const newInstance = {
+        id: generateUniqueId(existingIds),
+        type: 'skill' as const,
+        content: id
       }
+      const newOrder = [...prev]
+      
+      // Calculate insert position using ref to get current value
+      const lastPosition = skillLastPositionsRef.current[id] ?? newOrder.length
+      const insertPosition = Math.min(lastPosition, newOrder.length)
+      newOrder.splice(insertPosition, 0, newInstance)
+      
+      // Update last positions for all skills after the insertion point
+      setSkillLastPositions((prevPositions) => {
+        const newPositions = { ...prevPositions }
+        for (let i = insertPosition; i < newOrder.length; i++) {
+          if (newOrder[i].type === 'skill') {
+            newPositions[newOrder[i].content] = i
+          }
+        }
+        return newPositions
+      })
+      
+      // selectedSkills is now derived from unifiedOrder, no need to set it
+      const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+      setSkillHistory((history) => {
+        const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+        setSkillHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      // Save unified order to history to preserve instance IDs
+      setUnifiedOrderHistory((history) => {
+        const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+        setUnifiedOrderHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      return newOrder
     })
   }
 
@@ -1402,7 +1375,7 @@ export function UARPanel() {
         >
           📘
         </button>
-        <span className={styles.projectRoot}>UOR Support</span>
+        <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" onError={() => setUorImageError(true)} />}</a></span>
       </div>
 
       {showHelp && (
@@ -1659,7 +1632,7 @@ export function UARPanel() {
                       {!isCollapsed && (
                         <div className={styles.skillGroupSkills}>
                           {group.skills.map((s) => (
-                            <button key={s.id} onClick={() => toggleSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(unifiedOrder.some(i => i.type === 'skill' && i.content === s.id), isRunning)}>
+                            <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(unifiedOrder.some(i => i.type === 'skill' && i.content === s.id), isRunning)}>
                               {unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length > 0 ? `✓ (${unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length}) ` : ''}{s.label}
                             </button>
                           ))}

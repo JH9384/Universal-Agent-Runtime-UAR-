@@ -36,10 +36,16 @@ body {
 
 .projectRoot {
   font-size: 11px;
-  color: #888;
+  color: #000;
   font-family: monospace;
   margin-left: auto;
   margin-right: 20px;
+}
+
+.projectRoot img {
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
 }
 
 .skillGuideButton {
@@ -48,8 +54,17 @@ body {
   font-size: 12px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  background: #fff;
+  background: white;
   cursor: pointer;
+}
+
+.skillGuideButton img {
+  width: 20px;
+  height: 20px;
+}
+
+.uorFallbackIcon {
+  font-size: 16px;
 }
 
 .skillGuideButton:hover {
@@ -1657,6 +1672,10 @@ body {
 .dark .nodeDetails {
   background-color: #2d2d2d;
   border-color: #404040;
+  color: #e5e5e5;
+}
+
+.dark .projectRoot {
   color: #e5e5e5;
 }
 
