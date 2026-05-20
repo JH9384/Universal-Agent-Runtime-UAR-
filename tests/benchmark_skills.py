@@ -22,6 +22,81 @@ class SkillBenchmark:
     def __init__(self):
         self.results = []
 
+    def benchmark_hierarchical_vs_flat(
+        self, goal, recipe_id="gr_query", iterations=10
+    ):
+        """Benchmark hierarchical (nested) vs flat recipe execution."""
+        from uar.core.executor import Executor
+
+        results = {"hierarchical": [], "flat": []}
+        executor = Executor()
+
+        for mode, flag in [("hierarchical", True), ("flat", False)]:
+            for _ in range(iterations):
+                strategy = StrategySpec(
+                    goal_id="benchmark",
+                    ordered_skills=[],
+                )
+                strategy.metadata = {"use_hierarchical": flag}
+                start = time.time()
+                list(
+                    executor.iter_events(
+                        strategy, goal, timeout_seconds=5.0
+                    )
+                )
+                elapsed = time.time() - start
+                results[mode].append(elapsed)
+
+        self.results.append(
+            {
+                "skill": "hierarchical_vs_flat",
+                "hierarchical_avg": sum(results["hierarchical"]) / iterations,
+                "flat_avg": sum(results["flat"]) / iterations,
+                "hierarchical_max": max(results["hierarchical"]),
+                "flat_max": max(results["flat"]),
+            }
+        )
+        return results
+
+    def benchmark_cache_hit_vs_miss(self, goal, iterations=10):
+        """Benchmark cache hit performance vs cache miss."""
+        from uar.core.executor import Executor
+
+        executor = Executor()
+        # First call: cache miss
+        miss_times = []
+        for _ in range(iterations):
+            strategy = StrategySpec(
+                goal_id="benchmark",
+                ordered_skills=["uor_ecosystem_status"],
+            )
+            start = time.time()
+            list(executor.iter_events(strategy, goal, timeout_seconds=5.0))
+            miss_times.append(time.time() - start)
+
+        # Clear cache for comparison
+        executor.recipe_cache.clear()
+        hit_times = []
+        for _ in range(iterations):
+            strategy = StrategySpec(
+                goal_id="benchmark",
+                ordered_skills=["uor_ecosystem_status"],
+            )
+            start = time.time()
+            list(executor.iter_events(strategy, goal, timeout_seconds=5.0))
+            hit_times.append(time.time() - start)
+
+        self.results.append(
+            {
+                "skill": "cache_hit_vs_miss",
+                "miss_avg": sum(miss_times) / iterations,
+                "hit_avg": sum(hit_times) / iterations,
+                "miss_max": max(miss_times),
+                "hit_max": max(hit_times),
+            }
+        )
+        return {"miss": miss_times, "hit": hit_times}
+
     def benchmark_skill(self, skill_name, goal, timeout=30.0):
         """Benchmark a single skill execution"""
         strategy = StrategySpec(
@@ -106,8 +181,8 @@ def main():
     skills_to_benchmark = [
         "section_sum",
         "doc_ingest",
-        # Note: Skip skills that require external services (ollama, graphrag, autonomi)
-        # unless those services are available
+        # Note: Skip skills that require external services
+        # (ollama, graphrag, autonomi) unless available
     ]
 
     goal = GoalSpec(

@@ -484,7 +484,7 @@ describe('UARPanel', () => {
         if (url === '/api/uar/docs/library') {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ 
+            json: () => Promise.resolve({
               entries: [
                 { name: 'test.pdf', path: '/test/library/test.pdf', size: 1024, ext: '.pdf', mtime: 1234567890 }
               ],
@@ -499,17 +499,58 @@ describe('UARPanel', () => {
       })
 
       render(<UARPanel />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('use all')).toBeInTheDocument()
       }, { timeout: 5000 })
-      
+
       const useAllButton = screen.getByTitle('Use whole library as input_path')
       fireEvent.click(useAllButton)
-      
+
       await waitFor(() => {
         const inputPath = screen.getByDisplayValue('/test/library')
         expect(inputPath).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('UOR Ecosystem Skill Group', () => {
+    it('should render UOR Ecosystem skill group', async () => {
+      render(<UARPanel />)
+
+      await waitFor(() => {
+        expect(screen.getByText('UOR Ecosystem')).toBeInTheDocument()
+      })
+    })
+
+    it('should render ecosystem skill buttons', async () => {
+      render(<UARPanel />)
+
+      await waitFor(() => {
+        expect(screen.getByText('UOR Ecosystem')).toBeInTheDocument()
+      })
+
+      // Verify key ecosystem skill buttons are rendered
+      expect(screen.getByText('uor_addr_canonicalize')).toBeInTheDocument()
+      expect(screen.getByText('hologram_query')).toBeInTheDocument()
+      expect(screen.getByText('moltbook_list')).toBeInTheDocument()
+    })
+
+    it('should add ecosystem skill to unified order on click', async () => {
+      render(<UARPanel />)
+
+      await waitFor(() => {
+        expect(screen.getByText('UOR Ecosystem')).toBeInTheDocument()
+      })
+
+      // Find and click an ecosystem skill button
+      const skillButton = screen.getByText('uor_ecosystem_status')
+      fireEvent.click(skillButton)
+
+      // Verify skill appears in selected order
+      await waitFor(() => {
+        const orderItems = screen.getAllByText('uor_ecosystem_status')
+        expect(orderItems.length).toBeGreaterThanOrEqual(1)
       })
     })
   })

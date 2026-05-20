@@ -209,3 +209,87 @@ class TestHierarchicalExecutionIntegration:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "completed"
+
+
+class TestEcosystemAPI:
+    """End-to-end tests for UOR ecosystem API endpoints."""
+
+    def test_ecosystem_status_endpoint(self):
+        """GET /ecosystem/status returns all integration statuses."""
+        response = client.get("/ecosystem/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        integrations = data["integrations"]
+        assert "uor_addr" in integrations
+        assert "hologram" in integrations
+        assert "moltbook" in integrations
+        assert "prism_btc" in integrations
+        assert "severance_ai" in integrations
+        assert "anunix" in integrations
+
+    def test_run_ecosystem_skill_uor_addr_canonicalize(self):
+        """Execute uor_addr_canonicalize skill via /api/uar/run."""
+        payload = {
+            "goal": "canonicalize test data",
+            "skills": ["uor_addr_canonicalize"],
+            "metadata": {"data": {"hello": "world"}},
+        }
+        response = client.post("/api/uar/run", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        # Skill results are nested in final_context
+        skill_result = data["final_context"]["uor_addr_canonicalize"]
+        assert skill_result["status"] == "completed"
+        assert "envelope" in skill_result
+        assert skill_result["envelope"]["digest"].startswith("sha256:")
+
+    def test_run_ecosystem_skill_uor_ecosystem_status(self):
+        """Execute uor_ecosystem_status skill via /api/uar/run."""
+        payload = {
+            "goal": "check ecosystem",
+            "skills": ["uor_ecosystem_status"],
+        }
+        response = client.post("/api/uar/run", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        # Skill results are nested in final_context
+        skill_result = data["final_context"]["uor_ecosystem_status"]
+        assert skill_result["status"] == "completed"
+        assert "integrations" in skill_result
+
+    def test_stream_ecosystem_skill(self):
+        """Streaming execution of ecosystem skill emits events."""
+        import json as _json
+
+        with client.stream(
+            "POST",
+            "/api/uar/stream",
+            json={
+                "goal": "stream ecosystem status",
+                "skills": ["uor_ecosystem_status"],
+            },
+        ) as response:
+            assert response.status_code == 200
+            events = []
+            for chunk in response.iter_text():
+                if not chunk:
+                    continue
+                for frame in chunk.strip().split("\n\n"):
+                    lines = frame.splitlines()
+                    data_lines = [
+                        line.removeprefix("data: ")
+                        for line in lines
+                        if line.startswith("data: ")
+                    ]
+                    if data_lines:
+                        events.append(
+                            _json.loads("".join(data_lines))
+                        )
+
+        types = [e["type"] for e in events]
+        assert "skill_start" in types
+        assert "skill_complete" in types
+        assert "metrics" in types

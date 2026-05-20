@@ -25,9 +25,26 @@ import hashlib
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, Optional
 
 from .uor_integration import UORObject, ObjectMode, get_uor_integrator
+
+# URL schemes allowed for external ecosystem calls
+_ALLOWED_SCHEMES = {"https", "http"}
+# Blocked URL patterns (SSRF prevention)
+_BLOCKED_HOST_PATTERNS = {
+    r"^localhost$",
+    r"^127\.",
+    r"^10\.",
+    r"^172\.(1[6-9]|2[0-9]|3[01])\.",
+    r"^192\.168\.",
+    r"^169\.254\.",
+    r"^0\.0\.0\.0$",
+    r"^::1$",
+    r"^fc00:",
+    r"^fe80:",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +72,35 @@ def _get_http_client() -> Any:
     return _http_client
 
 
-def _http_post(url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """POST JSON to an endpoint with graceful fallback."""
+def _is_url_safe(url: str) -> bool:
+    """Validate URL for SSRF prevention."""
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        if parsed.scheme not in _ALLOWED_SCHEMES:
+            return False
+        host = parsed.hostname or ""
+        for pattern in _BLOCKED_HOST_PATTERNS:
+            if re.search(pattern, host, re.IGNORECASE):
+                return False
+        return True
+    except Exception:
+        return False
+
+
+def _http_post(
+    url: str, payload: Dict[str, Any], timeout: float = 30.0
+) -> Dict[str, Any]:
+    """POST JSON to an endpoint with graceful fallback and SSRF guard."""
+    if not _is_url_safe(url):
+        logger.warning("Blocked unsafe URL: %s", url)
+        return {"status": "error", "error": "Unsafe URL blocked", "url": url}
     client = _get_http_client()
     if client is None:
         return {"status": "mock", "note": "httpx not installed"}
     try:
-        resp = client.post(url, json=payload)
+        resp = client.post(url, json=payload, timeout=timeout)
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:
@@ -69,13 +108,16 @@ def _http_post(url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "error", "error": str(exc), "url": url}
 
 
-def _http_get(url: str) -> Dict[str, Any]:
-    """GET an endpoint with graceful fallback."""
+def _http_get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
+    """GET an endpoint with graceful fallback and SSRF guard."""
+    if not _is_url_safe(url):
+        logger.warning("Blocked unsafe URL: %s", url)
+        return {"status": "error", "error": "Unsafe URL blocked", "url": url}
     client = _get_http_client()
     if client is None:
         return {"status": "mock", "note": "httpx not installed"}
     try:
-        resp = client.get(url)
+        resp = client.get(url, timeout=timeout)
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:

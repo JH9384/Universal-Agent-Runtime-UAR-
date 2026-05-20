@@ -173,3 +173,47 @@ class TestHTTPHelpers:
         )
         result = _http_get("http://example.com")
         assert result["status"] == "mock"
+
+
+class TestSecurity:
+    """SSRF and security hardening tests for ecosystem HTTP layer."""
+
+    def test_is_url_safe_blocks_private_ip(self):
+        from uar.core.uor_ecosystem import _is_url_safe
+
+        assert _is_url_safe("http://localhost/test") is False
+        assert _is_url_safe("http://127.0.0.1/test") is False
+        assert _is_url_safe("http://10.0.0.1/test") is False
+        assert _is_url_safe("http://192.168.1.1/test") is False
+        assert _is_url_safe("http://172.16.0.1/test") is False
+        assert _is_url_safe("http://169.254.1.1/test") is False
+        assert _is_url_safe("http://0.0.0.0/test") is False
+
+    def test_is_url_safe_allows_public_https(self):
+        from uar.core.uor_ecosystem import _is_url_safe
+
+        assert _is_url_safe("https://api.gethologram.ai/v1/infer") is True
+        assert _is_url_safe("https://moltbook.com/api/v1/topics") is True
+        assert _is_url_safe("http://example.com") is True
+
+    def test_is_url_safe_blocks_non_http_schemes(self):
+        from uar.core.uor_ecosystem import _is_url_safe
+
+        assert _is_url_safe("file:///etc/passwd") is False
+        assert _is_url_safe("ftp://example.com") is False
+        assert _is_url_safe("ssh://example.com") is False
+        assert _is_url_safe("data:text/html,test") is False
+
+    def test_http_post_blocks_unsafe_url(self):
+        from uar.core.uor_ecosystem import _http_post
+
+        result = _http_post("http://localhost:8000/secret", {})
+        assert result["status"] == "error"
+        assert "Unsafe URL blocked" in result["error"]
+
+    def test_http_get_blocks_unsafe_url(self):
+        from uar.core.uor_ecosystem import _http_get
+
+        result = _http_get("http://127.0.0.1:8000/secret")
+        assert result["status"] == "error"
+        assert "Unsafe URL blocked" in result["error"]
