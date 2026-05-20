@@ -40,6 +40,14 @@ jobs:
       - name: Run Python tests
         run: pytest tests/ -v --tb=short --ignore=tests/conformance/
 
+      - name: Run ecosystem tests
+        run: pytest tests/test_uor_ecosystem.py tests/test_api.py::TestEcosystemAPI -v --tb=short
+
+      - name: Run benchmark (non-blocking)
+        run: |
+          python tests/benchmark_skills.py || true
+        continue-on-error: true
+
   web-tests:
     runs-on: ubuntu-latest
     defaults:

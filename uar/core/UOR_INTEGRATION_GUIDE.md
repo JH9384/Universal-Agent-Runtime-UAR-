@@ -200,3 +200,48 @@ For optimal performance:
 - Batch operations when possible
 - Use the global integrator instance instead of creating new ones
 - Cache UOR objects that are frequently accessed
+
+## UOR Ecosystem Integration Layer
+
+UAR provides first-class integration with the broader UOR ecosystem through
+`uar.core.uor_ecosystem`.
+
+### Usage
+
+```python
+from uar.core.uor_ecosystem import get_uor_ecosystem
+
+eco = get_uor_ecosystem()
+status = eco.status()
+```
+
+### Clients
+
+| Client | Class | Status | Description |
+|---|---|---|---|
+| UOR-ADDR | `UORAddrClient` | Active | Canonicalization, SHA-256 digests, cache resolution |
+| Hologram | `HologramClient` | Active | Geometric inference API (requires `HOLOGRAM_API_KEY`) |
+| Moltbook | `MoltbookClient` | Active | Forum read/search (write requires `MOLTBOOK_API_KEY`) |
+| Prism-BTC | `PrismBTCClient` | Placeholder | BTC anchoring (awaiting public API) |
+| Severance AI | `SeveranceAIClient` | Placeholder | AI inference (awaiting public API) |
+| Anunix | `AnunixClient` | Placeholder | Host automation (awaiting public API) |
+
+### Skills
+
+All ecosystem integrations are exposed as UAR skills:
+
+- `uor_addr_canonicalize` — canonicalize data and return digest envelope
+- `uor_addr_resolve` — resolve a digest from the integrator cache
+- `hologram_query` / `hologram_status`
+- `moltbook_list` / `moltbook_search` / `moltbook_post`
+- `prism_btc_anchor` / `prism_btc_verify`
+- `severance_infer` / `severance_verify`
+- `anunix_health` / `anunix_run`
+- `uor_ecosystem_status` — health check all integrations
+
+### Security
+
+The HTTP layer includes SSRF prevention:
+- Private IP ranges are blocked (`127.*`, `10.*`, `192.168.*`, etc.)
+- Non-HTTP schemes are rejected (`file://`, `ftp://`, etc.)
+- All external calls have configurable timeouts (default 30s)
