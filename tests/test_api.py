@@ -122,3 +122,90 @@ def test_cannot_modify_canonical_recipe():
 
     r = client.delete("/api/uar/recipes/review")
     assert r.status_code == 403
+
+
+class TestHierarchicalExecutionIntegration:
+    """End-to-end integration tests for hierarchical recipe execution."""
+
+    def test_run_with_use_hierarchical_executes_recipe(self):
+        """use_hierarchical flag triggers recipe boundary events."""
+        payload = {
+            "goal": "test hierarchical",
+            "execution_order": [
+                {"type": "recipe", "content": "gr_query", "id": "r1"},
+            ],
+            "use_hierarchical": True,
+        }
+        response = client.post("/api/uar/run", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        events = data.get("events", [])
+        types = [e["type"] for e in events]
+        assert "recipe_start" in types
+        assert "recipe_end" in types
+
+    def test_stream_with_hierarchical_emits_boundary_events(self):
+        """Streaming with use_hierarchical emits recipe_start/end."""
+        import json as _json
+
+        with client.stream(
+            "POST",
+            "/api/uar/stream",
+            json={
+                "goal": "stream hierarchical",
+                "execution_order": [
+                    {"type": "recipe", "content": "gr_query", "id": "r1"},
+                ],
+                "use_hierarchical": True,
+            },
+        ) as response:
+            assert response.status_code == 200
+            events = []
+            for chunk in response.iter_text():
+                if not chunk:
+                    continue
+                for frame in chunk.strip().split("\n\n"):
+                    lines = frame.splitlines()
+                    data_lines = [
+                        line.removeprefix("data: ")
+                        for line in lines
+                        if line.startswith("data: ")
+                    ]
+                    if data_lines:
+                        events.append(
+                            _json.loads("".join(data_lines))
+                        )
+
+        types = [e["type"] for e in events]
+        assert "recipe_start" in types
+        assert "recipe_end" in types
+        assert "skill_start" in types
+        assert "skill_complete" in types
+
+    def test_recipe_timeout_override_via_api(self):
+        """Recipe with timeout field is respected end-to-end."""
+        payload = {
+            "goal": "test timeout override",
+            "execution_order": [
+                {
+                    "type": "recipe",
+                    "content": "custom_timeout",
+                    "id": "r1",
+                },
+            ],
+            "metadata": {
+                "recipe_definitions": [
+                    {
+                        "id": "custom_timeout",
+                        "label": "Custom",
+                        "skills": ["section_sum"],
+                        "timeout": 0.5,
+                    }
+                ]
+            },
+        }
+        response = client.post("/api/uar/run", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"

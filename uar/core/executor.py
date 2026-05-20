@@ -28,6 +28,9 @@ GC_EVENT_THRESHOLD = int(os.getenv("UAR_GC_THRESHOLD", "50"))
 _RECIPE_EXPANSION_CACHE: Dict[str, Tuple[List[str], List[Dict[str, Any]]]] = {}
 _MAX_EXPANSION_CACHE_SIZE = 100
 
+# Recipe-level context-mutation cache limits.
+_MAX_RECIPE_CACHE_SIZE = 50
+
 # Shared thread pool for _run_with_timeout to avoid per-skill churn.
 _TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 _TIMEOUT_POOL_LOCK = threading.Lock()
@@ -558,6 +561,8 @@ class Executor:
         # Simple in-memory cache keyed by (recipe_id, params_hash).
         # Value stores the context mutations produced by the recipe.
         self._recipe_cache: Dict[str, Dict[str, Any]] = {}
+        self._recipe_cache_hits = 0
+        self._recipe_cache_misses = 0
 
     def iter_events(
         self,
@@ -752,6 +757,8 @@ class Executor:
                     "event_count": _metrics_event_count,
                     "cache_hits": _metrics_cache_hits,
                     "cache_misses": _metrics_cache_misses,
+                    "recipe_cache_hits": self._recipe_cache_hits,
+                    "recipe_cache_misses": self._recipe_cache_misses,
                     "skills_executed": len(_metrics_skill_times),
                     "skill_times_ms": {
                         k: round(v * 1000, 1)
@@ -1454,6 +1461,8 @@ class Executor:
                     "event_count": _metrics_event_count,
                     "cache_hits": _metrics_cache_hits,
                     "cache_misses": _metrics_cache_misses,
+                    "recipe_cache_hits": self._recipe_cache_hits,
+                    "recipe_cache_misses": self._recipe_cache_misses,
                     "skills_executed": len(_metrics_skill_times),
                     "skill_times_ms": {
                         k: round(v * 1000, 1)
@@ -1624,6 +1633,7 @@ class Executor:
 
                 # Cache hit: replay cached context mutations
                 if _cache_key and _cache_key in self._recipe_cache:
+                    self._recipe_cache_hits += 1
                     yield _event(
                         "recipe_start",
                         "",
@@ -1742,6 +1752,8 @@ class Executor:
                     recipe_id, instance_id, status, recipe_errors
                 )
 
+                self._recipe_cache_misses += 1
+
                 # Cache the context delta on successful execution
                 if (
                     _cache_key
@@ -1753,6 +1765,8 @@ class Executor:
                     for key, value in ctx.data.items():
                         if key not in snapshot or snapshot[key] != value:
                             delta[key] = value
+                    while len(self._recipe_cache) >= _MAX_RECIPE_CACHE_SIZE:
+                        self._recipe_cache.pop(next(iter(self._recipe_cache)))
                     self._recipe_cache[_cache_key] = delta
 
                 yield _event(

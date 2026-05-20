@@ -781,6 +781,64 @@ class TestRecipeTimeout:
         assert executor._recipe_timeout("missing", 15.0, None) == 15.0
 
 
+class TestRecipeCacheEviction:
+    """Tests for recipe cache size limiting."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_hierarchical(self, monkeypatch):
+        monkeypatch.setenv("UAR_HIERARCHICAL_EXECUTION", "1")
+
+    @pytest.fixture(autouse=True)
+    def _register_noop(self):
+        from uar.core.registry import registry
+
+        def _noop_skill(ctx: PipelineContext):
+            ctx.data["noop_ran"] = True
+            return "done"
+
+        if not registry.is_registered("noop"):
+            registry.register("noop", _noop_skill)
+        yield
+
+    @patch("uar.core.executor.registry")
+    def test_cache_evicts_oldest_when_over_limit(self, mock_registry):
+        """Cache evicts oldest entry when exceeding max size."""
+        mock_skill = Mock(return_value={"status": "ok"})
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+
+        executor = Executor()
+        # Manually fill cache beyond limit
+        for i in range(55):
+            executor._recipe_cache[f"key_{i}"] = {"idx": i}
+        assert len(executor._recipe_cache) == 55
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "cached_recipe",
+                        "id": "r1",
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "cached_recipe",
+                        "skills": ["noop"],
+                        "cache": True,
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="test", ordered_skills=[])
+        list(executor.iter_events(strategy, goal, timeout_seconds=1.0))
+        assert len(executor._recipe_cache) <= 50
+
+
 class TestUseHierarchicalMetadata:
     """Tests that use_hierarchical in goal metadata triggers
     hierarchical mode."""
