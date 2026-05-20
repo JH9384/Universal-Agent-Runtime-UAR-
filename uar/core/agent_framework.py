@@ -26,6 +26,7 @@ def _utcnow() -> datetime:
     """Return a naive UTC datetime (no tzinfo)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+
 try:
     from autogen import (  # type: ignore
         AssistantAgent,
@@ -35,7 +36,9 @@ try:
     AUTOGEN_AVAILABLE = True
 except ImportError:
     AUTOGEN_AVAILABLE = False
-    logging.warning("AutoGen not available. Install with: pip install autogen>=0.4")
+    logging.warning(
+        "AutoGen not available. Install with: pip install autogen>=0.4"
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +64,7 @@ class AgentMessage:
     recipient_id: Optional[str] = None
     timestamp: datetime = field(default_factory=_utcnow)
     reply_to: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -74,7 +77,7 @@ class AgentMessage:
             "timestamp": self.timestamp.isoformat(),
             "reply_to": self.reply_to,
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AgentMessage":
         """Create from dictionary."""
@@ -101,7 +104,7 @@ class AgentCapability:
 
 class Agent:
     """Base agent class with A2A communication capabilities."""
-    
+
     def __init__(
         self,
         agent_id: str,
@@ -115,7 +118,7 @@ class Agent:
         self.capabilities = capabilities or []
         self.message_handlers: Dict[MessageType, List[Callable]] = {}
         self.active: bool = True
-        
+
     def register_handler(
         self,
         message_type: MessageType,
@@ -125,19 +128,24 @@ class Agent:
         if message_type not in self.message_handlers:
             self.message_handlers[message_type] = []
         self.message_handlers[message_type].append(handler)
-    
-    async def send_message(self, message: AgentMessage, recipient: "Agent") -> Optional[AgentMessage]:
+
+    async def send_message(
+        self, message: AgentMessage, recipient: "Agent"
+    ) -> Optional[AgentMessage]:
         """Send a message to another agent."""
         message.sender_id = self.agent_id
         message.recipient_id = recipient.agent_id
-        
+
         logger.info(
-            f"Agent {self.agent_id} sending {message.type.value} to {recipient.agent_id}"
+            f"Agent {self.agent_id} sending {message.type.value} to "
+            f"{recipient.agent_id}"
         )
-        
+
         return await recipient.receive_message(message)
-    
-    async def receive_message(self, message: AgentMessage) -> Optional[AgentMessage]:
+
+    async def receive_message(
+        self, message: AgentMessage
+    ) -> Optional[AgentMessage]:
         """Receive and process a message."""
         if not self.active:
             logger.warning(f"Agent {self.agent_id} is not active")
@@ -147,10 +155,10 @@ class Agent:
                 sender_id=self.agent_id,
                 reply_to=message.id,
             )
-        
+
         handlers = self.message_handlers.get(message.type, [])
         response = None
-        
+
         for handler in handlers:
             try:
                 result = (
@@ -169,9 +177,9 @@ class Agent:
                     reply_to=message.id,
                 )
                 break
-        
+
         return response
-    
+
     def get_capability(self, name: str) -> Optional[AgentCapability]:
         """Get a capability by name."""
         for cap in self.capabilities:
@@ -182,36 +190,40 @@ class Agent:
 
 class AgentOrchestrator:
     """Orchestrates multi-agent workflows with A2A communication."""
-    
+
     def __init__(self):
         self.agents: Dict[str, Agent] = {}
         self.message_history: List[AgentMessage] = []
         self.active_workflows: Dict[str, List[str]] = {}
-    
+
     def register_agent(self, agent: Agent):
         """Register an agent with the orchestrator."""
         self.agents[agent.agent_id] = agent
         logger.info(f"Registered agent: {agent.agent_id} ({agent.name})")
-    
+
     def unregister_agent(self, agent_id: str):
         """Unregister an agent."""
         if agent_id in self.agents:
             del self.agents[agent_id]
             logger.info(f"Unregistered agent: {agent_id}")
-    
+
     def get_agent(self, agent_id: str) -> Optional[Agent]:
         """Get an agent by ID."""
         return self.agents.get(agent_id)
-    
-    async def route_message(self, message: AgentMessage) -> Optional[AgentMessage]:
+
+    async def route_message(
+        self, message: AgentMessage
+    ) -> Optional[AgentMessage]:
         """Route a message to the appropriate agent."""
         if not message.recipient_id:
             logger.warning("Message has no recipient_id")
             return None
-        
+
         recipient = self.agents.get(message.recipient_id)
         if not recipient:
-            logger.warning(f"Recipient agent not found: {message.recipient_id}")
+            logger.warning(
+                f"Recipient agent not found: {message.recipient_id}"
+            )
             return AgentMessage(
                 type=MessageType.ERROR,
                 content=f"Agent not found: {message.recipient_id}",

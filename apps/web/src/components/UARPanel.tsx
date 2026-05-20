@@ -984,7 +984,7 @@ export function UARPanel() {
       .flatMap((item) => expandRecipeSkills(item.content))
     const allSkills = [...new Set([...currentSkills, ...recipeSkills])]
 
-    const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata; execution_order?: any[]; use_hierarchical?: boolean } = { 
+    const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata; execution_order?: ExecutionOrderItem[]; use_hierarchical?: boolean } = { 
       goal, 
       skills: allSkills,
       execution_order: executionOrder,

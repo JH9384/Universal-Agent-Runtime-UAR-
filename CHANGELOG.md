@@ -40,6 +40,12 @@ This project uses semantic versioning for release tags.
 ## [Unreleased]
 
 ### Added
+- Hierarchical recipe execution with discrete unit semantics
+  - Recipes execute as nested scopes with snapshot, retry, and parameter scoping
+  - Frontend toggle (🔀 Nested / ➡ Flat) in UARPanel.tsx
+  - Opt-in via `UAR_HIERARCHICAL_EXECUTION` env var or `use_hierarchical` metadata flag
+  - Recipe-level caching: cache context mutations keyed by recipe ID and parameters
+  - Recipe-level timeout overrides via `_recipe_timeout` hook
 - UOR-ADDR-1 bounded shape recursion implementation
   - Typed JSON value handling with case distinction (CT-T)
   - Bounded recursion depth enforcement (CT-B) with max 1000 levels

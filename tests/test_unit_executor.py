@@ -632,7 +632,9 @@ class TestRecipeCaching:
         strategy = StrategySpec(goal_id="test", ordered_skills=[])
         executor = Executor()
 
-        events = list(executor.iter_events(strategy, goal, timeout_seconds=1.0))
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
         types = [e["type"] for e in events]
         assert "recipe_end" in types
 
@@ -756,3 +758,93 @@ class TestRecipeCaching:
 
         list(executor.iter_events(strategy, goal, timeout_seconds=1.0))
         assert len(executor._recipe_cache) == 0
+
+
+class TestRecipeTimeout:
+    """Tests for recipe-level timeout override hook."""
+
+    def test_recipe_timeout_reads_definition(self):
+        """_recipe_timeout returns recipe's timeout field when present."""
+        executor = Executor()
+        recipe = {"id": "fast", "timeout": 2.5, "skills": []}
+        assert executor._recipe_timeout("fast", 30.0, recipe) == 2.5
+
+    def test_recipe_timeout_fallback_to_default(self):
+        """_recipe_timeout falls back to default when recipe has no timeout."""
+        executor = Executor()
+        recipe = {"id": "slow", "skills": []}
+        assert executor._recipe_timeout("slow", 30.0, recipe) == 30.0
+
+    def test_recipe_timeout_none_recipe(self):
+        """_recipe_timeout falls back to default when recipe is None."""
+        executor = Executor()
+        assert executor._recipe_timeout("missing", 15.0, None) == 15.0
+
+
+class TestUseHierarchicalMetadata:
+    """Tests that use_hierarchical in goal metadata triggers
+    hierarchical mode."""
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_use_hierarchical_metadata_flag(
+        self, mock_registry, mock_guardrails
+    ):
+        """Hierarchical execution triggered by metadata flag
+        without env var."""
+        mock_skill = Mock(return_value={"status": "ok"})
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "use_hierarchical": True,
+                "execution_order": [
+                    {"type": "recipe", "content": "gr_query", "id": "r1"},
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="goal_123", ordered_skills=[])
+        executor = Executor()
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        types = [e["type"] for e in events]
+        assert "recipe_start" in types
+        assert "recipe_end" in types
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_use_hierarchical_false_uses_flat(
+        self, mock_registry, mock_guardrails
+    ):
+        """use_hierarchical=False falls back to flat expansion."""
+        mock_skill = Mock(return_value={"status": "ok"})
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "use_hierarchical": False,
+                "execution_order": [
+                    {"type": "recipe", "content": "gr_query", "id": "r1"},
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="goal_123", ordered_skills=[])
+        executor = Executor()
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        types = [e["type"] for e in events]
+        # Flat mode should still emit recipe_start/recipe_end via markers
+        assert "recipe_start" in types
+        assert "recipe_end" in types
+        assert "skill_start" in types
+        assert "skill_complete" in types

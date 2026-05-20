@@ -27,12 +27,15 @@ def _utcnow() -> datetime:
     """Return a naive UTC datetime (no tzinfo)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+
 try:
     from neo4j import GraphDatabase
     NEO4J_AVAILABLE = True
 except ImportError:
     NEO4J_AVAILABLE = False
-    logging.warning("Neo4j not available. Install with: pip install neo4j>=5.0")
+    logging.warning(
+        "Neo4j not available. Install with: pip install neo4j>=5.0"
+    )
 
 # Memgraph is compatible with Neo4j driver, but we flag it separately
 # for potential future-specific handling
@@ -67,7 +70,7 @@ class GraphEntity:
     properties: Dict[str, Any] = field(default_factory=dict)
     embeddings: Optional[List[float]] = None
     created_at: datetime = field(default_factory=_utcnow)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -90,7 +93,7 @@ class GraphRelation:
     properties: Dict[str, Any] = field(default_factory=dict)
     weight: float = 1.0
     created_at: datetime = field(default_factory=_utcnow)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -110,7 +113,7 @@ class OntologySchema:
     entity_types: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     relation_types: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     constraints: Dict[str, Any] = field(default_factory=dict)
-    
+
     def add_entity_type(
         self,
         type_name: str,
@@ -122,7 +125,7 @@ class OntologySchema:
             "properties": properties,
             "constraints": constraints or {},
         }
-    
+
     def add_relation_type(
         self,
         type_name: str,
@@ -136,7 +139,7 @@ class OntologySchema:
             "target_types": target_types,
             "properties": properties or {},
         }
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -147,8 +150,9 @@ class OntologySchema:
 
 
 class FlexibleGraphRAG:
-    """Flexible GraphRAG system with multiple backends and search strategies."""
-    
+    """Flexible GraphRAG system with multiple backends and search
+    strategies."""
+
     def __init__(
         self,
         backend: GraphBackend = GraphBackend.IN_MEMORY,
@@ -161,7 +165,7 @@ class FlexibleGraphRAG:
         self.entities: Dict[str, GraphEntity] = {}
         self.relations: Dict[str, GraphRelation] = {}
         self.driver = None
-        
+
         if backend == GraphBackend.NEO4J and NEO4J_AVAILABLE:
             try:
                 self.driver = GraphDatabase.driver(connection_string)
@@ -174,13 +178,13 @@ class FlexibleGraphRAG:
                 logger.info(f"Connected to Memgraph: {connection_string}")
             except Exception as e:
                 logger.error(f"Failed to connect to Memgraph: {e}")
-    
+
     def close(self):
         """Close database connection."""
         if self.driver:
             self.driver.close()
             logger.info("Database connection closed")
-    
+
     def add_entity(
         self,
         entity_type: str,
@@ -198,14 +202,17 @@ class FlexibleGraphRAG:
             embeddings=embeddings,
         )
         self.entities[entity_id] = entity
-        
+
         # Also add to Neo4j/Memgraph if backend is Neo4j or Memgraph
-        if self.backend in (GraphBackend.NEO4J, GraphBackend.MEMGRAPH) and self.driver:
+        if (
+            self.backend in (GraphBackend.NEO4J, GraphBackend.MEMGRAPH)
+            and self.driver
+        ):
             self._add_entity_to_graph(entity)
-        
+
         logger.info(f"Added entity: {entity_id} ({entity_type})")
         return entity
-    
+
     def add_relation(
         self,
         source_id: str,
@@ -217,7 +224,7 @@ class FlexibleGraphRAG:
         """Add a relation to the graph."""
         if source_id not in self.entities or target_id not in self.entities:
             raise ValueError("Source or target entity not found")
-        
+
         relation_id = str(uuid.uuid4())
         relation = GraphRelation(
             relation_id=relation_id,
@@ -228,14 +235,14 @@ class FlexibleGraphRAG:
             weight=weight,
         )
         self.relations[relation_id] = relation
-        
+
         # Also add to Neo4j/Memgraph if backend is Neo4j or Memgraph
         if self.backend in (GraphBackend.NEO4J, GraphBackend.MEMGRAPH) and self.driver:
             self._add_relation_to_graph(relation)
-        
+
         logger.info(f"Added relation: {relation_id} ({relation_type})")
         return relation
-    
+
     def _add_entity_to_graph(self, entity: GraphEntity):
         """Add entity to Neo4j or Memgraph database."""
         if not self.driver:
@@ -263,14 +270,14 @@ class FlexibleGraphRAG:
         target = self.entities.get(relation.target_id)
         if not source or not target:
             return
-        
+
         query = f"""
         MATCH (s:{source.entity_type} {{id: $source_id}})
         MATCH (t:{target.entity_type} {{id: $target_id}})
         MERGE (s)-[r:{relation.relation_type}]->(t)
         SET r += $properties
         """
-        
+
         with self.driver.session() as session:
             session.run(
                 query,
@@ -278,7 +285,7 @@ class FlexibleGraphRAG:
                 target_id=relation.target_id,
                 properties=relation.properties,
             )
-    
+
     def build_graph_from_documents(
         self,
         documents: List[Dict[str, Any]],
@@ -286,14 +293,14 @@ class FlexibleGraphRAG:
     ):
         """Build knowledge graph from documents using LLM."""
         logger.info(f"Building graph from {len(documents)} documents")
-        
+
         # This is a simplified version - in production, you'd use an LLM
         # to extract entities and relations from documents
         for doc in documents:
             text = doc.get("text", "")
             if not text:
                 continue
-            
+
             # Simple entity extraction (in production, use LLM)
             words = text.split()
             for word in words[:10]:  # Limit for demo
@@ -303,7 +310,7 @@ class FlexibleGraphRAG:
                         name=word,
                         properties={"source_document": doc.get("path", "")},
                     )
-        
+
         # Add some sample relations
         entity_ids = list(self.entities.keys())
         for i in range(len(entity_ids) - 1):
@@ -313,9 +320,9 @@ class FlexibleGraphRAG:
                 relation_type="RELATED_TO",
                 weight=0.8,
             )
-        
+
         logger.info(f"Graph built: {len(self.entities)} entities, {len(self.relations)} relations")
-    
+
     def search_vector(
         self,
         query_embedding: List[float],
@@ -323,7 +330,7 @@ class FlexibleGraphRAG:
     ) -> List[GraphEntity]:
         """Search using vector similarity."""
         results = []
-        
+
         # Simple cosine similarity (in production, use proper vector DB)
         for entity in self.entities.values():
             if entity.embeddings and query_embedding:
@@ -333,11 +340,11 @@ class FlexibleGraphRAG:
                 )
                 if similarity > 0.5:
                     results.append((entity, similarity))
-        
+
         # Sort by similarity and return top_k
         results.sort(key=lambda x: x[1], reverse=True)
         return [entity for entity, _ in results[:top_k]]
-    
+
     def search_fulltext(
         self,
         query: str,
@@ -346,15 +353,15 @@ class FlexibleGraphRAG:
         """Search using fulltext matching."""
         results = []
         query_lower = query.lower()
-        
+
         for entity in self.entities.values():
             if query_lower in entity.name.lower():
                 results.append(entity)
             elif query_lower in str(entity.properties).lower():
                 results.append(entity)
-        
+
         return results[:top_k]
-    
+
     def search_property_graph(
         self,
         entity_type: str,
@@ -362,22 +369,22 @@ class FlexibleGraphRAG:
     ) -> List[GraphEntity]:
         """Search using property graph queries."""
         results = []
-        
+
         for entity in self.entities.values():
             if entity.entity_type != entity_type:
                 continue
-            
+
             match = True
             for key, value in property_filter.items():
                 if entity.properties.get(key) != value:
                     match = False
                     break
-            
+
             if match:
                 results.append(entity)
-        
+
         return results
-    
+
     def search_hybrid(
         self,
         query: str,
@@ -387,45 +394,45 @@ class FlexibleGraphRAG:
         """Hybrid search combining multiple strategies."""
         # Combine results from different strategies
         fulltext_results = self.search_fulltext(query, top_k * 2)
-        
+
         if query_embedding:
             vector_results = self.search_vector(query_embedding, top_k * 2)
         else:
             vector_results = []
-        
+
         # Deduplicate and score
         scored_results = {}
         for entity in fulltext_results:
             scored_results[entity.entity_id] = scored_results.get(entity.entity_id, 0) + 0.5
-        
+
         for entity in vector_results:
             scored_results[entity.entity_id] = scored_results.get(entity.entity_id, 0) + 0.5
-        
+
         # Sort by score and return top_k
         sorted_results = sorted(
             scored_results.items(),
             key=lambda x: x[1],
             reverse=True,
         )
-        
+
         return [
             self.entities[entity_id]
             for entity_id, _ in sorted_results[:top_k]
         ]
-    
+
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Calculate cosine similarity between two vectors."""
         import math
-        
+
         dot_product = sum(a * b for a, b in zip(vec1, vec2))
         magnitude1 = math.sqrt(sum(a * a for a in vec1))
         magnitude2 = math.sqrt(sum(b * b for b in vec2))
-        
+
         if magnitude1 == 0 or magnitude2 == 0:
             return 0.0
-        
+
         return dot_product / (magnitude1 * magnitude2)
-    
+
     def get_entity_neighbors(
         self,
         entity_id: str,
@@ -434,25 +441,25 @@ class FlexibleGraphRAG:
     ) -> List[GraphEntity]:
         """Get neighbors of an entity in the graph."""
         neighbors = []
-        
+
         for relation in self.relations.values():
             if relation_type and relation.relation_type != relation_type:
                 continue
-            
+
             if direction in ["outgoing", "both"]:
                 if relation.source_id == entity_id:
                     neighbor = self.entities.get(relation.target_id)
                     if neighbor:
                         neighbors.append(neighbor)
-            
+
             if direction in ["incoming", "both"]:
                 if relation.target_id == entity_id:
                     neighbor = self.entities.get(relation.source_id)
                     if neighbor:
                         neighbors.append(neighbor)
-        
+
         return neighbors
-    
+
     def query_graph(
         self,
         query: str,
@@ -461,7 +468,7 @@ class FlexibleGraphRAG:
     ) -> Dict[str, Any]:
         """Query the knowledge graph."""
         results = []
-        
+
         if strategy == SearchStrategy.VECTOR:
             # Would need query embedding
             pass
@@ -475,24 +482,24 @@ class FlexibleGraphRAG:
             pass
         else:  # HYBRID
             results = self.search_hybrid(query, top_k=top_k)
-        
+
         return {
             "query": query,
             "strategy": strategy.value,
             "results": [entity.to_dict() for entity in results],
             "result_count": len(results),
         }
-    
+
     def get_graph_stats(self) -> Dict[str, Any]:
         """Get statistics about the graph."""
         entity_types = {}
         for entity in self.entities.values():
             entity_types[entity.entity_type] = entity_types.get(entity.entity_type, 0) + 1
-        
+
         relation_types = {}
         for relation in self.relations.values():
             relation_types[relation.relation_type] = relation_types.get(relation.relation_type, 0) + 1
-        
+
         return {
             "entity_count": len(self.entities),
             "relation_count": len(self.relations),
@@ -526,7 +533,7 @@ def get_graphrag_instance(
 def create_standard_ontology() -> OntologySchema:
     """Create a standard ontology for common use cases."""
     ontology = OntologySchema()
-    
+
     # Entity types
     ontology.add_entity_type(
         "Document",
@@ -544,7 +551,7 @@ def create_standard_ontology() -> OntologySchema:
         "Organization",
         properties={"name": "string", "type": "string"},
     )
-    
+
     # Relation types
     ontology.add_relation_type(
         "MENTIONS",
@@ -561,5 +568,5 @@ def create_standard_ontology() -> OntologySchema:
         source_types=["Person"],
         target_types=["Organization"],
     )
-    
+
     return ontology
