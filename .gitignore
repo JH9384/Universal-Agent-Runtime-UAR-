@@ -19,6 +19,7 @@ build/
 .copilot-specs-cache/
 .uar_library/
 .uar_graphrag/
+.uar_data/
 
 # Auto-generated analysis artifacts
 overview.json

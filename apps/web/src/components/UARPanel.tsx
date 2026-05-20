@@ -380,6 +380,7 @@ export function UARPanel() {
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
+  const [useHierarchical, setUseHierarchical] = useState(false)
   const [wsStatus, setWsStatus] = useState<'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed' | 'error'>('idle')
   const [metrics, setMetrics] = useState<{total_time_sec: number; event_count: number; cache_hits: number; cache_misses: number; skill_times_ms?: Record<string, number>} | null>(null)
   const [error, setError] = useState<UARError | null>(null)
@@ -983,10 +984,11 @@ export function UARPanel() {
       .flatMap((item) => expandRecipeSkills(item.content))
     const allSkills = [...new Set([...currentSkills, ...recipeSkills])]
 
-    const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata; execution_order?: any[] } = { 
+    const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata; execution_order?: any[]; use_hierarchical?: boolean } = { 
       goal, 
       skills: allSkills,
-      execution_order: executionOrder
+      execution_order: executionOrder,
+      use_hierarchical: useHierarchical
     }
     if (inputPath.trim()) { body.input_path = inputPath.trim(); pushRecent(inputPath.trim()) }
     
@@ -1279,7 +1281,7 @@ export function UARPanel() {
         abortControllerRef.current = null
       }
     }
-  }, [goal, inputPath, unifiedOrder, recipes, backendSkills, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent])
+  }, [goal, inputPath, unifiedOrder, recipes, backendSkills, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent, useHierarchical])
 
   const stopStream = useCallback(() => {
     setIsStopping(true)
@@ -2025,6 +2027,18 @@ export function UARPanel() {
             title={useWebSocket ? 'Using WebSocket transport' : 'Using SSE transport (click to switch)'}
           >
             {useWebSocket ? '⚡ WS' : '⬡ SSE'}
+          </button>
+          <button
+            onClick={() => setUseHierarchical((v) => !v)}
+            disabled={isRunning}
+            className={`${styles.runButton} ${styles.smallButton}`}
+            title={
+              useHierarchical
+                ? 'Hierarchical execution: recipes run as discrete units with snapshot/retry/params scoping'
+                : 'Flat execution: recipes expand into a single skill list (click to switch)'
+            }
+          >
+            {useHierarchical ? '🔀 Nested' : '➡ Flat'}
           </button>
           <button
             onClick={runStream}

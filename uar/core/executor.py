@@ -721,11 +721,15 @@ class Executor:
                 },
             )
 
-        # Hierarchical execution path (opt-in via env var)
+        # Hierarchical execution path (opt-in via env var or metadata)
         _executed_hierarchical = False
+        _hierarchical_enabled = (
+            os.getenv("UAR_HIERARCHICAL_EXECUTION", "")
+            or goal_metadata.get("use_hierarchical")
+        )
         if (
             execution_order
-            and os.getenv("UAR_HIERARCHICAL_EXECUTION", "")
+            and _hierarchical_enabled
             and recipe_map is not None
             and _existing_ctx is None
             and _use_hierarchical
@@ -1669,6 +1673,9 @@ class Executor:
                 max_retries = item.get(
                     "max_retries", recipe.get("max_retries", 0)
                 )
+                recipe_timeout = self._recipe_timeout(
+                    recipe_id, timeout_seconds, recipe
+                )
                 recipe_errors: List[str] = []
                 attempt = 0
 
@@ -1706,7 +1713,7 @@ class Executor:
                         nested_items,
                         ctx,
                         goal,
-                        timeout_seconds,
+                        recipe_timeout,
                         recipe_map,
                         correlation_id,
                         depth + 1,
@@ -1825,11 +1832,16 @@ class Executor:
         return False
 
     def _recipe_timeout(
-        self, recipe_id: str, default_timeout: float
+        self,
+        recipe_id: str,
+        default_timeout: float,
+        recipe: Dict[str, Any] | None = None,
     ) -> float:
         """Recipe-specific timeout override.
 
-        Subclasses may override to apply stricter or looser timeouts
-        for specific recipes.
+        Checks the recipe definition for a ``timeout`` field first;
+        subclasses may override to add additional logic.
         """
+        if recipe and "timeout" in recipe:
+            return float(recipe["timeout"])
         return default_timeout

@@ -347,6 +347,9 @@ class RunRequest(BaseModel):
     # Support for nested recipe structure
     # Format: [{type: 'skill'|'recipe', content: str, id: str}]
     execution_order: Optional[List[Dict[str, Any]]] = None
+    # Opt-in to hierarchical recipe execution (discrete units with
+    # snapshot/retry/params scoping) instead of legacy flat expansion.
+    use_hierarchical: Optional[bool] = None
 
     @field_validator("goal")
     @classmethod
@@ -525,6 +528,9 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         if not skills:
             # Empty skills list - executor will expand from execution_order
             skills = []
+
+    if req.use_hierarchical is not None:
+        metadata["use_hierarchical"] = req.use_hierarchical
 
     return GoalSpec(
         id=goal_id,
