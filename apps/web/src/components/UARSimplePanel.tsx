@@ -23,6 +23,12 @@ const COMMON_SKILLS = [
   'ollama_generate',
   'graphrag_query',
   'math_compute',
+  'uor_addr_canonicalize',
+  'uor_ecosystem_status',
+  'hologram_query',
+  'hologram_status',
+  'moltbook_list',
+  'moltbook_search',
 ]
 
 export function UARSimplePanel() {

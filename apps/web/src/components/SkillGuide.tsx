@@ -9,7 +9,7 @@ type Skill = {
   example: string
   prerequisites?: string[]
   output: string
-  category: 'Core' | 'AI' | 'GraphRAG' | 'Storage' | 'Analysis'
+  category: 'Core' | 'AI' | 'GraphRAG' | 'Storage' | 'Analysis' | 'Ecosystem'
 }
 
 const SKILLS: Skill[] = [
@@ -149,10 +149,138 @@ const SKILLS: Skill[] = [
     prerequisites: ['ALM service running'],
     output: 'Validation status with proof ID if valid',
     category: 'Analysis'
+  },
+  {
+    id: 'uor_addr_canonicalize',
+    label: 'uor_addr_canonicalize',
+    desc: 'Canonicalize data per UOR-ADDR-1 and compute SHA-256 digest',
+    useCase: 'Create content-addressed identity for any data',
+    example: 'Goal: "Canonicalize payload" → Skills: [uor_addr_canonicalize]',
+    output: 'Digest envelope with canonical bytes, size, and mediaType',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'uor_addr_resolve',
+    label: 'uor_addr_resolve',
+    desc: 'Resolve a UOR digest from the integrator object cache',
+    useCase: 'Retrieve previously canonicalized data by digest',
+    example: 'Goal: "Resolve digest" → Skills: [uor_addr_resolve]',
+    output: 'UOR object data, provenance, and metadata',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'hologram_query',
+    label: 'hologram_query',
+    desc: 'Submit geometric inference to gethologram.ai',
+    useCase: 'Run geometric virtual compute inference',
+    example: 'Goal: "Infer embedding" → Skills: [hologram_query]',
+    prerequisites: ['HOLOGRAM_API_KEY configured'],
+    output: 'Inference results with model outputs',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'hologram_status',
+    label: 'hologram_status',
+    desc: 'Check gethologram.ai service health',
+    useCase: 'Verify Hologram API availability before queries',
+    example: 'Goal: "Check Hologram" → Skills: [hologram_status]',
+    output: 'Service status, reachability, and status code',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'moltbook_list',
+    label: 'moltbook_list',
+    desc: 'List recent topics from moltbook.com/m/uor forum',
+    useCase: 'Browse community discussions',
+    example: 'Goal: "Browse forum" → Skills: [moltbook_list]',
+    output: 'List of forum topics with titles and metadata',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'moltbook_search',
+    label: 'moltbook_search',
+    desc: 'Search moltbook.com/m/uor forum posts',
+    useCase: 'Find specific discussions in the community',
+    example: 'Goal: "Search forum" → Skills: [moltbook_search]',
+    output: 'Search results matching query',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'moltbook_post',
+    label: 'moltbook_post',
+    desc: 'Post a new topic to the moltbook forum',
+    useCase: 'Share findings with the UOR community',
+    example: 'Goal: "Post update" → Skills: [moltbook_post]',
+    prerequisites: ['MOLTBOOK_API_KEY configured'],
+    output: 'Post status and topic URL',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'prism_btc_anchor',
+    label: 'prism_btc_anchor',
+    desc: 'Anchor a UOR digest on Bitcoin (placeholder)',
+    useCase: 'Create blockchain proof-of-existence for data',
+    example: 'Goal: "Anchor digest" → Skills: [prism_btc_anchor]',
+    output: 'Placeholder status (pending public API)',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'prism_btc_verify',
+    label: 'prism_btc_verify',
+    desc: 'Verify an on-chain Bitcoin anchor (placeholder)',
+    useCase: 'Confirm blockchain proof-of-existence',
+    example: 'Goal: "Verify anchor" → Skills: [prism_btc_verify]',
+    output: 'Placeholder status (pending public API)',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'severance_infer',
+    label: 'severance_infer',
+    desc: 'Run inference via Severance AI (placeholder)',
+    useCase: 'Modular AI inference with separation of concerns',
+    example: 'Goal: "Run inference" → Skills: [severance_infer]',
+    output: 'Placeholder status (pending public API)',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'severance_verify',
+    label: 'severance_verify',
+    desc: 'Verify Severance AI output (placeholder)',
+    useCase: 'Formal verification of AI outputs',
+    example: 'Goal: "Verify output" → Skills: [severance_verify]',
+    output: 'Placeholder status (pending public API)',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'anunix_health',
+    label: 'anunix_health',
+    desc: 'Check Anunix host health (placeholder)',
+    useCase: 'Monitor self-healing infrastructure',
+    example: 'Goal: "Check host" → Skills: [anunix_health]',
+    output: 'Placeholder status (pending public API)',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'anunix_run',
+    label: 'anunix_run',
+    desc: 'Run command on Anunix host (placeholder)',
+    useCase: 'Remote execution on managed hosts',
+    example: 'Goal: "Run remote command" → Skills: [anunix_run]',
+    output: 'Placeholder status (pending public API)',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'uor_ecosystem_status',
+    label: 'uor_ecosystem_status',
+    desc: 'Check status of all UOR ecosystem integrations',
+    useCase: 'Health monitoring of all ecosystem connections',
+    example: 'Goal: "Status check" → Skills: [uor_ecosystem_status]',
+    output: 'Status map for all 6 ecosystem integrations',
+    category: 'Ecosystem'
   }
 ]
 
-const CATEGORIES = ['Core', 'AI', 'GraphRAG', 'Storage', 'Analysis'] as const
+const CATEGORIES = ['Core', 'AI', 'GraphRAG', 'Storage', 'Analysis', 'Ecosystem'] as const
 
 export function SkillGuide() {
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
