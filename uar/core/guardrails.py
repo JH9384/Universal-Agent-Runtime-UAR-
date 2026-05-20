@@ -18,11 +18,19 @@ import logging
 from typing import Any, Dict, List, Optional, Callable
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import threading
 import uuid
 
 logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+    """Return a naive UTC datetime (no tzinfo).
+
+    Replaces deprecated ``datetime.utcnow()``.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class GuardrailType(Enum):
@@ -51,7 +59,7 @@ class GuardrailViolation:
     severity: ViolationSeverity
     message: str
     agent_id: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utcnow)
     metadata: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -79,7 +87,7 @@ class Budget:
     used_tokens: int = 0
     used_api_calls: int = 0
     used_cost_usd: float = 0.0
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=_utcnow)
     
     def is_exhausted(self) -> bool:
         """Check if budget is exhausted."""
@@ -87,7 +95,7 @@ class Budget:
             self.used_tokens >= self.max_tokens
             or self.used_api_calls >= self.max_api_calls
             or self.used_cost_usd >= self.max_cost_usd
-            or (datetime.utcnow() - self.start_time).total_seconds()
+            or (_utcnow() - self.start_time).total_seconds()
             >= self.max_duration_seconds
         )
     
@@ -105,7 +113,7 @@ class Budget:
     
     def remaining_time(self) -> float:
         """Get remaining time in seconds."""
-        elapsed = (datetime.utcnow() - self.start_time).total_seconds()
+        elapsed = (_utcnow() - self.start_time).total_seconds()
         return max(0.0, self.max_duration_seconds - elapsed)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -135,7 +143,7 @@ class BlackboardEntry:
     key: str
     value: Any
     agent_id: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utcnow)
     locked_by: Optional[str] = None
     lock_expiry: Optional[datetime] = None
     
@@ -144,7 +152,7 @@ class BlackboardEntry:
         if not self.locked_by:
             return False
         if self.lock_expiry:
-            return datetime.utcnow() < self.lock_expiry
+            return _utcnow() < self.lock_expiry
         return True
     
     def acquire_lock(self, agent_id: str, ttl_seconds: int = 60):
@@ -152,7 +160,7 @@ class BlackboardEntry:
         if self.is_locked() and self.locked_by != agent_id:
             return False
         self.locked_by = agent_id
-        self.lock_expiry = datetime.utcnow() + timedelta(seconds=ttl_seconds)
+        self.lock_expiry = _utcnow() + timedelta(seconds=ttl_seconds)
         return True
     
     def release_lock(self, agent_id: str):

@@ -7,11 +7,16 @@ and Mutable Array with mode-specific behaviors and transition rules.
 import logging
 from typing import Any, Dict, List
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .bounded_json import compute_uor_digest
 
 logger = logging.getLogger(__name__)
+
+
+def _utcnow() -> datetime:
+    """Return a naive UTC datetime (no tzinfo)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class ObjectMode:
@@ -29,7 +34,7 @@ class ObjectVersion:
     version: int
     digest: str
     content: Any
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utcnow)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 

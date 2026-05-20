@@ -19,8 +19,13 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
+
+
+def _utcnow() -> datetime:
+    """Return a naive UTC datetime (no tzinfo)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 try:
     from neo4j import GraphDatabase
@@ -61,7 +66,7 @@ class GraphEntity:
     name: str
     properties: Dict[str, Any] = field(default_factory=dict)
     embeddings: Optional[List[float]] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utcnow)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -84,7 +89,7 @@ class GraphRelation:
     relation_type: str
     properties: Dict[str, Any] = field(default_factory=dict)
     weight: float = 1.0
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utcnow)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
