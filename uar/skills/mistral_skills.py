@@ -33,6 +33,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
 
 
 @register_skill("mistral_chat")
+@with_circuit_breaker("mistral", failure_threshold=5, recovery_timeout=60.0)
 def mistral_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with Mistral AI models.
 
@@ -163,6 +165,7 @@ def mistral_chat(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("mistral_completion")
+@with_circuit_breaker("mistral", failure_threshold=5, recovery_timeout=60.0)
 def mistral_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with Mistral AI models.
 
@@ -227,6 +230,7 @@ def mistral_completion(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("mistral_embedding")
+@with_circuit_breaker("mistral", failure_threshold=5, recovery_timeout=60.0)
 def mistral_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings using Mistral AI.
 

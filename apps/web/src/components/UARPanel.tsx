@@ -1,48 +1,18 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import ReactFlow, { Background } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { FilePicker } from './FilePicker'
+import type { Preset } from './FilePicker'
 import { SkillGuide } from './SkillGuide'
+import { useDarkMode } from '../hooks/useDarkMode'
+import { generateUniqueId } from '../utils/idGenerator'
+import RecipeTimeline from './RecipeTimeline'
 import styles from './UARPanel.module.css'
 
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
 const RECIPES_KEY = 'uar.recipes'
 const RECENT_MAX = 8
-
-// Improved ID generation with collision prevention
-// Module-level counter (resets on page reload, which is acceptable for this use case)
-let idCounter = 0
-// Component instance ID to prevent cross-reload collisions with persisted IDs
-const componentInstanceId = Math.random().toString(36).substring(2, 9)
-const generateUniqueId = (existingIds?: Set<string>): string => {
-  const generate = (): string => {
-    try {
-      return crypto.randomUUID()
-    } catch {
-      // Fallback: use timestamp + counter + random + component instance for better collision resistance
-      const timestamp = Date.now().toString(36)
-      const counter = (idCounter++).toString(36)
-      const random = Math.random().toString(36).substring(2, 9)
-      return `${timestamp}-${counter}-${random}-${componentInstanceId}`
-    }
-  }
-  let id = generate()
-  // Check for collisions if existingIds is provided
-  if (existingIds) {
-    let attempts = 0
-    const maxAttempts = 100  // Increased from 10 to handle high-frequency scenarios
-    while (existingIds.has(id) && attempts < maxAttempts) {
-      id = generate()
-      attempts++
-    }
-    if (attempts >= maxAttempts) {
-      console.error('Failed to generate unique ID after 100 attempts - using fallback with timestamp')
-      // Ultimate fallback: use full timestamp with nanosecond precision if available
-      return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${componentInstanceId}`
-    }
-  }
-  return id
-}
 
 // TypeScript interfaces for type safety
 interface GraphNode {
@@ -300,7 +270,7 @@ const GOAL_TEMPLATES = [
   'Index all source files for retrieval',
 ]
 
-type Recipe = { id: string; label: string; skills: string[]; hint: string }
+type Recipe = { id: string; version?: string; label: string; skills: string[]; hint: string }
 type UARError = { code?: string; message: string; requestId?: string; timestamp: number }
 const RECIPES: Recipe[] = [
   { id: 'review',    label: '🦙 Ollama review',   skills: ['doc_ingest', 'ollama_generate'], hint: 'Quick LLM review of library docs' },
@@ -313,203 +283,38 @@ const RECIPES: Recipe[] = [
   { id: 'auto_status', label: '☁️ Autonomi status',  skills: ['autonomi_status'], hint: 'Check Autonomi connectivity' },
 ]
 
-type Preset = { name: string; path: string }
-type BrowseEntry = { name: string; path: string; size: number; ext: string; is_dir: boolean }
-type LibFile = { name: string; path: string; size: number; ext: string; mtime: number }
-type BrowseResult = {
+type LibFile = {
+  name: string
   path: string
-  parent: string | null
-  is_dir: boolean
-  recursive: boolean
-  file_count: number
-  dir_count: number
-  total_bytes: number
-  truncated: boolean
-  by_extension: Record<string, number>
-  entries: BrowseEntry[]
+  size: number
+  ext: string
+  mtime: number
 }
 
 function human(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
-// ============================================================
-// FilePicker modal
-// ============================================================
-function FilePicker(props: {
-  open: boolean
-  initialPath: string
-  projectRoot: string
-  presets: Preset[]
-  onClose: () => void
-  onPick: (path: string) => void
-}) {
-  const { open, initialPath, projectRoot, presets, onClose, onPick } = props
-  const [path, setPath] = useState(initialPath || projectRoot)
-  const [data, setData] = useState<BrowseResult | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [filter, setFilter] = useState('')
-
-  const load = useCallback(async (p: string, recursive = false) => {
-    setBusy(true); setErr(null)
-    try {
-      const r = await fetch(
-        `/api/uar/docs/browse?path=${encodeURIComponent(p)}&limit=500&recursive=${recursive}`,
-      )
-      const j = await r.json()
-      if (!r.ok) setErr(j.message || j.error || `HTTP ${r.status}`)
-      else { setData(j); setPath(j.path || p) }
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Browse failed')
-    } finally { setBusy(false) }
-  }, [])
-
-  useEffect(() => {
-    if (open) load(initialPath || projectRoot)
-  }, [open, initialPath, projectRoot, load])
-
-  if (!open) return null
-
-  // Breadcrumbs
-  const breadcrumbs: { label: string; path: string }[] = []
-  if (data) {
-    let acc = projectRoot
-    breadcrumbs.push({ label: 'project_root', path: projectRoot })
-    const rel = data.path.startsWith(projectRoot)
-      ? data.path.slice(projectRoot.length).replace(/^\/+/, '')
-      : data.path
-    if (rel) {
-      for (const part of rel.split('/').filter(Boolean)) {
-        acc = `${acc}/${part}`
-        breadcrumbs.push({ label: part, path: acc })
-      }
-    }
+// Pre-compute initial state so IDs and localStorage reads are consistent
+// across all state initializers.
+const INITIAL_SKILLS = ['doc_ingest', 'dependency_map', 'sum_review']
+const INITIAL_RECIPES = (() => {
+  try {
+    const saved = localStorage.getItem(RECIPES_KEY)
+    return saved ? JSON.parse(saved) : RECIPES
+  } catch (e) {
+    console.warn('Failed to load recipes from localStorage:', e)
+    return RECIPES
   }
-
-  const filtered = (data?.entries || []).filter(
-    (e) => !filter || e.name.toLowerCase().includes(filter.toLowerCase()),
-  )
-
-  return (
-    <div onClick={onClose} className={styles.modalOverlay}>
-      <div onClick={(e: React.MouseEvent) => e.stopPropagation()} className={styles.modalContent}>
-        {/* Header */}
-        <div className={styles.modalHeader}>
-          <strong>Pick a folder or file</strong>
-          <span className={styles.modalHeaderInfo}>(must be within PROJECT_ROOT)</span>
-          <button onClick={onClose} className={styles.modalCloseButton}>✕</button>
-        </div>
-
-        {/* Presets row */}
-        <div className={styles.presetsRow}>
-          <span className={styles.quickLabel}>Quick:</span>
-          <button onClick={() => load(projectRoot)} className={styles.presetButton}>/ root</button>
-          {presets.map((p) => (
-            <button key={p.path} onClick={() => load(p.path)} className={styles.presetButton}>
-              {p.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Breadcrumbs + nav */}
-        <div className={styles.navRow}>
-          <button
-            onClick={() => data?.parent && load(data.parent)}
-            disabled={!data?.parent || busy}
-            title="Parent"
-            className={styles.navButton}
-          >⬆</button>
-          <button onClick={() => data && load(data.path, true)} disabled={busy || !data?.is_dir} className={styles.navButton} title="Recursive listing">⤓</button>
-          <button onClick={() => data && load(data.path)} disabled={busy} className={styles.navButton} title="Reload">⟳</button>
-          <span className={styles.breadcrumbContainer}>
-            {breadcrumbs.map((b, i) => (
-              <span key={b.path}>
-                <a onClick={() => load(b.path)} className={styles.breadcrumbLink}>{b.label}</a>
-                {i < breadcrumbs.length - 1 && <span className={styles.breadcrumbSeparator}> / </span>}
-              </span>
-            ))}
-          </span>
-        </div>
-
-        {/* Filter + manual path */}
-        <div className={styles.filterRow}>
-          <input
-            placeholder="Filter (filename contains…)"
-            value={filter}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilter(e.target.value)}
-            className={styles.filterInput}
-          />
-          <input
-            placeholder="Or type a path and press Enter"
-            value={path}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPath(e.target.value)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') load(path) }}
-            className={styles.pathInput}
-          />
-        </div>
-
-        {/* Body */}
-        <div className={styles.modalBody}>
-          {err && <div className={styles.errorText}>Error: {err}</div>}
-          {busy && <div className={styles.loadingText}>Loading…</div>}
-          {!busy && !err && data && (
-            <>
-              <div className={styles.statsBar}>
-                <strong>{data.dir_count}</strong> dirs · <strong>{data.file_count}</strong> files
-                {data.total_bytes > 0 && <> · <strong>{human(data.total_bytes)}</strong></>}
-                {data.truncated && <span className={styles.truncatedText}> · truncated</span>}
-                {data.recursive && <span className={styles.recursiveText}> · recursive</span>}
-                {Object.keys(data.by_extension).length > 0 && (
-                  <span className={styles.extensionInfo}>
-                    {Object.entries(data.by_extension).sort((a, b) => b[1] - a[1])
-                      .slice(0, 8).map(([k, v]) => `${k}:${v}`).join('  ')}
-                  </span>
-                )}
-              </div>
-              <div className={styles.fileList}>
-                {filtered.map((e) => (
-                  <div
-                    key={e.path}
-                    onClick={() => e.is_dir ? load(e.path) : onPick(e.path)}
-                    onDoubleClick={() => onPick(e.path)}
-                    className={`${styles.fileItem} ${e.is_dir ? styles.fileItemDir : ''}`}
-                    title={e.is_dir ? 'Click to open' : 'Click to select this file'}
-                  >
-                    <span>
-                      {e.is_dir ? '📁 ' : '📄 '}
-                      <span className={`${e.is_dir ? styles.fileIconDir : styles.fileIcon}`}>{e.name}</span>
-                      {e.is_dir && '/'}
-                    </span>
-                    <span className={styles.fileSize}>{e.is_dir ? '' : human(e.size)}</span>
-                  </div>
-                ))}
-                {filtered.length === 0 && <div className={styles.noEntries}>(no entries)</div>}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className={styles.modalFooter}>
-          <span className={styles.selectedPath}>
-            Selected: {data?.path || '(none)'}
-          </span>
-          <button onClick={onClose} className={styles.footerButton}>Cancel</button>
-          <button
-            onClick={() => data && onPick(data.path)}
-            disabled={!data}
-            className={styles.primaryButton}
-          >
-            Use this folder
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+})()
+const INITIAL_UNIFIED_ORDER: {id: string; type: 'skill' | 'recipe'; content: string}[] = INITIAL_SKILLS.map(skill => ({
+  id: generateUniqueId(),
+  type: 'skill' as const,
+  content: skill
+}))
 
 // ============================================================
 // Main panel
@@ -517,65 +322,36 @@ function FilePicker(props: {
 export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [inputPath, setInputPath] = useState('')
-  const [darkMode, setDarkMode] = useState(() => {
-    try {
-      const saved = localStorage.getItem('uar.darkMode')
-      if (saved !== null) {
-        return saved === 'true'
-      }
-      // Respect system preference if no saved value
-      return window.matchMedia('(prefers-color-scheme: dark)').matches
-    } catch {
-      // Fallback to system preference when localStorage is disabled
-      return window.matchMedia('(prefers-color-scheme: dark)').matches
-    }
-  })
-
-  // Apply dark mode to document and persist preference
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-    try {
-      localStorage.setItem('uar.darkMode', String(darkMode))
-    } catch {
-      // localStorage disabled (e.g., private browsing mode)
-      // Silently continue - preference will use system default on reload
-    }
-  }, [darkMode])
-  const initialSkills = ['doc_ingest', 'dependency_map', 'sum_review']
+  const [darkMode, setDarkMode] = useDarkMode()
   const [skillLastPositions, setSkillLastPositions] = useState<Record<string, number>>(() => {
     const positions: Record<string, number> = {}
-    initialSkills.forEach((skill, idx) => positions[skill] = idx)
+    INITIAL_SKILLS.forEach((skill, idx) => positions[skill] = idx)
     return positions
   })
   const skillLastPositionsRef = useRef(skillLastPositions)
   skillLastPositionsRef.current = skillLastPositions
-  const [recipes, setRecipes] = useState<Recipe[]>(() => {
-    try {
-      const saved = localStorage.getItem(RECIPES_KEY)
-      return saved ? JSON.parse(saved) : RECIPES
-    } catch (e) {
-      console.warn('Failed to load recipes from localStorage:', e)
-      return RECIPES
-    }
-  })
-  const [recipeHistory, setRecipeHistory] = useState<Recipe[][]>([RECIPES])
+  const [recipes, setRecipes] = useState<Recipe[]>(() => INITIAL_RECIPES)
+  const [recipeHistory, setRecipeHistory] = useState<Recipe[][]>(() => [INITIAL_RECIPES])
   const [recipeHistoryIndex, setRecipeHistoryIndex] = useState(0)
+  const recipeHistoryIndexRef = useRef(recipeHistoryIndex)
+  recipeHistoryIndexRef.current = recipeHistoryIndex
   // Unified order combining both skills and recipes
-  // Move ID generation inside useState to ensure fresh IDs on component mount
-  const [unifiedOrder, setUnifiedOrder] = useState<{id: string; type: 'skill' | 'recipe'; content: string}[]>(() =>
-    initialSkills.map(skill => ({ id: generateUniqueId(), type: 'skill' as const, content: skill }))
-  )
-  const [skillHistory, setSkillHistory] = useState<string[][]>([initialSkills])
+  const [unifiedOrder, setUnifiedOrder] = useState<{id: string; type: 'skill' | 'recipe'; content: string}[]>(() => INITIAL_UNIFIED_ORDER)
+  const [skillHistory, setSkillHistory] = useState<string[][]>(() => [INITIAL_SKILLS])
+  const skillHistoryRef = useRef(skillHistory)
+  skillHistoryRef.current = skillHistory
   const [skillHistoryIndex, setSkillHistoryIndex] = useState(0)
+  const skillHistoryIndexRef = useRef(skillHistoryIndex)
+  skillHistoryIndexRef.current = skillHistoryIndex
   // Separate history for unified order to preserve instance IDs during undo/redo
-  const [unifiedOrderHistory, setUnifiedOrderHistory] = useState<{id: string; type: 'skill' | 'recipe'; content: string}[][]>(() =>
-    [initialSkills.map(skill => ({ id: generateUniqueId(), type: 'skill' as const, content: skill }))]
-  )
+  const [unifiedOrderHistory, setUnifiedOrderHistory] = useState<{id: string; type: 'skill' | 'recipe'; content: string}[][]>(() => [INITIAL_UNIFIED_ORDER])
+  const unifiedOrderHistoryRef = useRef(unifiedOrderHistory)
+  unifiedOrderHistoryRef.current = unifiedOrderHistory
   const [unifiedOrderHistoryIndex, setUnifiedOrderHistoryIndex] = useState(0)
+  const unifiedOrderHistoryIndexRef = useRef(unifiedOrderHistoryIndex)
+  unifiedOrderHistoryIndexRef.current = unifiedOrderHistoryIndex
+  const recipeHistoryRef = useRef(recipeHistory)
+  recipeHistoryRef.current = recipeHistory
 
   // selectedSkills is now derived from unifiedOrder to prevent state synchronization issues
   const selectedSkills = useMemo(() => {
@@ -598,10 +374,14 @@ export function UARPanel() {
   }, [unifiedOrder, recipes])
 
   const [events, setEvents] = useState<any[]>([])
+  const [eventViewMode, setEventViewMode] = useState<'json' | 'timeline'>('timeline')
   const [graph, setGraph] = useState<any>(null)
   const [selectedNode, setSelectedNode] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
+  const [useWebSocket, setUseWebSocket] = useState(false)
+  const [wsStatus, setWsStatus] = useState<'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed' | 'error'>('idle')
+  const [metrics, setMetrics] = useState<{total_time_sec: number; event_count: number; cache_hits: number; cache_misses: number; skill_times_ms?: Record<string, number>} | null>(null)
   const [error, setError] = useState<UARError | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [skillGuideOpen, setSkillGuideOpen] = useState(false)
@@ -636,6 +416,12 @@ export function UARPanel() {
   const [editRecipeLabel, setEditRecipeLabel] = useState('')
   const [editRecipeSkills, setEditRecipeSkills] = useState('')
   const [editRecipeHint, setEditRecipeHint] = useState('')
+  const [builderMode, setBuilderMode] = useState(true)
+  const [builderSkills, setBuilderSkills] = useState<string[]>([])
+  const [builderDragIndex, setBuilderDragIndex] = useState<number | null>(null)
+  const [runsHistory, setRunsHistory] = useState<any[]>([])
+  const [showRunsPanel, setShowRunsPanel] = useState(false)
+  const [eventFilter, setEventFilter] = useState<string>('all')
   const [expandedTipSections, setExpandedTipSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
@@ -660,13 +446,14 @@ export function UARPanel() {
       })
       setTipsTargetSection(null)
       // Focus on the expanded section header when popup opens
-      // Use requestAnimationFrame for better timing than setTimeout(0)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      const target = tipsTargetSection
+      let rafId = 0
+      rafId = requestAnimationFrame(() => {
+        rafId = requestAnimationFrame(() => {
           const sectionHeaders = tipsPopupRef.current?.querySelectorAll('[data-section]')
           if (sectionHeaders) {
             for (const header of sectionHeaders) {
-            if ((header as HTMLElement).dataset.section === tipsTargetSection) {
+            if ((header as HTMLElement).dataset.section === target) {
               (header as HTMLElement).focus()
               if ('scrollIntoView' in header) {
                 (header as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -677,6 +464,7 @@ export function UARPanel() {
         }
         })
       })
+      return () => cancelAnimationFrame(rafId)
     }
   }, [tipsPopupOpen, tipsTargetSection])
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
@@ -709,6 +497,7 @@ export function UARPanel() {
   }, [recipes])
 
   const abortControllerRef = useRef<AbortController | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
   const eventCountRef = useRef(0)
 
   const cleanup = useCallback(() => {
@@ -722,7 +511,7 @@ export function UARPanel() {
     setStartTime(0)
   }, [])
 
-  useEffect(() => cleanup, [])
+  useEffect(() => () => cleanup(), [])
 
   const refreshLibrary = useCallback(async () => {
     setLibBusy(true)
@@ -761,6 +550,33 @@ export function UARPanel() {
         // Fallback to AVAILABLE_SKILLS if endpoint fails
         setBackendSkills(AVAILABLE_SKILLS.map(s => s.id))
       })
+    // Fetch canonical recipes from backend to eliminate drift
+    fetch('/api/uar/recipes')
+      .then((r) => r.json())
+      .then((d) => {
+        const fetched = (d.recipes || []) as Recipe[]
+        if (fetched.length === 0) return
+        setRecipes((prev) => {
+          // Merge: backend canonical recipes override local ones with same ID,
+          // user-created recipes not in backend are preserved.
+          const fetchedMap = new Map(fetched.map((r) => [r.id, r]))
+          const preserved = prev.filter((r) => !fetchedMap.has(r.id))
+          const merged = [...fetched, ...preserved]
+          // Save merged result to localStorage
+          try {
+            localStorage.setItem(RECIPES_KEY, JSON.stringify(merged))
+          } catch {
+            /* ignore quota errors */
+          }
+          // Reset history to merged recipes
+          setRecipeHistory([[...merged]])
+          setRecipeHistoryIndex(0)
+          return merged
+        })
+      })
+      .catch(() => {
+        // Silently fall back to existing localStorage/hardcoded recipes
+      })
   }, [refreshLibrary])
 
   const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -790,6 +606,7 @@ export function UARPanel() {
         else if (okN > 0 && j.library) setInputPath(j.library)
       }
     } catch (e: unknown) {
+      clearTimeout(timer)
       setUploadMsg(`Upload error: ${e instanceof Error ? e.message : 'unknown'}`)
     }
   }, [refreshLibrary])
@@ -818,17 +635,20 @@ export function UARPanel() {
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(true) }
   const onDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(false) }
 
-  // ESC closes picker and tips popup
+  // ESC closes all open modals and popups
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setPickerOpen(false)
         setTipsPopupOpen(false)
+        setSkillGuideOpen(false)
+        setLibraryPopupOpen(false)
+        setRecipesPopupOpen(false)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setPickerOpen, setTipsPopupOpen])
+  }, [setPickerOpen, setTipsPopupOpen, setSkillGuideOpen, setLibraryPopupOpen, setRecipesPopupOpen])
 
   // Click outside to close tips popup
   useEffect(() => {
@@ -855,7 +675,7 @@ export function UARPanel() {
     }
   }, [tipsPopupOpen, setTipsPopupOpen])
 
-  const pushRecent = (p: string) => {
+  const pushRecent = useCallback((p: string) => {
     if (!p.trim()) return
     setRecent((prev) => {
       const next = [p, ...prev.filter((x) => x !== p)].slice(0, RECENT_MAX)
@@ -866,7 +686,7 @@ export function UARPanel() {
       }
       return next
     })
-  }
+  }, [])
 
   const clearRecent = () => {
     setRecent([])
@@ -908,14 +728,15 @@ export function UARPanel() {
       // selectedSkills is now derived from unifiedOrder, no need to set it
       const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
       setSkillHistory((history) => {
-        const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
-        setSkillHistoryIndex((idx) => idx + 1)
+        const idx = skillHistoryIndexRef.current
+        const newHistory = [...history.slice(0, idx + 1), newSkills]
+        setSkillHistoryIndex((i) => i + 1)
         return newHistory
       })
-      // Save unified order to history to preserve instance IDs
       setUnifiedOrderHistory((history) => {
-        const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
-        setUnifiedOrderHistoryIndex((idx) => idx + 1)
+        const idx = unifiedOrderHistoryIndexRef.current
+        const newHistory = [...history.slice(0, idx + 1), newOrder]
+        setUnifiedOrderHistoryIndex((i) => i + 1)
         return newHistory
       })
       return newOrder
@@ -924,29 +745,27 @@ export function UARPanel() {
 
   const undoSkills = () => {
     setSkillHistoryIndex((prevIndex) => {
-      if (prevIndex > 0 && skillHistory.length > 0) {
+      const history = skillHistoryRef.current
+      if (prevIndex > 0 && history.length > 0) {
         const newIndex = prevIndex - 1
-        // Ensure index is within bounds
-        if (newIndex < 0 || newIndex >= skillHistory.length) {
+        if (newIndex < 0 || newIndex >= history.length) {
           console.warn('Undo would cause skillHistoryIndex to go out of bounds')
           return prevIndex
         }
-        // selectedSkills is now derived from unifiedOrder, no need to set it
         return newIndex
       }
       return prevIndex
     })
     setUnifiedOrderHistoryIndex((prevIndex) => {
-      if (prevIndex > 0 && unifiedOrderHistory.length > 0) {
+      const history = unifiedOrderHistoryRef.current
+      if (prevIndex > 0 && history.length > 0) {
         const newIndex = prevIndex - 1
-        // Ensure index is within bounds
-        if (newIndex < 0 || newIndex >= unifiedOrderHistory.length) {
+        if (newIndex < 0 || newIndex >= history.length) {
           console.warn('Undo would cause unifiedOrderHistoryIndex to go out of bounds')
           return prevIndex
         }
-        const newOrder = unifiedOrderHistory[newIndex]
+        const newOrder = history[newIndex]
         setUnifiedOrder(newOrder)
-        // Recalculate skillLastPositions from the restored order
         const newPositions: Record<string, number> = {}
         newOrder.forEach((item, index) => {
           if (item.type === 'skill') {
@@ -962,29 +781,27 @@ export function UARPanel() {
 
   const redoSkills = () => {
     setSkillHistoryIndex((prevIndex) => {
-      if (prevIndex < skillHistory.length - 1 && skillHistory.length > 0) {
+      const history = skillHistoryRef.current
+      if (prevIndex < history.length - 1 && history.length > 0) {
         const newIndex = prevIndex + 1
-        // Ensure index is within bounds
-        if (newIndex < 0 || newIndex >= skillHistory.length) {
+        if (newIndex < 0 || newIndex >= history.length) {
           console.warn('Redo would cause skillHistoryIndex to go out of bounds')
           return prevIndex
         }
-        // selectedSkills is now derived from unifiedOrder, no need to set it
         return newIndex
       }
       return prevIndex
     })
     setUnifiedOrderHistoryIndex((prevIndex) => {
-      if (prevIndex < unifiedOrderHistory.length - 1 && unifiedOrderHistory.length > 0) {
+      const history = unifiedOrderHistoryRef.current
+      if (prevIndex < history.length - 1 && history.length > 0) {
         const newIndex = prevIndex + 1
-        // Ensure index is within bounds
-        if (newIndex < 0 || newIndex >= unifiedOrderHistory.length) {
+        if (newIndex < 0 || newIndex >= history.length) {
           console.warn('Redo would cause unifiedOrderHistoryIndex to go out of bounds')
           return prevIndex
         }
-        const newOrder = unifiedOrderHistory[newIndex]
+        const newOrder = history[newIndex]
         setUnifiedOrder(newOrder)
-        // Recalculate skillLastPositions from the restored order
         const newPositions: Record<string, number> = {}
         newOrder.forEach((item, index) => {
           if (item.type === 'skill') {
@@ -1000,9 +817,19 @@ export function UARPanel() {
 
   const undoRecipes = () => {
     setRecipeHistoryIndex((prevIndex) => {
-      if (prevIndex > 0 && recipeHistory.length > 0) {
+      const history = recipeHistoryRef.current
+      if (prevIndex > 0 && history.length > 0) {
         const newIndex = prevIndex - 1
-        setRecipes(recipeHistory[newIndex])
+        const targetRecipes = history[newIndex]
+        const orderRecipeIds = new Set(unifiedOrder.filter(i => i.type === 'recipe').map(i => i.content))
+        const targetIds = new Set(targetRecipes.map(r => r.id))
+        for (const id of orderRecipeIds) {
+          if (!targetIds.has(id)) {
+            console.warn(`Cannot undo: recipe "${id}" is in execution order`)
+            return prevIndex
+          }
+        }
+        setRecipes(targetRecipes)
         return newIndex
       }
       return prevIndex
@@ -1011,9 +838,19 @@ export function UARPanel() {
 
   const redoRecipes = () => {
     setRecipeHistoryIndex((prevIndex) => {
-      if (prevIndex < recipeHistory.length - 1 && recipeHistory.length > 0) {
+      const history = recipeHistoryRef.current
+      if (prevIndex < history.length - 1 && history.length > 0) {
         const newIndex = prevIndex + 1
-        setRecipes(recipeHistory[newIndex])
+        const targetRecipes = history[newIndex]
+        const orderRecipeIds = new Set(unifiedOrder.filter(i => i.type === 'recipe').map(i => i.content))
+        const targetIds = new Set(targetRecipes.map(r => r.id))
+        for (const id of orderRecipeIds) {
+          if (!targetIds.has(id)) {
+            console.warn(`Cannot redo: recipe "${id}" is in execution order`)
+            return prevIndex
+          }
+        }
+        setRecipes(targetRecipes)
         return newIndex
       }
       return prevIndex
@@ -1034,11 +871,13 @@ export function UARPanel() {
     setCollapsedGroups(newState)
   }
 
-  const onPick = (p: string) => {
+  const onPick = useCallback((p: string) => {
     setInputPath(p)
     pushRecent(p)
     setPickerOpen(false)
-  }
+  }, [pushRecent])
+
+  const onPickerClose = useCallback(() => setPickerOpen(false), [])
 
   const copyPath = async () => {
     try {
@@ -1120,16 +959,28 @@ export function UARPanel() {
       }
     }
 
-    // Derive skills directly from unifiedOrder to ensure consistency with execution_order
+    // Recursively expand recipes so allSkills contains only real skill names.
+    const expandRecipeSkills = (recipeId: string, visited = new Set<string>()): string[] => {
+      if (visited.has(recipeId)) return []
+      visited.add(recipeId)
+      const recipe = recipes.find((r) => r.id === recipeId)
+      if (!recipe) return []
+      const out: string[] = []
+      for (const s of recipe.skills) {
+        if (recipes.some((r) => r.id === s)) {
+          out.push(...expandRecipeSkills(s, visited))
+        } else {
+          out.push(s)
+        }
+      }
+      return out
+    }
     const currentSkills = unifiedOrder
       .filter(i => i.type === 'skill')
       .map(i => i.content)
     const recipeSkills = unifiedOrder
       .filter(i => i.type === 'recipe')
-      .flatMap((item) => {
-        const recipe = recipes.find((r) => r.id === item.content)
-        return recipe ? recipe.skills : []
-      })
+      .flatMap((item) => expandRecipeSkills(item.content))
     const allSkills = [...new Set([...currentSkills, ...recipeSkills])]
 
     const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata; execution_order?: any[] } = { 
@@ -1160,7 +1011,164 @@ export function UARPanel() {
         meta.autonomi_address = autonomiAddress.trim()
       }
     }
+    // Include recipe definitions so the backend can validate and expand
+    // user-created recipes that aren't in the canonical DEFAULT_RECIPES.
+    meta.recipe_definitions = recipes.map((r) => ({
+      id: r.id,
+      label: r.label,
+      skills: r.skills,
+      hint: r.hint,
+    }))
     if (Object.keys(meta).length) body.metadata = meta
+
+    // WebSocket transport path with auto-reconnect and resilience
+    if (useWebSocket) {
+      const WS_MAX_RETRIES = 3
+      const WS_BASE_DELAY_MS = 1000
+      let ws: WebSocket | null = null
+      let retryCount = 0
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+      let abortCheckTimer: ReturnType<typeof setInterval> | null = null
+
+      const cleanup = () => {
+        if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+        if (abortCheckTimer) { clearInterval(abortCheckTimer); abortCheckTimer = null }
+        if (ws) { try { ws.close() } catch {} ws = null }
+        wsRef.current = null
+      }
+
+      const connect = async (): Promise<boolean> => {
+        return new Promise((resolve) => {
+          const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+          ws = new WebSocket(`${proto}//${window.location.host}/ws/run`)
+          wsRef.current = ws
+          setWsStatus(retryCount > 0 ? 'reconnecting' : 'connecting')
+
+          const onOpen = () => {
+            setWsStatus('open')
+            retryCount = 0
+            ws!.send(JSON.stringify(body))
+            setStartTime(Date.now())
+
+            // Heartbeat: detect stale server connections
+            let lastPong = Date.now()
+            heartbeatTimer = setInterval(() => {
+              if (Date.now() - lastPong > 45000) {
+                console.warn('WS heartbeat timeout, closing')
+                ws?.close()
+              }
+            }, 20000)
+
+            ws!.onmessage = (msg: MessageEvent) => {
+              if (!wsRef.current) return
+              lastPong = Date.now()
+              if (eventCountRef.current >= MAX_EVENTS) {
+                ws?.close()
+                setError({ message: `Event limit reached (${MAX_EVENTS}).`, timestamp: Date.now() })
+                setIsRunning(false)
+                return
+              }
+              try {
+                const json = JSON.parse(msg.data)
+                // Skip heartbeat events from UI log to avoid noise
+                if (json.type === 'heartbeat') return
+                eventCountRef.current++
+                setEvents((prev) => {
+                  const next = prev.length >= MAX_EVENTS ? prev.slice(1) : prev
+                  return [...next, json]
+                })
+                if (json.type === 'skill_start' && json.skill) setCurrentSkill(json.skill)
+                if (json.type === 'skill_complete' && json.skill) setCurrentSkill(`Completed: ${json.skill}`)
+                if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
+                if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
+                if (json.type === 'orchestration_plan' && json.payload?.graph) setGraph(json.payload.graph)
+                if (json.type === 'metrics' && json.payload) setMetrics(json.payload)
+                if (json.type === 'error' && json.error) setError({ message: json.error, timestamp: Date.now() })
+              } catch (parseError) {
+                console.error('Failed to parse WebSocket message:', parseError, msg.data)
+              }
+            }
+
+            // Abort handler
+            abortCheckTimer = setInterval(() => {
+              if (abortControllerRef.current?.signal.aborted) {
+                cleanup()
+              }
+            }, 500)
+
+            resolve(true)
+          }
+
+          const onError = () => {
+            setWsStatus('error')
+            resolve(false)
+          }
+
+          const onClose = () => {
+            if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+            if (abortCheckTimer) { clearInterval(abortCheckTimer); abortCheckTimer = null }
+            wsRef.current = null
+            setWsStatus('closed')
+            resolve(false)
+          }
+
+          ws.onopen = onOpen
+          ws.onerror = onError
+          ws.onclose = onClose
+
+          // Connection timeout fallback
+          setTimeout(() => {
+            if (ws?.readyState !== WebSocket.OPEN) {
+              resolve(false)
+            }
+          }, 10000)
+        })
+      }
+
+      try {
+        eventCountRef.current = 0
+        while (retryCount <= WS_MAX_RETRIES) {
+          const connected = await connect()
+          if (connected) {
+            // Wait for graceful close (execution done)
+            await new Promise<void>((resolve) => {
+              const checkDone = setInterval(() => {
+                if (!ws || ws.readyState === WebSocket.CLOSED) {
+                  clearInterval(checkDone)
+                  resolve()
+                }
+              }, 200)
+            })
+            setIsRunning(false)
+            setIsStopping(false)
+            setWsStatus('idle')
+            cleanup()
+            return
+          }
+
+          retryCount++
+          if (retryCount <= WS_MAX_RETRIES) {
+            const delay = WS_BASE_DELAY_MS * Math.pow(2, retryCount - 1)
+            console.log(`WS reconnecting in ${delay}ms (attempt ${retryCount}/${WS_MAX_RETRIES})`)
+            await new Promise(r => setTimeout(r, delay))
+          }
+        }
+
+        setError({ message: 'WebSocket failed after max retries', timestamp: Date.now() })
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          cleanup()
+          return
+        }
+        setError({ message: err instanceof Error ? err.message : 'WebSocket error', timestamp: Date.now() })
+      } finally {
+        setIsRunning(false)
+        setIsStopping(false)
+        setWsStatus('idle')
+        cleanup()
+      }
+      return
+    }
 
     // Add timeout to abort controller
     const timeoutId = setTimeout(() => {
@@ -1168,6 +1176,9 @@ export function UARPanel() {
       setError({ message: 'Request timeout - server did not respond in time', timestamp: Date.now() })
       setIsRunning(false)
     }, 300000) // 5 minute timeout
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    let decoder: TextDecoder | undefined
 
     try {
       setCurrentSkill(selectedSkills[0] || 'Starting')
@@ -1180,41 +1191,42 @@ export function UARPanel() {
       })
       // Clear timeout immediately after fetch completes to prevent race condition
       clearTimeout(timeoutId)
-      
+
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         throw new Error(`HTTP ${res.status}: ${res.statusText}${text ? ` — ${text}` : ''}`)
       }
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
+      reader = res.body?.getReader()
+      decoder = new TextDecoder()
       if (!reader) throw new Error('No response body reader available')
 
       let buffer = ''
       let lastEventTime = Date.now()
       const HEARTBEAT_INTERVAL = 30000 // 30 seconds
       const HEARTBEAT_ABORT_THRESHOLD = 2 // Abort after 2 missed heartbeats (60 seconds)
-      let missedHeartbeats = 0
+
+      heartbeatTimer = setInterval(() => {
+        if (Date.now() - lastEventTime > HEARTBEAT_INTERVAL * HEARTBEAT_ABORT_THRESHOLD) {
+          abortControllerRef.current?.abort()
+          setError({ message: `Connection stalled - no events received for ${HEARTBEAT_INTERVAL * HEARTBEAT_ABORT_THRESHOLD / 1000}s`, timestamp: Date.now() })
+          if (heartbeatTimer) {
+            clearInterval(heartbeatTimer)
+            heartbeatTimer = null
+          }
+        }
+      }, HEARTBEAT_INTERVAL)
 
       while (true) {
+        if (eventCountRef.current >= MAX_EVENTS) {
+          abortControllerRef.current?.abort()
+          break
+        }
         const { done, value } = await reader.read()
         if (done) break
         if (abortControllerRef.current?.signal.aborted) break
 
-        // Check for heartbeat/timeout
-        const now = Date.now()
-        if (now - lastEventTime > HEARTBEAT_INTERVAL) {
-          missedHeartbeats++
-          console.warn(`No events received for ${HEARTBEAT_INTERVAL / 1000}s (missed heartbeat ${missedHeartbeats}/${HEARTBEAT_ABORT_THRESHOLD})`)
-          if (missedHeartbeats >= HEARTBEAT_ABORT_THRESHOLD) {
-            abortControllerRef.current?.abort()
-            setError({ message: `Connection stalled - no events received for ${HEARTBEAT_INTERVAL * HEARTBEAT_ABORT_THRESHOLD / 1000}s`, timestamp: Date.now() })
-            break
-          }
-        } else {
-          missedHeartbeats = 0
-        }
-        lastEventTime = now
-        
+        lastEventTime = Date.now()
+
         buffer += decoder.decode(value, { stream: true })
         const parts = buffer.split('\n\n')
         buffer = parts.pop() || ''
@@ -1223,6 +1235,8 @@ export function UARPanel() {
             if (!line.startsWith('data:')) continue
             try {
               const json = JSON.parse(line.replace('data: ', ''))
+              // Skip heartbeat events from UI log to avoid noise
+              if (json.type === 'heartbeat') continue
               // Check event limit before processing to avoid processing events beyond limit
               if (eventCountRef.current >= MAX_EVENTS) {
                 abortControllerRef.current?.abort()
@@ -1230,14 +1244,17 @@ export function UARPanel() {
                 setIsRunning(false)
                 break
               }
+              eventCountRef.current++
               setEvents((prev) => {
                 const next = prev.length >= MAX_EVENTS ? prev.slice(1) : prev
-                eventCountRef.current++
                 return [...next, json]
               })
               if (json.type === 'skill_start' && json.skill) setCurrentSkill(json.skill)
               if (json.type === 'skill_complete' && json.skill) setCurrentSkill(`Completed: ${json.skill}`)
+              if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
+              if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
               if (json.type === 'orchestration_plan' && json.payload?.graph) setGraph(json.payload.graph)
+              if (json.type === 'metrics' && json.payload) setMetrics(json.payload)
               if (json.run?.final_context?.dependency_map) setGraph(json.run.final_context.dependency_map)
               if (json.type === 'error' && json.error) setError({ message: json.error, timestamp: Date.now() })
             } catch (parseError) {
@@ -1245,7 +1262,6 @@ export function UARPanel() {
               setError({ message: 'Failed to parse server response', timestamp: Date.now() })
             }
           }
-          // Break outer loop if limit reached
           if (eventCountRef.current >= MAX_EVENTS) break
         }
       }
@@ -1255,17 +1271,22 @@ export function UARPanel() {
       setError({ message: err instanceof Error ? err.message : 'Unknown error occurred', timestamp: Date.now() })
     } finally {
       clearTimeout(timeoutId)
+      if (heartbeatTimer) clearInterval(heartbeatTimer)
+      if (reader) try { reader.releaseLock() } catch {}
       setIsRunning(false)
+      setIsStopping(false)
       if (!abortControllerRef.current?.signal.aborted) {
         abortControllerRef.current = null
       }
     }
-  }, [goal, inputPath, selectedSkills, unifiedOrder, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent])
+  }, [goal, inputPath, unifiedOrder, recipes, backendSkills, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent])
 
   const stopStream = useCallback(() => {
     setIsStopping(true)
-    cleanup()
-  }, [cleanup])
+    abortControllerRef.current?.abort()
+    wsRef.current?.close()
+    wsRef.current = null
+  }, [])
 
   const { nodes, edges } = useMemo(() => {
     if (!graph) return { nodes: [], edges: [] }
@@ -1285,7 +1306,7 @@ export function UARPanel() {
       }
       return {
         id: String(i),
-        data: { label: n.skill || String(nodeId).split('/').pop(), type: nodeType },
+        data: { label: n.skill || String(nodeId).split('/').pop(), type: nodeType, originalIndex: i },
         position: { x: (i % 5) * 180, y: Math.floor(i / 5) * 120 },
         style: {
           background: typeColors[nodeType] || typeColors.default,
@@ -1316,7 +1337,19 @@ export function UARPanel() {
     return { nodes, edges }
   }, [graph])
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null) }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); eventCountRef.current = 0 }, [])
+
+  const fetchRuns = useCallback(async () => {
+    try {
+      const res = await fetch('/api/uar/runs')
+      if (res.ok) {
+        const data = await res.json()
+        setRunsHistory(Array.isArray(data) ? data : [])
+      }
+    } catch (e) {
+      console.warn('Failed to fetch runs history:', e)
+    }
+  }, [])
 
   const ingested = useMemo(() => {
     const last = [...events].reverse().find(
@@ -1348,7 +1381,7 @@ export function UARPanel() {
         initialPath={inputPath || libraryPath || projectRoot}
         projectRoot={projectRoot}
         presets={presets}
-        onClose={() => setPickerOpen(false)}
+        onClose={onPickerClose}
         onPick={onPick}
       />
 
@@ -1402,7 +1435,7 @@ export function UARPanel() {
       )}
 
       {error && (
-        <div className={styles.errorBox}>
+        <div className={styles.errorBox} role="alert" aria-live="assertive">
           <strong>Error:</strong> {error.message}
           {error.code && <span className={styles.errorCode}>[{error.code}]</span>}
           {error.requestId && <span className={styles.errorCode}>req: {error.requestId}</span>}
@@ -1598,15 +1631,16 @@ export function UARPanel() {
               ▲
             </button>
             <button onClick={() => {
-              setUnifiedOrder((prev) => prev.filter(i => i.type === 'skill'))
-              // selectedSkills is now derived from unifiedOrder, no need to set it
-              setSkillHistory((history) => [...history.slice(0, skillHistoryIndex + 1), []])
-              setSkillHistoryIndex((prev) => prev + 1)
-              // Also clear unified order history
-              setUnifiedOrderHistory((history) => [...history.slice(0, unifiedOrderHistoryIndex + 1), []])
-              setUnifiedOrderHistoryIndex((prev) => prev + 1)
-              // Reset skill last positions
-              setSkillLastPositions({})
+              setUnifiedOrder((prev) => {
+                const newOrder = prev.filter(i => i.type !== 'skill')
+                const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+                setSkillHistory((history) => [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills])
+                setSkillHistoryIndex((prev) => prev + 1)
+                setUnifiedOrderHistory((history) => [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder])
+                setUnifiedOrderHistoryIndex((prev) => prev + 1)
+                setSkillLastPositions({})
+                return newOrder
+              })
             }} className={styles.collapseAllButton} disabled={isRunning} title="Clear all selected skills">
               ✕
             </button>
@@ -1624,18 +1658,21 @@ export function UARPanel() {
                   const isCollapsed = collapsedGroups[group.name]
                   return (
                     <div key={group.name} className={styles.skillGroup}>
-                      <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
+                      <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
                         <span className={styles.skillGroupIcon}>{group.icon}</span>
                         <span className={styles.skillGroupName}>{group.name}</span>
                         <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
                       </div>
                       {!isCollapsed && (
                         <div className={styles.skillGroupSkills}>
-                          {group.skills.map((s) => (
-                            <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(unifiedOrder.some(i => i.type === 'skill' && i.content === s.id), isRunning)}>
-                              {unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length > 0 ? `✓ (${unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length}) ` : ''}{s.label}
-                            </button>
-                          ))}
+                          {group.skills.map((s) => {
+                            const count = unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length
+                            return (
+                              <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(count > 0, isRunning)}>
+                                {count > 0 ? `✓ (${count}) ` : ''}{s.label}
+                              </button>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -1667,23 +1704,25 @@ export function UARPanel() {
                   <div className={styles.orderChips}>
                     {unifiedOrder.map((item, index) => {
                       const hash = item.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-                      const colorClass = `color-${hash % 10}` as `color-${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+                      const colorClass = `color-${hash % 10}`
                       const label = item.type === 'skill' ? item.content : recipes.find(r => r.id === item.content)?.label || item.content
                       return (
                         <div
                           key={item.id}
                           className={`${styles.orderChip} ${styles[colorClass]}`}
                           draggable={!isRunning}
+                          aria-label={`${item.type === 'recipe' ? 'Recipe' : 'Skill'}: ${label} (position ${index + 1})`}
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', String(index))
+                            e.dataTransfer.setData('text/uar-order', String(index))
                             e.dataTransfer.effectAllowed = 'move'
                           }}
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             e.preventDefault()
-                            const fromIndex = parseInt(e.dataTransfer.getData('text/plain'))
+                            if (!Array.from(e.dataTransfer.types).includes('text/uar-order')) return
+                            const fromIndex = parseInt(e.dataTransfer.getData('text/uar-order'), 10)
                             const toIndex = index
-                            if (fromIndex !== toIndex) {
+                            if (!Number.isNaN(fromIndex) && fromIndex !== toIndex) {
                               setUnifiedOrder((prev) => {
                                 const newOrder = [...prev]
                                 const [moved] = newOrder.splice(fromIndex, 1)
@@ -1703,13 +1742,13 @@ export function UARPanel() {
                                 // selectedSkills is now derived from unifiedOrder, no need to set it
                                 const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
                                 setSkillHistory((history) => {
-                                  const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                  const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
                                   setSkillHistoryIndex((idx) => idx + 1)
                                   return newHistory
                                 })
                                 // Save unified order to history to preserve instance IDs
                                 setUnifiedOrderHistory((history) => {
-                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
                                   setUnifiedOrderHistoryIndex((idx) => idx + 1)
                                   return newHistory
                                 })
@@ -1731,7 +1770,6 @@ export function UARPanel() {
                                   content: item.content
                                 }
                                 newOrder.splice(index + 1, 0, newInstance)
-                                // Update skillLastPositions for skills
                                 setSkillLastPositions((prevPositions) => {
                                   const newPositions = { ...prevPositions }
                                   for (let i = index + 1; i < newOrder.length; i++) {
@@ -1741,16 +1779,14 @@ export function UARPanel() {
                                   }
                                   return newPositions
                                 })
-                                // selectedSkills is now derived from unifiedOrder, no need to set it
                                 const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
                                 setSkillHistory((history) => {
-                                  const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                  const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
                                   setSkillHistoryIndex((idx) => idx + 1)
                                   return newHistory
                                 })
-                                // Save unified order to history to preserve instance IDs
                                 setUnifiedOrderHistory((history) => {
-                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
                                   setUnifiedOrderHistoryIndex((idx) => idx + 1)
                                   return newHistory
                                 })
@@ -1760,6 +1796,7 @@ export function UARPanel() {
                             className={styles.orderChipAction}
                             disabled={isRunning}
                             title={`Duplicate ${label}`}
+                            aria-label={`Duplicate ${label}`}
                           >
                             +
                           </button>
@@ -1768,7 +1805,6 @@ export function UARPanel() {
                               e.stopPropagation()
                               setUnifiedOrder((prev) => {
                                 const newOrder = prev.filter((_, i) => i !== index)
-                                // Update skillLastPositions for skills
                                 setSkillLastPositions((prevPositions) => {
                                   const newPositions = { ...prevPositions }
                                   for (let i = index; i < newOrder.length; i++) {
@@ -1778,16 +1814,14 @@ export function UARPanel() {
                                   }
                                   return newPositions
                                 })
-                                // selectedSkills is now derived from unifiedOrder, no need to set it
                                 const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
                                 setSkillHistory((history) => {
-                                  const newHistory = [...history.slice(0, skillHistoryIndex + 1), newSkills]
+                                  const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
                                   setSkillHistoryIndex((idx) => idx + 1)
                                   return newHistory
                                 })
-                                // Save unified order to history to preserve instance IDs
                                 setUnifiedOrderHistory((history) => {
-                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
                                   setUnifiedOrderHistoryIndex((idx) => idx + 1)
                                   return newHistory
                                 })
@@ -1797,6 +1831,7 @@ export function UARPanel() {
                             className={styles.orderChipAction}
                             disabled={isRunning}
                             title={`Remove ${label}`}
+                            aria-label={`Remove ${label}`}
                           >
                             ✕
                           </button>
@@ -1811,13 +1846,14 @@ export function UARPanel() {
               <div className={styles.presetsContainer}>
                 <label className={styles.label} title="Pre-configured skill combinations for common workflows">
                   <strong>Recipes</strong>
-                  <a
+                  <button
                     onClick={() => setRecipesPopupOpen(true)}
                     className={styles.libraryLink}
                     title="View recipes library"
+                    aria-label="View recipes library"
                   >
                     📚
-                  </a>
+                  </button>
                   <button onClick={undoRecipes} className={styles.collapseAllButton} disabled={isRunning || recipeHistoryIndex === 0} title="Undo">
                     ↶
                   </button>
@@ -1832,22 +1868,23 @@ export function UARPanel() {
                       className={styles.recipeChip}
                       draggable={!isRunning}
                       onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', String(index))
+                        e.dataTransfer.setData('text/uar-recipe', String(index))
                         e.dataTransfer.effectAllowed = 'move'
                       }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault()
-                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'))
+                        if (!Array.from(e.dataTransfer.types).includes('text/uar-recipe')) return
+                        const fromIndex = parseInt(e.dataTransfer.getData('text/uar-recipe'), 10)
                         const toIndex = index
-                        if (fromIndex !== toIndex) {
+                        if (!Number.isNaN(fromIndex) && fromIndex !== toIndex) {
                           setRecipes((prev) => {
                             const newRecipes = [...prev]
                             const [moved] = newRecipes.splice(fromIndex, 1)
                             newRecipes.splice(toIndex, 0, moved)
                             // Update history atomically
                             setRecipeHistory((history) => {
-                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
                               setRecipeHistoryIndex((idx) => idx + 1)
                               return newHistory
                             })
@@ -1868,9 +1905,11 @@ export function UARPanel() {
                               content: r.id
                             }
                             const newOrder = [...prev, newInstance]
-                            // Save unified order to history to preserve instance IDs
+                            const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+                            setSkillHistory((history) => [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills])
+                            setSkillHistoryIndex((idx) => idx + 1)
                             setUnifiedOrderHistory((history) => {
-                              const newHistory = [...history.slice(0, unifiedOrderHistoryIndex + 1), newOrder]
+                              const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
                               setUnifiedOrderHistoryIndex((idx) => idx + 1)
                               return newHistory
                             })
@@ -1879,7 +1918,10 @@ export function UARPanel() {
                         }}
                         className={`${styles.presetButton} ${unifiedOrder.some(i => i.type === 'recipe' && i.content === r.id) ? styles.chipActive : ''}`}
                       >
-                        {unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length > 0 ? `✓ (${unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length}) ` : ''}{r.label}
+                        {(() => {
+                          const count = unifiedOrder.filter(i => i.type === 'recipe' && i.content === r.id).length
+                          return count > 0 ? `✓ (${count}) ` : ''
+                        })()}{r.label}
                       </button>
                     </div>
                   ))}
@@ -1893,7 +1935,7 @@ export function UARPanel() {
                   {selectedSkills.includes('graphrag_query') && (
                     <label className={styles.advancedOverride} title="Choose entity-centric (local) or thematic (global) analysis">
                       GraphRAG method:
-                      <select value={graphragMethod} onChange={(e) => setGraphragMethod(e.target.value as any)} className={styles.advancedOverrideSelect}>
+                      <select value={graphragMethod} onChange={(e) => setGraphragMethod(e.target.value as 'local' | 'global')} className={styles.advancedOverrideSelect}>
                         <option value="local">local (entity)</option>
                         <option value="global">global (thematic)</option>
                       </select>
@@ -1924,7 +1966,7 @@ export function UARPanel() {
                       </label>
                       <label className={styles.advancedOverride} title="Choose testnet for development or mainnet for production">
                         Autonomi network:
-                        <select value={autonomiNetwork} onChange={(e) => setAutonomiNetwork(e.target.value as any)} className={styles.advancedOverrideSelect}>
+                        <select value={autonomiNetwork} onChange={(e) => setAutonomiNetwork(e.target.value as 'testnet' | 'mainnet')} className={styles.advancedOverrideSelect}>
                           <option value="testnet">testnet</option>
                           <option value="mainnet">mainnet</option>
                         </select>
@@ -1977,6 +2019,14 @@ export function UARPanel() {
         </div>
         <div className={styles.presetsContainer}>
           <button
+            onClick={() => setUseWebSocket((v) => !v)}
+            disabled={isRunning}
+            className={`${styles.runButton} ${styles.smallButton}`}
+            title={useWebSocket ? 'Using WebSocket transport' : 'Using SSE transport (click to switch)'}
+          >
+            {useWebSocket ? '⚡ WS' : '⬡ SSE'}
+          </button>
+          <button
             onClick={runStream}
             disabled={!canRun}
             className={styles.runButton}
@@ -1995,14 +2045,72 @@ export function UARPanel() {
             </button>
           )}
           {(isRunning || isStopping) && (
-            <span className={styles.runStatus}>
+            <span className={styles.runStatus} aria-live="polite" aria-atomic="true">
               {isStopping ? 'Stopping' : currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s
+              {useWebSocket && wsStatus !== 'idle' && wsStatus !== 'open' && (
+                <span className={styles.wsStatusSuffix}>
+                  ({wsStatus})
+                </span>
+              )}
             </span>
           )}
+          <select
+            value={eventFilter}
+            onChange={(e) => setEventFilter(e.target.value)}
+            className={`${styles.createFolderInput} ${styles.eventFilterSelect}`}
+            title="Filter events by type"
+            aria-label="Filter events by type"
+          >
+            <option value="all">All Events</option>
+            <option value="recipe">Recipe Boundaries</option>
+            <option value="skill">Skill Events</option>
+            <option value="error">Errors Only</option>
+          </select>
+          <button
+            onClick={() => { fetchRuns(); setShowRunsPanel(true) }}
+            className={styles.clearEventsButton}
+            title="View past runs"
+          >
+            Runs
+          </button>
           <button onClick={clearEvents} className={styles.clearEventsButton} title="Clear event history from display">
             Clear Events
           </button>
         </div>
+        {metrics && !isRunning && (
+          <div className={styles.metricsPanel} title="Execution metrics from last run">
+            <div className={styles.metricsHeader}>Run Metrics</div>
+            <div className={styles.metricsGrid}>
+              <div className={styles.metricsItem}>
+                <span className={styles.metricsValue}>{metrics.total_time_sec.toFixed(2)}s</span>
+                <span className={styles.metricsLabel}>Total Time</span>
+              </div>
+              <div className={styles.metricsItem}>
+                <span className={styles.metricsValue}>{metrics.event_count}</span>
+                <span className={styles.metricsLabel}>Events</span>
+              </div>
+              <div className={styles.metricsItem}>
+                <span className={styles.metricsValue}>{metrics.cache_hits}</span>
+                <span className={styles.metricsLabel}>Cache Hits</span>
+              </div>
+              <div className={styles.metricsItem}>
+                <span className={styles.metricsValue}>{metrics.cache_misses}</span>
+                <span className={styles.metricsLabel}>Cache Misses</span>
+              </div>
+              {metrics.skill_times_ms && Object.keys(metrics.skill_times_ms).length > 0 && (
+                <div className={styles.metricsSkills}>
+                  <div className={styles.metricsSkillsHeader}>Skill Timing</div>
+                  {Object.entries(metrics.skill_times_ms).map(([skill, ms]) => (
+                    <div key={skill} className={styles.metricsSkillRow}>
+                      <span className={styles.metricsSkillName}>{skill}</span>
+                      <span className={styles.metricsSkillTime}>{ms.toFixed(1)}ms</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <div className={styles.statusText} title="Current system status">
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
           {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
@@ -2015,7 +2123,7 @@ export function UARPanel() {
           {ingested.warning && <div className={styles.ingestedWarning}>{ingested.warning}</div>}
           <div className={styles.ingestedList}>
             {(ingested.documents || []).map((d: IngestedDocument, i: number) => (
-              <div key={i} className={styles.ingestedItem}>
+              <div key={d.path || d.name || `doc-${i}`} className={styles.ingestedItem}>
                 <div className={styles.ingestedItemName}>{d.path || d.name || `#${i}`}</div>
                 {d.error ? <div className={styles.ingestedItemError}>error: {d.error}</div>
                   : <div className={styles.ingestedItemInfo}>{d.size ? human(d.size) : ''}{d.type ? ` · ${d.type}` : ''}</div>}
@@ -2050,6 +2158,22 @@ export function UARPanel() {
       <div className={styles.box}>
         <div className={styles.sectionHeader}>
           <strong title="Real-time execution events from skills">Events ({events.length})</strong>
+          <div className={styles.timelineViewToggle}>
+            <button
+              onClick={() => setEventViewMode('timeline')}
+              className={`${styles.timelineViewButton} ${eventViewMode === 'timeline' ? styles.timelineViewButtonActive : ''}`}
+              title="Timeline view"
+            >
+              Timeline
+            </button>
+            <button
+              onClick={() => setEventViewMode('json')}
+              className={`${styles.timelineViewButton} ${eventViewMode === 'json' ? styles.timelineViewButtonActive : ''}`}
+              title="Raw JSON view"
+            >
+              JSON
+            </button>
+          </div>
           <button
             onClick={() => {
               setTipsTargetSection('Events')
@@ -2064,9 +2188,44 @@ export function UARPanel() {
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             <div className={styles.eventsContainer}>
-              <pre className={styles.eventsPre}>
-                {JSON.stringify(events.slice(-50), null, 2)}
-              </pre>
+              {(() => {
+                const filtered = events.filter((e) => {
+                  if (eventFilter === 'all') return true
+                  if (eventFilter === 'recipe') {
+                    return e?.type === 'recipe_start' || e?.type === 'recipe_end'
+                  }
+                  if (eventFilter === 'skill') {
+                    return e?.type?.startsWith('skill_') || e?.type === 'parallel_start' || e?.type === 'parallel_complete'
+                  }
+                  if (eventFilter === 'error') {
+                    return e?.type === 'error' || e?.type === 'skill_failed'
+                  }
+                  return true
+                })
+                return eventViewMode === 'json' ? (
+                  <pre className={styles.eventsPre}>
+                    {filtered.slice(-50).map((e, i) => {
+                      const isRecipeEvent = e?.type === 'recipe_start' || e?.type === 'recipe_end'
+                      const recipeClass = e?.type === 'recipe_start'
+                        ? styles.recipeStart
+                        : e?.type === 'recipe_end'
+                          ? styles.recipeEnd
+                          : ''
+                      return (
+                        <span
+                          key={i}
+                          className={isRecipeEvent ? `${styles.recipeEvent} ${recipeClass}` : ''}
+                        >
+                          {JSON.stringify(e, null, 2)}
+                          {i < filtered.slice(-50).length - 1 ? '\n' : ''}
+                        </span>
+                      )
+                    })}
+                  </pre>
+                ) : (
+                  <RecipeTimeline events={filtered} recipes={recipes} />
+                )
+              })()}
             </div>
           </div>
         </div>
@@ -2112,7 +2271,8 @@ export function UARPanel() {
                 edges={edges}
                 fitView
                 onNodeClick={(e, node) => {
-                  setSelectedNode(graph?.nodes?.[parseInt(node.id)])
+                  const idx = node.data?.originalIndex
+                  setSelectedNode(typeof idx === 'number' ? graph?.nodes?.[idx] : undefined)
                 }}
                 onPaneClick={() => setSelectedNode(null)}
               >
@@ -2152,7 +2312,7 @@ export function UARPanel() {
               <div className={styles.nodeDetails}>
                 <div className={styles.nodeDetailsHeader}>
                   <strong>Node Details</strong>
-                  <button onClick={() => setSelectedNode(null)} className={styles.closeButton}>✕</button>
+                  <button onClick={() => setSelectedNode(null)} className={styles.modalCloseButton} aria-label="Close node details">✕</button>
                 </div>
                 <div className={styles.nodeDetailsContent}>
                   <p><strong>ID:</strong> {selectedNode.id || selectedNode.skill || 'N/A'}</p>
@@ -2172,16 +2332,21 @@ export function UARPanel() {
         <div
           onClick={() => setSkillGuideOpen(false)}
           className={styles.skillGuideModalOverlay}
+          role="presentation"
         >
           <div
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
             className={styles.skillGuideModalContent}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Skill Guide"
           >
             <div className={styles.skillGuideModalHeader}>
-              <strong>Skill Guide</strong>
+              <strong id="skill-guide-title">Skill Guide</strong>
               <button
                 onClick={() => setSkillGuideOpen(false)}
                 className={styles.modalCloseButton}
+                aria-label="Close skill guide"
               >
                 ✕
               </button>
@@ -2194,12 +2359,13 @@ export function UARPanel() {
       )}
 
       {tipsPopupOpen && (
-        <div ref={tipsPopupRef} className={styles.tipsPopup}>
+        <div ref={tipsPopupRef} className={styles.tipsPopup} role="dialog" aria-modal="true" aria-label="Tips">
           <div className={styles.tipsPopupHeader}>
             <span className={styles.tipsPopupTitle}>Tips</span>
             <button
               onClick={() => setTipsPopupOpen(false)}
               className={styles.tipsPopupClose}
+              aria-label="Close tips"
             >
               ✕
             </button>
@@ -2210,8 +2376,11 @@ export function UARPanel() {
             <div
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Documents')}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleTipSection('Documents') } }}
               title="Click to expand/collapse Documents tips"
               data-section="Documents"
+              tabIndex={0}
+              role="button"
             >
               <span className={styles.tipsPopupSectionTitle}>Documents</span>
               <span>{expandedTipSections['Documents'] ? '▼' : '▶'}</span>
@@ -2238,8 +2407,11 @@ export function UARPanel() {
             <div
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Goal')}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleTipSection('Goal') } }}
               title="Click to expand/collapse Goal tips"
               data-section="Goal"
+              tabIndex={0}
+              role="button"
             >
               <span className={styles.tipsPopupSectionTitle}>Goal</span>
               <span>{expandedTipSections['Goal'] ? '▼' : '▶'}</span>
@@ -2264,8 +2436,11 @@ export function UARPanel() {
             <div
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Skills')}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleTipSection('Skills') } }}
               title="Click to expand/collapse Skills tips"
               data-section="Skills"
+              tabIndex={0}
+              role="button"
             >
               <span className={styles.tipsPopupSectionTitle}>Skills</span>
               <span>{expandedTipSections['Skills'] ? '▼' : '▶'}</span>
@@ -2293,8 +2468,11 @@ export function UARPanel() {
               <div
                 className={styles.tipsPopupSectionHeader}
                 onClick={() => toggleTipSection(group.name)}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleTipSection(group.name) } }}
                 title={`Click to expand/collapse ${group.name} tips`}
                 data-section={group.name}
+                tabIndex={0}
+                role="button"
               >
                 <span className={styles.tipsPopupSectionTitle}>{group.name}</span>
                 <span>{expandedTipSections[group.name] ? '▼' : '▶'}</span>
@@ -2462,8 +2640,11 @@ export function UARPanel() {
             <div
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Run')}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleTipSection('Run') } }}
               title="Click to expand/collapse Run tips"
               data-section="Run"
+              tabIndex={0}
+              role="button"
             >
               <span className={styles.tipsPopupSectionTitle}>Run</span>
               <span>{expandedTipSections['Run'] ? '▼' : '▶'}</span>
@@ -2491,8 +2672,11 @@ export function UARPanel() {
             <div
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Events')}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleTipSection('Events') } }}
               title="Click to expand/collapse Events tips"
               data-section="Events"
+              tabIndex={0}
+              role="button"
             >
               <span className={styles.tipsPopupSectionTitle}>Events</span>
               <span>{expandedTipSections['Events'] ? '▼' : '▶'}</span>
@@ -2520,8 +2704,11 @@ export function UARPanel() {
             <div
               className={styles.tipsPopupSectionHeader}
               onClick={() => toggleTipSection('Graph')}
+              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleTipSection('Graph') } }}
               title="Click to expand/collapse Dependency Graph tips"
               data-section="Graph"
+              tabIndex={0}
+              role="button"
             >
               <span className={styles.tipsPopupSectionTitle}>Dependency Graph</span>
               <span>{expandedTipSections['Graph'] ? '▼' : '▶'}</span>
@@ -2548,11 +2735,11 @@ export function UARPanel() {
 
       {/* Library Popup */}
       {libraryPopupOpen && (
-        <div className={styles.modalOverlay} onClick={() => setLibraryPopupOpen(false)}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalOverlay} onClick={() => setLibraryPopupOpen(false)} role="presentation">
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="library-title">
             <div className={styles.modalHeader}>
-              <strong>📚 Library</strong>
-              <button className={styles.modalCloseButton} onClick={() => setLibraryPopupOpen(false)}>✕</button>
+              <strong id="library-title">📚 Library</strong>
+              <button className={styles.modalCloseButton} onClick={() => setLibraryPopupOpen(false)} aria-label="Close library">✕</button>
             </div>
             <div className={styles.modalBody}>
               {libBusy ? (
@@ -2592,10 +2779,10 @@ export function UARPanel() {
 
       {/* Recipes Popup */}
       {recipesPopupOpen && (
-        <div className={styles.modalOverlay} onClick={() => setRecipesPopupOpen(false)}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalOverlay} onClick={() => setRecipesPopupOpen(false)} role="presentation">
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="recipes-title">
             <div className={styles.modalHeader}>
-              <strong>📚 Recipes Library</strong>
+              <strong id="recipes-title">📚 Recipes Library</strong>
               <div className={styles.modalHeaderButtons}>
                 <button
                   className={styles.primaryButton}
@@ -2603,13 +2790,14 @@ export function UARPanel() {
                     setEditingRecipe({ id: '', label: '', skills: [], hint: '' })
                     setEditRecipeLabel('')
                     setEditRecipeSkills('')
+                    setBuilderSkills([])
                     setEditRecipeHint('')
                   }}
                   title="Create new recipe"
                 >
                   + New Recipe
                 </button>
-                <button className={styles.modalCloseButton} onClick={() => setRecipesPopupOpen(false)}>✕</button>
+                <button className={styles.modalCloseButton} onClick={() => setRecipesPopupOpen(false)} aria-label="Close recipes">✕</button>
               </div>
             </div>
             <div className={styles.modalBody}>
@@ -2622,13 +2810,128 @@ export function UARPanel() {
                     value={editRecipeLabel}
                     onChange={(e) => setEditRecipeLabel(e.target.value)}
                   />
-                  <input
-                    type="text"
-                    className={styles.createFolderInput}
-                    placeholder="Skills (comma-separated)"
-                    value={editRecipeSkills}
-                    onChange={(e) => setEditRecipeSkills(e.target.value)}
-                  />
+                  <div className={styles.builderToggle}>
+                    <button
+                      className={`${styles.builderToggleButton} ${builderMode ? styles.builderToggleActive : ''}`}
+                      onClick={() => setBuilderMode(true)}
+                      type="button"
+                    >
+                      🧱 Builder
+                    </button>
+                    <button
+                      className={`${styles.builderToggleButton} ${!builderMode ? styles.builderToggleActive : ''}`}
+                      onClick={() => setBuilderMode(false)}
+                      type="button"
+                    >
+                      📝 Text
+                    </button>
+                  </div>
+                  {builderMode ? (
+                    <div className={styles.recipeBuilder}>
+                      <div className={styles.builderPalette}>
+                        <div className={styles.builderLabel}>Available Skills</div>
+                        <div className={styles.builderPaletteSkills}>
+                          {(backendSkills.length > 0 ? backendSkills : AVAILABLE_SKILLS.map(s => s.id)).map((skill) => (
+                            <div
+                              key={skill}
+                              className={styles.builderPaletteChip}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/uar-builder-skill', skill)
+                                e.dataTransfer.effectAllowed = 'copy'
+                              }}
+                              onClick={() => {
+                                if (!builderSkills.includes(skill)) {
+                                  setBuilderSkills((prev) => [...prev, skill])
+                                  setEditRecipeSkills((prev) => prev ? `${prev}, ${skill}` : skill)
+                                }
+                              }}
+                              title={`Drag or click to add ${skill}`}
+                            >
+                              + {skill}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className={styles.builderCanvas}>
+                        <div className={styles.builderLabel}>Recipe Skills</div>
+                        <div
+                          className={styles.builderDropZone}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            const skill = e.dataTransfer.getData('text/uar-builder-skill')
+                            if (skill && !builderSkills.includes(skill)) {
+                              setBuilderSkills((prev) => [...prev, skill])
+                              setEditRecipeSkills((prev) => prev ? `${prev}, ${skill}` : skill)
+                            }
+                          }}
+                        >
+                          {builderSkills.length === 0 ? (
+                            <div className={styles.builderEmpty}>Drag skills here or click skills to add them</div>
+                          ) : (
+                            builderSkills.map((skill, idx) => (
+                              <div
+                                key={`${skill}-${idx}`}
+                                className={styles.builderRecipeChip}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/uar-builder-reorder', String(idx))
+                                  e.dataTransfer.effectAllowed = 'move'
+                                  setBuilderDragIndex(idx)
+                                }}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault()
+                                  const fromIdx = parseInt(e.dataTransfer.getData('text/uar-builder-reorder'), 10)
+                                  const toIdx = idx
+                                  if (!Number.isNaN(fromIdx) && fromIdx !== toIdx) {
+                                    setBuilderSkills((prev) => {
+                                      const next = [...prev]
+                                      const [moved] = next.splice(fromIdx, 1)
+                                      next.splice(toIdx, 0, moved)
+                                      setEditRecipeSkills(next.join(', '))
+                                      return next
+                                    })
+                                  }
+                                  setBuilderDragIndex(null)
+                                }}
+                                onDragEnd={() => setBuilderDragIndex(null)}
+                              >
+                                <span className={styles.builderRecipeChipIndex}>{idx + 1}</span>
+                                <span className={styles.builderRecipeChipName}>{skill}</span>
+                                <button
+                                  className={styles.builderRecipeChipRemove}
+                                  onClick={() => {
+                                    setBuilderSkills((prev) => {
+                                      const next = prev.filter((_, i) => i !== idx)
+                                      setEditRecipeSkills(next.join(', '))
+                                      return next
+                                    })
+                                  }}
+                                  title="Remove skill"
+                                  aria-label={`Remove ${skill}`}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className={styles.createFolderInput}
+                      placeholder="Skills (comma-separated)"
+                      value={editRecipeSkills}
+                      onChange={(e) => {
+                        setEditRecipeSkills(e.target.value)
+                        setBuilderSkills(e.target.value.split(',').map(s => s.trim()).filter(Boolean))
+                      }}
+                    />
+                  )}
                   <input
                     type="text"
                     className={styles.createFolderInput}
@@ -2638,13 +2941,50 @@ export function UARPanel() {
                   />
                   <button
                     className={styles.createFolderButton}
-                    onClick={() => {
+                    onClick={async () => {
+                      const skills = builderMode ? [...builderSkills] : editRecipeSkills.split(',').map(s => s.trim()).filter(s => s)
+
+                      // Validate recipe skills against backend registry
+                      const validSkillSet = new Set(
+                        backendSkills.length > 0
+                          ? backendSkills
+                          : AVAILABLE_SKILLS.map(s => s.id)
+                      )
+                      const invalidSkills = skills.filter(s => !validSkillSet.has(s))
+                      if (invalidSkills.length > 0) {
+                        setError({
+                          message: `Invalid skills in recipe: ${invalidSkills.join(', ')}`,
+                          timestamp: Date.now(),
+                        })
+                        return
+                      }
+
                       const newRecipe: Recipe = {
                         id: editingRecipe.id || `custom_${Date.now()}`,
                         label: editRecipeLabel || editingRecipe.label,
-                        skills: editRecipeSkills.split(',').map(s => s.trim()).filter(s => s),
+                        skills,
                         hint: editRecipeHint || editingRecipe.hint
                       }
+
+                      // Try to persist to backend (user recipes only)
+                      const isNew = !editingRecipe.id
+                      const url = isNew
+                        ? '/api/uar/recipes'
+                        : `/api/uar/recipes/${editingRecipe.id}`
+                      const method = isNew ? 'POST' : 'PUT'
+                      try {
+                        const res = await fetch(url, {
+                          method,
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(newRecipe),
+                        })
+                        if (!res.ok && res.status !== 403 && res.status !== 409) {
+                          console.warn('Failed to save recipe to backend:', res.status)
+                        }
+                      } catch (e) {
+                        console.warn('Recipe backend sync failed:', e)
+                      }
+
                       setRecipes((prev) => {
                         let newRecipes
                         if (editingRecipe.id) {
@@ -2654,8 +2994,13 @@ export function UARPanel() {
                           // Add new recipe
                           newRecipes = [...prev, newRecipe]
                         }
+                        try {
+                          localStorage.setItem(RECIPES_KEY, JSON.stringify(newRecipes))
+                        } catch {
+                          /* ignore quota errors */
+                        }
                         setRecipeHistory((history) => {
-                          const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                          const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
                           setRecipeHistoryIndex((idx) => idx + 1)
                           return newHistory
                         })
@@ -2664,6 +3009,7 @@ export function UARPanel() {
                       setEditingRecipe(null)
                       setEditRecipeLabel('')
                       setEditRecipeSkills('')
+                      setBuilderSkills([])
                       setEditRecipeHint('')
                     }}
                   >
@@ -2675,6 +3021,7 @@ export function UARPanel() {
                       setEditingRecipe(null)
                       setEditRecipeLabel('')
                       setEditRecipeSkills('')
+                      setBuilderSkills([])
                       setEditRecipeHint('')
                     }}
                   >
@@ -2701,7 +3048,7 @@ export function UARPanel() {
                             const newRecipes = prev.filter(recipe => recipe.id !== r.id)
                             // Update history
                             setRecipeHistory((history) => {
-                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
                               setRecipeHistoryIndex((idx) => idx + 1)
                               return newHistory
                             })
@@ -2711,14 +3058,14 @@ export function UARPanel() {
                             const newRecipes = [...prev, r]
                             // Update history
                             setRecipeHistory((history) => {
-                              const newHistory = [...history.slice(0, recipeHistoryIndex + 1), newRecipes]
+                              const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
                               setRecipeHistoryIndex((idx) => idx + 1)
                               return newHistory
                             })
                             return newRecipes
                           }
                         })
-                      }}>
+                      }} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); (ev.currentTarget as HTMLDivElement).click() } }} tabIndex={0} role="button" aria-label={`${recipes.some(recipe => recipe.id === r.id) ? 'Deselect' : 'Select'} recipe ${r.label}`}>
                         <span className={styles.libraryItemName}>
                           {recipes.some(recipe => recipe.id === r.id) ? '✓ ' : ''}{r.label}
                         </span>
@@ -2732,10 +3079,13 @@ export function UARPanel() {
                           e.stopPropagation()
                           setEditingRecipe(r)
                           setEditRecipeLabel(r.label)
-                          setEditRecipeSkills(r.skills.join(', '))
+                          const skillsArr = r.skills.map((s) => (typeof s === 'string' ? s : '')).filter(Boolean)
+                          setEditRecipeSkills(skillsArr.join(', '))
+                          setBuilderSkills(skillsArr)
                           setEditRecipeHint(r.hint || '')
                         }}
                         title="Edit recipe"
+                        aria-label={`Edit recipe ${r.label}`}
                       >
                         ✏️
                       </button>
@@ -2746,6 +3096,58 @@ export function UARPanel() {
             </div>
             <div className={styles.modalFooter}>
               <button className={styles.footerButton} onClick={() => setRecipesPopupOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Runs History Panel */}
+      {showRunsPanel && (
+        <div className={styles.modalOverlay} onClick={() => setShowRunsPanel(false)} role="presentation">
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="runs-title">
+            <div className={styles.modalHeader}>
+              <strong id="runs-title">📜 Runs History</strong>
+              <button className={styles.modalCloseButton} onClick={() => setShowRunsPanel(false)} aria-label="Close runs history">✕</button>
+            </div>
+            <div className={styles.modalBody}>
+              {runsHistory.length === 0 ? (
+                <div className={styles.runsEmptyMessage}>
+                  No runs found. Execute a run to build history.
+                </div>
+              ) : (
+                <div className={styles.libraryPopupList}>
+                  {runsHistory.map((run) => (
+                    <div key={run.run_id || run.id} className={styles.libraryPopupItem}>
+                      <div className={styles.runsItemContent}>
+                        <span className={styles.libraryItemName}>
+                          {run.goal_id || 'Run'} — {run.status || 'unknown'}
+                        </span>
+                        <span className={styles.libraryItemSize}>
+                          {run.skills?.length || 0} skills · {run.events?.length || 0} events
+                        </span>
+                      </div>
+                      <button
+                        className={styles.createFolderButton}
+                        onClick={() => {
+                          if (run.events && Array.isArray(run.events)) {
+                            setEvents(run.events)
+                            eventCountRef.current = run.events.length
+                          }
+                          setShowRunsPanel(false)
+                        }}
+                        title="Replay events"
+                      >
+                        Replay
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.footerButton} onClick={() => setShowRunsPanel(false)}>
                 Close
               </button>
             </div>

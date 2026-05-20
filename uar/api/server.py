@@ -20,17 +20,22 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from starlette.websockets import WebSocketState
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, field_validator
+from pydantic import (
+    BaseModel,
+    field_validator,
+    ValidationError as PydanticValidationError,
+)
 
 from uar.core.contracts import GoalSpec
 from uar.core.exceptions import UARError, ValidationError, PathSecurityError
 from uar.core.planner import SimplePlanner
 from uar.core.replay import run_record_from_events
 from uar.core.orchestrator import build_orchestration_plan
-from uar.core.recipes import RECIPE_MAP
+from uar.core.recipes import DEFAULT_RECIPES
 from uar.api.advanced_endpoints import router as advanced_router
 from uar.core.validation import (
     validate_goal,
@@ -44,6 +49,9 @@ from .middleware import (
     auth_middleware,
     request_logging_middleware,
     build_rate_limit_key,
+    rate_limiter,
+    RATE_LIMITS,
+    apply_middleware,
 )
 from .tracing import trace_span
 from uar.api.metrics import get_metrics_collector
@@ -54,6 +62,18 @@ CHUNK_SIZE = 1024 * 64  # 64KB
 DEFAULT_BROWSE_LIMIT = 200
 BACKPRESSURE_DELAY = 0.1  # seconds
 SHUTDOWN_SLEEP = 0.1  # seconds
+
+# WebSocket robustness
+WS_HEARTBEAT_INTERVAL = 20.0  # seconds
+WS_HEARTBEAT_TIMEOUT = 60.0   # seconds without pong before disconnect
+WS_BATCH_SIZE = 10            # max events per WebSocket send batch
+WS_BATCH_TIMEOUT = 0.05       # seconds to wait before flushing partial batch
+
+# Streaming bounds
+MAX_STREAM_EVENTS = 5000
+# ^ hard cap on events per run to prevent memory exhaustion
+EVENT_BUFFER_SIZE = 200
+# ^ ring buffer size for SSE persistence
 
 # Configure logging
 logging.basicConfig(
@@ -100,6 +120,82 @@ BACKPRESSURE_ENABLED = (
 BACKPRESSURE_THRESHOLD = int(
     os.getenv("BACKPRESSURE_THRESHOLD", "100")
 )  # Max buffered events
+
+
+class AdaptiveBackpressure:
+    """Adjusts event emission delay based on observed client consumption rate.
+
+    Tracks the wall-clock time between successful ``yield`` (SSE) or
+    ``send_json`` (WebSocket) calls. If the client is slow to consume,
+    the delay increases. If fast, it decreases. This prevents flooding a
+    slow client while minimizing latency for fast ones.
+    """
+
+    def __init__(
+        self,
+        enabled: bool = True,
+        max_delay: float = 1.0,
+        min_delay: float = 0.0,
+        slow_threshold: float = 0.5,
+        fast_threshold: float = 0.1,
+        increment: float = 0.05,
+        decrement: float = 0.02,
+    ):
+        self.enabled = enabled
+        self.max_delay = max_delay
+        self.min_delay = min_delay
+        self.slow_threshold = slow_threshold
+        self.fast_threshold = fast_threshold
+        self.increment = increment
+        self.decrement = decrement
+        self._current_delay = 0.0
+        self._last_emit_time = 0.0
+
+    async def apply(self) -> None:
+        """Sleep if the adaptive delay > 0 and adjust delay for next call."""
+        if not self.enabled:
+            return
+        now = time.time()
+        if self._last_emit_time > 0:
+            emit_duration = now - self._last_emit_time
+            if emit_duration > self.slow_threshold:
+                self._current_delay = min(
+                    self._current_delay + self.increment,
+                    self.max_delay,
+                )
+            elif emit_duration < self.fast_threshold:
+                self._current_delay = max(
+                    self._current_delay - self.decrement,
+                    self.min_delay,
+                )
+            if self._current_delay > 0:
+                await asyncio.sleep(self._current_delay)
+        self._last_emit_time = time.time()
+
+
+async def _async_event_stream(executor, strategy, goal, timeout, cid=""):
+    """Bridge sync Executor.iter_events into an async stream.
+
+    Runs the blocking generator in the default thread pool so the
+    async event loop stays responsive.
+    """
+    loop = asyncio.get_event_loop()
+    it = executor.iter_events(
+        strategy, goal, timeout_seconds=timeout, correlation_id=cid
+    )
+
+    def _next():
+        try:
+            return next(it)
+        except StopIteration:
+            return None
+
+    while True:
+        event = await loop.run_in_executor(None, _next)
+        if event is None:
+            break
+        yield event
+
 
 # register skills
 import uar.skills.section_sum  # noqa
@@ -152,7 +248,10 @@ async def lifespan(app: FastAPI):
 
 
 # CORS configuration
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+CORS_ORIGINS = [
+    o for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    if o
+]
 CORS_ALLOW_CREDENTIALS = (
     os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower() == "true"
 )
@@ -175,6 +274,9 @@ app.add_middleware(
     allow_methods=[CORS_ALLOW_METHODS] if CORS_ALLOW_METHODS != "*" else ["*"],
     allow_headers=[CORS_ALLOW_HEADERS] if CORS_ALLOW_HEADERS != "*" else ["*"],
 )
+
+# Apply request logging, body parsing, and size-limit middleware
+apply_middleware(app)
 
 # Include advanced integrations router
 app.include_router(advanced_router)
@@ -318,13 +420,14 @@ class RunRequest(BaseModel):
                 )
             seen_ids.add(item["id"])
 
-            # Validate content based on type
+            # Note: Content validation (recipe exists, skill registered)
+            # is deferred to _build_goal() where metadata-provided
+            # recipe_definitions can be merged with canonical recipes.
             if item["type"] == "recipe":
-                if item["content"] not in RECIPE_MAP:
+                if not isinstance(item["content"], str) or not item["content"]:
                     raise ValueError(
-                        f"execution_order[{i}] references unknown "
-                        f"recipe: {item['content']}. "
-                        f"Available: {list(RECIPE_MAP.keys())}"
+                        f"execution_order[{i}] recipe content must be a "
+                        f"non-empty string"
                     )
             elif item["type"] == "skill":
                 # Import here to avoid circular dependency
@@ -377,6 +480,32 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         }
         metadata.update(extras)
 
+    # Build merged recipe map from canonical + user-provided definitions
+    # so user-created recipes sent in metadata are valid for execution.
+    recipe_definitions = metadata.pop("recipe_definitions", [])
+    merged_recipes: dict[str, dict[str, Any]] = dict(DEFAULT_RECIPES)
+    for recipe in recipe_definitions:
+        if (
+            isinstance(recipe, dict)
+            and "id" in recipe
+            and "skills" in recipe
+            and isinstance(recipe["skills"], list)
+        ):
+            merged_recipes[recipe["id"]] = recipe
+
+    # Validate execution_order recipe content against merged map
+    if req.execution_order:
+        for i, item in enumerate(req.execution_order):
+            if item.get("type") == "recipe":
+                content = item.get("content")
+                if content not in merged_recipes:
+                    raise ValidationError(
+                        f"execution_order[{i}] references unknown "
+                        f"recipe: {content}. "
+                        f"Available: {list(merged_recipes.keys())}",
+                        field="execution_order",
+                    )
+
     # Handle execution_order with nested recipe structure
     # Note: Recipe expansion is handled by the executor in
     # _expand_execution_order() to ensure a single source of truth.
@@ -385,6 +514,9 @@ def _build_goal(req: RunRequest) -> GoalSpec:
     if req.execution_order:
         # Store the execution order in metadata for the executor
         metadata["execution_order"] = req.execution_order
+        # Pass merged recipe definitions so the executor can expand
+        # user-created recipes as well as canonical ones.
+        metadata["recipe_definitions"] = list(merged_recipes.values())
         # For backward compatibility with old clients that don't use
         # execution_order, if skills is empty but execution_order is
         # provided, we don't expand here. The executor will handle
@@ -554,7 +686,6 @@ async def run_goal(
 @app.websocket("/api/uar/stream/ws")
 async def stream_goal_ws(
     websocket: WebSocket,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Execute a goal and stream events via WebSocket for real-time updates"""
     request_id = str(uuid.uuid4())
@@ -564,6 +695,38 @@ async def stream_goal_ws(
     # receiving the request body to allow skill-specific limits
     await websocket.accept()
     websocket.state.correlation_id = correlation_id
+
+    # Parse Authorization header manually because HTTPBearer
+    # depends on a Request object which is unavailable for
+    # WebSocket connections in FastAPI/TestClient.
+    auth_header = websocket.headers.get("authorization", "")
+    credentials: Optional[HTTPAuthorizationCredentials] = None
+    if auth_header.lower().startswith("bearer "):
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=auth_header[7:],
+        )
+
+    _goal_id = ""
+
+    def create_event(
+        event_type: str,
+        run_id: str,
+        skill=None,
+        payload=None,
+        error=None,
+    ):
+        return {
+            "schema_version": "uar.event.v1",
+            "type": event_type,
+            "run_id": run_id,
+            "goal_id": _goal_id,
+            "skill": skill,
+            "timestamp": time.time(),
+            "correlation_id": correlation_id,
+            "payload": payload or {},
+            "error": error,
+        }
 
     try:
         # Receive the run request from WebSocket with timeout
@@ -582,15 +745,21 @@ async def stream_goal_ws(
                 f"[{request_id}] WebSocket receive timeout after "
                 f"{websocket_timeout}s"
             )
-            await websocket.send_json({
-                "type": "error",
-                "error": "Receive timeout",
-                "message": (
-                    f"No data received within {websocket_timeout} seconds"
-                ),
-                "request_id": request_id,
-                "code": "RECEIVE_TIMEOUT"
-            })
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Receive timeout",
+                    payload={
+                        "message": (
+                            f"No data received within {websocket_timeout} "
+                            f"seconds"
+                        ),
+                        "request_id": request_id,
+                        "code": "RECEIVE_TIMEOUT",
+                    },
+                )
+            )
             await websocket.close()
             return
 
@@ -609,26 +778,53 @@ async def stream_goal_ws(
                 f"WebSocket request too large: {json_size} bytes > "
                 f"{max_body_size}"
             )
-            await websocket.send_json({
-                "type": "error",
-                "error": "Request body too large",
-                "message": f"Maximum body size is {max_body_size} bytes",
-                "request_id": request_id,
-                "code": "BODY_TOO_LARGE"
-            })
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Request body too large",
+                    payload={
+                        "message": (
+                            f"Maximum body size is {max_body_size} bytes"
+                        ),
+                        "request_id": request_id,
+                        "code": "BODY_TOO_LARGE",
+                    },
+                )
+            )
             await websocket.close()
             return
 
         try:
             req = RunRequest(**data)
         except ValidationError as e:
-            await websocket.send_json({
-                "type": "error",
-                "error": "Validation error",
-                "message": str(e),
-                "request_id": request_id,
-                "code": "VALIDATION_ERROR"
-            })
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Validation error",
+                    payload={
+                        "message": str(e),
+                        "request_id": request_id,
+                        "code": "VALIDATION_ERROR",
+                    },
+                )
+            )
+            await websocket.close()
+            return
+        except PydanticValidationError as e:
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Validation error",
+                    payload={
+                        "message": str(e),
+                        "request_id": request_id,
+                        "code": "VALIDATION_ERROR",
+                    },
+                )
+            )
             await websocket.close()
             return
 
@@ -664,15 +860,20 @@ async def stream_goal_ws(
                 f"[{request_id}] Rate limit check failed: "
                 f"{str(rate_limit_error)}"
             )
-            await websocket.send_json({
-                "type": "error",
-                "error": "Rate limit check failed",
-                "message": "Internal error checking rate limit",
-                "request_id": request_id,
-                "code": "RATE_LIMIT_ERROR",
-            })
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Rate limit check failed",
+                    payload={
+                        "message": "Internal error checking rate limit",
+                        "request_id": request_id,
+                        "code": "RATE_LIMIT_ERROR",
+                    },
+                )
+            )
             try:
-                await websocket.close(code=4000, reason="Rate limit error")
+                await websocket.close(code=1008, reason="Rate limit error")
             except Exception:
                 pass
             return
@@ -681,21 +882,24 @@ async def stream_goal_ws(
             logger.warning(
                 f"WebSocket rate limit exceeded for {rate_limit_key}"
             )
-            await websocket.send_json({
-                "type": "error",
-                "error": "Rate limit exceeded",
-                "message": (
-                    f"{limit} requests per {window} seconds allowed."
-                ),
-                "request_id": request_id,
-                "code": "RATE_LIMIT_EXCEEDED",
-                "skill": skill_name if skill_name else None,
-            })
-            # Use proper WebSocket close code 4000 (application error)
-            # Note: WebSocket close codes are limited to 0-999, 4000-4999
-            # 4000-4099 is reserved for application-specific codes
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Rate limit exceeded",
+                    payload={
+                        "message": (
+                            f"{limit} requests per {window} seconds allowed."
+                        ),
+                        "request_id": request_id,
+                        "code": "RATE_LIMIT_EXCEEDED",
+                        "skill": skill_name if skill_name else None,
+                    },
+                )
+            )
+            # Use standard WebSocket close code 1008 (policy violation)
             try:
-                await websocket.close(code=4000, reason="Rate limit exceeded")
+                await websocket.close(code=1008, reason="Rate limit exceeded")
             except Exception as close_error:
                 # If close fails, try without code
                 logger.warning(
@@ -728,43 +932,60 @@ async def stream_goal_ws(
 
             executor = Executor()
             timeout = req.timeout_seconds or 5.0
-            cid = getattr(websocket.state, "correlation_id", "")
-
-            def create_event(
-                event_type: str,
-                run_id: str,
-                skill=None,
-                payload=None,
-                error=None,
-            ):
-                """Create a properly formatted event."""
-                return {
-                    "schema_version": "uar.event.v1",
-                    "type": event_type,
-                    "run_id": run_id,
-                    "goal_id": strategy.goal_id,
-                    "skill": skill,
-                    "timestamp": time.time(),
-                    "correlation_id": cid,
-                    "payload": payload or {},
-                    "error": error,
-                }
+            _goal_id = strategy.goal_id
 
             # Execute and stream events
-            events = []
+            events: list[dict] = []
+            full_events: list[dict] = []
             persisted = False
+            event_count = 0
             try:
-                for event in executor.iter_events(
-                    strategy, goal, timeout_seconds=timeout, correlation_id=cid
+                async for event in _async_event_stream(
+                    executor, strategy, goal, timeout, correlation_id
                 ):
+                    event_count += 1
+                    if event_count >= MAX_STREAM_EVENTS:
+                        # Append triggering event so full_events is
+                        # accurate and persistence can succeed.
+                        events.append(event)
+                        full_events.append(event)
+                        err_event = create_event(
+                            "error",
+                            run_id="unknown",
+                            error=(
+                                f"Event limit reached ({MAX_STREAM_EVENTS})."
+                            ),
+                            payload={
+                                "request_id": request_id,
+                                "code": "EVENT_LIMIT",
+                            },
+                        )
+                        full_events.append(err_event)
+                        await websocket.send_json(err_event)
+                        # Emit synthetic complete so persistence succeeds
+                        comp_event = create_event(
+                            "complete",
+                            run_id="unknown",
+                            payload={
+                                "status": "failed",
+                                "errors": [
+                                    f"Event limit reached "
+                                    f"({MAX_STREAM_EVENTS})"
+                                ],
+                            },
+                        )
+                        full_events.append(comp_event)
+                        await websocket.send_json(comp_event)
+                        break
                     events.append(event)
+                    full_events.append(event)
                     await websocket.send_json(event)
 
                     # Persist to store on completion
                     if event.get("type") == "complete":
                         try:
                             record = run_record_from_events(
-                                events, strategy.ordered_skills
+                                full_events, strategy.ordered_skills
                             )
                             store.append(record)
                             persisted = True
@@ -793,10 +1014,10 @@ async def stream_goal_ws(
                 raise
 
             # Ensure persistence even if client disconnects
-            if events and not persisted:
+            if full_events and not persisted:
                 try:
                     record = run_record_from_events(
-                        events, strategy.ordered_skills
+                        full_events, strategy.ordered_skills
                     )
                     store.append(record)
                     logger.info(
@@ -864,6 +1085,179 @@ async def get_skills():
     return {"skills": registry.list()}
 
 
+def _user_recipes_path() -> str:
+    """Path to JSON file storing user-created recipes."""
+    from pathlib import Path
+    import os
+
+    root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
+    p = root / ".uar_data" / "user_recipes.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return str(p)
+
+
+def _load_user_recipes() -> dict[str, dict[str, Any]]:
+    """Load user-created recipes from disk."""
+    path = _user_recipes_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+
+def _save_user_recipes(recipes: dict[str, dict[str, Any]]) -> None:
+    """Persist user-created recipes to disk."""
+    path = _user_recipes_path()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(recipes, f, indent=2)
+
+
+@app.get("/api/uar/recipes")
+async def get_recipes():
+    """Return canonical + user-created recipe definitions.
+
+    Canonical recipes are sourced from ``DEFAULT_RECIPES``.  User
+    recipes are merged on top so the frontend sees a unified list.
+    """
+    user_recipes = _load_user_recipes()
+    recipes = []
+    seen = set()
+    # Canonical recipes first
+    for recipe_id, recipe in DEFAULT_RECIPES.items():
+        recipes.append(
+            {
+                "id": recipe_id,
+                "label": recipe.get("label", recipe_id),
+                "skills": recipe.get("skills", []),
+                "hint": recipe.get("hint", ""),
+            }
+        )
+        seen.add(recipe_id)
+    # User recipes appended (preserved across restarts)
+    for recipe_id, recipe in user_recipes.items():
+        if recipe_id not in seen:
+            recipes.append(
+                {
+                    "id": recipe_id,
+                    "label": recipe.get("label", recipe_id),
+                    "skills": recipe.get("skills", []),
+                    "hint": recipe.get("hint", ""),
+                }
+            )
+    return {"recipes": recipes}
+
+
+@app.post("/api/uar/recipes")
+async def create_recipe(recipe: dict[str, Any]):
+    """Create a new user recipe.
+
+    The recipe body must contain ``id``, ``label``, and ``skills``.
+    User recipes are persisted to ``.uar_data/user_recipes.json``.
+    """
+    recipe_id = recipe.get("id")
+    if not recipe_id or not isinstance(recipe_id, str):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "missing_id",
+                "message": "Recipe must have an 'id' string",
+            },
+        )
+    if recipe_id in DEFAULT_RECIPES:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "conflict",
+                "message": (
+                    f"Recipe '{recipe_id}' is a canonical recipe "
+                    f"and cannot be overwritten"
+                ),
+            },
+        )
+    skills = recipe.get("skills")
+    if not isinstance(skills, list) or not all(
+        isinstance(s, str) for s in skills
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_skills",
+                "message": "skills must be a list of strings",
+            },
+        )
+    user_recipes = _load_user_recipes()
+    user_recipes[recipe_id] = recipe
+    _save_user_recipes(user_recipes)
+    return {"created": recipe_id}
+
+
+@app.put("/api/uar/recipes/{recipe_id}")
+async def update_recipe(recipe_id: str, recipe: dict[str, Any]):
+    """Update an existing user recipe."""
+    if recipe_id in DEFAULT_RECIPES:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "forbidden",
+                "message": f"Cannot modify canonical recipe '{recipe_id}'",
+            },
+        )
+    user_recipes = _load_user_recipes()
+    if recipe_id not in user_recipes:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "not_found",
+                "message": f"Recipe '{recipe_id}' not found",
+            },
+        )
+    skills = recipe.get("skills")
+    if not isinstance(skills, list) or not all(
+        isinstance(s, str) for s in skills
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_skills",
+                "message": "skills must be a list of strings",
+            },
+        )
+    user_recipes[recipe_id] = recipe
+    _save_user_recipes(user_recipes)
+    return {"updated": recipe_id}
+
+
+@app.delete("/api/uar/recipes/{recipe_id}")
+async def delete_recipe(recipe_id: str):
+    """Delete a user recipe."""
+    if recipe_id in DEFAULT_RECIPES:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "forbidden",
+                "message": f"Cannot delete canonical recipe '{recipe_id}'",
+            },
+        )
+    user_recipes = _load_user_recipes()
+    if recipe_id not in user_recipes:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "not_found",
+                "message": f"Recipe '{recipe_id}' not found",
+            },
+        )
+    del user_recipes[recipe_id]
+    _save_user_recipes(user_recipes)
+    return {"deleted": recipe_id}
+
+
 @app.post(
     "/api/uar/stream",
     responses={
@@ -927,10 +1321,16 @@ async def stream_goal(
                 }
 
             async def generate():
-                events = []
+                # Bounded ring buffer: old events evicted when full.
+                # This prevents unbounded memory growth for long runs.
+                events: list[dict] = []
+                # Separate full list for persistence so we don't lose
+                # early events when the ring buffer wraps.
+                full_events: list[dict] = []
                 persisted = False
                 last_heartbeat = time.time()
-                heartbeat_interval = 30  # Send heartbeat every 30 seconds
+                heartbeat_interval = 30
+                event_count = 0
 
                 try:
                     # emit orchestration graph first
@@ -942,44 +1342,74 @@ async def stream_goal(
                         )
                     )
 
-                    for event in executor.iter_events(
-                        strategy,
-                        goal,
-                        timeout_seconds=timeout,
-                        correlation_id=cid,
+                    bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
+                    async for event in _async_event_stream(
+                        executor, strategy, goal, timeout, cid
                     ):
+                        if await request.is_disconnected():
+                            break
+                        event_count += 1
+                        if event_count >= MAX_STREAM_EVENTS:
+                            # Append triggering event so full_events is
+                            # accurate and persistence can succeed.
+                            full_events.append(event)
+                            err_event = create_event(
+                                "error",
+                                run_id="unknown",
+                                error=(
+                                    "Event limit reached "
+                                    f"({MAX_STREAM_EVENTS})."
+                                ),
+                            )
+                            full_events.append(err_event)
+                            yield emit(err_event)
+                            # Emit synthetic complete so persistence succeeds
+                            comp_event = create_event(
+                                "complete",
+                                run_id="unknown",
+                                payload={
+                                    "status": "failed",
+                                    "errors": [
+                                        f"Event limit reached "
+                                        f"({MAX_STREAM_EVENTS})"
+                                    ],
+                                },
+                            )
+                            full_events.append(comp_event)
+                            yield emit(comp_event)
+                            break
+
                         # Check if heartbeat needed
                         current_time = time.time()
-                        if current_time - last_heartbeat > heartbeat_interval:
+                        if (
+                            current_time - last_heartbeat
+                            > heartbeat_interval
+                        ):
                             yield emit(
                                 create_event(
                                     "heartbeat",
                                     run_id="pending",
-                                    payload={"timestamp": current_time},
+                                    payload={
+                                        "timestamp": current_time
+                                    },
                                 )
                             )
                             last_heartbeat = current_time
 
+                        # Ring buffer eviction
+                        if len(events) >= EVENT_BUFFER_SIZE:
+                            events.pop(0)
                         events.append(event)
+                        full_events.append(event)
 
-                        # Backpressure: slow down if too many events buffered
-                        if (
-                            BACKPRESSURE_ENABLED
-                            and len(events) > BACKPRESSURE_THRESHOLD
-                        ):
-                            logger.debug(
-                                f"Backpressure triggered: {len(events)} "
-                                f"events buffered, "
-                                f"delaying {BACKPRESSURE_DELAY}s"
-                            )
-                            await asyncio.sleep(BACKPRESSURE_DELAY)
+                        await bp.apply()
 
                         yield emit(event)
 
                     # Persist successful run
                     try:
                         record = run_record_from_events(
-                            events, strategy.ordered_skills
+                            full_events, strategy.ordered_skills
                         )
                         store.append(record)
                         persisted = True
@@ -1026,10 +1456,10 @@ async def stream_goal(
                 finally:
                     # Ensure persistence even if client disconnects or
                     # error occurred
-                    if events and not persisted:
+                    if full_events and not persisted:
                         try:
                             record = run_record_from_events(
-                                events, strategy.ordered_skills
+                                full_events, strategy.ordered_skills
                             )
                             store.append(record)
                             logger.info(
@@ -1143,6 +1573,293 @@ async def stream_goal(
             )
 
 
+@app.websocket("/ws/run")
+async def websocket_run(websocket: WebSocket):
+    """Execute a goal and stream events via WebSocket.
+
+    Includes heartbeat/ping-pong, batching, bounded buffers,
+    and graceful error handling.
+    """
+    request_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
+    _goal_id = ""
+
+    def create_event(
+        event_type: str,
+        run_id: str,
+        skill=None,
+        payload=None,
+        error=None,
+    ):
+        return {
+            "schema_version": "uar.event.v1",
+            "type": event_type,
+            "run_id": run_id,
+            "goal_id": _goal_id,
+            "skill": skill,
+            "timestamp": time.time(),
+            "correlation_id": correlation_id,
+            "payload": payload or {},
+            "error": error,
+        }
+
+    await websocket.accept()
+    heartbeat_task = None
+    heartbeat_stop = asyncio.Event()
+    try:
+        # Parse Authorization header manually because HTTPBearer
+        # depends on a Request object which is unavailable for
+        # WebSocket connections in FastAPI/TestClient.
+        auth_header = websocket.headers.get("authorization", "")
+        credentials: Optional[HTTPAuthorizationCredentials] = None
+        if auth_header.lower().startswith("bearer "):
+            credentials = HTTPAuthorizationCredentials(
+                scheme="Bearer",
+                credentials=auth_header[7:],
+            )
+
+        # Apply rate limiting
+        client_ip = (
+            websocket.client.host if websocket.client else "unknown"
+        )
+        rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
+        allowed, _ = rate_limiter.is_allowed(
+            rate_limit_key,
+            RATE_LIMITS.get(tier, RATE_LIMITS["default"])["requests"],
+            RATE_LIMITS.get(tier, RATE_LIMITS["default"])["window"],
+        )
+        if not allowed:
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Rate limit exceeded",
+                    payload={
+                        "request_id": request_id,
+                    },
+                )
+            )
+            await websocket.close(code=1008)
+            return
+
+        from uar.core.executor import Executor
+
+        websocket_timeout = int(
+            os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30")
+        )
+        try:
+            data = await asyncio.wait_for(
+                websocket.receive_json(),
+                timeout=websocket_timeout,
+            )
+        except asyncio.TimeoutError:
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Receive timeout",
+                    payload={
+                        "message": (
+                            f"No data received within {websocket_timeout}s"
+                        ),
+                        "request_id": request_id,
+                    },
+                )
+            )
+            await websocket.close()
+            return
+        try:
+            req = RunRequest(**data)
+        except PydanticValidationError as e:
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Validation error",
+                    payload={
+                        "message": str(e),
+                        "request_id": request_id,
+                        "code": "VALIDATION_ERROR",
+                    },
+                )
+            )
+            await websocket.close()
+            return
+        goal = _build_goal(req)
+        strategy = SimplePlanner().plan(goal)
+        plan = build_orchestration_plan(strategy)
+        executor = Executor()
+        timeout = req.timeout_seconds or 5.0
+        _goal_id = strategy.goal_id
+
+        # Send orchestration plan first
+        await websocket.send_json(
+            create_event(
+                "orchestration_plan",
+                run_id="pending",
+                payload={"graph": plan.to_graph()},
+            )
+        )
+
+        # Heartbeat: keep connection alive and detect stale clients
+        heartbeat_stop = asyncio.Event()
+
+        async def _heartbeat():
+            while not heartbeat_stop.is_set():
+                try:
+                    await asyncio.wait_for(
+                        heartbeat_stop.wait(),
+                        timeout=WS_HEARTBEAT_INTERVAL,
+                    )
+                except asyncio.TimeoutError:
+                    pass
+                if heartbeat_stop.is_set():
+                    break
+                try:
+                    await websocket.send_json(
+                        create_event(
+                            "heartbeat",
+                            run_id="pending",
+                            payload={"timestamp": time.time()},
+                        )
+                    )
+                except Exception:
+                    break
+
+        heartbeat_task = asyncio.create_task(_heartbeat())
+
+        # Bounded ring buffer for persistence + batching for throughput
+        events: list[dict] = []
+        full_events: list[dict] = []
+        batch: list[dict] = []
+        event_count = 0
+        batch_deadline: float | None = None
+
+        async def _flush_batch() -> None:
+            nonlocal batch, batch_deadline
+            if batch:
+                for ev in batch:
+                    try:
+                        await websocket.send_json(ev)
+                    except Exception:
+                        pass
+                batch = []
+                batch_deadline = None
+
+        bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
+        async for event in _async_event_stream(
+            executor, strategy, goal, timeout, correlation_id
+        ):
+            event_count += 1
+            if event_count >= MAX_STREAM_EVENTS:
+                # Append triggering event so full_events is accurate
+                # and persistence can succeed.
+                events.append(event)
+                full_events.append(event)
+                err_event = create_event(
+                    "error",
+                    run_id="unknown",
+                    error=(
+                        f"Event limit reached ({MAX_STREAM_EVENTS})."
+                    ),
+                )
+                full_events.append(err_event)
+                await websocket.send_json(err_event)
+                # Emit synthetic complete so persistence succeeds
+                comp_event = create_event(
+                    "complete",
+                    run_id="unknown",
+                    payload={
+                        "status": "failed",
+                        "errors": [
+                            f"Event limit reached "
+                            f"({MAX_STREAM_EVENTS})"
+                        ],
+                    },
+                )
+                full_events.append(comp_event)
+                await websocket.send_json(comp_event)
+                await _flush_batch()
+                break
+
+            # Ring buffer: overwrite oldest events once full
+            if len(events) >= EVENT_BUFFER_SIZE:
+                events.pop(0)
+            events.append(event)
+            full_events.append(event)
+
+            await bp.apply()
+
+            # Batching: accumulate events then flush
+            batch.append(event)
+            if batch_deadline is None:
+                batch_deadline = time.time() + WS_BATCH_TIMEOUT
+            if len(batch) >= WS_BATCH_SIZE:
+                await _flush_batch()
+            elif time.time() >= batch_deadline:
+                await _flush_batch()
+            # Terminal events must reach client immediately
+            if event.get("type") in ("complete", "error"):
+                await _flush_batch()
+
+        # Flush any remaining events
+        await _flush_batch()
+
+        # Persist run
+        if not full_events:
+            logger.warning(
+                f"[{request_id}] No events to persist for WebSocket run"
+            )
+        try:
+            if full_events:
+                record = run_record_from_events(
+                    full_events, strategy.ordered_skills
+                )
+                store.append(record)
+                await websocket.send_json(
+                    create_event(
+                        "persisted",
+                        run_id=record.run_id,
+                        payload={"run_id": record.run_id},
+                    )
+                )
+        except Exception as e:
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error=(
+                        "Execution completed but persistence failed: "
+                        f"{str(e)}"
+                    ),
+                )
+            )
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}", exc_info=True)
+        if websocket.client_state == WebSocketState.CONNECTED:
+            try:
+                await websocket.send_json(
+                    {"type": "error", "error": str(e)}
+                )
+            except Exception:
+                pass
+    finally:
+        heartbeat_stop.set()
+        if heartbeat_task and not heartbeat_task.done():
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
 @app.get(
     "/api/uar/runs",
     responses={
@@ -1213,6 +1930,39 @@ async def metrics_json_endpoint():
     return metrics.get_metrics()
 
 
+@app.get("/api/health/circuit-breakers")
+async def circuit_breaker_health():
+    """Circuit breaker status for all external services."""
+    from uar.core.circuit_breaker_decorator import (
+        get_circuit_breaker_states,
+        _circuit_breakers,
+    )
+
+    states = get_circuit_breaker_states()
+    details = {}
+    any_open = False
+    for name, cb in _circuit_breakers.items():
+        state = states.get(name, "unknown")
+        if state == "open":
+            any_open = True
+        details[name] = {
+            "state": state,
+            "failure_threshold": cb.failure_threshold,
+            "recovery_timeout": cb.recovery_timeout,
+            "failures": cb._failures,
+            "pending_calls": cb._pending_calls,
+        }
+
+    status_code = 200 if not any_open else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if not any_open else "degraded",
+            "circuits": details,
+        },
+    )
+
+
 @app.get("/api/health/ready")
 async def readiness_probe():
     """Kubernetes readiness probe — service is ready to accept traffic."""
@@ -1243,7 +1993,25 @@ async def readiness_probe():
     except Exception:
         checks["ollama_reachable"] = False
 
-    all_ready = all(checks.values())
+    # Check circuit breaker states (non-blocking, informational)
+    try:
+        from uar.core.circuit_breaker_decorator import (
+            get_circuit_breaker_states,
+        )
+
+        cb_states = get_circuit_breaker_states()
+        open_circuits = [
+            name for name, state in cb_states.items() if state == "open"
+        ]
+        checks["circuit_breakers"] = len(open_circuits) == 0
+        checks["open_circuits"] = open_circuits
+    except Exception:
+        checks["circuit_breakers"] = True
+        checks["open_circuits"] = []
+
+    all_ready = all(
+        v for k, v in checks.items() if isinstance(v, bool)
+    )
     status_code = 200 if all_ready else 503
     return JSONResponse(
         status_code=status_code,
@@ -1510,6 +2278,9 @@ async def docs_upload(files: List[UploadFile] = File(...)):
         # Atomic rename from temp to final destination
         if size >= 0:
             try:
+                # Remove placeholder so rename works on Windows
+                if dest.exists():
+                    dest.unlink()
                 temp_dest.rename(dest)
                 saved.append(
                     {
@@ -1900,6 +2671,95 @@ async def docs_create_folder(
                 "request_id": request_id,
             },
         )
+
+
+@app.get("/api/uar/cache/stats")
+async def cache_stats(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Cache statistics for all backends."""
+    auth_middleware(credentials)
+    from uar.core.cache import get_cache
+
+    cache = get_cache()
+    return cache.get_stats()
+
+
+@app.post("/api/uar/cache/invalidate")
+async def cache_invalidate(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Invalidate cache entries by skill or clear all."""
+    auth_middleware(credentials)
+    body = await request.json()
+    skill_name = body.get("skill_name")
+    from uar.core.cache import clear_global_cache
+
+    clear_global_cache(skill_name=skill_name)
+    return {
+        "invalidated": True,
+        "skill_name": skill_name,
+        "message": (
+            f"Cache cleared for '{skill_name}'"
+            if skill_name
+            else "All cache cleared"
+        ),
+    }
+
+
+@app.post("/api/uar/cache/warm")
+async def cache_warm(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Warm cache by executing skills with provided inputs.
+
+    Accepts a list of {skill, goal, ctx} objects and pre-computes
+    results, storing them in the cache.
+    """
+    auth_middleware(credentials)
+    body = await request.json()
+    entries = body.get("entries", [])
+    if not isinstance(entries, list):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_entries",
+                "message": "entries must be a list",
+            },
+        )
+
+    from uar.core.cache import get_cache
+    from uar.core.registry import registry
+    from uar.core.contracts import GoalSpec, PipelineContext
+    from uar.core.executor import _run_with_timeout
+
+    cache = get_cache()
+    warmed = 0
+    failed = 0
+    for entry in entries:
+        skill_name = entry.get("skill")
+        goal_text = entry.get("goal", "")
+        ctx_data = entry.get("ctx", {})
+        if not skill_name or not registry.is_registered(skill_name):
+            failed += 1
+            continue
+        try:
+            goal = GoalSpec(
+                id="warm", user_intent=goal_text, objective=goal_text,
+                metadata={},
+            )
+            ctx = PipelineContext(goal=goal)
+            ctx.data.update(ctx_data)
+            fn = registry.get(skill_name)
+            result = _run_with_timeout(fn, ctx, timeout_seconds=60.0)
+            cache.set(skill_name, ctx.data, goal_text, result)
+            warmed += 1
+        except Exception:
+            failed += 1
+
+    return {"warmed": warmed, "failed": failed, "total": len(entries)}
 
 
 @app.get("/api/status")

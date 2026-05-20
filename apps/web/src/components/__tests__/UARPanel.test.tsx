@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import UARPanel from '../UARPanel'
+import { UARPanel } from '../UARPanel'
 
 // @ts-ignore - global is provided by Vitest
 declare const global: any
@@ -63,7 +63,7 @@ describe('UARPanel', () => {
     it('should render without crashing', async () => {
       render(<UARPanel />)
       await waitFor(() => {
-        expect(screen.getByText('UAR Live System')).toBeInTheDocument()
+        expect(screen.getByText(/Universal Agent Runtime \(UAR\)/)).toBeInTheDocument()
       })
     })
 

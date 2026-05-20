@@ -4,6 +4,8 @@ export type RuntimeEventType =
   | 'skill_start'
   | 'skill_complete'
   | 'skill_failed'
+  | 'recipe_start'
+  | 'recipe_end'
   | 'error'
   | 'complete'
 

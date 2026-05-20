@@ -31,6 +31,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
 
 
 @register_skill("anthropic_chat")
+@with_circuit_breaker("anthropic", failure_threshold=5, recovery_timeout=60.0)
 def anthropic_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with Anthropic Claude models.
 
@@ -162,6 +164,7 @@ def anthropic_chat(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("anthropic_completion")
+@with_circuit_breaker("anthropic", failure_threshold=5, recovery_timeout=60.0)
 def anthropic_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with Anthropic Claude models.
 
@@ -228,6 +231,7 @@ def anthropic_completion(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("anthropic_embedding")
+@with_circuit_breaker("anthropic", failure_threshold=5, recovery_timeout=60.0)
 def anthropic_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings using Anthropic (if supported).
 

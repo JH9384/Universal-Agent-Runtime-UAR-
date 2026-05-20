@@ -1,11 +1,15 @@
 import concurrent.futures
 import copy
+import gc
+import hashlib
+import json
 import logging
 import os
 import random
+import threading
 import time
 import uuid
-from typing import Iterator, Dict, Any, List
+from typing import Iterator, Dict, Any, List, Tuple
 
 from .cache import get_cache
 from .contracts import PipelineContext, RunRecord, StrategySpec
@@ -13,6 +17,20 @@ from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .registry import registry
 from .validation import validate_timeout
 from .recipes import DEFAULT_RECIPES
+
+# GC hint threshold: trigger gc.collect() after runs with many events
+# to reduce memory pressure from accumulated intermediate objects.
+GC_EVENT_THRESHOLD = int(os.getenv("UAR_GC_THRESHOLD", "50"))
+
+# Module-level cache for recipe expansion results.
+# Caches (ordered_skills, recipe_markers) keyed by execution_order hash.
+# This avoids repeated expansion of the same recipes across runs.
+_RECIPE_EXPANSION_CACHE: Dict[str, Tuple[List[str], List[Dict[str, Any]]]] = {}
+_MAX_EXPANSION_CACHE_SIZE = 100
+
+# Shared thread pool for _run_with_timeout to avoid per-skill churn.
+_TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+_TIMEOUT_POOL_LOCK = threading.Lock()
 
 
 def _estimate_size(obj, max_depth=3, current_depth=0):
@@ -229,10 +247,20 @@ def _expand_execution_order(
     return skills
 
 
+MAX_RECIPE_DEPTH = 10
+
+
 def _expand_execution_order_with_markers(
-    execution_order: List[Dict[str, Any]]
+    execution_order: List[Dict[str, Any]],
+    _visited: set[str] | None = None,
+    _depth: int = 0,
+    _recipe_map: Dict[str, Dict[str, Any]] | None = None,
 ) -> tuple[List[str], List[Dict[str, Any]]]:
     """Expand execution_order, returning ``(skills, recipe_markers)``.
+
+    Supports **nested recipes** (a recipe may reference another recipe
+    in its ``skills`` list).  Circular recipe references are detected
+    and raise :class:`ValidationError`.
 
     ``recipe_markers`` is a list of
     ``{"index": <int>, "kind": "start"|"end", "recipe_id": <str>,
@@ -241,13 +269,33 @@ def _expand_execution_order_with_markers(
     executor consumes this to emit ``recipe_start``/``recipe_end``
     events while preserving the existing flattened execution path.
 
+    Args:
+        execution_order: List of typed items to expand.
+        _visited: Internal set tracking visited recipe IDs for
+            circular dependency detection.
+        _depth: Internal recursion depth counter.
+        _recipe_map: Optional recipe map overriding ``DEFAULT_RECIPES``.
+            Used when the request includes user-created recipes in
+            metadata.
+
     Raises:
-        ValidationError: If an unknown recipe is referenced.
+        ValidationError: If an unknown recipe is referenced, a
+        circular dependency is detected, or max nesting depth is
+        exceeded.
     """
     from .exceptions import ValidationError
 
+    recipe_map = _recipe_map if _recipe_map is not None else DEFAULT_RECIPES
+    visited = _visited if _visited is not None else set()
     skills: List[str] = []
     markers: List[Dict[str, Any]] = []
+
+    if _depth > MAX_RECIPE_DEPTH:
+        raise ValidationError(
+            f"Recipe nesting exceeds maximum depth ({MAX_RECIPE_DEPTH}). "
+            f"This may indicate a circular dependency or excessively "
+            f"deep recipe hierarchy."
+        )
 
     for i, item in enumerate(execution_order):
         item_type = item.get('type')
@@ -260,34 +308,88 @@ def _expand_execution_order_with_markers(
                     f"execution_order[{i}] has recipe type but "
                     f"missing content field"
                 )
-            recipe = DEFAULT_RECIPES.get(content)
+            if content in visited:
+                raise ValidationError(
+                    f"Circular recipe dependency detected: "
+                    f"recipe '{content}' references itself (directly or "
+                    f"indirectly)"
+                )
+            recipe = recipe_map.get(content)
             if recipe is None:
+                available = list(recipe_map.keys())
                 raise ValidationError(
                     f"execution_order[{i}] references unknown recipe: "
-                    f"{content}. Available recipes: "
-                    f"{list(DEFAULT_RECIPES.keys())}"
+                    f"{content}. Available recipes: {available}"
                 )
-            recipe_skills = recipe.get('skills', [])
-            if not isinstance(recipe_skills, list):
+
+            recipe_items = recipe.get('skills', [])
+            if not isinstance(recipe_items, list):
                 logger.warning(
                     "Recipe %s has invalid skills type: %s. Expected list.",
                     content,
-                    type(recipe_skills),
+                    type(recipe_items),
                 )
-                recipe_skills = []
+                recipe_items = []
 
-            valid_skills = [
-                s for s in recipe_skills
-                if isinstance(s, str) and s
-            ]
-            for skipped in (
-                s for s in recipe_skills if not isinstance(s, str) or not s
-            ):
-                logger.warning(
-                    "Recipe %s has invalid skill: %s. Skipping.",
-                    content,
-                    skipped,
-                )
+            # Convert recipe skills into typed items for recursion.
+            # Supports flat strings or nested lists for parallel groups.
+            typed_items: List[Dict[str, Any]] = []
+            for s in recipe_items:
+                if isinstance(s, list):
+                    for sub in s:
+                        if not isinstance(sub, str) or not sub:
+                            logger.warning(
+                                "Recipe %s has invalid skill in group: "
+                                "%s. Skipping.",
+                                content,
+                                sub,
+                            )
+                            continue
+                        nested_id = (
+                            f"{instance_id}:{sub}" if instance_id else sub
+                        )
+                        if sub in recipe_map:
+                            typed_items.append(
+                                {
+                                    "type": "recipe",
+                                    "content": sub,
+                                    "id": nested_id,
+                                }
+                            )
+                        else:
+                            typed_items.append(
+                                {
+                                    "type": "skill",
+                                    "content": sub,
+                                    "id": nested_id,
+                                }
+                            )
+                elif isinstance(s, str) and s:
+                    nested_id = (
+                        f"{instance_id}:{s}" if instance_id else s
+                    )
+                    if s in recipe_map:
+                        typed_items.append(
+                            {
+                                "type": "recipe",
+                                "content": s,
+                                "id": nested_id,
+                            }
+                        )
+                    else:
+                        typed_items.append(
+                            {
+                                "type": "skill",
+                                "content": s,
+                                "id": nested_id,
+                            }
+                        )
+                else:
+                    logger.warning(
+                        "Recipe %s has invalid skill: %s. Skipping.",
+                        content,
+                        s,
+                    )
 
             start_index = len(skills)
             markers.append(
@@ -296,9 +398,30 @@ def _expand_execution_order_with_markers(
                     "kind": "start",
                     "recipe_id": content,
                     "instance_id": instance_id,
+                    "max_retries": item.get("max_retries", 0),
+                    "parameters": recipe.get("parameters", {}),
+                    "condition": recipe.get("condition"),
                 }
             )
-            skills.extend(valid_skills)
+            # Recursively expand, tracking visited recipes
+            visited.add(content)
+            try:
+                nested_skills, nested_markers = (
+                    _expand_execution_order_with_markers(
+                        typed_items,
+                        _visited=visited,
+                        _depth=_depth + 1,
+                        _recipe_map=recipe_map,
+                    )
+                )
+            finally:
+                visited.discard(content)
+            skills.extend(nested_skills)
+            # Adjust nested marker indices to account for the current offset
+            offset = start_index
+            for m in nested_markers:
+                m["index"] = m.get("index", 0) + offset
+            markers.extend(nested_markers)
             markers.append(
                 {
                     "index": len(skills),
@@ -371,34 +494,18 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
     # Validate timeout to prevent negative or zero values
     timeout_seconds = max(0.1, timeout_seconds)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(fn, ctx)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except concurrent.futures.TimeoutError as exc:
-            # Cancel the future - this signals cancellation but doesn't
-            # guarantee the thread stops immediately (Python limitation)
-            future.cancel()
-            # Wait briefly for the thread to clean up
-            try:
-                future.result(timeout=0.1)
-            except (
-                concurrent.futures.TimeoutError,
-                concurrent.futures.CancelledError,
-            ):
-                pass
-            raise TimeoutError(timeout_seconds) from exc
-        except Exception:
-            # Ensure future is cancelled on any exception
-            future.cancel()
-            try:
-                future.result(timeout=0.1)
-            except (
-                concurrent.futures.TimeoutError,
-                concurrent.futures.CancelledError,
-            ):
-                pass
-            raise
+    # Shared pool avoids per-skill churn.
+    with _TIMEOUT_POOL_LOCK:
+        pool = _TIMEOUT_POOL
+    future = pool.submit(fn, ctx)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError as exc:
+        future.cancel()
+        raise TimeoutError(timeout_seconds) from exc
+    except Exception:
+        future.cancel()
+        raise
 
 
 def _event(
@@ -436,31 +543,64 @@ class Executor:
         timeout_seconds = validate_timeout(timeout_seconds)
 
         # Check for execution_order in goal metadata
-        execution_order = getattr(goal, "metadata", {}).get("execution_order")
+        goal_metadata = getattr(goal, "metadata", {}) or {}
+        execution_order = goal_metadata.get("execution_order")
         recipe_markers: List[Dict[str, Any]] = []
         if execution_order and isinstance(execution_order, list):
+            # Build optional recipe map from metadata-provided definitions
+            # so user-created recipes sent by the frontend are expanded.
+            recipe_map: Dict[str, Dict[str, Any]] | None = None
+            raw_defs = goal_metadata.get("recipe_definitions")
+            if raw_defs and isinstance(raw_defs, list):
+                recipe_map = dict(DEFAULT_RECIPES)
+                for r in raw_defs:
+                    if isinstance(r, dict) and "id" in r:
+                        recipe_map[r["id"]] = r
+
             # Expand execution_order to a flat skill list AND collect
             # recipe-boundary markers so the runtime can emit
             # ``recipe_start``/``recipe_end`` events while still
             # executing the flattened sequence.
-            ordered_skills, recipe_markers = (
-                _expand_execution_order_with_markers(execution_order)
-            )
+            # Use a cache keyed by execution_order + recipe_map to avoid
+            # repeated expansion of the same recipes across runs.
+            cache_key = None
+            if recipe_map is not None:
+                cache_key = hashlib.md5(
+                    json.dumps(
+                        [execution_order, sorted(
+                            (k, v.get("skills", []))
+                            for k, v in recipe_map.items()
+                        )],
+                        sort_keys=True,
+                        default=str,
+                    ).encode()
+                ).hexdigest()
+            if cache_key and cache_key in _RECIPE_EXPANSION_CACHE:
+                ordered_skills, recipe_markers = _RECIPE_EXPANSION_CACHE[
+                    cache_key
+                ]
+            else:
+                ordered_skills, recipe_markers = (
+                    _expand_execution_order_with_markers(
+                        execution_order, _recipe_map=recipe_map
+                    )
+                )
+                if cache_key:
+                    if (
+                        len(_RECIPE_EXPANSION_CACHE)
+                        >= _MAX_EXPANSION_CACHE_SIZE
+                    ):
+                        _RECIPE_EXPANSION_CACHE.pop(
+                            next(iter(_RECIPE_EXPANSION_CACHE))
+                        )
+                    _RECIPE_EXPANSION_CACHE[cache_key] = (
+                        ordered_skills,
+                        recipe_markers,
+                    )
             if ordered_skills:
                 strategy = StrategySpec(
                     goal_id=strategy.goal_id,
                     ordered_skills=ordered_skills
-                )
-                yield _event(
-                    "orchestration_plan",
-                    run_id=str(uuid.uuid4()),
-                    goal_id=strategy.goal_id,
-                    payload={
-                        "execution_order": execution_order,
-                        "expanded_skills": ordered_skills,
-                        "recipe_markers": recipe_markers,
-                    },
-                    correlation_id=correlation_id
                 )
 
         if not strategy.ordered_skills:
@@ -473,16 +613,24 @@ class Executor:
         outputs = []
         errors = []
 
+        # Execution metrics
+        _metrics_start = time.time()
+        _metrics_event_count = 0
+        _metrics_skill_times: Dict[str, float] = {}
+        _metrics_cache_hits = 0
+        _metrics_cache_misses = 0
+
         # Get cache instance
         cache = get_cache()
         enable_cache = getattr(goal, "metadata", {}).get("enable_cache", True)
 
         # Thread-safe context for parallel execution
-        import threading
         ctx_lock = threading.Lock()
 
         # Local helper so every event carries the correlation ID
         def _ev(event_type: str, skill=None, payload=None, error=None):
+            nonlocal _metrics_event_count
+            _metrics_event_count += 1
             return _event(
                 event_type,
                 run_id,
@@ -528,6 +676,17 @@ class Executor:
             },
         )
 
+        # Emit orchestration plan after start so event contract is preserved
+        if execution_order and ordered_skills:
+            yield _ev(
+                "orchestration_plan",
+                payload={
+                    "execution_order": execution_order,
+                    "expanded_skills": ordered_skills,
+                    "recipe_markers": recipe_markers,
+                },
+            )
+
         # Group skills for parallel execution
         enable_parallel = getattr(
             goal, "metadata", {}
@@ -538,8 +697,107 @@ class Executor:
             else [[s] for s in strategy.ordered_skills]
         )
 
-        for skill_group in skill_groups:
-            if len(skill_group) == 1:
+        # Build O(1) marker lookup for recipe_start/recipe_end emission
+        # keyed by index in the flat ordered_skills list
+        marker_index: Dict[int, List[Dict[str, Any]]] = {}
+        for m in recipe_markers:
+            idx = m.get("index", 0)
+            marker_index.setdefault(idx, []).append(m)
+
+        current_idx = 0
+        # Track recipe end markers that have been yielded so that
+        # we can emit any missed ``recipe_end`` events when the
+        # skill loop breaks early due to an error.
+        yielded_end_markers: set[int] = set()
+        # Track recipe start times for duration metrics
+        recipe_start_times: Dict[str, float] = {}
+        # Recipe retry tracking
+        recipe_snapshots: Dict[str, Any] = {}
+        recipe_retry_remaining: Dict[str, int] = {}
+        recipe_start_skill_idx: Dict[str, int] = {}
+        recipe_error_lists: Dict[str, List[str]] = {}
+        active_recipe_stack: List[str] = []
+        skip_to_recipe_end: str = ""
+
+        def _add_error(error_str: str) -> None:
+            if active_recipe_stack:
+                recipe_error_lists[active_recipe_stack[-1]].append(error_str)
+            else:
+                errors.append(error_str)
+
+        def _eval_condition(condition: Any, data: Dict[str, Any]) -> bool:
+            if not condition or not isinstance(condition, dict):
+                return True
+            key = condition.get("key", "")
+            if not key:
+                return True
+            if "exists" in condition:
+                return key in data
+            if "equals" in condition:
+                return data.get(key) == condition["equals"]
+            if "not_equals" in condition:
+                return data.get(key) != condition["not_equals"]
+            return True
+
+        # Map flat skill index -> group index for rewinding on retry.
+        # Every flat index that falls inside a group maps to that group.
+        flat_idx_to_group: Dict[int, int] = {}
+        temp_flat = 0
+        for gi, sg in enumerate(skill_groups):
+            for _ in range(len(sg)):
+                flat_idx_to_group[temp_flat] = gi
+                temp_flat += 1
+        flat_idx_to_group[temp_flat] = len(skill_groups)
+
+        group_idx = 0
+        while group_idx < len(skill_groups):
+            skill_group = skill_groups[group_idx]
+            # Emit recipe_start events for markers at this group's start index
+            for marker in marker_index.get(current_idx, []):
+                if marker.get("kind") == "start":
+                    instance_id = marker.get("instance_id", "")
+                    condition = marker.get("condition")
+                    if not _eval_condition(condition, ctx.data):
+                        skip_to_recipe_end = instance_id
+                        yield _ev(
+                            "recipe_skipped",
+                            payload={
+                                "recipe_id": marker.get("recipe_id"),
+                                "instance_id": instance_id,
+                                "reason": "condition_false",
+                            },
+                        )
+                        continue
+                    recipe_start_times[instance_id] = time.time()
+                    params = marker.get("parameters", {})
+                    # Snapshot BEFORE pushing params so retry is clean.
+                    if instance_id not in recipe_snapshots:
+                        recipe_snapshots[instance_id] = copy.deepcopy(ctx.data)
+                        recipe_retry_remaining[instance_id] = marker.get(
+                            "max_retries", 0
+                        )
+                        recipe_start_skill_idx[instance_id] = current_idx
+                        recipe_error_lists[instance_id] = []
+                    if params:
+                        # Use stack so nested recipes don't overwrite
+                        # parent params
+                        stack = ctx.data.setdefault("_recipe_params", [])
+                        stack.append(params)
+                    yield _ev(
+                        "recipe_start",
+                        payload={
+                            "recipe_id": marker.get("recipe_id"),
+                            "instance_id": instance_id,
+                            "parameters": params,
+                        },
+                    )
+                    if instance_id not in active_recipe_stack:
+                        active_recipe_stack.append(instance_id)
+            execution_broken = False
+            if skip_to_recipe_end:
+                # Skip skill execution while fast-forwarding to recipe end
+                pass
+            elif len(skill_group) == 1:
                 # Sequential execution for single skill
                 skill_name = skill_group[0]
                 yield _ev("skill_start", skill=skill_name)
@@ -560,8 +818,16 @@ class Executor:
                         skill=skill_name,
                         error=error_msg,
                     )
-                    errors.append(f"{skill_name}: {error_msg}")
-                    break
+                    _add_error(f"{skill_name}: {error_msg}")
+                    if (
+                        active_recipe_stack
+                        and recipe_retry_remaining.get(
+                            active_recipe_stack[-1], 0
+                        ) > 0
+                    ):
+                        skip_to_recipe_end = active_recipe_stack[-1]
+                    else:
+                        execution_broken = True
 
                 # Check cache first if enabled (outside retry loop)
                 # Note: cache.get() is thread-safe internally,
@@ -574,6 +840,7 @@ class Executor:
                         goal.objective,
                     )
                 if cached_result is not None:
+                    _metrics_cache_hits += 1
                     # Validate cached result against output guardrails
                     output_violations = _validate_output_guardrails(
                         cached_result, skill_name
@@ -589,6 +856,7 @@ class Executor:
                         )
                         # Treat cache miss and execute normally
                         cached_result = None
+                        _metrics_cache_misses += 1
                     else:
                         with ctx_lock:
                             ctx.data[skill_name] = cached_result
@@ -603,6 +871,7 @@ class Executor:
                             },
                         )
                 else:
+                    _metrics_cache_misses += 1
                     # No cache hit, execute with retry logic
                     max_retries = get_max_retries(skill_name)
                     last_error = None
@@ -610,8 +879,12 @@ class Executor:
                     for attempt in range(max_retries + 1):
                         try:
                             fn = registry.get(skill_name)
+                            _skill_t0 = time.time()
                             result = _run_with_timeout(
                                 fn, ctx, timeout_seconds
+                            )
+                            _metrics_skill_times[skill_name] = (
+                                time.time() - _skill_t0
                             )
 
                             # Output guardrails check
@@ -680,18 +953,38 @@ class Executor:
                                     error=str(last_error),
                                     payload={"attempts": attempt + 1},
                                 )
-                                errors.append(
+                                _add_error(
                                     f"{skill_name}: {str(last_error)}"
                                 )
-                                break
+                                if (
+                                    active_recipe_stack
+                                    and recipe_retry_remaining.get(
+                                        active_recipe_stack[-1], 0
+                                    ) > 0
+                                ):
+                                    skip_to_recipe_end = (
+                                        active_recipe_stack[-1]
+                                    )
+                                else:
+                                    execution_broken = True
                         except Exception as exc:
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
                                 error=str(exc),
                             )
-                            errors.append(f"{skill_name}: {str(exc)}")
-                            break
+                            _add_error(f"{skill_name}: {str(exc)}")
+                            if (
+                                active_recipe_stack
+                                and recipe_retry_remaining.get(
+                                    active_recipe_stack[-1], 0
+                                ) > 0
+                            ):
+                                skip_to_recipe_end = (
+                                    active_recipe_stack[-1]
+                                )
+                            else:
+                                execution_broken = True
             else:
                 # Parallel execution for group of skills
                 yield _ev(
@@ -749,6 +1042,7 @@ class Executor:
                     else:
                         # Cache miss, add to execution list
                         skills_to_execute.append(skill_name)
+                        _metrics_cache_misses += 1
 
                 # Execute non-cached skills in parallel
                 # Limit max workers to prevent resource exhaustion
@@ -757,6 +1051,9 @@ class Executor:
                     max_workers=max_workers
                 ) as pool:
                     future_to_skill = {}
+                    future_to_start_time: Dict[
+                        concurrent.futures.Future, float
+                    ] = {}
                     for skill_name in skills_to_execute:
                         # Input guardrails check before parallel execution
                         input_violations = _validate_input_guardrails(
@@ -764,20 +1061,15 @@ class Executor:
                         )
                         if input_violations:
                             error_msg = (
-                                "Guardrail violations: " +
-                                ", ".join(input_violations)
-                            )
-                            logger.warning(
                                 f"Input guardrails failed for "
-                                f"{skill_name}: {error_msg}"
+                                f"{skill_name}: " + ", ".join(input_violations)
                             )
+                            logger.warning(error_msg)
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
                                 error=error_msg,
                             )
-                            errors.append(f"{skill_name}: {error_msg}")
-                            # If fail_fast is enabled, cancel all futures
                             if fail_fast:
                                 break
                             continue
@@ -803,11 +1095,13 @@ class Executor:
                         # This is a performance trade-off for correctness.
                         ctx_copy = PipelineContext(goal=goal)
                         ctx_copy.data = copy.deepcopy(ctx.data)
+                        _skill_t0 = time.time()
                         future = pool.submit(
                             _run_with_timeout, fn, ctx_copy,
                             timeout_seconds
                         )
                         future_to_skill[future] = skill_name
+                        future_to_start_time[future] = _skill_t0
 
                     # Track if any skill failed for fail_fast logic
                     any_failed = False
@@ -816,6 +1110,7 @@ class Executor:
                         future_to_skill
                     ):
                         skill_name = future_to_skill[future]
+                        _skill_t0 = future_to_start_time.get(future, 0)
                         try:
                             result = future.result()
 
@@ -839,12 +1134,16 @@ class Executor:
                                     skill=skill_name,
                                     error=error_msg,
                                 )
-                                errors.append(f"{skill_name}: {error_msg}")
+                                _add_error(f"{skill_name}: {error_msg}")
                                 any_failed = True
                                 if fail_fast:
                                     break
                                 continue
 
+                            if _skill_t0:
+                                _metrics_skill_times[skill_name] = (
+                                    time.time() - _skill_t0
+                                )
                             parallel_results[skill_name] = result
 
                             yield _ev(
@@ -858,7 +1157,7 @@ class Executor:
                                 skill=skill_name,
                                 error=str(exc),
                             )
-                            errors.append(f"{skill_name}: {str(exc)}")
+                            _add_error(f"{skill_name}: {str(exc)}")
                             any_failed = True
                             if fail_fast:
                                 break
@@ -868,7 +1167,7 @@ class Executor:
                                 skill=skill_name,
                                 error=str(exc),
                             )
-                            errors.append(f"{skill_name}: {str(exc)}")
+                            _add_error(f"{skill_name}: {str(exc)}")
                             any_failed = True
                             if fail_fast:
                                 break
@@ -911,6 +1210,123 @@ class Executor:
                     payload={"skills": skill_group}
                 )
 
+            # Advance flat skill index and emit recipe_end events for
+            # markers at this position (end markers use exclusive index)
+            current_idx += len(skill_group)
+            group_idx += 1
+            retry_triggered = False
+            for marker in marker_index.get(current_idx, []):
+                if marker.get("kind") == "end":
+                    marker_id = id(marker)
+                    instance_id = marker.get("instance_id", "")
+                    if (
+                        active_recipe_stack
+                        and active_recipe_stack[-1] == instance_id
+                    ):
+                        active_recipe_stack.pop()
+                        # Pop recipe params when recipe leaves the stack
+                        params_stack = ctx.data.get("_recipe_params")
+                        if params_stack and isinstance(params_stack, list):
+                            params_stack.pop()
+
+                    if skip_to_recipe_end == instance_id:
+                        skip_to_recipe_end = ""
+
+                    if recipe_error_lists.get(instance_id):
+                        if recipe_retry_remaining.get(instance_id, 0) > 0:
+                            recipe_retry_remaining[instance_id] -= 1
+                            attempt = (
+                                marker.get("max_retries", 0)
+                                - recipe_retry_remaining[instance_id]
+                                + 1
+                            )
+                            yield _ev(
+                                "recipe_retry",
+                                payload={
+                                    "recipe_id": marker.get("recipe_id"),
+                                    "instance_id": instance_id,
+                                    "attempt": attempt,
+                                    "remaining": recipe_retry_remaining[
+                                        instance_id
+                                    ],
+                                },
+                            )
+                            ctx.data = copy.deepcopy(
+                                recipe_snapshots[instance_id]
+                            )
+                            recipe_error_lists[instance_id] = []
+                            current_idx = recipe_start_skill_idx[
+                                instance_id
+                            ]
+                            group_idx = flat_idx_to_group[current_idx]
+                            skip_to_recipe_end = ""
+                            retry_triggered = True
+                            break
+
+                        if active_recipe_stack:
+                            parent = active_recipe_stack[-1]
+                            recipe_error_lists[parent].extend(
+                                recipe_error_lists[instance_id]
+                            )
+                        else:
+                            errors.extend(
+                                recipe_error_lists[instance_id]
+                            )
+
+                    if retry_triggered:
+                        break
+
+                    yielded_end_markers.add(marker_id)
+                    # Capture start time BEFORE cleaning up tracking dicts
+                    started = recipe_start_times.get(instance_id)
+                    # Clean up tracking dicts for completed recipes
+                    recipe_start_times.pop(instance_id, None)
+                    recipe_snapshots.pop(instance_id, None)
+                    recipe_retry_remaining.pop(instance_id, None)
+                    recipe_start_skill_idx.pop(instance_id, None)
+                    recipe_error_lists.pop(instance_id, None)
+                    duration_ms = (
+                        round((time.time() - started) * 1000)
+                        if started else None
+                    )
+                    yield _ev(
+                        "recipe_end",
+                        payload={
+                            "recipe_id": marker.get("recipe_id"),
+                            "instance_id": instance_id,
+                            "duration_ms": duration_ms,
+                        },
+                    )
+            if retry_triggered:
+                continue
+
+            if execution_broken and not skip_to_recipe_end:
+                break
+
+        # Clean up internal state so it never leaks into downstream
+        # handlers or the final context, even if the loop broke early.
+        ctx.data.pop("_recipe_params", None)
+
+        # Emit any recipe_end events for markers that were skipped
+        # because the skill loop broke early due to a failure.
+        for m in recipe_markers:
+            if m.get("kind") == "end" and id(m) not in yielded_end_markers:
+                instance_id = m.get("instance_id", "")
+                started = recipe_start_times.get(instance_id)
+                duration_ms = (
+                    round((time.time() - started) * 1000)
+                    if started else None
+                )
+                yield _ev(
+                    "recipe_end",
+                    payload={
+                        "recipe_id": m.get("recipe_id"),
+                        "instance_id": instance_id,
+                        "status": "aborted",
+                        "duration_ms": duration_ms,
+                    },
+                )
+
         # Optional sum_review skill - only run when explicitly opted in via
         # goal metadata, so implicit execution does not diverge from the
         # requested skill list.
@@ -938,6 +1354,23 @@ class Executor:
                 # Review failures don't fail the entire execution
                 errors.append(f"Review failed: {str(e)}")
 
+        # Emit execution metrics before completion
+        total_time = time.time() - _metrics_start
+        yield _ev(
+            "metrics",
+            payload={
+                "total_time_sec": round(total_time, 3),
+                "event_count": _metrics_event_count,
+                "cache_hits": _metrics_cache_hits,
+                "cache_misses": _metrics_cache_misses,
+                "skills_executed": len(_metrics_skill_times),
+                "skill_times_ms": {
+                    k: round(v * 1000, 1)
+                    for k, v in _metrics_skill_times.items()
+                },
+            },
+        )
+
         yield _ev(
             "complete",
             payload={
@@ -947,6 +1380,11 @@ class Executor:
                 "final_context": ctx.data,
             },
         )
+
+        # GC hint: clean up accumulated intermediate objects for
+        # long-running executions to reduce memory pressure.
+        if _metrics_event_count > GC_EVENT_THRESHOLD:
+            gc.collect()
 
     def run(
         self, strategy: StrategySpec, goal, timeout_seconds: float = 5.0

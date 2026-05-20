@@ -1,3 +1,27 @@
 .container {
   padding: 20px;
+  position: relative;
+  min-height: 100vh;
+}
+
+.modeToggle {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  transition: all 0.15s ease;
+}
+
+.modeToggle:hover {
+  border-color: #2563eb;
+  color: #2563eb;
 }

@@ -34,6 +34,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
 
 
 @register_skill("groq_chat")
+@with_circuit_breaker("groq", failure_threshold=5, recovery_timeout=60.0)
 def groq_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with Groq-hosted models.
 
@@ -164,6 +166,7 @@ def groq_chat(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("groq_completion")
+@with_circuit_breaker("groq", failure_threshold=5, recovery_timeout=60.0)
 def groq_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with Groq-hosted models.
 
@@ -228,6 +231,7 @@ def groq_completion(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("groq_embedding")
+@with_circuit_breaker("groq", failure_threshold=5, recovery_timeout=60.0)
 def groq_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings using Groq.
 

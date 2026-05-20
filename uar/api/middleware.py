@@ -199,16 +199,11 @@ class RateLimiter:
         Must be called while holding lock. Evicts oldest entries by
         removing keys in order of first request (O(1) with OrderedDict).
         """
-        # Remove oldest entries until we're under the cap
-        # OrderedDict provides O(1) access to oldest keys
-        # via popitem(last=False)
-        to_remove = len(self.requests) - self._max_entries
-        removed_count = 0
-        while removed_count < to_remove and self._key_order:
+        # Keep removing until we're under the cap, even if _key_order
+        # contains stale keys not present in self.requests.
+        while len(self.requests) > self._max_entries and self._key_order:
             oldest_key, _ = self._key_order.popitem(last=False)
-            if oldest_key in self.requests:
-                self.requests.pop(oldest_key, None)
-                removed_count += 1
+            self.requests.pop(oldest_key, None)
 
     def evict_empty(self) -> int:
         """Drop keys whose window is empty to bound memory over time."""
@@ -228,10 +223,15 @@ class RateLimiter:
         """
         now = time.time()
         with self._lock:
-            request_times = self.requests[key]
+            request_times = self.requests.get(key)
+            if not request_times:
+                return limit
             # Remove old requests outside the window
             while request_times and request_times[0] <= now - window:
                 request_times.popleft()
+            # Update LRU order so inspection doesn't cause eviction
+            if key in self._key_order:
+                self._key_order.move_to_end(key)
             return max(0, limit - len(request_times))
 
 
@@ -308,11 +308,10 @@ def _extract_skill_from_request(request: Request) -> Optional[str]:
     Returns None if no skill can be determined.
     """
     try:
-        # Import RECIPE_MAP from shared module to avoid circular import
-        from uar.core.recipes import RECIPE_MAP
+        # Import recipe helper from shared module to avoid circular import
+        from uar.core.recipes import get_recipe_skills
 
         # Try to get body from state if already parsed by middleware
-        # This is the preferred method as it uses FastAPI's official API
         if hasattr(request.state, "_parsed_body"):
             body = request.state._parsed_body
             if isinstance(body, dict):
@@ -324,14 +323,13 @@ def _extract_skill_from_request(request: Request) -> Optional[str]:
                         if first_item.get("type") == "skill":
                             return first_item.get("content")
                         elif first_item.get("type") == "recipe":
-                            # Return first skill from recipe if available
                             content = first_item.get("content")
                             if (
                                 content is not None
                                 and isinstance(content, str)
                             ):
-                                recipe_skills = RECIPE_MAP.get(content)
-                                if recipe_skills and recipe_skills:
+                                recipe_skills = get_recipe_skills(content)
+                                if recipe_skills:
                                     return recipe_skills[0]
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
         pass
@@ -352,7 +350,7 @@ def _extract_skill_from_request_data(
     Returns:
         First skill name or None
     """
-    from uar.core.recipes import RECIPE_MAP
+    from uar.core.recipes import get_recipe_skills
 
     skill_name = None
     if skills and len(skills) > 0:
@@ -366,9 +364,9 @@ def _extract_skill_from_request_data(
         elif first_item.get('type') == 'recipe':
             content = first_item.get('content')
             if content is not None and isinstance(content, str):
-                recipe = RECIPE_MAP.get(content)
-                if recipe and len(recipe) > 0:
-                    skill_name = recipe[0]
+                recipe_skills = get_recipe_skills(content)
+                if recipe_skills and len(recipe_skills) > 0:
+                    skill_name = recipe_skills[0]
 
     return skill_name
 
@@ -418,7 +416,7 @@ def build_rate_limit_key(
     """
     if credentials and credentials.credentials in API_KEYS:
         user_info = API_KEYS[credentials.credentials]
-        tier = "authenticated"
+        tier = user_info.get("tier", "authenticated")
         rate_limit_key = f"auth:{user_info['user']}:{client_ip}"
     else:
         tier = "default"
@@ -572,23 +570,12 @@ def apply_middleware(app):
     2. Among @app.middleware decorators, LAST registered runs FIRST (LIFO)
 
     Actual execution order (outermost to innermost):
-    1. CORS (add_middleware) - outermost
-    2. log_requests (last @app.middleware registered)
-    3. parse_request_body (second to last @app.middleware)
-    4. limit_request_body (first @app.middleware registered)
+    1. log_requests (last @app.middleware registered)
+    2. parse_request_body (second to last @app.middleware)
+    3. limit_request_body (first @app.middleware registered)
+
+    Note: CORS is already applied in server.py via add_middleware.
     """
-    from fastapi.middleware.cors import CORSMiddleware
-
-    # CORS middleware - uses environment variable with safe defaults
-    # Runs first (outermost) - add_middleware runs before decorators
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_get_cors_origins(),
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     # Request body size limiter
     # Runs last (innermost) - first @app.middleware registered
     max_body_size = int(
@@ -601,19 +588,26 @@ def apply_middleware(app):
     async def limit_request_body(request: Request, call_next):
         # Check content length header for early rejection
         content_length = request.headers.get("content-length")
-        if content_length and int(content_length) > max_body_size:
-            logger.warning(
-                f"Request body too large: {content_length} bytes > "
-                f"{max_body_size}"
-            )
-            return JSONResponse(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                content={
-                    "error": "Request body too large",
-                    "message": f"Maximum body size is {max_body_size} bytes",
-                    "code": "BODY_TOO_LARGE",
-                },
-            )
+        if content_length:
+            try:
+                if int(content_length) > max_body_size:
+                    logger.warning(
+                        f"Request body too large: {content_length} bytes > "
+                        f"{max_body_size}"
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        content={
+                            "error": "Request body too large",
+                            "message": (
+                                f"Maximum body size is {max_body_size} bytes"
+                            ),
+                            "code": "BODY_TOO_LARGE",
+                        },
+                    )
+            except ValueError:
+                # Malformed Content-Length header; let downstream handle it
+                pass
         return await call_next(request)
 
     # Request body parser - parses body early for rate limiting

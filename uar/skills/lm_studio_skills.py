@@ -34,6 +34,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
 
 
 @register_skill("lm_studio_chat")
+@with_circuit_breaker("lm_studio", failure_threshold=5, recovery_timeout=60.0)
 def lm_studio_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with local LLM models via LM Studio.
 
@@ -169,6 +171,7 @@ def lm_studio_chat(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("lm_studio_completion")
+@with_circuit_breaker("lm_studio", failure_threshold=5, recovery_timeout=60.0)
 def lm_studio_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with LM Studio models.
 
@@ -238,6 +241,7 @@ def lm_studio_completion(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("lm_studio_embedding")
+@with_circuit_breaker("lm_studio", failure_threshold=5, recovery_timeout=60.0)
 def lm_studio_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings for text using LM Studio.
 

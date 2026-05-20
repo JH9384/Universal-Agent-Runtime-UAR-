@@ -192,6 +192,10 @@ export function SkillGuide() {
           <div
             key={skill.id}
             onClick={() => setSelectedSkill(skill)}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setSelectedSkill(skill) } }}
+            tabIndex={0}
+            role="button"
+            aria-label={`View details for ${skill.label}`}
             className={styles.skillCard}
           >
             <div className={styles.skillHeader}>
@@ -212,16 +216,21 @@ export function SkillGuide() {
         <div
           onClick={() => setSelectedSkill(null)}
           className={styles.modalOverlay}
+          role="presentation"
         >
           <div
-            onClick={(e: any) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
             className={styles.modalContent}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skill-detail-title"
           >
             <div className={styles.modalHeader}>
-              <h4 className={styles.modalTitle}>{selectedSkill.label}</h4>
+              <h4 id="skill-detail-title" className={styles.modalTitle}>{selectedSkill.label}</h4>
               <button
                 onClick={() => setSelectedSkill(null)}
                 className={styles.closeButton}
+                aria-label="Close skill details"
               >
                 ✕
               </button>

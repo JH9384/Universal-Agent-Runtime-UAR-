@@ -31,6 +31,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
 
 
 @register_skill("gemini_chat")
+@with_circuit_breaker("gemini", failure_threshold=5, recovery_timeout=60.0)
 def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with Google Gemini models.
 
@@ -198,6 +200,7 @@ def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("gemini_completion")
+@with_circuit_breaker("gemini", failure_threshold=5, recovery_timeout=60.0)
 def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with Google Gemini models.
 
@@ -270,6 +273,7 @@ def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("gemini_embedding")
+@with_circuit_breaker("gemini", failure_threshold=5, recovery_timeout=60.0)
 def gemini_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings using Google Gemini.
 

@@ -8,6 +8,8 @@ from uar.core.executor import (
     get_max_retries,
     _run_with_timeout,
     _event,
+    _expand_execution_order_with_markers,
+    _get_parallel_groups,
     Executor,
 )
 from uar.core.exceptions import TimeoutError, ValidationError
@@ -191,3 +193,395 @@ class TestExecutor:
         assert len(events) >= 2
         assert events[0]["type"] == "start"
         assert events[-1]["type"] == "complete"
+
+
+class TestExpandExecutionOrder:
+    """Test _expand_execution_order_with_markers function"""
+
+    def test_expand_skills_only(self):
+        """Skills only - no recipes"""
+        execution_order = [
+            {"type": "skill", "content": "doc_ingest", "id": "s1"},
+            {"type": "skill", "content": "sum_review", "id": "s2"},
+        ]
+        skills, markers = _expand_execution_order_with_markers(
+            execution_order
+        )
+        assert skills == ["doc_ingest", "sum_review"]
+        assert markers == []
+
+    def test_expand_recipe_flat(self):
+        """Recipe expands to its skills with markers"""
+        execution_order = [
+            {"type": "recipe", "content": "review", "id": "r1"},
+        ]
+        skills, markers = _expand_execution_order_with_markers(
+            execution_order
+        )
+        assert skills == ["doc_ingest", "ollama_generate"]
+        assert len(markers) == 2
+        assert markers[0] == {
+            "index": 0,
+            "kind": "start",
+            "recipe_id": "review",
+            "instance_id": "r1",
+            "max_retries": 0,
+            "parameters": {},
+            "condition": None,
+        }
+        assert markers[1] == {
+            "index": 2,
+            "kind": "end",
+            "recipe_id": "review",
+            "instance_id": "r1",
+        }
+
+    def test_expand_mixed_skills_and_recipes(self):
+        """Mix of skills and recipes in order"""
+        execution_order = [
+            {"type": "skill", "content": "doc_ingest", "id": "s1"},
+            {"type": "recipe", "content": "gr_query", "id": "r1"},
+            {"type": "skill", "content": "sum_review", "id": "s2"},
+        ]
+        skills, markers = _expand_execution_order_with_markers(
+            execution_order
+        )
+        assert skills == [
+            "doc_ingest", "graphrag_query", "sum_review"
+        ]
+        assert len(markers) == 2
+        assert markers[0]["index"] == 1  # recipe starts after first skill
+        assert markers[0]["kind"] == "start"
+        assert markers[1]["index"] == 2  # recipe ends after graphrag_query
+        assert markers[1]["kind"] == "end"
+
+    def test_expand_unknown_recipe_raises(self):
+        """Unknown recipe raises ValidationError"""
+        execution_order = [
+            {"type": "recipe", "content": "nonexistent", "id": "r1"},
+        ]
+        with pytest.raises(ValidationError) as exc_info:
+            _expand_execution_order_with_markers(execution_order)
+        assert "nonexistent" in str(exc_info.value)
+
+    def test_expand_nested_recipe(self):
+        """Nested recipe (recipe containing another recipe)"""
+        # Patch DEFAULT_RECIPES to create a recipe that references 'review'
+        from uar.core.executor import DEFAULT_RECIPES
+
+        original = DEFAULT_RECIPES.copy()
+        try:
+            DEFAULT_RECIPES["meta"] = {
+                "id": "meta",
+                "label": "Meta",
+                "skills": ["review", "sum_review"],
+            }
+            execution_order = [
+                {"type": "recipe", "content": "meta", "id": "m1"},
+            ]
+            skills, markers = _expand_execution_order_with_markers(
+                execution_order
+            )
+            # meta -> review (doc_ingest, ollama_generate) + sum_review
+            assert skills == [
+                "doc_ingest", "ollama_generate", "sum_review"
+            ]
+            # Expect 4 markers: meta start, review start, review end, meta end
+            assert len(markers) == 4
+            assert markers[0]["kind"] == "start"
+            assert markers[0]["recipe_id"] == "meta"
+            assert markers[0]["index"] == 0
+            assert markers[1]["kind"] == "start"
+            assert markers[1]["recipe_id"] == "review"
+            assert markers[1]["index"] == 0
+            assert markers[2]["kind"] == "end"
+            assert markers[2]["recipe_id"] == "review"
+            assert markers[2]["index"] == 2
+            assert markers[3]["kind"] == "end"
+            assert markers[3]["recipe_id"] == "meta"
+            assert markers[3]["index"] == 3
+        finally:
+            DEFAULT_RECIPES.clear()
+            DEFAULT_RECIPES.update(original)
+
+    def test_expand_circular_recipe_raises(self):
+        """Circular recipe dependency raises ValidationError"""
+        from uar.core.executor import DEFAULT_RECIPES
+
+        original = DEFAULT_RECIPES.copy()
+        try:
+            DEFAULT_RECIPES["a"] = {
+                "id": "a", "label": "A", "skills": ["b"],
+            }
+            DEFAULT_RECIPES["b"] = {
+                "id": "b", "label": "B", "skills": ["a"],
+            }
+            execution_order = [
+                {"type": "recipe", "content": "a", "id": "a1"},
+            ]
+            with pytest.raises(ValidationError) as exc_info:
+                _expand_execution_order_with_markers(execution_order)
+            assert "Circular" in str(exc_info.value)
+        finally:
+            DEFAULT_RECIPES.clear()
+            DEFAULT_RECIPES.update(original)
+
+    def test_expand_max_depth_raises(self):
+        """Excessive nesting depth raises ValidationError"""
+        from uar.core.executor import DEFAULT_RECIPES, MAX_RECIPE_DEPTH
+
+        original = DEFAULT_RECIPES.copy()
+        try:
+            # Create a chain of recipes: a1 -> a2 -> a3 -> ... -> aN
+            for i in range(1, MAX_RECIPE_DEPTH + 2):
+                nxt = f"a{i + 1}" if i <= MAX_RECIPE_DEPTH + 1 else "skill"
+                DEFAULT_RECIPES[f"a{i}"] = {
+                    "id": f"a{i}",
+                    "label": f"A{i}",
+                    "skills": (
+                        [nxt] if i <= MAX_RECIPE_DEPTH + 1
+                        else ["doc_ingest"]
+                    ),
+                }
+            execution_order = [
+                {"type": "recipe", "content": "a1", "id": "a1"},
+            ]
+            with pytest.raises(ValidationError) as exc_info:
+                _expand_execution_order_with_markers(execution_order)
+            assert "depth" in str(exc_info.value).lower()
+        finally:
+            DEFAULT_RECIPES.clear()
+            DEFAULT_RECIPES.update(original)
+
+    def test_expand_with_custom_recipe_map(self):
+        """Expansion with custom recipe map from metadata"""
+        custom_map = {
+            "custom": {
+                "id": "custom",
+                "skills": ["doc_ingest"],
+            }
+        }
+        execution_order = [
+            {"type": "recipe", "content": "custom", "id": "c1"},
+        ]
+        skills, markers = _expand_execution_order_with_markers(
+            execution_order,
+            _recipe_map=custom_map,
+        )
+        assert skills == ["doc_ingest"]
+        assert len(markers) == 2
+        assert markers[0]["recipe_id"] == "custom"
+
+    def test_expand_recipe_with_parallel_groups(self):
+        """Recipe with nested lists expands into flat adjacent skills"""
+        custom_map = {
+            "parallel_test": {
+                "id": "parallel_test",
+                "skills": [
+                    "doc_ingest",
+                    ["ollama_generate", "graphrag_query"],
+                ],
+            }
+        }
+        execution_order = [
+            {
+                "type": "recipe",
+                "content": "parallel_test",
+                "id": "p1",
+            },
+        ]
+        skills, markers = _expand_execution_order_with_markers(
+            execution_order,
+            _recipe_map=custom_map,
+        )
+        assert skills == [
+            "doc_ingest",
+            "ollama_generate",
+            "graphrag_query",
+        ]
+        assert len(markers) == 2
+        assert markers[0]["kind"] == "start"
+        assert markers[1]["kind"] == "end"
+        # Non-context-modifying adjacent skills will be grouped
+        groups = _get_parallel_groups(skills)
+        assert groups == [
+            ["doc_ingest"],
+            ["ollama_generate", "graphrag_query"],
+        ]
+
+    def test_expand_recipe_with_parameters(self):
+        """Recipe parameters are passed through start marker"""
+        custom_map = {
+            "param_test": {
+                "id": "param_test",
+                "skills": ["doc_ingest"],
+                "parameters": {"model": "llama3", "temperature": 0.7},
+            }
+        }
+        execution_order = [
+            {
+                "type": "recipe",
+                "content": "param_test",
+                "id": "p1",
+            },
+        ]
+        skills, markers = _expand_execution_order_with_markers(
+            execution_order,
+            _recipe_map=custom_map,
+        )
+        assert markers[0]["parameters"] == {
+            "model": "llama3",
+            "temperature": 0.7,
+        }
+
+    def test_expand_recipe_with_condition(self):
+        """Recipe condition is passed through start marker"""
+        custom_map = {
+            "conditional": {
+                "id": "conditional",
+                "skills": ["doc_ingest"],
+                "condition": {"key": "ready", "exists": True},
+            }
+        }
+        execution_order = [
+            {
+                "type": "recipe",
+                "content": "conditional",
+                "id": "c1",
+            },
+        ]
+        skills, markers = _expand_execution_order_with_markers(
+            execution_order,
+            _recipe_map=custom_map,
+        )
+        assert markers[0]["condition"] == {
+            "key": "ready",
+            "exists": True,
+        }
+
+    @patch("uar.core.executor.registry")
+    def test_iter_events_emits_recipe_boundary_events(self, mock_registry):
+        """Executor emits recipe_start and recipe_end events"""
+        mock_skill = Mock(return_value={"status": "ok"})
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {"type": "recipe", "content": "gr_query", "id": "r1"},
+                ]
+            },
+        )
+        strategy = StrategySpec(goal_id="goal_123", ordered_skills=[])
+
+        executor = Executor()
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+
+        types = [e["type"] for e in events]
+        assert "orchestration_plan" in types
+        assert "recipe_start" in types
+        assert "recipe_end" in types
+        assert "skill_start" in types
+        assert "skill_complete" in types
+        assert "complete" in types
+
+        # Verify recipe_start has correct payload
+        recipe_start = next(e for e in events if e["type"] == "recipe_start")
+        assert recipe_start["payload"]["recipe_id"] == "gr_query"
+        assert recipe_start["payload"]["instance_id"] == "r1"
+
+        # recipe_end should come after skill_complete
+        recipe_end_idx = types.index("recipe_end")
+        skill_complete_idx = types.index("skill_complete")
+        assert recipe_end_idx > skill_complete_idx
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_iter_events_emits_recipe_end_on_failure(
+        self, mock_registry, mock_guardrails
+    ):
+        """recipe_end is emitted even when the skill loop breaks early"""
+        mock_registry.is_registered.return_value = True
+        mock_guardrails.return_value = ["guardrail violation"]
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {"type": "recipe", "content": "review", "id": "r1"},
+                ]
+            },
+        )
+        strategy = StrategySpec(goal_id="goal_123", ordered_skills=[])
+
+        executor = Executor()
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+
+        types = [e["type"] for e in events]
+        assert "recipe_start" in types
+        assert "recipe_end" in types
+        assert "skill_failed" in types
+        assert "complete" in types
+
+        # Verify recipe_end has aborted status because loop broke early
+        recipe_end = [e for e in events if e["type"] == "recipe_end"][-1]
+        assert recipe_end["payload"]["status"] == "aborted"
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_iter_events_recipe_level_retry(
+        self, mock_registry, mock_guardrails
+    ):
+        """Recipe with max_retries re-executes on skill failure"""
+        mock_registry.is_registered.return_value = True
+        # First skill attempt fails, second succeeds
+        call_count = [0]
+
+        def guardrails_side_effect(ctx, skill):
+            call_count[0] += 1
+            return ["fail"] if call_count[0] <= 1 else []
+
+        mock_guardrails.side_effect = guardrails_side_effect
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "review",
+                        "id": "r1",
+                        "max_retries": 1,
+                    },
+                ]
+            },
+        )
+        strategy = StrategySpec(goal_id="goal_123", ordered_skills=[])
+
+        executor = Executor()
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+
+        types = [e["type"] for e in events]
+        assert types.count("recipe_start") == 2  # initial + retry
+        assert types.count("recipe_retry") == 1
+        assert types.count("recipe_end") == 1
+        assert types.count("skill_failed") == 1
+        assert "complete" in types
+
+        # Verify recipe_end has complete status (not aborted)
+        recipe_end = [e for e in events if e["type"] == "recipe_end"][-1]
+        assert recipe_end["payload"].get("status") is None
