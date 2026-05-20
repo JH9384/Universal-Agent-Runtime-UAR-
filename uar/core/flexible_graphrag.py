@@ -16,7 +16,7 @@ Key features:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -237,7 +237,10 @@ class FlexibleGraphRAG:
         self.relations[relation_id] = relation
 
         # Also add to Neo4j/Memgraph if backend is Neo4j or Memgraph
-        if self.backend in (GraphBackend.NEO4J, GraphBackend.MEMGRAPH) and self.driver:
+        if (
+            self.backend in (GraphBackend.NEO4J, GraphBackend.MEMGRAPH)
+            and self.driver
+        ):
             self._add_relation_to_graph(relation)
 
         logger.info(f"Added relation: {relation_id} ({relation_type})")
@@ -321,7 +324,10 @@ class FlexibleGraphRAG:
                 weight=0.8,
             )
 
-        logger.info(f"Graph built: {len(self.entities)} entities, {len(self.relations)} relations")
+        logger.info(
+            f"Graph built: {len(self.entities)} entities, "
+            f"{len(self.relations)} relations"
+        )
 
     def search_vector(
         self,
@@ -403,10 +409,14 @@ class FlexibleGraphRAG:
         # Deduplicate and score
         scored_results = {}
         for entity in fulltext_results:
-            scored_results[entity.entity_id] = scored_results.get(entity.entity_id, 0) + 0.5
+            scored_results[entity.entity_id] = (
+                scored_results.get(entity.entity_id, 0) + 0.5
+            )
 
         for entity in vector_results:
-            scored_results[entity.entity_id] = scored_results.get(entity.entity_id, 0) + 0.5
+            scored_results[entity.entity_id] = (
+                scored_results.get(entity.entity_id, 0) + 0.5
+            )
 
         # Sort by score and return top_k
         sorted_results = sorted(
@@ -420,7 +430,9 @@ class FlexibleGraphRAG:
             for entity_id, _ in sorted_results[:top_k]
         ]
 
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+    def _cosine_similarity(
+        self, vec1: List[float], vec2: List[float]
+    ) -> float:
         """Calculate cosine similarity between two vectors."""
         import math
 
@@ -494,11 +506,15 @@ class FlexibleGraphRAG:
         """Get statistics about the graph."""
         entity_types = {}
         for entity in self.entities.values():
-            entity_types[entity.entity_type] = entity_types.get(entity.entity_type, 0) + 1
+            entity_types[entity.entity_type] = (
+                entity_types.get(entity.entity_type, 0) + 1
+            )
 
         relation_types = {}
         for relation in self.relations.values():
-            relation_types[relation.relation_type] = relation_types.get(relation.relation_type, 0) + 1
+            relation_types[relation.relation_type] = (
+                relation_types.get(relation.relation_type, 0) + 1
+            )
 
         return {
             "entity_count": len(self.entities),

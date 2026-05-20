@@ -61,7 +61,7 @@ class GuardrailViolation:
     agent_id: Optional[str] = None
     timestamp: datetime = field(default_factory=_utcnow)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -83,12 +83,12 @@ class Budget:
     max_api_calls: int = 1000
     max_cost_usd: float = 10.0
     max_duration_seconds: int = 3600
-    
+
     used_tokens: int = 0
     used_api_calls: int = 0
     used_cost_usd: float = 0.0
     start_time: datetime = field(default_factory=_utcnow)
-    
+
     def is_exhausted(self) -> bool:
         """Check if budget is exhausted."""
         return (
@@ -98,24 +98,24 @@ class Budget:
             or (_utcnow() - self.start_time).total_seconds()
             >= self.max_duration_seconds
         )
-    
+
     def remaining_tokens(self) -> int:
         """Get remaining tokens."""
         return max(0, self.max_tokens - self.used_tokens)
-    
+
     def remaining_api_calls(self) -> int:
         """Get remaining API calls."""
         return max(0, self.max_api_calls - self.used_api_calls)
-    
+
     def remaining_cost(self) -> float:
         """Get remaining budget in USD."""
         return max(0.0, self.max_cost_usd - self.used_cost_usd)
-    
+
     def remaining_time(self) -> float:
         """Get remaining time in seconds."""
         elapsed = (_utcnow() - self.start_time).total_seconds()
         return max(0.0, self.max_duration_seconds - elapsed)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -146,7 +146,7 @@ class BlackboardEntry:
     timestamp: datetime = field(default_factory=_utcnow)
     locked_by: Optional[str] = None
     lock_expiry: Optional[datetime] = None
-    
+
     def is_locked(self) -> bool:
         """Check if entry is locked."""
         if not self.locked_by:
@@ -154,7 +154,7 @@ class BlackboardEntry:
         if self.lock_expiry:
             return _utcnow() < self.lock_expiry
         return True
-    
+
     def acquire_lock(self, agent_id: str, ttl_seconds: int = 60):
         """Acquire lock on entry."""
         if self.is_locked() and self.locked_by != agent_id:
@@ -162,13 +162,13 @@ class BlackboardEntry:
         self.locked_by = agent_id
         self.lock_expiry = _utcnow() + timedelta(seconds=ttl_seconds)
         return True
-    
+
     def release_lock(self, agent_id: str):
         """Release lock on entry."""
         if self.locked_by == agent_id:
             self.locked_by = None
             self.lock_expiry = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -178,18 +178,20 @@ class BlackboardEntry:
             "agent_id": self.agent_id,
             "timestamp": self.timestamp.isoformat(),
             "locked_by": self.locked_by,
-            "lock_expiry": self.lock_expiry.isoformat() if self.lock_expiry else None,
+            "lock_expiry": (
+                self.lock_expiry.isoformat() if self.lock_expiry else None
+            ),
             "is_locked": self.is_locked(),
         }
 
 
 class SharedBlackboard:
     """Shared blackboard for agent coordination with locking."""
-    
+
     def __init__(self):
         self.entries: Dict[str, BlackboardEntry] = {}
         self.lock = threading.Lock()
-    
+
     def propose(
         self,
         agent_id: str,
@@ -208,7 +210,7 @@ class SharedBlackboard:
             self.entries[entry_id] = entry
             logger.info(f"Agent {agent_id} proposed entry {entry_id}")
             return entry_id
-    
+
     def validate(
         self,
         entry_id: str,
@@ -226,7 +228,7 @@ class SharedBlackboard:
             except Exception as e:
                 logger.error(f"Validation failed for {entry_id}: {e}")
                 return False
-    
+
     def commit(
         self,
         entry_id: str,
@@ -238,13 +240,16 @@ class SharedBlackboard:
             if not entry:
                 return False
             if entry.agent_id != agent_id:
-                logger.warning(f"Agent {agent_id} cannot commit entry from {entry.agent_id}")
+                logger.warning(
+                    f"Agent {agent_id} cannot commit entry from "
+                    f"{entry.agent_id}"
+                )
                 return False
-            
+
             # Entry is already in the blackboard, mark as committed
             logger.info(f"Agent {agent_id} committed entry {entry_id}")
             return True
-    
+
     def get(self, key: str) -> Optional[Any]:
         """Get a value from the blackboard."""
         with self.lock:
@@ -252,7 +257,7 @@ class SharedBlackboard:
                 if entry.key == key and not entry.is_locked():
                     return entry.value
         return None
-    
+
     def acquire_lock(
         self,
         entry_id: str,
@@ -265,32 +270,34 @@ class SharedBlackboard:
             if not entry:
                 return False
             return entry.acquire_lock(agent_id, ttl_seconds)
-    
+
     def release_lock(self, entry_id: str, agent_id: str):
         """Release lock on an entry."""
         with self.lock:
             entry = self.entries.get(entry_id)
             if entry:
                 entry.release_lock(agent_id)
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get blackboard status."""
         with self.lock:
             return {
                 "entry_count": len(self.entries),
-                "locked_entries": sum(1 for e in self.entries.values() if e.is_locked()),
+                "locked_entries": sum(
+                    1 for e in self.entries.values() if e.is_locked()
+                ),
                 "entries": [e.to_dict() for e in self.entries.values()],
             }
 
 
 class GuardrailChecker:
     """Checks for guardrail violations."""
-    
+
     def __init__(self):
         self.checkers: Dict[GuardrailType, List[Callable]] = {}
         self.violations: List[GuardrailViolation] = []
         self.lock = threading.Lock()
-    
+
     def register_checker(
         self,
         guardrail_type: GuardrailType,
@@ -300,7 +307,7 @@ class GuardrailChecker:
         if guardrail_type not in self.checkers:
             self.checkers[guardrail_type] = []
         self.checkers[guardrail_type].append(checker)
-    
+
     def check(
         self,
         agent_id: str,
@@ -310,7 +317,7 @@ class GuardrailChecker:
         """Check for violations of a specific guardrail type."""
         violations = []
         checkers = self.checkers.get(guardrail_type, [])
-        
+
         for checker in checkers:
             try:
                 violation = checker(data)
@@ -319,12 +326,12 @@ class GuardrailChecker:
                     violations.append(violation)
             except Exception as e:
                 logger.error(f"Guardrail checker failed: {e}")
-        
+
         with self.lock:
             self.violations.extend(violations)
-        
+
         return violations
-    
+
     def check_all(
         self,
         agent_id: str,
@@ -337,7 +344,7 @@ class GuardrailChecker:
             if violations:
                 results[guardrail_type] = violations
         return results
-    
+
     def get_violations(
         self,
         agent_id: Optional[str] = None,
@@ -351,7 +358,7 @@ class GuardrailChecker:
             if severity:
                 violations = [v for v in violations if v.severity == severity]
             return violations
-    
+
     def clear_violations(self, before: Optional[datetime] = None):
         """Clear violations."""
         with self.lock:
@@ -365,13 +372,13 @@ class GuardrailChecker:
 
 class GovernanceSystem:
     """Governance system for multi-agent coordination."""
-    
+
     def __init__(self):
         self.blackboard = SharedBlackboard()
         self.guardrails = GuardrailChecker()
         self.budgets: Dict[str, Budget] = {}
         self.policies: Dict[str, Callable] = {}
-    
+
     def create_budget(
         self,
         agent_id: str,
@@ -391,11 +398,11 @@ class GovernanceSystem:
         self.budgets[agent_id] = budget
         logger.info(f"Created budget for agent {agent_id}")
         return budget
-    
+
     def get_budget(self, agent_id: str) -> Optional[Budget]:
         """Get budget for an agent."""
         return self.budgets.get(agent_id)
-    
+
     def check_budget(
         self,
         agent_id: str,
@@ -425,7 +432,7 @@ class GovernanceSystem:
         budget.used_cost_usd += cost_usd
 
         return True
-    
+
     def register_policy(
         self,
         policy_name: str,
@@ -434,7 +441,7 @@ class GovernanceSystem:
         """Register a governance policy."""
         self.policies[policy_name] = policy
         logger.info(f"Registered policy: {policy_name}")
-    
+
     def check_policy(
         self,
         policy_name: str,
@@ -449,7 +456,7 @@ class GovernanceSystem:
         except Exception as e:
             logger.error(f"Policy check failed for {policy_name}: {e}")
             return False
-    
+
     def get_system_status(self) -> Dict[str, Any]:
         """Get overall governance system status."""
         return {
@@ -458,7 +465,9 @@ class GovernanceSystem:
                 agent_id: budget.to_dict()
                 for agent_id, budget in self.budgets.items()
             },
-            "violations": [v.to_dict() for v in self.guardrails.get_violations()],
+            "violations": [
+                v.to_dict() for v in self.guardrails.get_violations()
+            ],
             "policies": list(self.policies.keys()),
             "budget_count": len(self.budgets),
             "policy_count": len(self.policies),
@@ -480,13 +489,13 @@ def get_governance_system() -> GovernanceSystem:
 def setup_default_guardrails():
     """Setup default guardrails for common use cases."""
     governance = get_governance_system()
-    
+
     # Content safety checker
     def content_safety_checker(content: str) -> Optional[GuardrailViolation]:
         """Check for unsafe content."""
         unsafe_keywords = ["harmful", "illegal", "violent"]
         content_lower = content.lower()
-        
+
         for keyword in unsafe_keywords:
             if keyword in content_lower:
                 return GuardrailViolation(
@@ -496,14 +505,16 @@ def setup_default_guardrails():
                     message=f"Unsafe content detected: {keyword}",
                 )
         return None
-    
+
     governance.guardrails.register_checker(
         GuardrailType.CONTENT_SAFETY,
         content_safety_checker,
     )
-    
+
     # Rate limit checker
-    def rate_limit_checker(data: Dict[str, Any]) -> Optional[GuardrailViolation]:
+    def rate_limit_checker(
+        data: Dict[str, Any]
+    ) -> Optional[GuardrailViolation]:
         """Check for rate limit violations."""
         requests_per_minute = data.get("requests_per_minute", 0)
         if requests_per_minute > 100:
@@ -511,13 +522,15 @@ def setup_default_guardrails():
                 violation_id=str(uuid.uuid4()),
                 guardrail_type=GuardrailType.RATE_LIMIT,
                 severity=ViolationSeverity.ERROR,
-                message=f"Rate limit exceeded: {requests_per_minute} requests/min",
+                message=(
+                    f"Rate limit exceeded: {requests_per_minute} requests/min"
+                ),
             )
         return None
-    
+
     governance.guardrails.register_checker(
         GuardrailType.RATE_LIMIT,
         rate_limit_checker,
     )
-    
+
     logger.info("Default guardrails setup")
