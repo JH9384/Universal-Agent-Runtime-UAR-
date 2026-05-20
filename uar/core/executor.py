@@ -447,6 +447,22 @@ def _expand_execution_order_with_markers(
 CONTEXT_MODIFYING_SKILLS = {'doc_ingest', 'graphrag_index'}
 
 
+def _eval_condition(condition: Any, data: Dict[str, Any]) -> bool:
+    """Evaluate a recipe condition against context data."""
+    if not condition or not isinstance(condition, dict):
+        return True
+    key = condition.get("key", "")
+    if not key:
+        return True
+    if "exists" in condition:
+        return key in data
+    if "equals" in condition:
+        return data.get(key) == condition["equals"]
+    if "not_equals" in condition:
+        return data.get(key) != condition["not_equals"]
+    return True
+
+
 def _get_parallel_groups(skills: List[str]) -> List[List[str]]:
     """Group skills that can run in parallel.
 
@@ -537,6 +553,10 @@ class Executor:
         goal,
         timeout_seconds: float = 5.0,
         correlation_id: str = "",
+        _existing_ctx: Any | None = None,
+        _suppress_start_complete: bool = False,
+        _run_id: str = "",
+        _use_hierarchical: bool = True,
     ) -> Iterator[dict]:
         """Execute strategy and yield events with proper error handling"""
         # Validate inputs
@@ -546,10 +566,10 @@ class Executor:
         goal_metadata = getattr(goal, "metadata", {}) or {}
         execution_order = goal_metadata.get("execution_order")
         recipe_markers: List[Dict[str, Any]] = []
+        recipe_map: Dict[str, Dict[str, Any]] | None = None
         if execution_order and isinstance(execution_order, list):
             # Build optional recipe map from metadata-provided definitions
             # so user-created recipes sent by the frontend are expanded.
-            recipe_map: Dict[str, Dict[str, Any]] | None = None
             raw_defs = goal_metadata.get("recipe_definitions")
             if raw_defs and isinstance(raw_defs, list):
                 recipe_map = dict(DEFAULT_RECIPES)
@@ -608,8 +628,8 @@ class Executor:
                 "At least one skill must be specified", field="skills"
             )
 
-        run_id = str(uuid.uuid4())
-        ctx = PipelineContext(goal=goal)
+        run_id = _run_id or str(uuid.uuid4())
+        ctx = _existing_ctx or PipelineContext(goal=goal)
         outputs = []
         errors = []
 
@@ -650,6 +670,26 @@ class Executor:
         if missing_skills:
             # Return failed run instead of raising
             error_msg = f"Skill(s) not found: {', '.join(missing_skills)}"
+            if not _suppress_start_complete:
+                yield _ev(
+                    "start",
+                    payload={
+                        "goal": goal.objective,
+                        "skills": strategy.ordered_skills,
+                    },
+                )
+                yield _ev(
+                    "complete",
+                    payload={
+                        "status": "failed",
+                        "outputs": [],
+                        "errors": [error_msg],
+                        "final_context": {},
+                    },
+                )
+            return
+
+        if not _suppress_start_complete:
             yield _ev(
                 "start",
                 payload={
@@ -657,24 +697,6 @@ class Executor:
                     "skills": strategy.ordered_skills,
                 },
             )
-            yield _ev(
-                "complete",
-                payload={
-                    "status": "failed",
-                    "outputs": [],
-                    "errors": [error_msg],
-                    "final_context": {},
-                },
-            )
-            return
-
-        yield _ev(
-            "start",
-            payload={
-                "goal": goal.objective,
-                "skills": strategy.ordered_skills,
-            },
-        )
 
         # Emit orchestration plan after start so event contract is preserved
         if execution_order and ordered_skills:
@@ -687,15 +709,67 @@ class Executor:
                 },
             )
 
-        # Group skills for parallel execution
-        enable_parallel = getattr(
-            goal, "metadata", {}
-        ).get("enable_parallel", True)
-        skill_groups = (
-            _get_parallel_groups(strategy.ordered_skills)
-            if enable_parallel
-            else [[s] for s in strategy.ordered_skills]
-        )
+        # Hierarchical execution path (opt-in via env var)
+        _executed_hierarchical = False
+        if (
+            execution_order
+            and os.getenv("UAR_HIERARCHICAL_EXECUTION", "")
+            and recipe_map is not None
+            and _existing_ctx is None
+            and _use_hierarchical
+        ):
+            yield from self._execute_items(
+                execution_order,
+                ctx,
+                goal,
+                timeout_seconds,
+                recipe_map,
+                correlation_id,
+                depth=0,
+            )
+            # Emit top-level metrics and complete for hierarchical path
+            total_time = time.time() - _metrics_start
+            yield _ev(
+                "metrics",
+                payload={
+                    "total_time_sec": round(total_time, 3),
+                    "event_count": _metrics_event_count,
+                    "cache_hits": _metrics_cache_hits,
+                    "cache_misses": _metrics_cache_misses,
+                    "skills_executed": len(_metrics_skill_times),
+                    "skill_times_ms": {
+                        k: round(v * 1000, 1)
+                        for k, v in _metrics_skill_times.items()
+                    },
+                },
+            )
+            yield _ev(
+                "complete",
+                payload={
+                    "status": "completed"
+                    if not errors else "failed",
+                    "outputs": outputs,
+                    "errors": errors,
+                    "final_context": ctx.data,
+                },
+            )
+            if _metrics_event_count > GC_EVENT_THRESHOLD:
+                gc.collect()
+            return
+
+        if not _executed_hierarchical:
+            # Legacy flat execution path
+            # Group skills for parallel execution
+            enable_parallel = getattr(
+                goal, "metadata", {}
+            ).get("enable_parallel", True)
+            skill_groups = (
+                _get_parallel_groups(strategy.ordered_skills)
+                if enable_parallel
+                else [[s] for s in strategy.ordered_skills]
+            )
+        else:
+            skill_groups = []
 
         # Build O(1) marker lookup for recipe_start/recipe_end emission
         # keyed by index in the flat ordered_skills list
@@ -1354,32 +1428,33 @@ class Executor:
                 # Review failures don't fail the entire execution
                 errors.append(f"Review failed: {str(e)}")
 
-        # Emit execution metrics before completion
-        total_time = time.time() - _metrics_start
-        yield _ev(
-            "metrics",
-            payload={
-                "total_time_sec": round(total_time, 3),
-                "event_count": _metrics_event_count,
-                "cache_hits": _metrics_cache_hits,
-                "cache_misses": _metrics_cache_misses,
-                "skills_executed": len(_metrics_skill_times),
-                "skill_times_ms": {
-                    k: round(v * 1000, 1)
-                    for k, v in _metrics_skill_times.items()
+        if not _suppress_start_complete:
+            # Emit execution metrics before completion
+            total_time = time.time() - _metrics_start
+            yield _ev(
+                "metrics",
+                payload={
+                    "total_time_sec": round(total_time, 3),
+                    "event_count": _metrics_event_count,
+                    "cache_hits": _metrics_cache_hits,
+                    "cache_misses": _metrics_cache_misses,
+                    "skills_executed": len(_metrics_skill_times),
+                    "skill_times_ms": {
+                        k: round(v * 1000, 1)
+                        for k, v in _metrics_skill_times.items()
+                    },
                 },
-            },
-        )
+            )
 
-        yield _ev(
-            "complete",
-            payload={
-                "status": "completed" if not errors else "failed",
-                "outputs": outputs,
-                "errors": errors,
-                "final_context": ctx.data,
-            },
-        )
+            yield _ev(
+                "complete",
+                payload={
+                    "status": "completed" if not errors else "failed",
+                    "outputs": outputs,
+                    "errors": errors,
+                    "final_context": ctx.data,
+                },
+            )
 
         # GC hint: clean up accumulated intermediate objects for
         # long-running executions to reduce memory pressure.
@@ -1412,3 +1487,280 @@ class Executor:
             events=events,
             final_context=payload.get("final_context", {}),
         )
+
+    def _execute_items(
+        self,
+        items: List[Dict[str, Any]],
+        ctx: PipelineContext,
+        goal,
+        timeout_seconds: float,
+        recipe_map: Dict[str, Dict[str, Any]],
+        correlation_id: str,
+        depth: int = 0,
+    ) -> Iterator[dict]:
+        """Recursively execute execution_order items as discrete units.
+
+        Walks the execution_order hierarchy: skills are delegated to the
+        existing flat executor via sub-executor calls (preserving all
+        cache/guardrail/parallel behaviour), while recipes become true
+        execution blocks with their own snapshot, retry, and parameter
+        scope.
+        """
+        if depth > MAX_RECIPE_DEPTH:
+            raise ValidationError(
+                f"Recipe nesting exceeds maximum depth of {MAX_RECIPE_DEPTH}"
+            )
+
+        i = 0
+        while i < len(items):
+            item = items[i]
+            item_type = item.get("type")
+
+            if item_type == "skill":
+                # Collect consecutive skills for a block execution
+                skill_names: List[str] = []
+                while (
+                    i < len(items)
+                    and items[i].get("type") == "skill"
+                ):
+                    skill_names.append(str(items[i].get("content", "")))
+                    i += 1
+
+                if skill_names:
+                    sub_strategy = StrategySpec(
+                        goal_id=getattr(goal, "id", "sub"),
+                        ordered_skills=skill_names,
+                    )
+                    # Strip execution_order from goal metadata so the
+                    # sub-executor runs the flat path without re-expanding
+                    # recipes and emitting duplicate boundary events.
+                    sub_goal = copy.copy(goal)
+                    sub_goal.metadata = {
+                        k: v
+                        for k, v in goal.metadata.items()
+                        if k != "execution_order"
+                    }
+                    sub = Executor()
+                    for event in sub.iter_events(
+                        sub_strategy,
+                        sub_goal,
+                        timeout_seconds=timeout_seconds,
+                        correlation_id=correlation_id,
+                        _existing_ctx=ctx,
+                        _suppress_start_complete=True,
+                        _run_id="",
+                        _use_hierarchical=False,
+                    ):
+                        yield event
+
+            elif item_type == "recipe":
+                recipe_id = str(item.get("content", ""))
+                instance_id = str(item.get("id", ""))
+                recipe = recipe_map.get(recipe_id)
+
+                if recipe is None:
+                    yield _event(
+                        "recipe_skipped",
+                        "",
+                        getattr(goal, "id", ""),
+                        payload={
+                            "recipe_id": recipe_id,
+                            "instance_id": instance_id,
+                            "reason": "unknown_recipe",
+                        },
+                        correlation_id=correlation_id,
+                    )
+                    i += 1
+                    continue
+
+                condition = item.get("condition") or recipe.get(
+                    "condition"
+                )
+                if not _eval_condition(condition, ctx.data):
+                    yield _event(
+                        "recipe_skipped",
+                        "",
+                        getattr(goal, "id", ""),
+                        payload={
+                            "recipe_id": recipe_id,
+                            "instance_id": instance_id,
+                            "reason": "condition_false",
+                        },
+                        correlation_id=correlation_id,
+                    )
+                    i += 1
+                    continue
+
+                params = item.get("parameters") or recipe.get(
+                    "parameters", {}
+                )
+                self._recipe_pre_execute(
+                    recipe_id, instance_id, params
+                )
+
+                yield _event(
+                    "recipe_start",
+                    "",
+                    getattr(goal, "id", ""),
+                    payload={
+                        "recipe_id": recipe_id,
+                        "instance_id": instance_id,
+                        "parameters": params,
+                    },
+                    correlation_id=correlation_id,
+                )
+
+                if params:
+                    stack = ctx.data.setdefault("_recipe_params", [])
+                    stack.append(params)
+
+                snapshot = copy.deepcopy(ctx.data)
+                max_retries = item.get(
+                    "max_retries", recipe.get("max_retries", 0)
+                )
+                recipe_errors: List[str] = []
+                attempt = 0
+
+                raw_nested = recipe.get("items", []) or recipe.get(
+                    "skills", []
+                )
+                # Normalize string lists to typed item dicts so that
+                # recipes defined with plain skill names work seamlessly.
+                nested_items: List[Dict[str, Any]] = []
+                for raw in raw_nested:
+                    if isinstance(raw, str):
+                        nested_items.append(
+                            {"type": "skill", "content": raw, "id": ""}
+                        )
+                    elif isinstance(raw, dict):
+                        nested_items.append(raw)
+
+                while True:
+                    if attempt > 0:
+                        ctx.data = copy.deepcopy(snapshot)
+                        recipe_errors = []
+                        yield _event(
+                            "recipe_retry",
+                            "",
+                            getattr(goal, "id", ""),
+                            payload={
+                                "recipe_id": recipe_id,
+                                "instance_id": instance_id,
+                                "attempt": attempt,
+                            },
+                            correlation_id=correlation_id,
+                        )
+
+                    for event in self._execute_items(
+                        nested_items,
+                        ctx,
+                        goal,
+                        timeout_seconds,
+                        recipe_map,
+                        correlation_id,
+                        depth + 1,
+                    ):
+                        if (
+                            event.get("type") == "skill_failed"
+                            and event.get("error")
+                        ):
+                            recipe_errors.append(
+                                f"{event.get('skill', 'unknown')}: "
+                                f"{event['error']}"
+                            )
+                        yield event
+
+                    if not recipe_errors or attempt >= max_retries:
+                        break
+                    attempt += 1
+
+                params_stack = ctx.data.get("_recipe_params")
+                if params_stack and isinstance(params_stack, list):
+                    params_stack.pop()
+                ctx.data.pop("_recipe_params", None)
+
+                status = "completed" if not recipe_errors else "failed"
+                self._recipe_post_execute(
+                    recipe_id, instance_id, status, recipe_errors
+                )
+
+                yield _event(
+                    "recipe_end",
+                    "",
+                    getattr(goal, "id", ""),
+                    payload={
+                        "recipe_id": recipe_id,
+                        "instance_id": instance_id,
+                        "status": status,
+                        "errors": recipe_errors if recipe_errors else None,
+                    },
+                    correlation_id=correlation_id,
+                )
+
+                if recipe_errors:
+                    for error in recipe_errors:
+                        yield _event(
+                            "error",
+                            "",
+                            getattr(goal, "id", ""),
+                            error=error,
+                            correlation_id=correlation_id,
+                        )
+
+                i += 1
+
+            else:
+                logger.warning(
+                    "execution_order[%d] has invalid type: %s",
+                    i,
+                    item_type,
+                )
+                i += 1
+
+    # -----------------------------------------------------------------
+    # Future hooks — subclasses may override to extend recipe behaviour
+    # -----------------------------------------------------------------
+
+    def _recipe_pre_execute(
+        self,
+        recipe_id: str,
+        instance_id: str,
+        params: Dict[str, Any],
+    ) -> None:
+        """Hook called before a recipe begins execution.
+
+        Subclasses may override to inject pre-recipe logic such as
+        validation, logging, or dynamic parameter adjustment.
+        """
+        pass
+
+    def _recipe_post_execute(
+        self,
+        recipe_id: str,
+        instance_id: str,
+        status: str,
+        errors: List[str],
+    ) -> None:
+        """Hook called after a recipe completes (success or failure).
+
+        Subclasses may override to collect metrics, trigger side
+        effects, or cache recipe results.
+        """
+        pass
+
+    def _recipe_should_cache(self, recipe_id: str) -> bool:
+        """Whether results for this recipe should be cached.
+
+        Subclasses may override to enable recipe-level caching.
+        """
+        return False
+
+    def _recipe_timeout(
+        self, recipe_id: str, default_timeout: float
+    ) -> float:
+        """Recipe-specific timeout override.
+
+        Subclasses may override to apply stricter or looser timeouts
+        for specific recipes.
+        """
+        return default_timeout
