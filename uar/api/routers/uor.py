@@ -424,4 +424,15 @@ def post_alm_verify(req: AtomicLangModelVerifyReq) -> Dict[str, Any]:
     return skill.verify_syntax(req.text)
 
 
+# ----------------------------------------------------------------------
+# UOR Ecosystem status
+# ----------------------------------------------------------------------
+@router.get("/ecosystem/status")
+def get_ecosystem_status() -> Dict[str, Any]:
+    from uar.core.uor_ecosystem import get_uor_ecosystem
+
+    eco = get_uor_ecosystem()
+    return {"status": "ok", "integrations": eco.status()}
+
+
 __all__ = ["router", "get_store"]

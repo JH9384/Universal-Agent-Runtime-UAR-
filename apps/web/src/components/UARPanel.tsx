@@ -177,6 +177,26 @@ const SKILL_GROUPS = [
     ]
   },
   {
+    name: 'UOR Ecosystem',
+    icon: '🌐',
+    skills: [
+      { id: 'uor_addr_canonicalize', label: 'uor_addr_canonicalize', desc: 'Canonicalize data per UOR-ADDR-1 and compute SHA-256 digest' },
+      { id: 'uor_addr_resolve',      label: 'uor_addr_resolve',      desc: 'Resolve a UOR digest from the integrator object cache' },
+      { id: 'hologram_query',        label: 'hologram_query',        desc: 'Submit geometric inference to gethologram.ai (requires HOLOGRAM_API_KEY)' },
+      { id: 'hologram_status',       label: 'hologram_status',       desc: 'Check gethologram.ai service health' },
+      { id: 'moltbook_list',         label: 'moltbook_list',         desc: 'List recent topics from moltbook.com/m/uor forum' },
+      { id: 'moltbook_search',       label: 'moltbook_search',       desc: 'Search moltbook.com/m/uor forum posts' },
+      { id: 'moltbook_post',         label: 'moltbook_post',         desc: 'Post a new topic to moltbook forum (requires MOLTBOOK_API_KEY)' },
+      { id: 'prism_btc_anchor',      label: 'prism_btc_anchor',      desc: 'Anchor a UOR digest on Bitcoin (placeholder - pending public API)' },
+      { id: 'prism_btc_verify',      label: 'prism_btc_verify',      desc: 'Verify an on-chain Bitcoin anchor (placeholder - pending public API)' },
+      { id: 'severance_infer',       label: 'severance_infer',       desc: 'Run inference via Severance AI (placeholder - pending public API)' },
+      { id: 'severance_verify',      label: 'severance_verify',      desc: 'Verify Severance AI output (placeholder - pending public API)' },
+      { id: 'anunix_health',         label: 'anunix_health',         desc: 'Check Anunix host health (placeholder - pending public API)' },
+      { id: 'anunix_run',            label: 'anunix_run',            desc: 'Run command on Anunix host (placeholder - pending public API)' },
+      { id: 'uor_ecosystem_status',  label: 'uor_ecosystem_status',  desc: 'Check status of all UOR ecosystem integrations' },
+    ]
+  },
+  {
     name: 'STEM',
     icon: '🔬',
     skills: [
