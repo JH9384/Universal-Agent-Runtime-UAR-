@@ -163,7 +163,8 @@ ALLOWED_EXTENSIONS = {
 
 
 def _extract_pdf(file_path: Path) -> str:
-    """Extract text from a PDF using pypdf if available. Returns '' on failure."""
+    """Extract text from a PDF using pypdf if available.
+    Returns '' on failure."""
     try:
         from pypdf import PdfReader  # type: ignore
     except ImportError:
@@ -182,7 +183,8 @@ def _extract_pdf(file_path: Path) -> str:
 
 
 def _extract_ipynb(file_path: Path) -> str:
-    """Strip a Jupyter notebook to markdown + fenced code via nbformat (with fallback)."""
+    """Strip a Jupyter notebook to markdown + fenced code
+    via nbformat (with fallback)."""
     try:
         import nbformat  # type: ignore
 
@@ -287,7 +289,9 @@ def _read_file_safely(file_path: Path, allowed_root: Path) -> dict[str, Any]:
                 "path": str(file_path.relative_to(allowed_root)),
                 "text": "",
                 "size": 0,
-                "error": f"File too large: {file_size} bytes (max {MAX_FILE_SIZE})",
+                "error": (
+                    f"File too large: {file_size} bytes (max {MAX_FILE_SIZE})"
+                ),
             }
 
         suffix = file_path.suffix.lower()
@@ -369,14 +373,16 @@ def _read_file_safely(file_path: Path, allowed_root: Path) -> dict[str, Any]:
 def _yield_documents(
     path: Path, allowed_root: Path
 ) -> Generator[dict[str, Any], None, None]:
-    """Generator to yield documents one at a time to avoid loading all into memory."""
+    """Generator to yield documents one at a time to avoid
+    loading all into memory."""
     file_count = 0
     total_size = 0
 
     if path.is_file():
         if path.suffix.lower() in ALLOWED_EXTENSIONS:
             doc = _read_file_safely(path, allowed_root)
-            # Always yield the doc, even if it has an error (so caller knows what happened)
+            # Always yield the doc, even if it has an error
+            # (so caller knows what happened)
             yield doc
         else:
             yield {
@@ -433,7 +439,8 @@ def _yield_documents(
                     yield doc
 
                 except OSError as e:
-                    # Handle race conditions where file is deleted between check and read
+                    # Handle race conditions where file is deleted
+                    # between check and read
                     logger.warning(f"File access error for {entry}: {e}")
                     continue
     else:

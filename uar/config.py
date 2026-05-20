@@ -153,7 +153,8 @@ class Config:
         )
 
     def _generate_secret_key(self) -> str:
-        """Generate a secret key for development - always generates a new key."""
+        """Generate a secret key for development -
+        always generates a new key."""
         return secrets.token_urlsafe(SECRET_KEY_LENGTH)
 
     @property
@@ -258,7 +259,8 @@ class Config:
                 import sys
 
                 sys.stderr.write(
-                    f"Warning: Log directory not writable: {log_dir}. Using stdout only.\n"
+                    f"Warning: Log directory not writable: {log_dir}. "
+                    "Using stdout only.\n"
                 )
 
         logging.config.dictConfig(log_config)
@@ -319,7 +321,8 @@ def validate_docker_environment() -> list[str]:
         # In Docker, certain things should always be true
         if os.getuid() == 0:
             issues.append(
-                "Running as root in Docker container (should use non-root user)"
+                "Running as root in Docker container "
+                "(should use non-root user)"
             )
 
         # Check required environment variables in Docker

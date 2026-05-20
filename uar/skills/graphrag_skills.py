@@ -1,11 +1,15 @@
 """GraphRAG integration skills.
 
 Provides three skills:
-  - graphrag_init   : bootstrap a GraphRAG workspace under <PROJECT_ROOT>/.uar_graphrag
-  - graphrag_index  : run `graphrag index` over a source directory (default: library)
-  - graphrag_query  : run `graphrag query --method=local|global` against the index
+  - graphrag_init   : bootstrap a GraphRAG workspace under
+    <PROJECT_ROOT>/.uar_graphrag
+  - graphrag_index  : run `graphrag index` over a source directory
+    (default: library)
+  - graphrag_query  : run `graphrag query --method=local|global`
+    against the index
 
-All three use the Ollama OpenAI-compatible endpoint so the pipeline stays local.
+All three use the Ollama OpenAI-compatible endpoint so the pipeline
+stays local.
 Configure via env:
   OLLAMA_HOST               (default http://127.0.0.1:11434)
   OLLAMA_MODEL              (default llama3.2:3b)     - chat model
@@ -128,7 +132,9 @@ def _check_schema_compatibility(root: Path) -> tuple[bool, str]:
     if current_version != GRAPH_SCHEMA_VERSION:
         return (
             False,
-            f"Graph schema version mismatch: existing={current_version}, current={GRAPH_SCHEMA_VERSION}. Run graphrag_init to reset.",
+            f"Graph schema version mismatch: "
+            f"existing={current_version}, current={GRAPH_SCHEMA_VERSION}. "
+            "Run graphrag_init to reset.",
         )
 
     return True, ""
@@ -289,7 +295,8 @@ def _ensure_workspace() -> Path:
     # Minimal .env to satisfy graphrag's API key lookup
     env_file = root / ".env"
     if not env_file.exists():
-        # Use environment variable for API key if set, otherwise use placeholder
+        # Use environment variable for API key if set,
+        # otherwise use placeholder
         api_key = os.getenv("GRAPHRAG_API_KEY", "ollama")
         env_file.write_text(f"GRAPHRAG_API_KEY={api_key}\n", encoding="utf-8")
     return root
@@ -372,7 +379,8 @@ def _run_cli_impl(
 
 @register_skill("graphrag_init")
 def graphrag_init(ctx):
-    """Create or refresh the GraphRAG workspace at <PROJECT_ROOT>/.uar_graphrag."""
+    """Create or refresh the GraphRAG workspace at
+    <PROJECT_ROOT>/.uar_graphrag."""
     root = _ensure_workspace()
     _set_graph_schema_version(root)  # Set current schema version
     return {
@@ -396,7 +404,10 @@ def graphrag_index(ctx):
     if not is_healthy:
         return {
             "status": "failed",
-            "error": f"Ollama health check failed: {error_msg}. Ensure Ollama is running.",
+            "error": (
+                f"Ollama health check failed: {error_msg}. "
+                "Ensure Ollama is running."
+            ),
         }
 
     root = _ensure_workspace()
@@ -421,7 +432,10 @@ def graphrag_index(ctx):
     if not within_limits:
         return {
             "status": "failed",
-            "error": f"Graph size limit exceeded: {limit_error}. Consider clearing the workspace with graphrag_init.",
+            "error": (
+                f"Graph size limit exceeded: {limit_error}. "
+                "Consider clearing the workspace with graphrag_init."
+            ),
         }
 
     # Check schema compatibility before indexing
@@ -470,7 +484,10 @@ def graphrag_query(ctx):
     if not settings.exists():
         return {
             "status": "failed",
-            "error": f"No GraphRAG workspace at {root}. Run graphrag_index first.",
+            "error": (
+                f"No GraphRAG workspace at {root}. "
+                "Run graphrag_index first."
+            ),
         }
 
     # Check graph size limits before querying
@@ -478,7 +495,10 @@ def graphrag_query(ctx):
     if not within_limits:
         return {
             "status": "failed",
-            "error": f"Graph size limit exceeded: {limit_error}. Consider clearing the workspace with graphrag_init.",
+            "error": (
+                f"Graph size limit exceeded: {limit_error}. "
+                "Consider clearing the workspace with graphrag_init."
+            ),
         }
 
     # Check schema compatibility before querying

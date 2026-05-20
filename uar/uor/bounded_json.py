@@ -50,7 +50,8 @@ class JsonValue:
         (CT-B)."""
         if depth > MAX_RECURSION_DEPTH:
             msg = (
-                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                f"Recursion depth {depth} exceeds "
+                f"maximum of {MAX_RECURSION_DEPTH}. "
                 "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
             raise RecursionError(msg)
@@ -68,7 +69,8 @@ class JsonValue:
         elif isinstance(obj, list):
             if len(obj) > MAX_ARRAY_LENGTH:
                 msg = (
-                    f"Array length {len(obj)} exceeds maximum of {MAX_ARRAY_LENGTH}. "
+                    f"Array length {len(obj)} exceeds "
+                    f"maximum of {MAX_ARRAY_LENGTH}. "
                     "Reduce array size or increase MAX_ARRAY_LENGTH."
                 )
                 raise ValueError(msg)
@@ -79,7 +81,8 @@ class JsonValue:
         elif isinstance(obj, dict):
             if len(obj) > MAX_OBJECT_KEYS:
                 msg = (
-                    f"Object key count {len(obj)} exceeds maximum of {MAX_OBJECT_KEYS}. "
+                    f"Object key count {len(obj)} exceeds "
+                    f"maximum of {MAX_OBJECT_KEYS}. "
                     "Reduce number of keys or increase MAX_OBJECT_KEYS."
                 )
                 raise ValueError(msg)
@@ -108,7 +111,8 @@ class JsonValue:
         """
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
-                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                f"Recursion depth {depth} exceeds "
+                f"maximum of {MAX_RECURSION_DEPTH}. "
                 "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
 
@@ -137,10 +141,12 @@ class JsonValue:
         return case_byte + canonical_bytes
 
     def _apply_nfc_normalization(self, obj: Any, depth: int = 0) -> Any:
-        """Apply Unicode NFC normalization to all strings including dictionary keys."""
+        """Apply Unicode NFC normalization to all strings
+        including dictionary keys."""
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
-                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                f"Recursion depth {depth} exceeds "
+                f"maximum of {MAX_RECURSION_DEPTH}. "
                 "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
 
@@ -191,7 +197,8 @@ class JsonValue:
         """Convert back to Python object with recursion bounds."""
         if depth > MAX_RECURSION_DEPTH:
             raise RecursionError(
-                f"Recursion depth {depth} exceeds maximum of {MAX_RECURSION_DEPTH}. "
+                f"Recursion depth {depth} exceeds "
+                f"maximum of {MAX_RECURSION_DEPTH}. "
                 "Reduce nesting depth or increase MAX_RECURSION_DEPTH."
             )
 
