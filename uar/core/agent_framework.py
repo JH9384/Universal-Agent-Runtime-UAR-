@@ -18,8 +18,13 @@ import logging
 from typing import Any, Dict, List, Optional, Callable
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
+
+
+def _utcnow() -> datetime:
+    """Return a naive UTC datetime (no tzinfo)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 try:
     from autogen import (  # type: ignore
@@ -54,7 +59,7 @@ class AgentMessage:
     metadata: Dict[str, Any] = field(default_factory=dict)
     sender_id: Optional[str] = None
     recipient_id: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utcnow)
     reply_to: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
