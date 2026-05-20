@@ -301,6 +301,9 @@ const RECIPES: Recipe[] = [
   { id: 'auto_up',   label: '☁️ Autonomi upload',  skills: ['autonomi_upload'], hint: 'Upload current input_path to Autonomi' },
   { id: 'auto_down', label: '☁️ Autonomi download', skills: ['autonomi_download'], hint: 'Download from Autonomi address' },
   { id: 'auto_status', label: '☁️ Autonomi status',  skills: ['autonomi_status'], hint: 'Check Autonomi connectivity' },
+  { id: 'eco_status', label: '🌐 Ecosystem status',  skills: ['uor_ecosystem_status'], hint: 'Check all UOR ecosystem integrations' },
+  { id: 'eco_canon',  label: '🌐 Canonicalize',     skills: ['uor_addr_canonicalize'], hint: 'Canonicalize data per UOR-ADDR-1' },
+  { id: 'eco_foundation', label: '🌐 Foundation verify', skills: ['uor_foundation_verify'], hint: 'Call the live UOR Foundation API' },
 ]
 
 type LibFile = {

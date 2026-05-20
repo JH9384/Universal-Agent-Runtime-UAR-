@@ -304,6 +304,25 @@ def anunix_run(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# UOR Foundation Live API skill
+# ---------------------------------------------------------------------------
+
+@register_skill("uor_foundation_verify")
+def uor_foundation_verify(ctx: PipelineContext) -> Dict[str, Any]:
+    """Call the live UOR Foundation API verify endpoint.
+
+    Metadata:
+      x  — integer parameter (default 42)
+    """
+    meta = ctx.goal.metadata or {}
+    x = meta.get("x", 42)
+
+    eco = get_uor_ecosystem()
+    result = eco.uor_foundation.verify(x=x)
+    return {"status": "completed", "x": x, **result}
+
+
+# ---------------------------------------------------------------------------
 # Ecosystem status skill
 # ---------------------------------------------------------------------------
 

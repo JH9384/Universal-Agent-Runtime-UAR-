@@ -1,4 +1,4 @@
-# Universal Agent Runtime (UAR) v1.0.0
+# Universal Agent Runtime (UAR) v1.1.0
 
 UOR-aligned agent execution layer for modular goal-driven agent workflows.
 
@@ -6,11 +6,14 @@ UOR-aligned agent execution layer for modular goal-driven agent workflows.
 
 - **Modular Runtime**: Extensible skill-based execution engine
 - **Event Streaming**: Real-time execution monitoring via Server-Sent Events
+- **Hierarchical Execution**: Recipes as discrete nested units with snapshot/retry/params scoping
+- **Recipe-Level Caching**: Context mutations cached per recipe ID and parameters
 - **Document Processing**: Multi-format ingestion (PDF, DOCX, XLSX, Jupyter, etc.)
 - **API Server**: Production-ready FastAPI server with security middleware
 - **Web Interface**: React-based control surface for workflow visualization
+- **UOR Ecosystem Integration**: Live API clients for UOR Foundation, Hologram, Moltbook, and more
 - **Replay & Persistence**: JSONL-based run storage with event reconstruction
-- **Security**: Path validation, rate limiting, input sanitization
+- **Security**: Path validation, rate limiting, input sanitization, SSRF prevention
 
 ## Quick Start
 
@@ -147,6 +150,18 @@ goal = {"goal": "Summarize this document", "input_path": "docs/README.md"}
 - `alm_analyze`: Analyze formal grammar specifications (BNF, EBNF)
 - `alm_generate`: Generate token sequences from a prefix
 - `alm_verify`: Validate text against ALM grammar
+- `uor_addr_canonicalize`: Canonicalize data per UOR-ADDR-1 and compute SHA-256 digest
+- `uor_addr_resolve`: Resolve a UOR digest from the integrator cache
+- `uor_foundation_verify`: Call the live UOR Foundation API (`api.uor.foundation/v1`)
+- `hologram_query`: Submit geometric inference to gethologram.ai
+- `hologram_status`: Check gethologram.ai service health
+- `moltbook_list`: List recent topics from moltbook.com/m/uor forum
+- `moltbook_search`: Search moltbook.com/m/uor forum posts
+- `moltbook_post`: Post a new topic to the moltbook forum
+- `prism_btc_anchor`: Anchor a UOR digest on Bitcoin (placeholder)
+- `severance_infer`: Run inference via Severance AI (placeholder)
+- `anunix_health`: Check Anunix host health (placeholder)
+- `uor_ecosystem_status`: Check status of all UOR ecosystem integrations
 
 ## Development
 

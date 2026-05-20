@@ -386,6 +386,50 @@ class SeveranceAIClient:
 
 
 # ---------------------------------------------------------------------------
+# UOR Foundation Live API Integration
+# ---------------------------------------------------------------------------
+
+class UORFoundationClient:
+    """Client for the live UOR Foundation API (api.uor.foundation).
+
+    Provides verification and discovery against the reference
+    UOR Foundation runtime endpoint.
+
+    Configure via env:
+        UOR_FOUNDATION_API_URL  — base URL (default
+        https://api.uor.foundation/v1)
+    """
+
+    def __init__(self) -> None:
+        self.base_url = os.getenv(
+            "UOR_FOUNDATION_API_URL",
+            "https://api.uor.foundation/v1",
+        )
+        self.enabled = True
+
+    def verify(self, x: int = 42) -> Dict[str, Any]:
+        """Call the UOR Foundation kernel verify endpoint.
+
+        Args:
+            x: integer parameter for the verify op (default 42)
+        """
+        url = f"{self.base_url}/kernel/op/verify?x={x}"
+        return _http_get(url, timeout=10.0)
+
+    def status(self) -> Dict[str, Any]:
+        """Check UOR Foundation API health."""
+        url = f"{self.base_url}/health"
+        result = _http_get(url, timeout=10.0)
+        if result.get("status") == "mock":
+            return {
+                "status": "unconfigured",
+                "reachable": False,
+                "note": "httpx not installed or network unreachable",
+            }
+        return result
+
+
+# ---------------------------------------------------------------------------
 # Anunix Integration (placeholder)
 # ---------------------------------------------------------------------------
 
@@ -440,14 +484,34 @@ class UOREcosystem:
         self.prism_btc = PrismBTCClient()
         self.severance_ai = SeveranceAIClient()
         self.anunix = AnunixClient()
+        self.uor_foundation = UORFoundationClient()
 
     def status(self) -> Dict[str, Any]:
-        """Return health/status for every ecosystem integration."""
+        """Return health/status for every ecosystem integration.
+
+        Where possible, performs an actual lightweight ping to verify
+        network reachability (not just configuration state).
+        """
+        # UOR Foundation — actually try to reach the API
+        foundation_ping = self.uor_foundation.status()
+        foundation_reachable = (
+            foundation_ping.get("status_code") == 200
+            or foundation_ping.get("status") == "ok"
+        )
+
+        # Hologram — lightweight health check if key is present
+        hologram_ping = (
+            self.hologram.status()
+            if self.hologram.enabled
+            else {"status": "not_configured"}
+        )
+
         return {
             "uor_addr": {"enabled": self.uor_addr.enabled},
             "hologram": {
                 "enabled": self.hologram.enabled,
                 "configured": bool(self.hologram.api_key),
+                "reachable": hologram_ping.get("status") == "ok",
             },
             "moltbook": {
                 "enabled": bool(self.moltbook.api_key),
@@ -455,6 +519,11 @@ class UOREcosystem:
             "prism_btc": {"enabled": self.prism_btc.enabled},
             "severance_ai": {"enabled": self.severance_ai.enabled},
             "anunix": {"enabled": self.anunix.enabled},
+            "uor_foundation": {
+                "enabled": self.uor_foundation.enabled,
+                "reachable": foundation_reachable,
+                "ping": foundation_ping,
+            },
         }
 
 

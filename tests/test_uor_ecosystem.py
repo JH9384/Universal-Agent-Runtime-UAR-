@@ -1,5 +1,7 @@
 """Tests for UOR Ecosystem integration layer."""
 
+import os
+
 from uar.core.uor_ecosystem import (
     UORAddrClient,
     HologramClient,
@@ -7,6 +9,7 @@ from uar.core.uor_ecosystem import (
     PrismBTCClient,
     SeveranceAIClient,
     AnunixClient,
+    UORFoundationClient,
     UOREcosystem,
     get_uor_ecosystem,
     reset_uor_ecosystem,
@@ -217,3 +220,44 @@ class TestSecurity:
         result = _http_get("http://127.0.0.1:8000/secret")
         assert result["status"] == "error"
         assert "Unsafe URL blocked" in result["error"]
+
+
+class TestUORFoundationClient:
+    def test_verify_default_x(self):
+        client = UORFoundationClient()
+        assert client.base_url == os.getenv(
+            "UOR_FOUNDATION_API_URL", "https://api.uor.foundation/v1"
+        )
+        assert client.enabled is True
+
+    def test_status_mock_when_no_httpx(self, monkeypatch):
+        monkeypatch.setattr(
+            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
+        )
+        client = UORFoundationClient()
+        result = client.status()
+        assert result["reachable"] is False
+        assert "unconfigured" in result["status"]
+
+    def test_foundation_url_blocked_by_ssrf(self):
+        from uar.core.uor_ecosystem import _is_url_safe
+
+        # The UOR Foundation API is a public endpoint — should be safe
+        assert _is_url_safe(
+            "https://api.uor.foundation/v1/kernel/op/verify?x=42"
+        ) is True
+
+
+class TestEcosystemStatusLive:
+    def test_status_includes_foundation(self):
+        eco = get_uor_ecosystem()
+        result = eco.status()
+        assert "uor_foundation" in result
+        assert "reachable" in result["uor_foundation"]
+        assert "ping" in result["uor_foundation"]
+
+    def test_status_includes_hologram_reachability(self):
+        eco = get_uor_ecosystem()
+        result = eco.status()
+        assert "hologram" in result
+        assert "reachable" in result["hologram"]

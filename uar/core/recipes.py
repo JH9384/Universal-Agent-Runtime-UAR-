@@ -73,6 +73,27 @@ DEFAULT_RECIPES: Dict[str, Dict[str, Any]] = {
         'skills': ['autonomi_status'],
         'hint': 'Check Autonomi connectivity'
     },
+    'eco_status': {
+        'id': 'eco_status',
+        'version': '1',
+        'label': '🌐 Ecosystem status',
+        'skills': ['uor_ecosystem_status'],
+        'hint': 'Check all UOR ecosystem integrations'
+    },
+    'eco_canon': {
+        'id': 'eco_canon',
+        'version': '1',
+        'label': '🌐 Canonicalize',
+        'skills': ['uor_addr_canonicalize'],
+        'hint': 'Canonicalize data per UOR-ADDR-1'
+    },
+    'eco_foundation': {
+        'id': 'eco_foundation',
+        'version': '1',
+        'label': '🌐 Foundation verify',
+        'skills': ['uor_foundation_verify'],
+        'hint': 'Call the live UOR Foundation API'
+    },
 }
 
 # Create RECIPE_MAP for quick lookup of skill lists by recipe ID
