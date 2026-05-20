@@ -399,15 +399,24 @@ class GovernanceSystem:
         budget = self.get_budget(agent_id)
         if not budget:
             return True  # No budget means unlimited
-        
-        if budget.is_exhausted():
+
+        # Check whether adding these resources would *exceed* the
+        # budget before actually consuming them, so that exactly
+        # reaching the limit is still allowed.
+        would_exceed = (
+            budget.used_tokens + tokens > budget.max_tokens
+            or budget.used_api_calls + api_calls
+            > budget.max_api_calls
+            or budget.used_cost_usd + cost_usd > budget.max_cost_usd
+        )
+        if would_exceed:
             return False
-        
+
         budget.used_tokens += tokens
         budget.used_api_calls += api_calls
         budget.used_cost_usd += cost_usd
-        
-        return not budget.is_exhausted()
+
+        return True
     
     def register_policy(
         self,

@@ -130,7 +130,11 @@ class JsonValue:
 
         # Add case tag prefix for UOR case distinction (CT-T)
         case_byte = bytes([self.case.value])
-        return case_byte + canonical.encode("utf-8")
+        canonical_bytes = (
+            canonical if isinstance(canonical, bytes)
+            else canonical.encode("utf-8")
+        )
+        return case_byte + canonical_bytes
 
     def _apply_nfc_normalization(self, obj: Any, depth: int = 0) -> Any:
         """Apply Unicode NFC normalization to all strings including dictionary keys."""

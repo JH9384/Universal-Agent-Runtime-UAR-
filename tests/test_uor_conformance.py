@@ -149,7 +149,7 @@ class TestLinkRelationsConformance:
 
         # Test derivation relations
         assert vocab.is_valid_relation("derives-from")
-        assert vocab.is_valid_relation("derived-by")
+        assert vocab.is_valid_relation("derived-from")
 
         # Test reference relations
         assert vocab.is_valid_relation("references")
@@ -160,7 +160,7 @@ class TestLinkRelationsConformance:
         vocab = LinkRelationVocabulary()
 
         assert vocab.get_inverse("contains") == "contained-by"
-        assert vocab.get_inverse("derives-from") == "derived-by"
+        assert vocab.get_inverse("derives-from") == "derived-from"
         assert vocab.get_inverse("references") == "referenced-by"
 
     def test_link_structure_compliance(self):
