@@ -56,6 +56,16 @@ This project uses semantic versioning for release tags.
   - Comprehensive test suite for UOR alignment validation
   - Note: Native Python implementation aligned with UOR Foundation Rust specification
     (no official Python uor-addr package exists on PyPI)
+- UOR Ecosystem Integration Layer (`uar.core.uor_ecosystem`)
+  - Active integrations: UOR-ADDR canonicalization, Hologram API client,
+    Moltbook forum client
+  - Placeholder stubs with graceful degradation for prism-btc, Severance AI,
+    Anunix (pending public API availability)
+  - 13 new ecosystem skills registered: `uor_addr_canonicalize`,
+    `uor_addr_resolve`, `hologram_query`, `hologram_status`, `moltbook_list`,
+    `moltbook_search`, `moltbook_post`, `prism_btc_anchor`, `prism_btc_verify`,
+    `severance_infer`, `severance_verify`, `anunix_health`, `anunix_run`
+  - Ecosystem status skill (`uor_ecosystem_status`) for health monitoring
 - Dependency compliance documentation (docs/DEPENDENCY_COMPLIANCE.md)
 - Autonomi experimental status warnings in configuration and documentation
 

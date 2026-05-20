@@ -218,6 +218,7 @@ import uar.skills.groq_skills  # noqa
 import uar.skills.huggingface_skills  # noqa
 import uar.skills.together_skills  # noqa
 import uar.skills.advanced_integrations  # noqa
+import uar.skills.uor_ecosystem_skills  # noqa
 
 
 # Lifespan for graceful startup/shutdown

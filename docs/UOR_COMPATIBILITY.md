@@ -112,6 +112,25 @@ UAR aligns with the following UOR Foundation repositories:
 4. Runtime execution must produce traceable output objects.
 5. UAR must clearly label extensions as UAR-specific.
 
+## Ecosystem Integrations
+
+UAR provides first-class integration modules for the broader UOR ecosystem:
+
+| Project | Module | Status | Notes |
+|---|---|---|---|
+| UOR-Foundation/uor-addr | `uar.core.uor_ecosystem.UORAddrClient` | Active | UOR-ADDR-1 canonicalization, digest computation, cache resolution |
+| gethologram.ai | `uar.core.uor_ecosystem.HologramClient` | Active | Geometric inference API with graceful mock fallback |
+| moltbook.com/m/uor | `uar.core.uor_ecosystem.MoltbookClient` | Active | Forum read/search; write gated by API key |
+| afflom/prism-btc | `uar.core.uor_ecosystem.PrismBTCClient` | Placeholder | BTC anchoring pending public release |
+| dkypuros/Project_Severance_AI | `uar.core.uor_ecosystem.SeveranceAIClient` | Placeholder | Inference pending public release |
+| AdamPippert/Anunix | `uar.core.uor_ecosystem.AnunixClient` | Placeholder | Host automation pending public release |
+| dkypuros/atomic-lang-model | `uar.skills.atomic_lang_model` | Active | ALM analyze/generate/verify skills |
+| UOR-Foundation/atlas-embeddings | `uar.core.atlas_embeddings` | Active | Golden Seed Vector / E8 integration |
+| UOR-Foundation/prism | `uar.core.prism_integration` | Active | Data refraction / facet model |
+| UOR-Foundation/ego-guard-forge | `uar.core.ego_guard_forge` | Active | Security policy enforcement |
+
+Each integration is exposed as both a Python client class and a registered UAR skill, so they can be composed into recipes and execution pipelines.
+
 ## Current Gaps
 
 - Formal UOR schema validation is not implemented.
@@ -119,6 +138,7 @@ UAR aligns with the following UOR Foundation repositories:
 - Link relation vocabulary is not standardized yet.
 - External UOR interoperability tests do not exist yet.
 - Public UOR reference test fixtures are not included yet.
+- prism-btc, Severance AI, and Anunix integrations are placeholder stubs awaiting public API availability.
 
 ## Compatibility Verdict
 

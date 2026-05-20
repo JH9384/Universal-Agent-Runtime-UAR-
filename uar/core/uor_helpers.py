@@ -20,6 +20,7 @@ from .sigmatics_integration import (
 from .atlas_embeddings import get_atlas_integrator
 from .ego_guard_forge import get_ego_guard_integrator
 from .prism_integration import get_prism_integrator
+from .uor_ecosystem import get_uor_ecosystem
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class UORAssetHelper:
         apply_prism: bool = False,
     ) -> Dict[str, Any]:
         """Create a computation pipeline using UOR assets."""
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Wrap input with UOR
         input_uor = wrap_input_data(data, source="pipeline")
@@ -83,10 +84,12 @@ class UORAssetHelper:
         # Sigmatics
         if apply_sigil:
             sig_int = get_sigmatics_integrator()
-            sigil_expr = sig_int.create_expression(
-                [Sigil("x", value=data) if isinstance(data, (int, float)) else Sigil("x")],
-                "sum"
-            )
+            sigil_list = [
+                Sigil("x", value=data)
+                if isinstance(data, (int, float))
+                else Sigil("x")
+            ]
+            sigil_expr = sig_int.create_expression(sigil_list, "sum")
             sigil_uor = sig_int.integrate_with_uor(sigil_expr)
             results["sigil_digest"] = sigil_uor.digest
 
@@ -116,7 +119,17 @@ class UORAssetHelper:
             prism_uor = prism_int.integrate_with_uor(prism)
             results["prism_digest"] = prism_uor.digest
 
+        # UOR Ecosystem
+        eco = get_uor_ecosystem()
+        eco_status = eco.status()
+        results["ecosystem"] = eco_status
+
         return results
+
+    @staticmethod
+    def get_ecosystem_status() -> Dict[str, Any]:
+        """Return status of all UOR ecosystem integrations."""
+        return get_uor_ecosystem().status()
 
     @staticmethod
     def reset_all_integrators():
@@ -126,12 +139,14 @@ class UORAssetHelper:
         from .atlas_embeddings import reset_atlas_integrator
         from .ego_guard_forge import reset_ego_guard_integrator
         from .prism_integration import reset_prism_integrator
+        from .uor_ecosystem import reset_uor_ecosystem
 
         reset_uor_integrator()
         reset_sigmatics_integrator()
         reset_atlas_integrator()
         reset_ego_guard_integrator()
         reset_prism_integrator()
+        reset_uor_ecosystem()
 
         logger.info("All UOR integrators reset")
 
