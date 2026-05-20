@@ -585,3 +585,174 @@ class TestExpandExecutionOrder:
         # Verify recipe_end has complete status (not aborted)
         recipe_end = [e for e in events if e["type"] == "recipe_end"][-1]
         assert recipe_end["payload"].get("status") is None
+
+
+class TestRecipeCaching:
+    """Tests for recipe-level caching in hierarchical execution."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_hierarchical(self, monkeypatch):
+        monkeypatch.setenv("UAR_HIERARCHICAL_EXECUTION", "1")
+
+    @pytest.fixture(autouse=True)
+    def _register_noop(self):
+        from uar.core.registry import registry
+
+        def _noop_skill(ctx: PipelineContext):
+            ctx.data["noop_ran"] = True
+            return "done"
+
+        if not registry.is_registered("noop"):
+            registry.register("noop", _noop_skill)
+        yield
+
+    def test_recipe_caches_context_delta(self):
+        """A recipe with cache=true stores its context mutations."""
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "cached_recipe",
+                        "id": "r1",
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "cached_recipe",
+                        "skills": ["noop"],
+                        "cache": True,
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="test", ordered_skills=[])
+        executor = Executor()
+
+        events = list(executor.iter_events(strategy, goal, timeout_seconds=1.0))
+        types = [e["type"] for e in events]
+        assert "recipe_end" in types
+
+        # The recipe should have cached the noop mutation
+        assert len(executor._recipe_cache) == 1
+        cached = list(executor._recipe_cache.values())[0]
+        assert cached.get("noop_ran") is True
+
+    def test_recipe_cache_hit_replays_delta(self):
+        """Second run of the same recipe with same params is a cache hit."""
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "cached_recipe",
+                        "id": "r1",
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "cached_recipe",
+                        "skills": ["noop"],
+                        "cache": True,
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="test", ordered_skills=[])
+        executor = Executor()
+
+        # First run — cache miss
+        events1 = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        assert all(
+            not e.get("payload", {}).get("cached")
+            for e in events1
+            if e["type"] in ("recipe_start", "recipe_end")
+        )
+
+        # Second run — cache hit (same executor, same cache)
+        events2 = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        starts = [
+            e for e in events2 if e["type"] == "recipe_start"
+        ]
+        ends = [e for e in events2 if e["type"] == "recipe_end"]
+        assert starts[0]["payload"].get("cached") is True
+        assert ends[0]["payload"].get("cached") is True
+
+        # No skill events on cache hit
+        skill_events = [e for e in events2 if e["type"].startswith("skill_")]
+        assert len(skill_events) == 0
+
+    def test_different_params_different_cache(self):
+        """Recipes with different params should not share cache entries."""
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "cached_recipe",
+                        "id": "r1",
+                        "parameters": {"mode": "fast"},
+                    },
+                    {
+                        "type": "recipe",
+                        "content": "cached_recipe",
+                        "id": "r2",
+                        "parameters": {"mode": "slow"},
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "cached_recipe",
+                        "skills": ["noop"],
+                        "cache": True,
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="test", ordered_skills=[])
+        executor = Executor()
+
+        list(executor.iter_events(strategy, goal, timeout_seconds=1.0))
+        assert len(executor._recipe_cache) == 2
+
+    def test_failed_recipe_not_cached(self):
+        """Failed recipes should not be cached."""
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "cached_recipe",
+                        "id": "r1",
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "cached_recipe",
+                        "skills": ["unknown_skill"],
+                        "cache": True,
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="test", ordered_skills=[])
+        executor = Executor()
+
+        list(executor.iter_events(strategy, goal, timeout_seconds=1.0))
+        assert len(executor._recipe_cache) == 0

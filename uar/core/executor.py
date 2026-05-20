@@ -547,6 +547,18 @@ def _event(
 
 
 class Executor:
+    """Execute strategies and yield events.
+
+    Supports recipe-level caching via the ``_recipe_cache`` instance
+    attribute. Each executor instance maintains its own cache; create
+    a new instance if you need a fresh cache.
+    """
+
+    def __init__(self) -> None:
+        # Simple in-memory cache keyed by (recipe_id, params_hash).
+        # Value stores the context mutations produced by the recipe.
+        self._recipe_cache: Dict[str, Dict[str, Any]] = {}
+
     def iter_events(
         self,
         strategy: StrategySpec,
@@ -630,8 +642,8 @@ class Executor:
 
         run_id = _run_id or str(uuid.uuid4())
         ctx = _existing_ctx or PipelineContext(goal=goal)
-        outputs = []
-        errors = []
+        outputs: List[Dict[str, Any]] = []
+        errors: List[str] = []
 
         # Execution metrics
         _metrics_start = time.time()
@@ -1598,6 +1610,45 @@ class Executor:
                     recipe_id, instance_id, params
                 )
 
+                # Build cache key from recipe_id + deterministic params
+                _cache_key: str | None = None
+                if self._recipe_should_cache(recipe_id, recipe):
+                    _cache_key = json.dumps(
+                        [recipe_id, sorted(params.items())],
+                        default=str,
+                    )
+
+                # Cache hit: replay cached context mutations
+                if _cache_key and _cache_key in self._recipe_cache:
+                    yield _event(
+                        "recipe_start",
+                        "",
+                        getattr(goal, "id", ""),
+                        payload={
+                            "recipe_id": recipe_id,
+                            "instance_id": instance_id,
+                            "parameters": params,
+                            "cached": True,
+                        },
+                        correlation_id=correlation_id,
+                    )
+                    cached_delta = self._recipe_cache[_cache_key]
+                    ctx.data.update(cached_delta)
+                    yield _event(
+                        "recipe_end",
+                        "",
+                        getattr(goal, "id", ""),
+                        payload={
+                            "recipe_id": recipe_id,
+                            "instance_id": instance_id,
+                            "status": "completed",
+                            "cached": True,
+                        },
+                        correlation_id=correlation_id,
+                    )
+                    i += 1
+                    continue
+
                 yield _event(
                     "recipe_start",
                     "",
@@ -1684,6 +1735,19 @@ class Executor:
                     recipe_id, instance_id, status, recipe_errors
                 )
 
+                # Cache the context delta on successful execution
+                if (
+                    _cache_key
+                    and not recipe_errors
+                    and status == "completed"
+                ):
+                    # Compute delta: keys that changed or were added
+                    delta: Dict[str, Any] = {}
+                    for key, value in ctx.data.items():
+                        if key not in snapshot or snapshot[key] != value:
+                            delta[key] = value
+                    self._recipe_cache[_cache_key] = delta
+
                 yield _event(
                     "recipe_end",
                     "",
@@ -1748,11 +1812,16 @@ class Executor:
         """
         pass
 
-    def _recipe_should_cache(self, recipe_id: str) -> bool:
+    def _recipe_should_cache(
+        self, recipe_id: str, recipe: Dict[str, Any] | None = None
+    ) -> bool:
         """Whether results for this recipe should be cached.
 
-        Subclasses may override to enable recipe-level caching.
+        Checks the recipe definition for a ``cache`` flag; subclasses
+        may override to add additional logic (e.g. whitelist/blacklist).
         """
+        if recipe and recipe.get("cache"):
+            return True
         return False
 
     def _recipe_timeout(
