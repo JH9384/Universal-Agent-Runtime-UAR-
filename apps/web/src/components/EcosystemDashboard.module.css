@@ -1,0 +1,202 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.dark {
+  background: #0f172a;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.toolbarButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.tabButton {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tabButton:hover {
+  color: #f8fafc;
+}
+
+.tabActive {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.scrollContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.summaryBar {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.summaryItem strong {
+  color: #f8fafc;
+}
+
+.pass { color: #34d399; }
+.fail { color: #f87171; }
+
+.integrationTable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.intHeader {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 1fr;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 1px solid #334155;
+}
+
+.intRow {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 1fr;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  align-items: center;
+}
+
+.intRow:nth-child(even) {
+  background: #1e293b;
+}
+
+.intName {
+  color: #f8fafc;
+  font-weight: 500;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badgeOnline {
+  background: #064e3b;
+  color: #34d399;
+}
+
+.badgeOffline {
+  background: #450a0a;
+  color: #f87171;
+}
+
+.intVer {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.intUrl {
+  color: #60a5fa;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.errorPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+}
+
+.errorBadge {
+  background: #ef4444;
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.errorText {
+  color: #f87171;
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+}
+
+.rawPanel {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+}
+
+.rawCode {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

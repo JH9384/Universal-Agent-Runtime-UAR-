@@ -8,6 +8,9 @@ import { MathVisualizer } from './MathVisualizer'
 import { RiscvVisualizer } from './RiscvVisualizer'
 import { VerilogVisualizer } from './VerilogVisualizer'
 import { FpgaVisualizer } from './FpgaVisualizer'
+import { CipherDashboard } from './CipherDashboard'
+import { EcosystemDashboard } from './EcosystemDashboard'
+import { DocIngestDashboard } from './DocIngestDashboard'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -405,6 +408,9 @@ export function UARPanel() {
   const [riscvData, setRiscvData] = useState<any>(null)
   const [verilogData, setVerilogData] = useState<any>(null)
   const [fpgaData, setFpgaData] = useState<any>(null)
+  const [cipherData, setCipherData] = useState<any>(null)
+  const [ecosystemData, setEcosystemData] = useState<any>(null)
+  const [docIngestData, setDocIngestData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -915,7 +921,7 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
-    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1134,6 +1140,15 @@ export function UARPanel() {
                   if (json.skill === 'fpga_verify' && json.payload?.result) {
                     setFpgaData(json.payload.result)
                   }
+                  if (json.skill === 'cipher_ops' && json.payload?.result) {
+                    setCipherData(json.payload.result)
+                  }
+                  if (json.skill === 'uor_ecosystem_status' && json.payload?.result) {
+                    setEcosystemData(json.payload.result)
+                  }
+                  if (json.skill === 'doc_ingest' && json.payload?.result) {
+                    setDocIngestData(json.payload.result)
+                  }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
                 if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
@@ -1351,7 +1366,7 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); eventCountRef.current = 0 }, [])
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -2408,6 +2423,54 @@ export function UARPanel() {
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
                 <FpgaVisualizer data={fpgaData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cipher Operations */}
+      {(cipherData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🔐 Crypto Operations</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <CipherDashboard data={cipherData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* UOR Ecosystem Status */}
+      {(ecosystemData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🌐 Ecosystem Status</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <EcosystemDashboard data={ecosystemData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Ingest */}
+      {(docIngestData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>📄 Document Ingest</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <DocIngestDashboard data={docIngestData} darkMode={darkMode} />
               </div>
             </div>
           </div>
