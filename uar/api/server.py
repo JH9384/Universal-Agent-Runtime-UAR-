@@ -695,14 +695,8 @@ async def stream_goal_ws(
     request_id = str(uuid.uuid4())
     correlation_id = str(uuid.uuid4())
 
-    # Accept WebSocket immediately - rate limiting is applied after
-    # receiving the request body to allow skill-specific limits
-    await websocket.accept()
-    websocket.state.correlation_id = correlation_id
-
-    # Parse Authorization header manually because HTTPBearer
-    # depends on a Request object which is unavailable for
-    # WebSocket connections in FastAPI/TestClient.
+    # Parse Authorization header first so we can rate-limit before
+    # accepting the connection and consuming server resources.
     auth_header = websocket.headers.get("authorization", "")
     credentials: Optional[HTTPAuthorizationCredentials] = None
     if auth_header.lower().startswith("bearer "):
@@ -710,6 +704,20 @@ async def stream_goal_ws(
             scheme="Bearer",
             credentials=auth_header[7:],
         )
+
+    # Apply connection-level rate limiting BEFORE accepting the
+    # WebSocket, to prevent connection-exhaustion attacks.
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
+    limit = RATE_LIMITS.get(tier, RATE_LIMITS["default"])["requests"]
+    window = RATE_LIMITS.get(tier, RATE_LIMITS["default"])["window"]
+    allowed, _ = rate_limiter.is_allowed(rate_limit_key, limit, window)
+    if not allowed:
+        await websocket.close(code=1008, reason="Rate limit exceeded")
+        return
+
+    await websocket.accept()
+    websocket.state.correlation_id = correlation_id
 
     _goal_id = ""
 
