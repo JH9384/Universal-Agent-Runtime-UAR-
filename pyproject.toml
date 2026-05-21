@@ -93,6 +93,9 @@ exclude = ["apps*", "tests*", "docs*", "specs*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning:pytest_asyncio",
+]
 
 [tool.mypy]
 python_version = "3.11"

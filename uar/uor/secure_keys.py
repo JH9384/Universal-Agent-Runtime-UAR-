@@ -98,7 +98,7 @@ class SecureKeyStore:
         keys = []
         for key in os.environ:
             if key.startswith(self.prefix):
-                key_id = key[len(self.prefix) :]
+                key_id = key[len(self.prefix) :]  # noqa: E203
                 keys.append(key_id.lower())
         return keys
 
@@ -217,7 +217,7 @@ class KeyManager:
                 backend=default_backend(),
             )
 
-            signature = private_key.sign(
+            signature = private_key.sign(  # type: ignore[union-attr]
                 data,
                 padding.PSS(
                     mgf=padding.MGF1(hashes.SHA256()),
@@ -270,7 +270,7 @@ class KeyManager:
             signature_bytes = base64.b64decode(signature)
 
             try:
-                public_key.verify(
+                public_key.verify(  # type: ignore[union-attr]
                     signature_bytes,
                     data,
                     padding.PSS(
