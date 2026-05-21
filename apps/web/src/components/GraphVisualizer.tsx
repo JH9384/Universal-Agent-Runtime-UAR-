@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect, type MouseEvent } from 'react'
 import ReactFlow, {
   Background,
   Controls,
@@ -150,6 +150,40 @@ function computeLayout(
   return result
 }
 
+function getCommunities(nodes: GraphNode[], edges: GraphEdge[]): string[][] {
+  const adjacency = new Map<string, Set<string>>()
+  nodes.forEach((node, index) => {
+    adjacency.set(node.id || String(index), new Set())
+  })
+  edges.forEach((edge) => {
+    if (!edge.from || !edge.to) return
+    if (!adjacency.has(edge.from) || !adjacency.has(edge.to)) return
+    adjacency.get(edge.from)?.add(edge.to)
+    adjacency.get(edge.to)?.add(edge.from)
+  })
+
+  const visited = new Set<string>()
+  const communities: string[][] = []
+  adjacency.forEach((_neighbors, start) => {
+    if (visited.has(start)) return
+    const queue = [start]
+    const community: string[] = []
+    visited.add(start)
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      community.push(current)
+      adjacency.get(current)?.forEach((next) => {
+        if (!visited.has(next)) {
+          visited.add(next)
+          queue.push(next)
+        }
+      })
+    }
+    communities.push(community)
+  })
+  return communities.sort((a, b) => b.length - a.length)
+}
+
 // ---------------------------------------------------------------------------
 // Custom node component
 // ---------------------------------------------------------------------------
@@ -178,19 +212,36 @@ const typeColors: Record<string, string> = {
   default: '#6b7280',
 }
 
+const typeClasses: Record<string, string> = {
+  skill: styles.typeSkill,
+  file: styles.typeFile,
+  module: styles.typeModule,
+  function: styles.typeFunction,
+  entity: styles.typeEntity,
+  class: styles.typeClass,
+  recipe: styles.typeRecipe,
+  ecosystem: styles.typeEcosystem,
+  default: styles.typeDefault,
+}
+
+function getTypeClass(type: string): string {
+  return typeClasses[type] || typeClasses.default
+}
+
 function CustomNode({ data, selected }: NodeProps) {
-  const color = typeColors[data.type as string] || typeColors.default
-  const icon = typeIcons[data.type as string] || typeIcons.default
+  const type = (data.type as string) || 'default'
+  const icon = typeIcons[type] || typeIcons.default
   return (
     <div
-      className={`${styles.customNode} ${selected ? styles.selectedNode : ''}`}
-      style={{ borderColor: color }}
+      className={`${styles.customNode} ${getTypeClass(type)} ${
+        selected ? styles.selectedNode : ''
+      }`}
       title={data.label as string}
     >
-      <Handle type="target" position={Position.Top} style={{ background: color }} />
-      <span className={styles.nodeIcon} style={{ color }}>{icon}</span>
+      <Handle type="target" position={Position.Top} className={styles.nodeHandle} />
+      <span className={styles.nodeIcon}>{icon}</span>
       <span className={styles.nodeLabel}>{data.label as string}</span>
-      <Handle type="source" position={Position.Bottom} style={{ background: color }} />
+      <Handle type="source" position={Position.Bottom} className={styles.nodeHandle} />
     </div>
   )
 }
@@ -250,6 +301,42 @@ export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisu
     return ids
   }, [rawNodes, filterType, searchQuery])
 
+  const graphStats = useMemo(() => {
+    const visibleNodes = rawNodes.filter((node, index) =>
+      visibleNodeIds.has(node.id || String(index))
+    )
+    const visibleIds = new Set(
+      visibleNodes.map((node, index) => node.id || String(index))
+    )
+    const visibleEdges = rawEdges.filter(
+      (edge) =>
+        edge.from &&
+        edge.to &&
+        visibleIds.has(edge.from) &&
+        visibleIds.has(edge.to)
+    )
+    const degree = new Map<string, number>()
+    visibleNodes.forEach((node, index) => {
+      degree.set(node.id || String(index), 0)
+    })
+    visibleEdges.forEach((edge) => {
+      if (!edge.from || !edge.to) return
+      degree.set(edge.from, (degree.get(edge.from) || 0) + 1)
+      degree.set(edge.to, (degree.get(edge.to) || 0) + 1)
+    })
+    const hub = Array.from(degree.entries()).sort((a, b) => b[1] - a[1])[0]
+    const communities = getCommunities(visibleNodes, visibleEdges)
+    const maxEdges = Math.max(visibleNodes.length * (visibleNodes.length - 1), 1)
+    return {
+      visibleNodeCount: visibleNodes.length,
+      visibleEdgeCount: visibleEdges.length,
+      communityCount: communities.length,
+      largestCommunity: communities[0]?.length || 0,
+      density: visibleEdges.length / maxEdges,
+      hub,
+    }
+  }, [rawNodes, rawEdges, visibleNodeIds])
+
   // Build ReactFlow nodes/edges
   const initialNodes: Node[] = useMemo(() => {
     const nodeIndex = new Map<string, string>()
@@ -308,14 +395,13 @@ export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisu
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
-  // Sync when initialNodes/initialEdges change
-  useMemo(() => {
+  useEffect(() => {
     setNodes(initialNodes)
     setEdges(initialEdges)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialNodes, initialEdges])
 
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+  const onNodeClick = useCallback((_event: MouseEvent, node: Node) => {
     setSelectedNode(node)
   }, [])
 
@@ -459,17 +545,16 @@ export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisu
             <div className={styles.detailRow}>
               <span className={styles.detailLabel}>Type</span>
               <span
-                className={styles.detailBadge}
-                style={{
-                  background: typeColors[(selectedNode.data?.type as string) || 'default'],
-                }}
+                className={`${styles.detailBadge} ${getTypeClass(
+                  (selectedNode.data?.type as string) || 'default'
+                )}`}
               >
                 {String(selectedNode.data?.type || 'default')}
               </span>
             </div>
             <div className={styles.detailRow}>
               <span className={styles.detailLabel}>ID</span>
-              <span className={styles.detailValue} style={{ fontSize: '11px', fontFamily: 'monospace' }}>
+              <span className={`${styles.detailValue} ${styles.monospaceValue}`}>
                 {String(selectedNode.data?.originalId || selectedNode.id)}
               </span>
             </div>
@@ -479,7 +564,7 @@ export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisu
               .map(([k, v]) => (
                 <div key={k} className={styles.detailRow}>
                   <span className={styles.detailLabel}>{k}</span>
-                  <span className={styles.detailValue} style={{ fontSize: '11px', fontFamily: 'monospace' }}>
+                  <span className={`${styles.detailValue} ${styles.monospaceValue}`}>
                     {typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80)}
                   </span>
                 </div>
@@ -490,11 +575,24 @@ export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisu
 
       {/* Legend */}
       <div className={`${styles.legend} ${darkMode ? styles.darkLegend : ''}`}>
+        <div className={styles.graphStats}>
+          <span>{graphStats.visibleNodeCount} nodes</span>
+          <span>{graphStats.visibleEdgeCount} edges</span>
+          <span>{graphStats.communityCount} groups</span>
+          <span>{(graphStats.density * 100).toFixed(1)}% dense</span>
+          {graphStats.hub && graphStats.hub[1] > 0 && (
+            <span title="Most connected visible node">
+              hub {graphStats.hub[0]} ({graphStats.hub[1]})
+            </span>
+          )}
+        </div>
         {Array.from(allTypes)
           .sort()
           .map((t) => (
             <div key={t} className={styles.legendItem}>
-              <span className={styles.legendDot} style={{ background: typeColors[t] || typeColors.default }} />
+              <span
+                className={`${styles.legendDot} ${getTypeClass(t)}`}
+              />
               <span className={styles.legendText}>{t}</span>
             </div>
           ))}

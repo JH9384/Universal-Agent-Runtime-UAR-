@@ -105,7 +105,7 @@
   gap: 6px;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 2px solid;
+  border: 2px solid var(--graph-node-color, #6b7280);
   background: #ffffff;
   color: #1f2937;
   font-size: 12px;
@@ -130,9 +130,50 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
 }
 
+.nodeHandle {
+  background: var(--graph-node-color, #6b7280);
+}
+
+.typeSkill {
+  --graph-node-color: #3b82f6;
+}
+
+.typeFile {
+  --graph-node-color: #10b981;
+}
+
+.typeModule {
+  --graph-node-color: #f59e0b;
+}
+
+.typeFunction {
+  --graph-node-color: #8b5cf6;
+}
+
+.typeEntity {
+  --graph-node-color: #ec4899;
+}
+
+.typeClass {
+  --graph-node-color: #06b6d4;
+}
+
+.typeRecipe {
+  --graph-node-color: #f97316;
+}
+
+.typeEcosystem {
+  --graph-node-color: #22c55e;
+}
+
+.typeDefault {
+  --graph-node-color: #6b7280;
+}
+
 .nodeIcon {
   font-size: 14px;
   flex-shrink: 0;
+  color: var(--graph-node-color, #6b7280);
 }
 
 .nodeLabel {
@@ -270,9 +311,15 @@
 .detailBadge {
   padding: 2px 8px;
   border-radius: 9999px;
+  background: var(--graph-node-color, #6b7280);
   color: #ffffff;
   font-size: 11px;
   font-weight: 600;
+}
+
+.monospaceValue {
+  font-family: monospace;
+  font-size: 11px;
 }
 
 /* Legend */
@@ -299,6 +346,30 @@
   border-color: #374151;
 }
 
+.graphStats {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 2px;
+  color: #374151;
+  font-weight: 600;
+}
+
+.graphStats span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+.darkLegend .graphStats {
+  color: #e5e7eb;
+}
+
+.darkLegend .graphStats span {
+  background: #374151;
+}
+
 .legendItem {
   display: flex;
   align-items: center;
@@ -309,6 +380,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  background: var(--graph-node-color, #6b7280);
   flex-shrink: 0;
 }
 
