@@ -37,18 +37,13 @@ try:
         BM25Retriever,
         AutoMergingRetriever,
     )
-    from llama_index.query_engine import (
-        RetrieverQueryEngine,
-        KnowledgeGraphQueryEngine,
-    )
+    from llama_index.query_engine import RetrieverQueryEngine
     from llama_index.response_synthesizers import (
         get_response_synthesizer,
         ResponseMode,
     )
     from llama_index.indices.knowledge_graph import KGIndex
-    from llama_index.graph_stores import NebulaGraphStore
-    from llama_index.embeddings import OpenAIEmbedding
-    from llama_index.llms import OpenAI
+
     LLAMAINDEX_AVAILABLE = True
 except ImportError:
     LLAMAINDEX_AVAILABLE = False
@@ -61,6 +56,7 @@ logger = logging.getLogger(__name__)
 
 class ChunkingStrategy(Enum):
     """Strategies for chunking documents."""
+
     SIMPLE = "simple"
     HIERARCHICAL = "hierarchical"
     SENTENCE = "sentence"
@@ -69,6 +65,7 @@ class ChunkingStrategy(Enum):
 
 class RetrievalStrategy(Enum):
     """Strategies for retrieving documents."""
+
     VECTOR = "vector"
     BM25 = "bm25"
     HYBRID = "hybrid"
@@ -79,6 +76,7 @@ class RetrievalStrategy(Enum):
 
 class ResponseMode(Enum):
     """Response generation modes."""
+
     REFINE = "refine"
     COMPACT = "compact"
     TREE_SUMMARIZE = "tree_summarize"
@@ -90,6 +88,7 @@ class ResponseMode(Enum):
 @dataclass
 class RAGConfig:
     """Configuration for RAG system."""
+
     chunk_size: int = 512
     chunk_overlap: int = 50
     top_k: int = 5
@@ -107,12 +106,13 @@ class RAGConfig:
 @dataclass
 class RetrievedNode:
     """Represents a retrieved document node."""
+
     node_id: str
     text: str
     metadata: Dict[str, Any] = field(default_factory=dict)
     score: float = 0.0
     source: str = ""
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -127,19 +127,22 @@ class RetrievedNode:
 @dataclass
 class RAGResult:
     """Result from RAG query."""
+
     query: str
     response: str
     retrieved_nodes: List[RetrievedNode] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     confidence: float = 0.0
     latency_ms: float = 0.0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
             "query": self.query,
             "response": self.response,
-            "retrieved_nodes": [node.to_dict() for node in self.retrieved_nodes],
+            "retrieved_nodes": [
+                node.to_dict() for node in self.retrieved_nodes
+            ],
             "metadata": self.metadata,
             "confidence": self.confidence,
             "latency_ms": self.latency_ms,
@@ -148,7 +151,7 @@ class RAGResult:
 
 class LlamaIndexRAG:
     """Advanced RAG system using LlamaIndex patterns."""
-    
+
     def __init__(
         self,
         config: Optional[RAGConfig] = None,
@@ -160,13 +163,13 @@ class LlamaIndexRAG:
         self.kg_index: Optional[KGIndex] = None
         self.query_engine = None
         self.documents: List[Document] = []
-        
+
         if not LLAMAINDEX_AVAILABLE:
             logger.error("LlamaIndex not available")
             return
-        
+
         self._initialize_storage()
-    
+
     def _initialize_storage(self):
         """Initialize storage context for the index."""
         try:
@@ -177,7 +180,7 @@ class LlamaIndexRAG:
         except Exception as e:
             logger.error(f"Failed to initialize storage: {e}")
             self.storage_context = None
-    
+
     def load_documents(
         self,
         input_path: str,
@@ -187,7 +190,7 @@ class LlamaIndexRAG:
         if not LLAMAINDEX_AVAILABLE:
             logger.error("LlamaIndex not available")
             return []
-        
+
         try:
             reader = SimpleDirectoryReader(
                 input_dir=input_path if recursive else None,
@@ -200,25 +203,25 @@ class LlamaIndexRAG:
         except Exception as e:
             logger.error(f"Failed to load documents: {e}")
             return []
-    
+
     def add_documents(self, documents: List[Document]):
         """Add documents to the index."""
         if not LLAMAINDEX_AVAILABLE:
             return
-        
+
         self.documents.extend(documents)
         logger.info(f"Added {len(documents)} documents")
-    
+
     def create_index(self, documents: Optional[List[Document]] = None):
         """Create a vector index from documents."""
         if not LLAMAINDEX_AVAILABLE:
             return
-        
+
         docs = documents or self.documents
         if not docs:
             logger.warning("No documents to index")
             return
-        
+
         try:
             # Select chunking strategy
             if self.config.chunking_strategy == ChunkingStrategy.HIERARCHICAL:
@@ -236,30 +239,32 @@ class LlamaIndexRAG:
                     chunk_size=self.config.chunk_size,
                     chunk_overlap=self.config.chunk_overlap,
                 )
-            
+
             # Parse documents into nodes
             nodes = node_parser.get_nodes_from_documents(docs)
-            
+
             # Create index
             self.index = VectorStoreIndex(
                 nodes=nodes,
                 storage_context=self.storage_context,
             )
-            
+
             # Persist index
             if self.storage_context:
-                self.index.storage_context.persist(persist_dir=self.storage_dir)
-            
+                self.index.storage_context.persist(
+                    persist_dir=self.storage_dir
+                )
+
             logger.info("Index created successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to create index: {e}")
-    
+
     def load_index(self):
         """Load an existing index from storage."""
         if not LLAMAINDEX_AVAILABLE:
             return
-        
+
         try:
             self.index = load_index_from_storage(
                 storage_context=self.storage_context,
@@ -268,30 +273,32 @@ class LlamaIndexRAG:
             logger.info("Index loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load index: {e}")
-    
-    def create_knowledge_graph_index(self, documents: Optional[List[Document]] = None):
+
+    def create_knowledge_graph_index(
+        self, documents: Optional[List[Document]] = None
+    ):
         """Create a knowledge graph index."""
         if not LLAMAINDEX_AVAILABLE:
             return
-        
+
         docs = documents or self.documents
         if not docs:
             logger.warning("No documents for knowledge graph")
             return
-        
+
         try:
-            # This is a simplified version - in production you'd use a proper graph store
+            # This is a simplified version - in production you'd use a proper graph store  # noqa: E501
             # like NebulaGraph or Neo4j
             self.kg_index = KGIndex.from_documents(docs)
             logger.info("Knowledge graph index created")
         except Exception as e:
             logger.error(f"Failed to create knowledge graph: {e}")
-    
+
     def setup_query_engine(self):
         """Setup the query engine with configured strategies."""
         if not LLAMAINDEX_AVAILABLE or not self.index:
             return
-        
+
         try:
             # Select retrieval strategy
             if self.config.retrieval_strategy == RetrievalStrategy.VECTOR:
@@ -304,7 +311,10 @@ class LlamaIndexRAG:
                     index=self.index,
                     similarity_top_k=self.config.top_k,
                 )
-            elif self.config.retrieval_strategy == RetrievalStrategy.AUTO_MERGING:
+            elif (
+                self.config.retrieval_strategy
+                == RetrievalStrategy.AUTO_MERGING
+            ):
                 base_retriever = VectorIndexRetriever(
                     index=self.index,
                     similarity_top_k=self.config.top_k,
@@ -319,23 +329,23 @@ class LlamaIndexRAG:
                     index=self.index,
                     similarity_top_k=self.config.top_k,
                 )
-            
+
             # Setup response synthesizer
             response_synthesizer = get_response_synthesizer(
                 response_mode=self.config.response_mode.value,
             )
-            
+
             # Create query engine
             self.query_engine = RetrieverQueryEngine(
                 retriever=retriever,
                 response_synthesizer=response_synthesizer,
             )
-            
+
             logger.info("Query engine setup successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to setup query engine: {e}")
-    
+
     def query(
         self,
         query_text: str,
@@ -349,41 +359,43 @@ class LlamaIndexRAG:
                 response="LlamaIndex not available",
                 confidence=0.0,
             )
-        
+
         if not self.query_engine:
             self.setup_query_engine()
-        
+
         if not self.query_engine:
             return RAGResult(
                 query=query_text,
                 response="Query engine not available",
                 confidence=0.0,
             )
-        
+
         start_time = datetime.utcnow()
-        
+
         try:
             # Execute query
             response = self.query_engine.query(query_text)
-            
+
             # Extract retrieved nodes
             retrieved_nodes = []
-            if hasattr(response, 'source_nodes'):
+            if hasattr(response, "source_nodes"):
                 for node in response.source_nodes:
                     retrieved_nodes.append(
                         RetrievedNode(
                             node_id=str(node.node_id),
                             text=node.node.text,
                             metadata=node.node.metadata,
-                            score=node.score if hasattr(node, 'score') else 0.0,
-                            source=node.node.metadata.get('file_name', ''),
+                            score=node.score
+                            if hasattr(node, "score")
+                            else 0.0,
+                            source=node.node.metadata.get("file_name", ""),
                         )
                     )
-            
+
             # Calculate latency
             end_time = datetime.utcnow()
             latency_ms = (end_time - start_time).total_seconds() * 1000
-            
+
             return RAGResult(
                 query=query_text,
                 response=str(response),
@@ -396,7 +408,7 @@ class LlamaIndexRAG:
                 confidence=0.8,  # Placeholder - would need actual calculation
                 latency_ms=latency_ms,
             )
-            
+
         except Exception as e:
             logger.error(f"Query failed: {e}")
             return RAGResult(
@@ -404,7 +416,7 @@ class LlamaIndexRAG:
                 response=f"Query failed: {e}",
                 confidence=0.0,
             )
-    
+
     def hybrid_query(
         self,
         query_text: str,
@@ -418,12 +430,14 @@ class LlamaIndexRAG:
                 response="LlamaIndex not available",
                 confidence=0.0,
             )
-        
+
         # This would implement fusion retrieval
         # For now, fall back to regular query
-        logger.warning("Hybrid query not fully implemented, using regular query")
+        logger.warning(
+            "Hybrid query not fully implemented, using regular query"
+        )
         return self.query(query_text, top_k=top_k)
-    
+
     def knowledge_graph_query(
         self,
         query_text: str,
@@ -436,11 +450,11 @@ class LlamaIndexRAG:
                 response="LlamaIndex not available",
                 confidence=0.0,
             )
-        
+
         if not self.kg_index:
             logger.warning("Knowledge graph index not available")
             return self.query(query_text)
-        
+
         try:
             response = self.kg_index.query(query_text)
             return RAGResult(
@@ -451,7 +465,7 @@ class LlamaIndexRAG:
         except Exception as e:
             logger.error(f"Knowledge graph query failed: {e}")
             return self.query(query_text)
-    
+
     def get_index_stats(self) -> Dict[str, Any]:
         """Get statistics about the index."""
         return {
@@ -491,11 +505,11 @@ def create_rag_skill(
 ):
     """Create a UAR skill that uses LlamaIndex RAG."""
     from uar.core.registry import register_skill
-    
+
     @register_skill(skill_name)
     def rag_skill(ctx):
         """Advanced RAG using LlamaIndex patterns.
-        
+
         Features:
         - Hierarchical chunking
         - Multiple retrieval strategies
@@ -508,16 +522,16 @@ def create_rag_skill(
                 "error": "No query provided",
                 "response": "",
             }
-        
+
         rag = get_rag_instance(config)
-        
+
         # Get query parameters
         retrieval_strategy = ctx.goal.metadata.get(
             "retrieval_strategy",
             "hybrid",
         )
         top_k = ctx.goal.metadata.get("top_k", 5)
-        
+
         # Execute query
         if retrieval_strategy == "knowledge_graph":
             result = rag.knowledge_graph_query(query)
@@ -525,7 +539,7 @@ def create_rag_skill(
             result = rag.hybrid_query(query, top_k=top_k)
         else:
             result = rag.query(query, top_k=top_k)
-        
+
         return result.to_dict()
-    
+
     return rag_skill

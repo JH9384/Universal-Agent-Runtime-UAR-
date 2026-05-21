@@ -103,6 +103,7 @@ class TestRecipeExpansionCache:
     def test_gc_threshold_from_env(self):
         # Default should be 50 unless overridden
         import os
+
         env_val = os.getenv("UAR_GC_THRESHOLD")
         if env_val is None:
             assert GC_EVENT_THRESHOLD == 50

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class AccessAction(Enum):
     """Types of access actions on UOR objects."""
+
     READ = "read"
     WRITE = "write"
     DELETE = "delete"
@@ -156,9 +157,7 @@ class ModeAccessController:
                 ),
             )
 
-    def enforce_access(
-        self, obj: UORObject, action: AccessAction
-    ) -> bool:
+    def enforce_access(self, obj: UORObject, action: AccessAction) -> bool:
         """Enforce access control on object.
 
         Args:
@@ -256,7 +255,7 @@ class RoleBasedAccessController:
                 allowed=False,
                 action=action,
                 mode=obj.mode,
-                reason=f"Role '{role}' does not have permission for {action.value}",
+                reason=f"Role '{role}' does not have permission for {action.value}",  # noqa: E501
             )
 
         # Check mode-based access

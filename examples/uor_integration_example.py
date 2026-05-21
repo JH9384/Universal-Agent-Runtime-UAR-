@@ -102,7 +102,7 @@ def example_ego_guard_forge():
         policy_id="example_policy",
         name="Example Policy",
         description="Example security policy",
-        rules={"access_level": "admin"}
+        rules={"access_level": "admin"},
     )
 
     # Evaluate policy
@@ -189,8 +189,7 @@ def example_end_to_end():
 
     # Step 2: Process with Sigmatics
     sigil_expr = create_sigil_expression(
-        [create_sigil("x", value=input_data["user_id"])],
-        "sum"
+        [create_sigil("x", value=input_data["user_id"])], "sum"
     )
     sigil_result = sigil_expr.evaluate()
     print(f"Sigmatics result: {sigil_result}")
@@ -205,7 +204,7 @@ def example_end_to_end():
         policy_id="check_user",
         name="User Check",
         description="Validate user action",
-        rules={"allowed_action": "read"}
+        rules={"allowed_action": "read"},
     )
     is_allowed = policy.evaluate({"allowed_action": "read"})
     print(f"Security check: {is_allowed}")
@@ -221,9 +220,9 @@ def example_end_to_end():
     print(f"Output digest: {output_uor.digest}")
 
     # Step 6: Validate chain
-    chain_validation = UORValidationHelper.validate_uor_chain([
-        input_uor, embedding_uor, output_uor
-    ])
+    chain_validation = UORValidationHelper.validate_uor_chain(
+        [input_uor, embedding_uor, output_uor]
+    )
     print(f"Chain validation: {chain_validation['valid']}")
 
 

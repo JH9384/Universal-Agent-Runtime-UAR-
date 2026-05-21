@@ -66,8 +66,7 @@ def _estimate_size(obj, max_depth=3, current_depth=0):
 
 
 def _validate_input_guardrails(
-    ctx: PipelineContext,
-    skill_name: str
+    ctx: PipelineContext, skill_name: str
 ) -> List[str]:
     """Basic input validation guardrails.
 
@@ -85,6 +84,7 @@ def _validate_input_guardrails(
     # Fall back to string length for complex objects
     if ctx.data:
         import sys
+
         try:
             # Get size of the data object
             size = sys.getsizeof(ctx.data)
@@ -191,10 +191,7 @@ def _validate_input_guardrails(
     return violations
 
 
-def _validate_output_guardrails(
-    result: Any,
-    skill_name: str
-) -> List[str]:
+def _validate_output_guardrails(result: Any, skill_name: str) -> List[str]:
     """Basic output validation guardrails.
 
     Args:
@@ -239,7 +236,7 @@ def get_max_retries(skill_name: str) -> int:
 
 
 def _expand_execution_order(
-    execution_order: List[Dict[str, Any]]
+    execution_order: List[Dict[str, Any]],
 ) -> List[str]:
     """Expand execution_order with recipes into a flat skill list.
 
@@ -301,11 +298,11 @@ def _expand_execution_order_with_markers(
         )
 
     for i, item in enumerate(execution_order):
-        item_type = item.get('type')
-        content = item.get('content')
-        instance_id = item.get('id', '') if isinstance(item, dict) else ''
+        item_type = item.get("type")
+        content = item.get("content")
+        instance_id = item.get("id", "") if isinstance(item, dict) else ""
 
-        if item_type == 'recipe':
+        if item_type == "recipe":
             if content is None:
                 raise ValidationError(
                     f"execution_order[{i}] has recipe type but "
@@ -325,7 +322,7 @@ def _expand_execution_order_with_markers(
                     f"{content}. Available recipes: {available}"
                 )
 
-            recipe_items = recipe.get('skills', [])
+            recipe_items = recipe.get("skills", [])
             if not isinstance(recipe_items, list):
                 logger.warning(
                     "Recipe %s has invalid skills type: %s. Expected list.",
@@ -368,9 +365,7 @@ def _expand_execution_order_with_markers(
                                 }
                             )
                 elif isinstance(s, str) and s:
-                    nested_id = (
-                        f"{instance_id}:{s}" if instance_id else s
-                    )
+                    nested_id = f"{instance_id}:{s}" if instance_id else s
                     if s in recipe_map:
                         typed_items.append(
                             {
@@ -433,7 +428,7 @@ def _expand_execution_order_with_markers(
                     "instance_id": instance_id,
                 }
             )
-        elif item_type == 'skill':
+        elif item_type == "skill":
             if content is not None:
                 skills.append(content)
         else:
@@ -447,7 +442,7 @@ def _expand_execution_order_with_markers(
 
 
 # Skills that modify context and must run sequentially
-CONTEXT_MODIFYING_SKILLS = {'doc_ingest', 'graphrag_index'}
+CONTEXT_MODIFYING_SKILLS = {"doc_ingest", "graphrag_index"}
 
 
 def _eval_condition(condition: Any, data: Dict[str, Any]) -> bool:
@@ -604,10 +599,13 @@ class Executor:
             if recipe_map is not None:
                 cache_key = hashlib.md5(
                     json.dumps(
-                        [execution_order, sorted(
-                            (k, v.get("skills", []))
-                            for k, v in recipe_map.items()
-                        )],
+                        [
+                            execution_order,
+                            sorted(
+                                (k, v.get("skills", []))
+                                for k, v in recipe_map.items()
+                            ),
+                        ],
                         sort_keys=True,
                         default=str,
                     ).encode()
@@ -636,8 +634,7 @@ class Executor:
                     )
             if ordered_skills:
                 strategy = StrategySpec(
-                    goal_id=strategy.goal_id,
-                    ordered_skills=ordered_skills
+                    goal_id=strategy.goal_id, ordered_skills=ordered_skills
                 )
 
         if not strategy.ordered_skills:
@@ -728,10 +725,9 @@ class Executor:
 
         # Hierarchical execution path (opt-in via env var or metadata)
         _executed_hierarchical = False
-        _hierarchical_enabled = (
-            os.getenv("UAR_HIERARCHICAL_EXECUTION", "")
-            or goal_metadata.get("use_hierarchical")
-        )
+        _hierarchical_enabled = os.getenv(
+            "UAR_HIERARCHICAL_EXECUTION", ""
+        ) or goal_metadata.get("use_hierarchical")
         if (
             execution_order
             and _hierarchical_enabled
@@ -769,8 +765,7 @@ class Executor:
             yield _ev(
                 "complete",
                 payload={
-                    "status": "completed"
-                    if not errors else "failed",
+                    "status": "completed" if not errors else "failed",
                     "outputs": outputs,
                     "errors": errors,
                     "final_context": ctx.data,
@@ -783,9 +778,9 @@ class Executor:
         if not _executed_hierarchical:
             # Legacy flat execution path
             # Group skills for parallel execution
-            enable_parallel = getattr(
-                goal, "metadata", {}
-            ).get("enable_parallel", True)
+            enable_parallel = getattr(goal, "metadata", {}).get(
+                "enable_parallel", True
+            )
             skill_groups = (
                 _get_parallel_groups(strategy.ordered_skills)
                 if enable_parallel
@@ -902,9 +897,8 @@ class Executor:
                 # Input guardrails check
                 input_violations = _validate_input_guardrails(ctx, skill_name)
                 if input_violations:
-                    error_msg = (
-                        "Input guardrail violations: " +
-                        ", ".join(input_violations)
+                    error_msg = "Input guardrail violations: " + ", ".join(
+                        input_violations
                     )
                     logger.warning(
                         f"Input guardrails failed for {skill_name}: "
@@ -920,7 +914,8 @@ class Executor:
                         active_recipe_stack
                         and recipe_retry_remaining.get(
                             active_recipe_stack[-1], 0
-                        ) > 0
+                        )
+                        > 0
                     ):
                         skip_to_recipe_end = active_recipe_stack[-1]
                     else:
@@ -944,8 +939,8 @@ class Executor:
                     )
                     if output_violations:
                         error_msg = (
-                            "Cached result failed guardrails: " +
-                            ", ".join(output_violations)
+                            "Cached result failed guardrails: "
+                            + ", ".join(output_violations)
                         )
                         logger.warning(
                             f"Cached result guardrails failed for "
@@ -990,8 +985,8 @@ class Executor:
                             )
                             if output_violations:
                                 error_msg = (
-                                    "Output guardrail violations: " +
-                                    ", ".join(output_violations)
+                                    "Output guardrail violations: "
+                                    + ", ".join(output_violations)
                                 )
                                 logger.warning(
                                     f"Output guardrails failed for "
@@ -1012,7 +1007,9 @@ class Executor:
                             # internally, no need for ctx_lock
                             if enable_cache:
                                 cache.set(
-                                    skill_name, ctx.data, goal.objective,
+                                    skill_name,
+                                    ctx.data,
+                                    goal.objective,
                                     result,
                                 )
 
@@ -1021,7 +1018,7 @@ class Executor:
                                 skill=skill_name,
                                 payload={
                                     "result": result,
-                                    "attempt": attempt + 1
+                                    "attempt": attempt + 1,
                                 },
                             )
                             break
@@ -1030,8 +1027,8 @@ class Executor:
                             if attempt < max_retries:
                                 # Add jitter to prevent thundering herd
                                 base_backoff = min(2**attempt, 5)
-                                backoff = (
-                                    base_backoff * random.uniform(0.8, 1.2)
+                                backoff = base_backoff * random.uniform(
+                                    0.8, 1.2
                                 )
                                 yield _ev(
                                     "skill_retry",
@@ -1050,18 +1047,17 @@ class Executor:
                                     error=str(last_error),
                                     payload={"attempts": attempt + 1},
                                 )
-                                _add_error(
-                                    f"{skill_name}: {str(last_error)}"
-                                )
+                                _add_error(f"{skill_name}: {str(last_error)}")
                                 if (
                                     active_recipe_stack
                                     and recipe_retry_remaining.get(
                                         active_recipe_stack[-1], 0
-                                    ) > 0
-                                ):
-                                    skip_to_recipe_end = (
-                                        active_recipe_stack[-1]
                                     )
+                                    > 0
+                                ):
+                                    skip_to_recipe_end = active_recipe_stack[
+                                        -1
+                                    ]
                                 else:
                                     execution_broken = True
                         except Exception as exc:
@@ -1075,24 +1071,20 @@ class Executor:
                                 active_recipe_stack
                                 and recipe_retry_remaining.get(
                                     active_recipe_stack[-1], 0
-                                ) > 0
-                            ):
-                                skip_to_recipe_end = (
-                                    active_recipe_stack[-1]
                                 )
+                                > 0
+                            ):
+                                skip_to_recipe_end = active_recipe_stack[-1]
                             else:
                                 execution_broken = True
             else:
                 # Parallel execution for group of skills
-                yield _ev(
-                    "parallel_start",
-                    payload={"skills": skill_group}
-                )
+                yield _ev("parallel_start", payload={"skills": skill_group})
 
                 # Check for fail_fast option in goal metadata
-                fail_fast = getattr(
-                    goal, "metadata", {}
-                ).get("fail_fast", False)
+                fail_fast = getattr(goal, "metadata", {}).get(
+                    "fail_fast", False
+                )
 
                 # Collect results locally to avoid concurrent ctx.data writes
                 parallel_results = {}
@@ -1116,8 +1108,8 @@ class Executor:
                         )
                         if output_violations:
                             error_msg = (
-                                "Cached result failed guardrails: " +
-                                ", ".join(output_violations)
+                                "Cached result failed guardrails: "
+                                + ", ".join(output_violations)
                             )
                             logger.warning(
                                 f"Cached result guardrails failed for "
@@ -1194,8 +1186,7 @@ class Executor:
                         ctx_copy.data = copy.deepcopy(ctx.data)
                         _skill_t0 = time.time()
                         future = pool.submit(
-                            _run_with_timeout, fn, ctx_copy,
-                            timeout_seconds
+                            _run_with_timeout, fn, ctx_copy, timeout_seconds
                         )
                         future_to_skill[future] = skill_name
                         future_to_start_time[future] = _skill_t0
@@ -1212,15 +1203,13 @@ class Executor:
                             result = future.result()
 
                             # Output guardrails check after execution
-                            output_violations = (
-                                _validate_output_guardrails(
-                                    result, skill_name
-                                )
+                            output_violations = _validate_output_guardrails(
+                                result, skill_name
                             )
                             if output_violations:
                                 error_msg = (
-                                    "Output guardrail violations: " +
-                                    ", ".join(output_violations)
+                                    "Output guardrail violations: "
+                                    + ", ".join(output_violations)
                                 )
                                 logger.warning(
                                     f"Output guardrails failed for "
@@ -1291,21 +1280,18 @@ class Executor:
                         # no need for ctx_lock
                         # Only cache if result passes guardrails
                         if enable_cache and skill_name in skills_to_execute:
-                            output_violations = (
-                                _validate_output_guardrails(
-                                    result, skill_name
-                                )
+                            output_violations = _validate_output_guardrails(
+                                result, skill_name
                             )
                             if not output_violations:
                                 cache.set(
-                                    skill_name, ctx.data,
-                                    goal.objective, result
+                                    skill_name,
+                                    ctx.data,
+                                    goal.objective,
+                                    result,
                                 )
 
-                yield _ev(
-                    "parallel_complete",
-                    payload={"skills": skill_group}
-                )
+                yield _ev("parallel_complete", payload={"skills": skill_group})
 
             # Advance flat skill index and emit recipe_end events for
             # markers at this position (end markers use exclusive index)
@@ -1352,9 +1338,7 @@ class Executor:
                                 recipe_snapshots[instance_id]
                             )
                             recipe_error_lists[instance_id] = []
-                            current_idx = recipe_start_skill_idx[
-                                instance_id
-                            ]
+                            current_idx = recipe_start_skill_idx[instance_id]
                             group_idx = flat_idx_to_group[current_idx]
                             skip_to_recipe_end = ""
                             retry_triggered = True
@@ -1366,9 +1350,7 @@ class Executor:
                                 recipe_error_lists[instance_id]
                             )
                         else:
-                            errors.extend(
-                                recipe_error_lists[instance_id]
-                            )
+                            errors.extend(recipe_error_lists[instance_id])
 
                     if retry_triggered:
                         break
@@ -1384,7 +1366,8 @@ class Executor:
                     recipe_error_lists.pop(instance_id, None)
                     duration_ms = (
                         round((time.time() - started) * 1000)
-                        if started else None
+                        if started
+                        else None
                     )
                     yield _ev(
                         "recipe_end",
@@ -1411,8 +1394,7 @@ class Executor:
                 instance_id = m.get("instance_id", "")
                 started = recipe_start_times.get(instance_id)
                 duration_ms = (
-                    round((time.time() - started) * 1000)
-                    if started else None
+                    round((time.time() - started) * 1000) if started else None
                 )
                 yield _ev(
                     "recipe_end",
@@ -1544,10 +1526,7 @@ class Executor:
             if item_type == "skill":
                 # Collect consecutive skills for a block execution
                 skill_names: List[str] = []
-                while (
-                    i < len(items)
-                    and items[i].get("type") == "skill"
-                ):
+                while i < len(items) and items[i].get("type") == "skill":
                     skill_names.append(str(items[i].get("content", "")))
                     i += 1
 
@@ -1598,9 +1577,7 @@ class Executor:
                     i += 1
                     continue
 
-                condition = item.get("condition") or recipe.get(
-                    "condition"
-                )
+                condition = item.get("condition") or recipe.get("condition")
                 if not _eval_condition(condition, ctx.data):
                     yield _event(
                         "recipe_skipped",
@@ -1616,12 +1593,8 @@ class Executor:
                     i += 1
                     continue
 
-                params = item.get("parameters") or recipe.get(
-                    "parameters", {}
-                )
-                self._recipe_pre_execute(
-                    recipe_id, instance_id, params
-                )
+                params = item.get("parameters") or recipe.get("parameters", {})
+                self._recipe_pre_execute(recipe_id, instance_id, params)
 
                 # Build cache key from recipe_id + deterministic params
                 _cache_key: str | None = None
@@ -1728,9 +1701,8 @@ class Executor:
                         correlation_id,
                         depth + 1,
                     ):
-                        if (
-                            event.get("type") == "skill_failed"
-                            and event.get("error")
+                        if event.get("type") == "skill_failed" and event.get(
+                            "error"
                         ):
                             recipe_errors.append(
                                 f"{event.get('skill', 'unknown')}: "
@@ -1758,11 +1730,7 @@ class Executor:
                 self._recipe_cache_misses += 1
 
                 # Cache the context delta on successful execution
-                if (
-                    _cache_key
-                    and not recipe_errors
-                    and status == "completed"
-                ):
+                if _cache_key and not recipe_errors and status == "completed":
                     # Compute delta: keys that changed or were added
                     delta: Dict[str, Any] = {}
                     for key, value in ctx.data.items():

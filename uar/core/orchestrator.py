@@ -53,7 +53,7 @@ def build_orchestration_plan(strategy: StrategySpec) -> OrchestrationPlan:
 
     for index, skill in enumerate(strategy.ordered_skills):
         if skill not in registry.list():
-            # Keep missing skills visible to the planner/executor instead of hiding them.
+            # Keep missing skills visible to the planner/executor instead of hiding them.  # noqa: E501
             metadata = {"registered": False}
         else:
             metadata = {"registered": True}

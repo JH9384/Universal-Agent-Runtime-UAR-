@@ -17,7 +17,7 @@ Goal metadata overrides:
   together_model       — per-run model override
   together_temperature — per-run temperature override (0-2)
   together_max_tokens  — per-run max tokens override
-"""
+"""  # noqa: E501
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from typing import Dict, Any
 
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -62,7 +63,9 @@ def _get_model(ctx: PipelineContext | None = None) -> str:
         override_model = ctx.goal.metadata.get("together_model")
         if override_model:
             return override_model
-    return os.getenv("TOGETHER_MODEL", "meta-llama/Llama-3.3-70B-Instruct-Turbo")  # noqa
+    return os.getenv(
+        "TOGETHER_MODEL", "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+    )  # noqa
 
 
 def _get_temperature(ctx: PipelineContext | None = None) -> float:
@@ -113,7 +116,7 @@ def together_chat(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Together client not available (install openai package and set TOGETHER_API_KEY)"  # noqa
+            "error": "Together client not available (install openai package and set TOGETHER_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -149,9 +152,15 @@ def together_chat(ctx: PipelineContext) -> Dict[str, Any]:
             "message": response.choices[0].message.content,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -180,7 +189,7 @@ def together_completion(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Together client not available (install openai package and set TOGETHER_API_KEY)"  # noqa
+            "error": "Together client not available (install openai package and set TOGETHER_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -213,9 +222,15 @@ def together_completion(ctx: PipelineContext) -> Dict[str, Any]:
             "text": response.choices[0].text,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -245,7 +260,7 @@ def together_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Together client not available (install openai package and set TOGETHER_API_KEY)"  # noqa
+            "error": "Together client not available (install openai package and set TOGETHER_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -255,7 +270,9 @@ def together_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     )
 
     try:
-        logger.info("Calling Together embedding with model %s", embedding_model)  # noqa
+        logger.info(
+            "Calling Together embedding with model %s", embedding_model
+        )  # noqa
 
         response = client.embeddings.create(
             model=embedding_model,
@@ -275,8 +292,12 @@ def together_embedding(ctx: PipelineContext) -> Dict[str, Any]:
             "embedding": response.data[0].embedding,
             "dimensions": len(response.data[0].embedding),
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:

@@ -104,7 +104,9 @@ class GroupTheoryOperations:
         self.dimension = dimension
         self.lie_ops = LieGroupOperations(dimension)
 
-    def check_group_axioms(self, elements: List[GroupElement]) -> Dict[str, bool]:
+    def check_group_axioms(
+        self, elements: List[GroupElement]
+    ) -> Dict[str, bool]:
         """Check group axioms for a set of elements.
 
         Args:
@@ -187,7 +189,10 @@ class GroupTheoryOperations:
                         # Check approximate equality
                         for row in range(len(left)):
                             for col in range(len(left[0])):
-                                if abs(left[row][col] - right[row][col]) > 0.01:
+                                if (
+                                    abs(left[row][col] - right[row][col])
+                                    > 0.01
+                                ):
                                     return False
         return True
 
@@ -228,11 +233,15 @@ class GroupTheoryOperations:
             # Try adding other elements
             for j, other in enumerate(elements):
                 if i != j and other.matrix and elem.matrix:
-                    composed = self.lie_ops.compose_matrices(elem.matrix, other.matrix)
+                    composed = self.lie_ops.compose_matrices(
+                        elem.matrix, other.matrix
+                    )
                     if composed:
                         # Check if composed is in our set
                         for k in elements:
-                            if k.matrix and self._matrices_equal(composed, k.matrix):
+                            if k.matrix and self._matrices_equal(
+                                composed, k.matrix
+                            ):
                                 subgroup.append(other)
                                 break
             if len(subgroup) > 1:
@@ -246,7 +255,9 @@ class GroupTheoryOperations:
                     subgroups.append(subgroup)
         return subgroups
 
-    def _matrices_equal(self, m1: List[List[float]], m2: List[List[float]]) -> bool:
+    def _matrices_equal(
+        self, m1: List[List[float]], m2: List[List[float]]
+    ) -> bool:
         """Check if two matrices are approximately equal."""
         if len(m1) != len(m2) or len(m1[0]) != len(m2[0]):
             return False
@@ -297,9 +308,7 @@ class UORObjectMathTransform:
 
         return result
 
-    def create_rotation_transformation(
-        self, angle: float
-    ) -> Transformation:
+    def create_rotation_transformation(self, angle: float) -> Transformation:
         """Create a rotation transformation.
 
         Args:

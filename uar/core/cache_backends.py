@@ -32,9 +32,7 @@ _RELEVANT_KEYS = [
 ]
 
 
-def _make_cache_key(
-    skill_name: str, ctx: Dict[str, Any], goal: str
-) -> str:
+def _make_cache_key(skill_name: str, ctx: Dict[str, Any], goal: str) -> str:
     # Try full context first for correctness; fall back to relevant
     # keys if the full context contains non-serializable values.
     key_data = {"skill": skill_name, "goal": goal, "ctx": ctx}
@@ -53,9 +51,7 @@ def _make_cache_key(
         # Final fallback: deterministic hash of sorted stringified items.
         fallback = ":".join([skill_name, goal])
         try:
-            item_hash = hash(
-                frozenset((k, str(v)) for k, v in ctx.items())
-            )
+            item_hash = hash(frozenset((k, str(v)) for k, v in ctx.items()))
             fallback += ":" + str(item_hash)
         except Exception:
             pass
@@ -65,6 +61,7 @@ def _make_cache_key(
 # ---------------------------------------------------------------------------
 # Abstract backend
 # ---------------------------------------------------------------------------
+
 
 class CacheBackend(ABC):
     """Abstract cache backend."""
@@ -102,6 +99,7 @@ class CacheBackend(ABC):
 # ---------------------------------------------------------------------------
 # File backend (wraps existing ResultCache logic)
 # ---------------------------------------------------------------------------
+
 
 class FileCacheBackend(CacheBackend):
     """File-based cache with LRU eviction."""
@@ -264,6 +262,7 @@ class FileCacheBackend(CacheBackend):
 # Redis backend
 # ---------------------------------------------------------------------------
 
+
 class RedisCacheBackend(CacheBackend):
     """Redis-backed cache with optional TTL per entry."""
 
@@ -341,9 +340,7 @@ class RedisCacheBackend(CacheBackend):
         try:
             if skill_name:
                 # Scan for keys matching prefix and filter by skill
-                for k in self._client.scan_iter(
-                    match=f"{self.key_prefix}*"
-                ):
+                for k in self._client.scan_iter(match=f"{self.key_prefix}*"):
                     try:
                         raw = self._client.get(k)
                         if raw:
@@ -353,9 +350,7 @@ class RedisCacheBackend(CacheBackend):
                     except Exception:
                         pass
             else:
-                for k in self._client.scan_iter(
-                    match=f"{self.key_prefix}*"
-                ):
+                for k in self._client.scan_iter(match=f"{self.key_prefix}*"):
                     self._client.delete(k)
         except Exception:
             pass
@@ -366,9 +361,7 @@ class RedisCacheBackend(CacheBackend):
         try:
             info = self._client.info("keyspace")
             total_keys = sum(
-                v.get("keys", 0)
-                for v in info.values()
-                if isinstance(v, dict)
+                v.get("keys", 0) for v in info.values() if isinstance(v, dict)
             )
             return {
                 "backend": "redis",
@@ -383,6 +376,7 @@ class RedisCacheBackend(CacheBackend):
 # ---------------------------------------------------------------------------
 # Auto-selecting backend
 # ---------------------------------------------------------------------------
+
 
 class AutoCacheBackend(CacheBackend):
     """Uses Redis if available and configured, otherwise file."""
@@ -440,11 +434,7 @@ class AutoCacheBackend(CacheBackend):
 
     def get_stats(self) -> Dict[str, Any]:
         return {
-            "active_backend": (
-                "redis" if self._redis is not None else "file"
-            ),
+            "active_backend": ("redis" if self._redis is not None else "file"),
             "file_stats": self._file.get_stats(),
-            "redis_stats": (
-                self._redis.get_stats() if self._redis else None
-            ),
+            "redis_stats": (self._redis.get_stats() if self._redis else None),
         }

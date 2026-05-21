@@ -44,9 +44,7 @@ class UORGraphMapper:
         self.relation_cache: Dict[str, Any] = {}
         self.graphrag = graphrag
 
-    def envelope_to_entity(
-        self, envelope: UOREnvelope
-    ) -> GraphEntity:
+    def envelope_to_entity(self, envelope: UOREnvelope) -> GraphEntity:
         """Convert UOR envelope to GraphRAG entity.
 
         Args:
@@ -71,9 +69,7 @@ class UORGraphMapper:
         self.entity_cache[envelope.digest] = entity
         return entity
 
-    def links_to_relations(
-        self, envelope: UOREnvelope
-    ) -> List[GraphRelation]:
+    def links_to_relations(self, envelope: UOREnvelope) -> List[GraphRelation]:
         """Convert UOR links to GraphRAG relations.
 
         Args:
@@ -206,6 +202,7 @@ class UORGraphMapper:
         """
         if not self.graphrag:
             from ..core.flexible_graphrag import get_graphrag_instance
+
             self.graphrag = get_graphrag_instance()
 
         # Add all UOR objects as entities
@@ -229,9 +226,7 @@ class UORGraphMapper:
                     properties=relation.properties,
                 )
 
-        logger.info(
-            f"Integrated {len(envelopes)} UOR objects with GraphRAG"
-        )
+        logger.info(f"Integrated {len(envelopes)} UOR objects with GraphRAG")
         return self.graphrag
 
     def query_with_graphrag(

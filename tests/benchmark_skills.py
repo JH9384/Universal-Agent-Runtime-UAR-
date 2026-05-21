@@ -39,11 +39,7 @@ class SkillBenchmark:
                 )
                 strategy.metadata = {"use_hierarchical": flag}
                 start = time.time()
-                list(
-                    executor.iter_events(
-                        strategy, goal, timeout_seconds=5.0
-                    )
-                )
+                list(executor.iter_events(strategy, goal, timeout_seconds=5.0))
                 elapsed = time.time() - start
                 results[mode].append(elapsed)
 

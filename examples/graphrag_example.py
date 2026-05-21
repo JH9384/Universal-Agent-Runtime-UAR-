@@ -21,7 +21,9 @@ def example_basic_graphrag():
     print("=== Basic GraphRAG ===")
 
     ontology = create_standard_ontology()
-    graphrag = FlexibleGraphRAG(backend=GraphBackend.IN_MEMORY, ontology=ontology)
+    graphrag = FlexibleGraphRAG(
+        backend=GraphBackend.IN_MEMORY, ontology=ontology
+    )
 
     # Add entities
     entity1 = graphrag.add_entity(

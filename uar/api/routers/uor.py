@@ -100,9 +100,7 @@ def post_object(
 
 @router.get("/objects")
 def get_object(
-    digest: str = Query(
-        ..., description="Object digest, e.g. sha256:<hash>"
-    ),
+    digest: str = Query(..., description="Object digest, e.g. sha256:<hash>"),
     store: ObjectStore = Depends(get_store),
 ) -> Dict[str, Any]:
     return _require_object(store, digest)
@@ -142,9 +140,7 @@ def get_runtimes(
             {
                 "name": name,
                 "digest": digest,
-                "attributes": store.get_object(digest).get(
-                    "attributes", {}
-                ),
+                "attributes": store.get_object(digest).get("attributes", {}),
             }
             for name, digest in sorted(store.list_runtimes().items())
         ]
@@ -248,9 +244,7 @@ def post_composer_compose(
             **req.attributes,
             "compositionType": req.compositionType,
         },
-        links=[
-            {"rel": "contains", "target": digest} for digest in req.inputs
-        ],
+        links=[{"rel": "contains", "target": digest} for digest in req.inputs],
         content={"items": req.inputs},
     )
     add_lineage(
@@ -286,9 +280,7 @@ def post_execution_run(
     except SandboxError as exc:
         msg = str(exc)
         status_code = 408 if "timed out" in msg.lower() else 400
-        raise HTTPException(
-            status_code=status_code, detail=msg
-        ) from exc
+        raise HTTPException(status_code=status_code, detail=msg) from exc
 
 
 @router.post("/agents/workflow/run")
@@ -305,9 +297,7 @@ def post_workflows_run(
     return _run_workflow(req, store)
 
 
-def _run_workflow(
-    req: WorkflowRunReq, store: ObjectStore
-) -> Dict[str, Any]:
+def _run_workflow(req: WorkflowRunReq, store: ObjectStore) -> Dict[str, Any]:
     try:
         return workflow_run(
             store,
@@ -320,9 +310,7 @@ def _run_workflow(
     except SandboxError as exc:
         msg = str(exc)
         status_code = 408 if "timed out" in msg.lower() else 400
-        raise HTTPException(
-            status_code=status_code, detail=msg
-        ) from exc
+        raise HTTPException(status_code=status_code, detail=msg) from exc
 
 
 # ----------------------------------------------------------------------
@@ -330,9 +318,7 @@ def _run_workflow(
 # ----------------------------------------------------------------------
 @router.get("/agents/lineage/trace")
 def get_lineage_trace(
-    digest: str = Query(
-        ..., description="Object digest, e.g. sha256:<hash>"
-    ),
+    digest: str = Query(..., description="Object digest, e.g. sha256:<hash>"),
     store: ObjectStore = Depends(get_store),
 ) -> Dict[str, Any]:
     _require_object(store, digest)
@@ -370,9 +356,7 @@ def post_inference_analyze(
     req: InferenceReq, store: ObjectStore = Depends(get_store)
 ) -> Dict[str, Any]:
     try:
-        return svc_inference_analyze(
-            store, objects=req.objects, task=req.task
-        )
+        return svc_inference_analyze(store, objects=req.objects, task=req.task)
     except KeyError as exc:
         raise HTTPException(
             status_code=404, detail=f"Object not found: {exc}"

@@ -26,6 +26,7 @@ from typing import Dict, Any
 
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -114,7 +115,7 @@ def mistral_chat(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Mistral client not available (install openai package and set MISTRAL_API_KEY)"  # noqa
+            "error": "Mistral client not available (install openai package and set MISTRAL_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -150,9 +151,15 @@ def mistral_chat(ctx: PipelineContext) -> Dict[str, Any]:
             "message": response.choices[0].message.content,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -182,7 +189,7 @@ def mistral_completion(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Mistral client not available (install openai package and set MISTRAL_API_KEY)"  # noqa
+            "error": "Mistral client not available (install openai package and set MISTRAL_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -215,9 +222,15 @@ def mistral_completion(ctx: PipelineContext) -> Dict[str, Any]:
             "text": response.choices[0].text,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -248,7 +261,7 @@ def mistral_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Mistral client not available (install openai package and set MISTRAL_API_KEY)"  # noqa
+            "error": "Mistral client not available (install openai package and set MISTRAL_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -276,8 +289,12 @@ def mistral_embedding(ctx: PipelineContext) -> Dict[str, Any]:
             "embedding": response.data[0].embedding,
             "dimensions": len(response.data[0].embedding),
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:

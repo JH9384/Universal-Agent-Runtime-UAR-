@@ -52,10 +52,7 @@ class TestFileUpload:
         """Test uploading a single file"""
         file_content = b"test file content"
         files = {"file": ("test.txt", BytesIO(file_content), "text/plain")}
-        response = client.post(
-            "/api/uar/docs/upload",
-            files=files
-        )
+        response = client.post("/api/uar/docs/upload", files=files)
         # Should succeed or fail gracefully
         assert response.status_code in [200, 400, 413, 422]
 
@@ -64,10 +61,7 @@ class TestFileUpload:
         # Create a file larger than 50MB limit
         large_content = b"x" * (51 * 1024 * 1024)
         files = {"file": ("large.txt", BytesIO(large_content), "text/plain")}
-        response = client.post(
-            "/api/uar/docs/upload",
-            files=files
-        )
+        response = client.post("/api/uar/docs/upload", files=files)
         # Should be rejected
         assert response.status_code in [400, 413, 422]
 
@@ -93,7 +87,7 @@ class TestStreamingEndpoint:
                 "goal": "test goal",
                 "input_path": "/tmp",
                 "skills": ["doc_ingest"],
-            }
+            },
         )
         # Should attempt to process
         assert response.status_code in [200, 400, 500]
@@ -106,7 +100,7 @@ class TestStreamingEndpoint:
                 "goal": "test goal",
                 "input_path": "/tmp",
                 "skills": ["doc_ingest"],
-            }
+            },
         )
         if response.status_code == 200:
             # Check for SSE headers
@@ -135,7 +129,7 @@ class TestLLMIntegration:
                 "input_path": "/tmp",
                 "skills": ["openai_chat"],
                 "metadata": {"openai_api_key": "test-key"},
-            }
+            },
         )
         # Should attempt to process
         assert response.status_code in [200, 400, 500]
@@ -155,7 +149,7 @@ class TestLLMIntegration:
                 "input_path": "/tmp",
                 "skills": ["anthropic_chat"],
                 "metadata": {"anthropic_api_key": "test-key"},
-            }
+            },
         )
         assert response.status_code in [200, 400, 500]
 
@@ -165,9 +159,9 @@ class TestLLMIntegration:
         mock_post.return_value = Mock(
             status_code=200,
             json=lambda: {
-                "candidates": [{
-                    "content": {"parts": [{"text": "test response"}]}
-                }]
+                "candidates": [
+                    {"content": {"parts": [{"text": "test response"}]}}
+                ]
             },
         )
 
@@ -178,7 +172,7 @@ class TestLLMIntegration:
                 "input_path": "/tmp",
                 "skills": ["gemini_chat"],
                 "metadata": {"gemini_api_key": "test-key"},
-            }
+            },
         )
         assert response.status_code in [200, 400, 500]
 
@@ -243,7 +237,7 @@ class TestErrorHandling:
         """Test error handling for invalid goal format"""
         response = client.post(
             "/api/uar/stream",
-            json={"goal": "", "input_path": "/tmp", "skills": []}
+            json={"goal": "", "input_path": "/tmp", "skills": []},
         )
         assert response.status_code in [400, 422]
 

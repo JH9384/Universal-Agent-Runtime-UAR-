@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # UOR-ADDR skills
 # ---------------------------------------------------------------------------
 
+
 @register_skill("uor_addr_canonicalize")
 def uor_addr_canonicalize(ctx: PipelineContext) -> Dict[str, Any]:
     """Canonicalize data per UOR-ADDR-1 and return digest envelope.
@@ -89,6 +90,7 @@ def uor_addr_resolve(ctx: PipelineContext) -> Dict[str, Any]:
 # Hologram skills
 # ---------------------------------------------------------------------------
 
+
 @register_skill("hologram_query")
 def hologram_query(ctx: PipelineContext) -> Dict[str, Any]:
     """Submit a geometric inference query to gethologram.ai.
@@ -117,6 +119,7 @@ def hologram_status(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Moltbook skills
 # ---------------------------------------------------------------------------
+
 
 @register_skill("moltbook_list")
 def moltbook_list(ctx: PipelineContext) -> Dict[str, Any]:
@@ -184,6 +187,7 @@ def moltbook_post(ctx: PipelineContext) -> Dict[str, Any]:
 # Prism-BTC skills (placeholder)
 # ---------------------------------------------------------------------------
 
+
 @register_skill("prism_btc_anchor")
 def prism_btc_anchor(ctx: PipelineContext) -> Dict[str, Any]:
     """Anchor a UOR digest on the Bitcoin blockchain (placeholder).
@@ -221,6 +225,7 @@ def prism_btc_verify(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Severance AI skills (placeholder)
 # ---------------------------------------------------------------------------
+
 
 @register_skill("severance_infer")
 def severance_infer(ctx: PipelineContext) -> Dict[str, Any]:
@@ -263,6 +268,7 @@ def severance_verify(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Anunix skills (placeholder)
 # ---------------------------------------------------------------------------
+
 
 @register_skill("anunix_health")
 def anunix_health(ctx: PipelineContext) -> Dict[str, Any]:
@@ -307,6 +313,7 @@ def anunix_run(ctx: PipelineContext) -> Dict[str, Any]:
 # UOR Foundation Live API skill
 # ---------------------------------------------------------------------------
 
+
 @register_skill("uor_foundation_verify")
 def uor_foundation_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """Call the live UOR Foundation API verify endpoint.
@@ -325,6 +332,7 @@ def uor_foundation_verify(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Ecosystem status skill
 # ---------------------------------------------------------------------------
+
 
 @register_skill("uor_ecosystem_status")
 def uor_ecosystem_status(ctx: PipelineContext) -> Dict[str, Any]:

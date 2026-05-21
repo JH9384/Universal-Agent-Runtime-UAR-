@@ -38,6 +38,7 @@ MAX_EXPRESSION_SIZE = int(os.getenv("MATH_MAX_EXPRESSION_SIZE", "10000"))
 def _check_sympy_available() -> bool:
     """Check if SymPy is available with graceful degradation."""
     import importlib.util
+
     return importlib.util.find_spec("sympy") is not None
 
 
@@ -66,7 +67,7 @@ def _safe_sympy_eval(expr: str, timeout: float) -> Dict[str, Any]:
             "success": True,
             "result": str(result),
             "result_latex": sympy.latex(result),
-            "result_type": str(type(result).__name__)
+            "result_type": str(type(result).__name__),
         }
     except TimeoutError:
         signal.alarm(0)
@@ -82,8 +83,8 @@ def _solve_equation(expr: str, variable: str = "x") -> Dict[str, Any]:
 
     try:
         x = sympy.Symbol(variable)
-        lhs = sympy.sympify(expr.split('=')[0])
-        rhs = sympy.sympify(expr.split('=')[1])
+        lhs = sympy.sympify(expr.split("=")[0])
+        rhs = sympy.sympify(expr.split("=")[1])
         eq = sympy.Eq(lhs, rhs)
         solutions = sympy.solve(eq, x)
 
@@ -91,7 +92,7 @@ def _solve_equation(expr: str, variable: str = "x") -> Dict[str, Any]:
             "success": True,
             "solutions": [str(sol) for sol in solutions],
             "solution_count": len(solutions),
-            "variable": variable
+            "variable": variable,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -110,7 +111,7 @@ def _differentiate(expr: str, variable: str = "x") -> Dict[str, Any]:
             "success": True,
             "derivative": str(df),
             "derivative_latex": sympy.latex(df),
-            "variable": variable
+            "variable": variable,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -129,7 +130,7 @@ def _integrate(expr: str, variable: str = "x") -> Dict[str, Any]:
             "success": True,
             "integral": str(integral),
             "integral_latex": sympy.latex(integral),
-            "variable": variable
+            "variable": variable,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -147,7 +148,7 @@ def _simplify(expr: str) -> Dict[str, Any]:
             "success": True,
             "original": str(f),
             "simplified": str(simplified),
-            "simplified_latex": sympy.latex(simplified)
+            "simplified_latex": sympy.latex(simplified),
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -180,7 +181,7 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
         return {
             "status": "failed",
             "error": "SymPy not installed. Install with: pip install sympy",
-            "operation": "unavailable"
+            "operation": "unavailable",
         }
 
     # Get parameters from goal metadata
@@ -193,14 +194,14 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
         return {
             "status": "failed",
             "error": "math_expression is required in goal metadata",
-            "operation": operation
+            "operation": operation,
         }
 
     if len(expression) > MAX_EXPRESSION_SIZE:
         return {
             "status": "failed",
             "error": f"Expression too large (max {MAX_EXPRESSION_SIZE} chars)",
-            "operation": operation
+            "operation": operation,
         }
 
     # Execute operation with circuit breaker
@@ -210,11 +211,7 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
         )
     except Exception as exc:
         logger.warning(f"math_compute failed: {exc}")
-        return {
-            "status": "failed",
-            "error": str(exc),
-            "operation": operation
-        }
+        return {"status": "failed", "error": str(exc), "operation": operation}
 
     # Add metadata to result
     result["operation"] = operation
@@ -234,7 +231,7 @@ def _execute_operation(
         "simplify": lambda: _simplify(expression),
         "differentiate": lambda: _differentiate(expression, variable),
         "integrate": lambda: _integrate(expression, variable),
-        "evaluate": lambda: _safe_sympy_eval(expression, MATH_TIMEOUT)
+        "evaluate": lambda: _safe_sympy_eval(expression, MATH_TIMEOUT),
     }
 
     if operation not in operations:
@@ -243,7 +240,7 @@ def _execute_operation(
             "error": (
                 f"Unknown operation: {operation}. "
                 f"Available: {list(operations.keys())}"
-            )
+            ),
         }
 
     return operations[operation]()

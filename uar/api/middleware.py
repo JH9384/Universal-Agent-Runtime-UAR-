@@ -88,7 +88,7 @@ def _load_skill_rate_limits() -> Dict[str, Dict[str, int]]:
                     window = int(parts[2].strip())
                     skill_limits[skill] = {
                         "requests": requests,
-                        "window": window
+                        "window": window,
                     }
                 except ValueError:
                     logger.warning(
@@ -324,9 +324,8 @@ def _extract_skill_from_request(request: Request) -> Optional[str]:
                             return first_item.get("content")
                         elif first_item.get("type") == "recipe":
                             content = first_item.get("content")
-                            if (
-                                content is not None
-                                and isinstance(content, str)
+                            if content is not None and isinstance(
+                                content, str
                             ):
                                 recipe_skills = get_recipe_skills(content)
                                 if recipe_skills:
@@ -339,7 +338,7 @@ def _extract_skill_from_request(request: Request) -> Optional[str]:
 
 def _extract_skill_from_request_data(
     skills: Optional[List[str]],
-    execution_order: Optional[List[Dict[str, Any]]]
+    execution_order: Optional[List[Dict[str, Any]]],
 ) -> Optional[str]:
     """Extract skill name from request data for WebSocket endpoints.
 
@@ -357,12 +356,12 @@ def _extract_skill_from_request_data(
         skill_name = skills[0]
     elif execution_order and len(execution_order) > 0:
         first_item = execution_order[0]
-        if first_item.get('type') == 'skill':
-            content = first_item.get('content')
+        if first_item.get("type") == "skill":
+            content = first_item.get("content")
             if content is not None and isinstance(content, str):
                 skill_name = content
-        elif first_item.get('type') == 'recipe':
-            content = first_item.get('content')
+        elif first_item.get("type") == "recipe":
+            content = first_item.get("content")
             if content is not None and isinstance(content, str):
                 recipe_skills = get_recipe_skills(content)
                 if recipe_skills and len(recipe_skills) > 0:
@@ -372,9 +371,7 @@ def _extract_skill_from_request_data(
 
 
 def check_rate_limit(
-    rate_limit_key: str,
-    tier: str,
-    skill_name: Optional[str]
+    rate_limit_key: str, tier: str, skill_name: Optional[str]
 ) -> tuple[int, int, str]:
     """Check rate limit and return limit, window, and rate limit type.
 
@@ -399,8 +396,7 @@ def check_rate_limit(
 
 
 def build_rate_limit_key(
-    client_ip: str,
-    credentials: Optional[HTTPAuthorizationCredentials]
+    client_ip: str, credentials: Optional[HTTPAuthorizationCredentials]
 ) -> tuple[str, str]:
     """Build rate limit key and determine tier from credentials.
 
@@ -452,9 +448,7 @@ def rate_limit_middleware(
     if skill_name:
         request.state.skill_name = skill_name
 
-    allowed, remaining = rate_limiter.is_allowed(
-        rate_limit_key, limit, window
-    )
+    allowed, remaining = rate_limiter.is_allowed(rate_limit_key, limit, window)
     if not allowed:
         logger.warning(f"Rate limit exceeded for {rate_limit_key}")
         raise HTTPException(

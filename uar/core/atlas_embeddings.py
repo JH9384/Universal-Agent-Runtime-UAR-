@@ -62,10 +62,12 @@ class GoldenSeedVector:
             "mean": float(np.mean(self.vector_data)),
             "std": float(np.std(self.vector_data)),
             "norm": float(np.linalg.norm(self.vector_data)),
-            "entropy": float(-np.sum(
-                np.abs(self.vector_data) *
-                np.log(np.abs(self.vector_data) + 1e-10)
-            )),
+            "entropy": float(
+                -np.sum(
+                    np.abs(self.vector_data)
+                    * np.log(np.abs(self.vector_data) + 1e-10)
+                )
+            ),
         }
 
     def wrap_with_uor(self, source: str = "atlas_embeddings") -> UORObject:
@@ -76,7 +78,7 @@ class GoldenSeedVector:
                 "symmetry_group": self.symmetry_group,
                 "symmetry_properties": self.compute_symmetry(),
             },
-            mode=ObjectMode.IMMUTABLE_SINGULAR
+            mode=ObjectMode.IMMUTABLE_SINGULAR,
         )
         uor_obj.compute_digest()
         uor_obj.add_provenance(source, "golden_seed_vector")
@@ -94,9 +96,7 @@ class AtlasEmbeddingsIntegrator:
         self.vector_cache: Dict[str, GoldenSeedVector] = {}
 
     def create_golden_seed(
-        self,
-        dimensions: int = 248,
-        random: bool = True
+        self, dimensions: int = 248, random: bool = True
     ) -> GoldenSeedVector:
         """Create a Golden Seed Vector."""
         seed = GoldenSeedVector(dimensions=dimensions)
@@ -110,7 +110,7 @@ class AtlasEmbeddingsIntegrator:
         self,
         seed1: GoldenSeedVector,
         seed2: GoldenSeedVector,
-        method: str = "cosine"
+        method: str = "cosine",
     ) -> float:
         """Compute similarity between two Golden Seed Vectors."""
         if seed1.vector_data is None or seed2.vector_data is None:
@@ -130,9 +130,7 @@ class AtlasEmbeddingsIntegrator:
         return float(similarity)
 
     def transform_vector(
-        self,
-        seed: GoldenSeedVector,
-        transformation_matrix: np.ndarray
+        self, seed: GoldenSeedVector, transformation_matrix: np.ndarray
     ) -> GoldenSeedVector:
         """Apply a transformation matrix to a Golden Seed Vector."""
         if seed.vector_data is None:
@@ -142,7 +140,7 @@ class AtlasEmbeddingsIntegrator:
         new_seed = GoldenSeedVector(
             dimensions=seed.dimensions,
             symmetry_group=seed.symmetry_group,
-            metadata=seed.metadata.copy()
+            metadata=seed.metadata.copy(),
         )
         new_seed.vector_data = transformed_data
         new_seed.normalize()
@@ -150,25 +148,19 @@ class AtlasEmbeddingsIntegrator:
         return new_seed
 
     def integrate_with_uor(
-        self,
-        seed: GoldenSeedVector,
-        source: str = "atlas_embeddings"
+        self, seed: GoldenSeedVector, source: str = "atlas_embeddings"
     ) -> UORObject:
         """Integrate Golden Seed Vector with UOR system."""
         uor_obj = seed.wrap_with_uor(source)
 
         # Add schema extensions for embedding tracking
         uor_obj.add_schema_extension("atlas_embedding", True)
-        uor_obj.add_schema_extension(
-            "vector_dimensions", seed.dimensions
-        )
+        uor_obj.add_schema_extension("vector_dimensions", seed.dimensions)
 
         return uor_obj
 
     def batch_process_embeddings(
-        self,
-        data_list: List[Any],
-        dimensions: int = 248
+        self, data_list: List[Any], dimensions: int = 248
     ) -> List[UORObject]:
         """Process multiple data items into embeddings with UOR objects."""
         results = []
@@ -204,8 +196,7 @@ def reset_atlas_integrator():
 
 
 def create_golden_seed(
-    dimensions: int = 248,
-    random: bool = True
+    dimensions: int = 248, random: bool = True
 ) -> GoldenSeedVector:
     """Convenience function to create a Golden Seed Vector."""
     integrator = get_atlas_integrator()

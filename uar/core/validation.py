@@ -36,8 +36,7 @@ def validate_goal(goal: str) -> str:
 
     if len(goal) > MAX_GOAL_LENGTH:
         raise ValidationError(
-            f"Goal cannot exceed {MAX_GOAL_LENGTH:,} characters",
-            field="goal"
+            f"Goal cannot exceed {MAX_GOAL_LENGTH:,} characters", field="goal"
         )
 
     # Check for potentially dangerous content
@@ -196,7 +195,7 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
         # Check for symlinks at any point in the path chain
         # Check every component from root to target
         current = resolved_root
-        for part in resolved_path.parts[len(resolved_root.parts):]:
+        for part in resolved_path.parts[len(resolved_root.parts) :]:
             current = current / part
             if current.is_symlink():
                 raise PathSecurityError(

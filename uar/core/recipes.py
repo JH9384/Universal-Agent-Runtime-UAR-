@@ -17,90 +17,90 @@ CURRENT_RECIPE_VERSION = "1"
 # Recipe definitions matching frontend RECIPES
 # All canonical recipes include a 'version' field for schema tracking.
 DEFAULT_RECIPES: Dict[str, Dict[str, Any]] = {
-    'review': {
-        'id': 'review',
-        'version': '1',
-        'label': '🦙 Ollama review',
-        'skills': ['doc_ingest', 'ollama_generate'],
-        'hint': 'Quick LLM review of library docs'
+    "review": {
+        "id": "review",
+        "version": "1",
+        "label": "🦙 Ollama review",
+        "skills": ["doc_ingest", "ollama_generate"],
+        "hint": "Quick LLM review of library docs",
     },
-    'deps': {
-        'id': 'deps',
-        'version': '1',
-        'label': '🕸️ Dep map',
-        'skills': ['doc_ingest', 'dependency_map', 'sum_review'],
-        'hint': 'Build a dependency graph'
+    "deps": {
+        "id": "deps",
+        "version": "1",
+        "label": "🕸️ Dep map",
+        "skills": ["doc_ingest", "dependency_map", "sum_review"],
+        "hint": "Build a dependency graph",
     },
-    'gr_index': {
-        'id': 'gr_index',
-        'version': '1',
-        'label': '📚 GraphRAG index',
-        'skills': ['graphrag_index'],
-        'hint': 'Build the knowledge graph (slow, one-time)'
+    "gr_index": {
+        "id": "gr_index",
+        "version": "1",
+        "label": "📚 GraphRAG index",
+        "skills": ["graphrag_index"],
+        "hint": "Build the knowledge graph (slow, one-time)",
     },
-    'gr_query': {
-        'id': 'gr_query',
-        'version': '1',
-        'label': '🔎 GraphRAG query',
-        'skills': ['graphrag_query'],
-        'hint': 'Query an existing graph'
+    "gr_query": {
+        "id": "gr_query",
+        "version": "1",
+        "label": "🔎 GraphRAG query",
+        "skills": ["graphrag_query"],
+        "hint": "Query an existing graph",
     },
-    'gr_full': {
-        'id': 'gr_full',
-        'version': '1',
-        'label': '⚡ Full pipeline',
-        'skills': ['graphrag_index', 'graphrag_query'],
-        'hint': 'Index then query (very slow)'
+    "gr_full": {
+        "id": "gr_full",
+        "version": "1",
+        "label": "⚡ Full pipeline",
+        "skills": ["graphrag_index", "graphrag_query"],
+        "hint": "Index then query (very slow)",
     },
-    'auto_up': {
-        'id': 'auto_up',
-        'version': '1',
-        'label': '☁️ Autonomi upload',
-        'skills': ['autonomi_upload'],
-        'hint': 'Upload current input_path to Autonomi'
+    "auto_up": {
+        "id": "auto_up",
+        "version": "1",
+        "label": "☁️ Autonomi upload",
+        "skills": ["autonomi_upload"],
+        "hint": "Upload current input_path to Autonomi",
     },
-    'auto_down': {
-        'id': 'auto_down',
-        'version': '1',
-        'label': '☁️ Autonomi download',
-        'skills': ['autonomi_download'],
-        'hint': 'Download from Autonomi address'
+    "auto_down": {
+        "id": "auto_down",
+        "version": "1",
+        "label": "☁️ Autonomi download",
+        "skills": ["autonomi_download"],
+        "hint": "Download from Autonomi address",
     },
-    'auto_status': {
-        'id': 'auto_status',
-        'version': '1',
-        'label': '☁️ Autonomi status',
-        'skills': ['autonomi_status'],
-        'hint': 'Check Autonomi connectivity'
+    "auto_status": {
+        "id": "auto_status",
+        "version": "1",
+        "label": "☁️ Autonomi status",
+        "skills": ["autonomi_status"],
+        "hint": "Check Autonomi connectivity",
     },
-    'eco_status': {
-        'id': 'eco_status',
-        'version': '1',
-        'label': '🌐 Ecosystem status',
-        'skills': ['uor_ecosystem_status'],
-        'hint': 'Check all UOR ecosystem integrations'
+    "eco_status": {
+        "id": "eco_status",
+        "version": "1",
+        "label": "🌐 Ecosystem status",
+        "skills": ["uor_ecosystem_status"],
+        "hint": "Check all UOR ecosystem integrations",
     },
-    'eco_canon': {
-        'id': 'eco_canon',
-        'version': '1',
-        'label': '🌐 Canonicalize',
-        'skills': ['uor_addr_canonicalize'],
-        'hint': 'Canonicalize data per UOR-ADDR-1'
+    "eco_canon": {
+        "id": "eco_canon",
+        "version": "1",
+        "label": "🌐 Canonicalize",
+        "skills": ["uor_addr_canonicalize"],
+        "hint": "Canonicalize data per UOR-ADDR-1",
     },
-    'eco_foundation': {
-        'id': 'eco_foundation',
-        'version': '1',
-        'label': '🌐 Foundation verify',
-        'skills': ['uor_foundation_verify'],
-        'hint': 'Call the live UOR Foundation API'
+    "eco_foundation": {
+        "id": "eco_foundation",
+        "version": "1",
+        "label": "🌐 Foundation verify",
+        "skills": ["uor_foundation_verify"],
+        "hint": "Call the live UOR Foundation API",
     },
 }
 
 # Create RECIPE_MAP for quick lookup of skill lists by recipe ID
 RECIPE_MAP: Dict[str, List[str]] = {
-    recipe_id: recipe['skills']
+    recipe_id: recipe["skills"]
     for recipe_id, recipe in DEFAULT_RECIPES.items()
-    if 'skills' in recipe
+    if "skills" in recipe
 }
 
 
@@ -231,7 +231,7 @@ def validate_recipes() -> None:
                 all_valid = False
 
             # Skill registry validation
-            skills = recipe.get('skills', [])
+            skills = recipe.get("skills", [])
             for skill in skills:
                 if isinstance(skill, list):
                     for sub in skill:

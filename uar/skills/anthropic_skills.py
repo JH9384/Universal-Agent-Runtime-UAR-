@@ -24,6 +24,7 @@ from typing import Dict, Any
 
 try:
     import anthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -151,7 +152,8 @@ def anthropic_chat(ctx: PipelineContext) -> Dict[str, Any]:
             "usage": {  # noqa
                 "input_tokens": response.usage.input_tokens,  # noqa
                 "output_tokens": response.usage.output_tokens,  # noqa
-                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,  # noqa
+                "total_tokens": response.usage.input_tokens
+                + response.usage.output_tokens,  # noqa
             },
         }
     except Exception as e:
@@ -218,7 +220,8 @@ def anthropic_completion(ctx: PipelineContext) -> Dict[str, Any]:
             "usage": {  # noqa
                 "input_tokens": response.usage.input_tokens,  # noqa
                 "output_tokens": response.usage.output_tokens,  # noqa
-                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,  # noqa
+                "total_tokens": response.usage.input_tokens
+                + response.usage.output_tokens,  # noqa
             },
         }
     except Exception as e:

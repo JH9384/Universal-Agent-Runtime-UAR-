@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------
 def canonical_digest(payload: Any) -> str:
     """SHA-256 of canonical-JSON of ``payload``."""
-    raw = json.dumps(
-        payload, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
@@ -307,9 +307,7 @@ def workflow_run(
     for index, step in enumerate(steps, start=1):
         use_previous = bool(step.get("usePreviousOutput", True))
         step_inputs = (
-            current_inputs
-            if use_previous or index == 1
-            else list(inputs)
+            current_inputs if use_previous or index == 1 else list(inputs)
         )
         result = execute_runtime(
             store,
@@ -335,10 +333,7 @@ def workflow_run(
             "workflowName": name,
         },
         links=[
-            *[
-                {"rel": "initial_input", "target": digest}
-                for digest in inputs
-            ],
+            *[{"rel": "initial_input", "target": digest} for digest in inputs],
             *[
                 {"rel": "step_output", "target": item["output"]}
                 for item in step_results
@@ -383,9 +378,7 @@ def locator_query(
         for key, value in where.items():
             cursor: Any = obj
             for part in key.split("."):
-                cursor = (
-                    cursor.get(part) if isinstance(cursor, dict) else None
-                )
+                cursor = cursor.get(part) if isinstance(cursor, dict) else None
             if cursor != value:
                 ok = False
                 break
@@ -409,9 +402,7 @@ def constraint_check(
     return {
         "allowed": allowed,
         "reason": (
-            "capability-authorized"
-            if allowed
-            else "unknown-agent-or-action"
+            "capability-authorized" if allowed else "unknown-agent-or-action"
         ),
         "violations": [] if allowed else ["capability-not-found"],
     }
@@ -448,9 +439,7 @@ def inference_analyze(
         mediaType="application/vnd.uar.analysis+json",
         mode="immutable",
         attributes={"task": task, "agent": "inference"},
-        links=[
-            {"rel": "analyzed", "target": digest} for digest in objects
-        ],
+        links=[{"rel": "analyzed", "target": digest} for digest in objects],
         content={"finding_id": str(uuid.uuid4()), "findings": []},
     )
     return {"findings": [], "analysisRecord": created["digest"]}

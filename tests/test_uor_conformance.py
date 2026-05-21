@@ -62,7 +62,7 @@ class TestIdentityOperationsConformance:
     def test_ring_modulus(self):
         """Test operations respect n-bit ring modulus."""
         n = 8
-        max_val = 2 ** n - 1
+        max_val = 2**n - 1
 
         # Test that operations stay within ring
         x = max_val
@@ -72,7 +72,7 @@ class TestIdentityOperationsConformance:
     def test_critical_identity_property(self):
         """Test neg(bnot(x)) = succ(x) property."""
         for n in [8, 16, 32]:
-            for x in [0, 1, 42, 2 ** n - 1, 2 ** n - 2]:
+            for x in [0, 1, 42, 2**n - 1, 2**n - 2]:
                 result = neg(bnot(x, n), n)
                 expected = succ(x, n)
                 assert result == expected, f"Failed for x={x}, n={n}"

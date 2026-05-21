@@ -177,7 +177,7 @@ class TestAPIErrorHandling:
             "/api/uar/run",
             json={"goal": "test goal", "skills": ["nonexistent_skill"]},
         )
-        # Executor handles missing skills gracefully - returns 200 with failed status
+        # Executor handles missing skills gracefully - returns 200 with failed status  # noqa: E501
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "failed"
@@ -271,7 +271,7 @@ class TestStreamingErrorHandling:
             "/api/uar/stream",
             json={"goal": "test", "skills": ["nonexistent_skill"]},
         )
-        # Executor handles missing skills gracefully - returns 200 with error in stream
+        # Executor handles missing skills gracefully - returns 200 with error in stream  # noqa: E501
         assert response.status_code == 200
         response_text = response.text
         assert (

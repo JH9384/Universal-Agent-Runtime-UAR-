@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 class ObjectMode(Enum):
     """UOR object modes as defined by UOR Foundation."""
+
     IMMUTABLE_SINGULAR = "immutable_singular"
     MUTABLE_SINGULAR = "mutable_singular"
     MUTABLE_ARRAY = "mutable_array"
@@ -68,9 +69,9 @@ class UORObject:
         """Compute object size in bytes."""
         try:
             data_str = json.dumps(self.data, sort_keys=True, default=str)
-            return len(data_str.encode('utf-8'))
+            return len(data_str.encode("utf-8"))
         except Exception:
-            return len(str(self.data).encode('utf-8'))
+            return len(str(self.data).encode("utf-8"))
 
     def _infer_media_type(self) -> str:
         """Infer media type from data."""
@@ -116,31 +117,30 @@ class UORObject:
         }
 
     def add_provenance(
-        self,
-        source: str,
-        operation: str,
-        timestamp: Optional[datetime] = None
+        self, source: str, operation: str, timestamp: Optional[datetime] = None
     ):
         """Add provenance information to the object."""
         if timestamp is None:
             timestamp = datetime.utcnow()
-        self.provenance.append({
-            "source": source,
-            "operation": operation,
-            "timestamp": timestamp.isoformat(),
-        })
+        self.provenance.append(
+            {
+                "source": source,
+                "operation": operation,
+                "timestamp": timestamp.isoformat(),
+            }
+        )
 
     def add_transformation(
-        self,
-        transformation_type: str,
-        parameters: Dict[str, Any]
+        self, transformation_type: str, parameters: Dict[str, Any]
     ):
         """Add transformation record to the object."""
-        self.transformations.append({
-            "type": transformation_type,
-            "parameters": parameters,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.transformations.append(
+            {
+                "type": transformation_type,
+                "parameters": parameters,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
 
 class UORIntegrator:
@@ -152,10 +152,7 @@ class UORIntegrator:
         self.digest_history: List[Dict[str, Any]] = []
 
     def wrap_object(
-        self,
-        data: Any,
-        source: str = "unknown",
-        operation: str = "wrap"
+        self, data: Any, source: str = "unknown", operation: str = "wrap"
     ) -> UORObject:
         """Wrap data in a UOR object with digest and provenance."""
         uor_obj = UORObject(data=data)
@@ -167,12 +164,14 @@ class UORIntegrator:
             self.object_cache[uor_obj.digest] = uor_obj
 
         # Track digest history
-        self.digest_history.append({
-            "digest": uor_obj.digest,
-            "source": source,
-            "operation": operation,
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        self.digest_history.append(
+            {
+                "digest": uor_obj.digest,
+                "source": source,
+                "operation": operation,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         return uor_obj
 
@@ -181,9 +180,7 @@ class UORIntegrator:
         return uor_obj.data
 
     def verify_object_chain(
-        self,
-        uor_obj: UORObject,
-        expected_digest_chain: List[str]
+        self, uor_obj: UORObject, expected_digest_chain: List[str]
     ) -> bool:
         """Verify object digest chain for provenance."""
         current_digest = uor_obj.compute_digest()
@@ -200,7 +197,7 @@ class UORIntegrator:
         uor_obj: UORObject,
         transformation_type: str,
         parameters: Dict[str, Any],
-        transform_fn: Callable
+        transform_fn: Callable,
     ) -> UORObject:
         """Apply a transformation to a UOR object."""
         # Apply transformation
@@ -226,9 +223,7 @@ class UORIntegrator:
         return self.object_cache.get(digest)
 
     def get_digest_history(
-        self,
-        source: Optional[str] = None,
-        limit: int = 100
+        self, source: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Get digest history, optionally filtered by source."""
         history = self.digest_history
@@ -268,8 +263,7 @@ def wrap_output_data(data: Any, source: str = "output") -> UORObject:
 
 
 def verify_output_integrity(
-    output_obj: UORObject,
-    expected_digest: Optional[str] = None
+    output_obj: UORObject, expected_digest: Optional[str] = None
 ) -> bool:
     """Convenience function to verify output integrity."""
     if expected_digest:

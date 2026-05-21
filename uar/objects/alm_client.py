@@ -238,8 +238,7 @@ class AtomicLanguageModelSkill:
                     "valid": True,
                     "proof_id": "proof_123",
                     "notes": (
-                        "Syntactically correct and "
-                        "semantically plausible."
+                        "Syntactically correct and semantically plausible."
                     ),
                 }
             return {
@@ -333,9 +332,7 @@ class AtomicLanguageModelSkill:
         if self.client is None:
             logger.warning("httpx not available - using mock response")
             return {
-                "results": [
-                    {"sentence": s, "valid": True} for s in sentences
-                ]
+                "results": [{"sentence": s, "valid": True} for s in sentences]
             }
 
         try:

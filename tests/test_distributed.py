@@ -79,9 +79,7 @@ class TestDataClasses:
         assert t.timeout == 5.0
 
     def test_worker_result_defaults(self):
-        r = WorkerResult(
-            task_id="t1", skill_name="math_compute", success=True
-        )
+        r = WorkerResult(task_id="t1", skill_name="math_compute", success=True)
         assert r.result is None
         assert r.error is None
         assert r.duration_ms == 0.0

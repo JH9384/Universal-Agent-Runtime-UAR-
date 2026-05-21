@@ -204,9 +204,7 @@ class TestExpandExecutionOrder:
             {"type": "skill", "content": "doc_ingest", "id": "s1"},
             {"type": "skill", "content": "sum_review", "id": "s2"},
         ]
-        skills, markers = _expand_execution_order_with_markers(
-            execution_order
-        )
+        skills, markers = _expand_execution_order_with_markers(execution_order)
         assert skills == ["doc_ingest", "sum_review"]
         assert markers == []
 
@@ -215,9 +213,7 @@ class TestExpandExecutionOrder:
         execution_order = [
             {"type": "recipe", "content": "review", "id": "r1"},
         ]
-        skills, markers = _expand_execution_order_with_markers(
-            execution_order
-        )
+        skills, markers = _expand_execution_order_with_markers(execution_order)
         assert skills == ["doc_ingest", "ollama_generate"]
         assert len(markers) == 2
         assert markers[0] == {
@@ -243,12 +239,8 @@ class TestExpandExecutionOrder:
             {"type": "recipe", "content": "gr_query", "id": "r1"},
             {"type": "skill", "content": "sum_review", "id": "s2"},
         ]
-        skills, markers = _expand_execution_order_with_markers(
-            execution_order
-        )
-        assert skills == [
-            "doc_ingest", "graphrag_query", "sum_review"
-        ]
+        skills, markers = _expand_execution_order_with_markers(execution_order)
+        assert skills == ["doc_ingest", "graphrag_query", "sum_review"]
         assert len(markers) == 2
         assert markers[0]["index"] == 1  # recipe starts after first skill
         assert markers[0]["kind"] == "start"
@@ -283,9 +275,7 @@ class TestExpandExecutionOrder:
                 execution_order
             )
             # meta -> review (doc_ingest, ollama_generate) + sum_review
-            assert skills == [
-                "doc_ingest", "ollama_generate", "sum_review"
-            ]
+            assert skills == ["doc_ingest", "ollama_generate", "sum_review"]
             # Expect 4 markers: meta start, review start, review end, meta end
             assert len(markers) == 4
             assert markers[0]["kind"] == "start"
@@ -311,10 +301,14 @@ class TestExpandExecutionOrder:
         original = DEFAULT_RECIPES.copy()
         try:
             DEFAULT_RECIPES["a"] = {
-                "id": "a", "label": "A", "skills": ["b"],
+                "id": "a",
+                "label": "A",
+                "skills": ["b"],
             }
             DEFAULT_RECIPES["b"] = {
-                "id": "b", "label": "B", "skills": ["a"],
+                "id": "b",
+                "label": "B",
+                "skills": ["a"],
             }
             execution_order = [
                 {"type": "recipe", "content": "a", "id": "a1"},
@@ -339,8 +333,7 @@ class TestExpandExecutionOrder:
                     "id": f"a{i}",
                     "label": f"A{i}",
                     "skills": (
-                        [nxt] if i <= MAX_RECIPE_DEPTH + 1
-                        else ["doc_ingest"]
+                        [nxt] if i <= MAX_RECIPE_DEPTH + 1 else ["doc_ingest"]
                     ),
                 }
             execution_order = [
@@ -683,9 +676,7 @@ class TestRecipeCaching:
         events2 = list(
             executor.iter_events(strategy, goal, timeout_seconds=1.0)
         )
-        starts = [
-            e for e in events2 if e["type"] == "recipe_start"
-        ]
+        starts = [e for e in events2 if e["type"] == "recipe_start"]
         ends = [e for e in events2 if e["type"] == "recipe_end"]
         assert starts[0]["payload"].get("cached") is True
         assert ends[0]["payload"].get("cached") is True
@@ -979,6 +970,7 @@ class TestDeepNesting:
         self, mock_registry, mock_guardrails
     ):
         """Parent recipe params are not wiped when child recipe ends."""
+
         def skill_that_reads_params(ctx):
             stack = ctx.data.get("_recipe_params", [])
             # Record how deep the stack is at execution time

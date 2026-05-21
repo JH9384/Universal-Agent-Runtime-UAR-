@@ -87,7 +87,9 @@ class SHACLValidator:
         self.data_graph: Optional[Graph] = None
         self.namespace = Namespace("http://uor.foundation/schema#")
 
-    def load_shacl_shapes(self, shapes_data: str, format: str = "turtle") -> bool:
+    def load_shacl_shapes(
+        self, shapes_data: str, format: str = "turtle"
+    ) -> bool:
         """Load SHACL shapes from data.
 
         Args:
@@ -168,22 +170,64 @@ class SHACLValidator:
             for prop_path, constraint in constraints.items():
                 prop_shape = URIRef(f"{shape_id}/{prop_path}")
                 g.add((shape, sh.property, prop_shape))
-                g.add((prop_shape, sh.path, URIRef(f"http://example.org/{prop_path}")))
+                g.add(
+                    (
+                        prop_shape,
+                        sh.path,
+                        URIRef(f"http://example.org/{prop_path}"),
+                    )
+                )
 
                 # Add specific constraints
                 if isinstance(constraint, dict):
                     if "minCount" in constraint:
-                        g.add((prop_shape, sh.minCount, Literal(constraint["minCount"])))
+                        g.add(
+                            (
+                                prop_shape,
+                                sh.minCount,
+                                Literal(constraint["minCount"]),
+                            )
+                        )
                     if "maxCount" in constraint:
-                        g.add((prop_shape, sh.maxCount, Literal(constraint["maxCount"])))
+                        g.add(
+                            (
+                                prop_shape,
+                                sh.maxCount,
+                                Literal(constraint["maxCount"]),
+                            )
+                        )
                     if "datatype" in constraint:
-                        g.add((prop_shape, sh.datatype, URIRef(constraint["datatype"])))
+                        g.add(
+                            (
+                                prop_shape,
+                                sh.datatype,
+                                URIRef(constraint["datatype"]),
+                            )
+                        )
                     if "minLength" in constraint:
-                        g.add((prop_shape, sh.minLength, Literal(constraint["minLength"])))
+                        g.add(
+                            (
+                                prop_shape,
+                                sh.minLength,
+                                Literal(constraint["minLength"]),
+                            )
+                        )
                     if "maxLength" in constraint:
-                        g.add((prop_shape, sh.maxLength, Literal(constraint["maxLength"])))
+                        g.add(
+                            (
+                                prop_shape,
+                                sh.maxLength,
+                                Literal(constraint["maxLength"]),
+                            )
+                        )
                     if "pattern" in constraint:
-                        g.add((prop_shape, sh.pattern, Literal(constraint["pattern"])))
+                        g.add(
+                            (
+                                prop_shape,
+                                sh.pattern,
+                                Literal(constraint["pattern"]),
+                            )
+                        )
 
             turtle_data = g.serialize(format="turtle")
             return turtle_data.decode("utf-8")
@@ -220,7 +264,13 @@ class SHACLValidator:
 
             # Convert object to RDF
             obj_uri = ex[f"object_{hash(str(object_data))}"]
-            self.data_graph.add((obj_uri, URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), URIRef(object_class)))
+            self.data_graph.add(
+                (
+                    obj_uri,
+                    URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+                    URIRef(object_class),
+                )
+            )
 
             for key, value in object_data.items():
                 prop_uri = ex[key]
@@ -235,7 +285,9 @@ class SHACLValidator:
                     self.data_graph.add((obj_uri, prop_uri, nested_uri))
                     for nested_key, nested_value in value.items():
                         nested_prop = ex[nested_key]
-                        self.data_graph.add((nested_uri, nested_prop, Literal(nested_value)))
+                        self.data_graph.add(
+                            (nested_uri, nested_prop, Literal(nested_value))
+                        )
 
             # Validate against SHACL shapes
             conforms, results_graph = pyshacl.validate(
@@ -254,21 +306,28 @@ class SHACLValidator:
             if not conforms:
                 violations = self._extract_violations(results_graph)
 
-            return SHACLValidationResult(conforms=conforms, violations=violations)
+            return SHACLValidationResult(
+                conforms=conforms, violations=violations
+            )
 
         except Exception as e:
             logger.error(f"SHACL validation failed: {e}")
-            return SHACLValidationResult(conforms=False, violations=[
-                ConstraintViolation(
-                    constraint="validation_error",
-                    path="root",
-                    value=object_data,
-                    message=f"Validation error: {e}",
-                    severity="error",
-                )
-            ])
+            return SHACLValidationResult(
+                conforms=False,
+                violations=[
+                    ConstraintViolation(
+                        constraint="validation_error",
+                        path="root",
+                        value=object_data,
+                        message=f"Validation error: {e}",
+                        severity="error",
+                    )
+                ],
+            )
 
-    def _extract_violations(self, results_graph: Graph) -> List[ConstraintViolation]:
+    def _extract_violations(
+        self, results_graph: Graph
+    ) -> List[ConstraintViolation]:
         """Extract violations from SHACL validation results.
 
         Args:
@@ -281,13 +340,26 @@ class SHACLValidator:
         sh = Namespace("http://www.w3.org/ns/shacl#")
 
         # Query for validation results
-        for result in results_graph.subjects(predicate=URIRef(sh.resultSeverity)):
-            severity = str(results_graph.value(subject=result, predicate=URIRef(sh.resultSeverity)))
+        for result in results_graph.subjects(
+            predicate=URIRef(sh.resultSeverity)
+        ):
+            severity = str(
+                results_graph.value(
+                    subject=result, predicate=URIRef(sh.resultSeverity)
+                )
+            )
             if severity.endswith("Violation") or severity.endswith("Error"):
                 # Extract violation details
-                source = results_graph.value(subject=result, predicate=URIRef(sh.sourceConstraintComponent))
-                value = results_graph.value(subject=result, predicate=URIRef(sh.value))
-                message = results_graph.value(subject=result, predicate=URIRef(sh.resultMessage))
+                source = results_graph.value(
+                    subject=result,
+                    predicate=URIRef(sh.sourceConstraintComponent),
+                )
+                value = results_graph.value(
+                    subject=result, predicate=URIRef(sh.value)
+                )
+                message = results_graph.value(
+                    subject=result, predicate=URIRef(sh.resultMessage)
+                )
 
                 if source and value:
                     violations.append(
@@ -295,7 +367,9 @@ class SHACLValidator:
                             constraint=str(source),
                             path=str(value),
                             value=value,
-                            message=str(message) if message else "Constraint violation",
+                            message=str(message)
+                            if message
+                            else "Constraint violation",
                             severity=severity.split("/")[-1],
                         )
                     )

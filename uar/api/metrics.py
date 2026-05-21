@@ -91,7 +91,7 @@ class MetricsCollector:
                 avg = m.total_duration / m.count if m.count > 0 else 0.0
                 lines.append(
                     f'uar_request_duration_seconds{{endpoint="{endpoint}"}} '
-                    f'{avg:.4f}'
+                    f"{avg:.4f}"
                 )
                 lines.append(
                     f'uar_request_count{{endpoint="{endpoint}"}} {m.count}'

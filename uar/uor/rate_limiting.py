@@ -76,7 +76,8 @@ class RateLimiter:
                 self.requests[identifier].append(now)
                 return RateLimitInfo(
                     allowed=True,
-                    remaining=self.max_requests - len(self.requests[identifier]),
+                    remaining=self.max_requests
+                    - len(self.requests[identifier]),
                     reset_time=now + self.window_seconds,
                 )
             else:
@@ -170,7 +171,8 @@ class SlidingWindowRateLimiter:
                 self.requests[identifier].append(now)
                 return RateLimitInfo(
                     allowed=True,
-                    remaining=self.max_requests - len(self.requests[identifier]),
+                    remaining=self.max_requests
+                    - len(self.requests[identifier]),
                     reset_time=now + self.window_seconds,
                 )
             else:

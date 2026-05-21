@@ -144,27 +144,33 @@ class ExecutionRecordEmitter:
 
         for record in self.records:
             # Add execution node
-            nodes.append({
-                "id": record.execution_id,
-                "type": "execution",
-                "skill": record.skill,
-                "timestamp": record.timestamp.isoformat(),
-                "status": record.status,
-            })
+            nodes.append(
+                {
+                    "id": record.execution_id,
+                    "type": "execution",
+                    "skill": record.skill,
+                    "timestamp": record.timestamp.isoformat(),
+                    "status": record.status,
+                }
+            )
 
             # Add edges from input to execution
-            edges.append({
-                "source": record.input_digest,
-                "target": record.execution_id,
-                "relation": "input_to",
-            })
+            edges.append(
+                {
+                    "source": record.input_digest,
+                    "target": record.execution_id,
+                    "relation": "input_to",
+                }
+            )
 
             # Add edges from execution to output
-            edges.append({
-                "source": record.execution_id,
-                "target": record.output_digest,
-                "relation": "execution_to",
-            })
+            edges.append(
+                {
+                    "source": record.execution_id,
+                    "target": record.output_digest,
+                    "relation": "execution_to",
+                }
+            )
 
         return {
             "nodes": nodes,

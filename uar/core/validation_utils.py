@@ -14,7 +14,7 @@ def validate_string_field(
     field_name: str,
     min_length: int = 0,
     max_length: Optional[int] = None,
-    allow_empty: bool = False
+    allow_empty: bool = False,
 ) -> str:
     """Validate a string field.
 
@@ -33,26 +33,24 @@ def validate_string_field(
     """
     if not isinstance(value, str):
         raise ValidationError(
-            f"{field_name} must be a string",
-            field=field_name
+            f"{field_name} must be a string", field=field_name
         )
 
     if not allow_empty and not value.strip():
         raise ValidationError(
-            f"{field_name} cannot be empty",
-            field=field_name
+            f"{field_name} cannot be empty", field=field_name
         )
 
     if len(value) < min_length:
         raise ValidationError(
             f"{field_name} must be at least {min_length} characters",
-            field=field_name
+            field=field_name,
         )
 
     if max_length is not None and len(value) > max_length:
         raise ValidationError(
             f"{field_name} must be at most {max_length} characters",
-            field=field_name
+            field=field_name,
         )
 
     return value
@@ -62,7 +60,7 @@ def validate_positive_number(
     value: Any,
     field_name: str,
     min_value: float = 0.0,
-    max_value: Optional[float] = None
+    max_value: Optional[float] = None,
 ) -> float:
     """Validate a positive numeric field.
 
@@ -82,20 +80,17 @@ def validate_positive_number(
         num_value = float(value)
     except (ValueError, TypeError):
         raise ValidationError(
-            f"{field_name} must be a number",
-            field=field_name
+            f"{field_name} must be a number", field=field_name
         )
 
     if num_value < min_value:
         raise ValidationError(
-            f"{field_name} must be at least {min_value}",
-            field=field_name
+            f"{field_name} must be at least {min_value}", field=field_name
         )
 
     if max_value is not None and num_value > max_value:
         raise ValidationError(
-            f"{field_name} must be at most {max_value}",
-            field=field_name
+            f"{field_name} must be at most {max_value}", field=field_name
         )
 
     return num_value
@@ -106,7 +101,7 @@ def validate_list_field(
     field_name: str,
     min_items: int = 0,
     max_items: Optional[int] = None,
-    item_type: Optional[type] = None
+    item_type: Optional[type] = None,
 ) -> List[Any]:
     """Validate a list field.
 
@@ -124,21 +119,18 @@ def validate_list_field(
         ValidationError: If validation fails
     """
     if not isinstance(value, list):
-        raise ValidationError(
-            f"{field_name} must be a list",
-            field=field_name
-        )
+        raise ValidationError(f"{field_name} must be a list", field=field_name)
 
     if len(value) < min_items:
         raise ValidationError(
             f"{field_name} must have at least {min_items} items",
-            field=field_name
+            field=field_name,
         )
 
     if max_items is not None and len(value) > max_items:
         raise ValidationError(
             f"{field_name} must have at most {max_items} items",
-            field=field_name
+            field=field_name,
         )
 
     if item_type is not None:
@@ -146,7 +138,7 @@ def validate_list_field(
             if not isinstance(item, item_type):
                 raise ValidationError(
                     f"{field_name}[{i}] must be of type {item_type.__name__}",
-                    field=field_name
+                    field=field_name,
                 )
 
     return value
@@ -166,13 +158,12 @@ def validate_email(email: str, field_name: str = "email") -> str:
         ValidationError: If validation fails
     """
     email_pattern = re.compile(
-        r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     )
 
     if not email_pattern.match(email):
         raise ValidationError(
-            f"{field_name} must be a valid email address",
-            field=field_name
+            f"{field_name} must be a valid email address", field=field_name
         )
 
     return email
@@ -192,18 +183,18 @@ def validate_url(url: str, field_name: str = "url") -> str:
         ValidationError: If validation fails
     """
     url_pattern = re.compile(
-        r'^https?://'  # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # noqa
-        r'localhost|'  # localhost
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # IP
-        r'(?::\d+)?'  # optional port
-        r'(?:/?|[/?]\S+)$', re.IGNORECASE
+        r"^https?://"  # http:// or https://
+        r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|"  # noqa
+        r"localhost|"  # localhost
+        r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"  # IP
+        r"(?::\d+)?"  # optional port
+        r"(?:/?|[/?]\S+)$",
+        re.IGNORECASE,
     )
 
     if not url_pattern.match(url):
         raise ValidationError(
-            f"{field_name} must be a valid URL",
-            field=field_name
+            f"{field_name} must be a valid URL", field=field_name
         )
 
     return url

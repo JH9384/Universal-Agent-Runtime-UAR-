@@ -132,7 +132,7 @@ class ConfigValidator:
                             "API_PORT",
                             "Invalid",
                             (
-                                f"Port {port} is out of valid range (1-65535)\n"
+                                f"Port {port} is out of valid range (1-65535)\n"  # noqa: E501
                                 "Fix: Use a port between 1 and 65535"
                             ),
                         )
@@ -143,7 +143,7 @@ class ConfigValidator:
                         "API_PORT",
                         "Invalid",
                         (
-                            f"Port must be a number, got '{self.env_vars['API_PORT']}'\n"
+                            f"Port must be a number, got '{self.env_vars['API_PORT']}'\n"  # noqa: E501
                             "Fix: Use a valid port number"
                         ),
                     )

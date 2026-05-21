@@ -54,7 +54,7 @@ class PrismFacet:
                 "name": self.name,
                 "data": self.data,
             },
-            mode=ObjectMode.IMMUTABLE_SINGULAR
+            mode=ObjectMode.IMMUTABLE_SINGULAR,
         )
         uor_obj.compute_digest()
         uor_obj.add_provenance(source, "prism_facet")
@@ -109,7 +109,7 @@ class Prism:
                 "facet_count": len(self.facets),
                 "facet_ids": [f.facet_id for f in self.facets],
             },
-            mode=ObjectMode.MUTABLE_SINGULAR
+            mode=ObjectMode.MUTABLE_SINGULAR,
         )
         uor_obj.compute_digest()
         uor_obj.add_provenance(source, "prism")
@@ -126,23 +126,14 @@ class PrismIntegrator:
         self.prisms: Dict[str, Prism] = {}
 
     def create_prism(
-        self,
-        prism_id: str,
-        facets: Optional[List[PrismFacet]] = None
+        self, prism_id: str, facets: Optional[List[PrismFacet]] = None
     ) -> Prism:
         """Create a prism."""
-        prism = Prism(
-            prism_id=prism_id,
-            facets=facets or []
-        )
+        prism = Prism(prism_id=prism_id, facets=facets or [])
         self.prisms[prism_id] = prism
         return prism
 
-    def refract_data(
-        self,
-        prism_id: str,
-        data: Any
-    ) -> List[UORObject]:
+    def refract_data(self, prism_id: str, data: Any) -> List[UORObject]:
         """Refract data through a prism."""
         if prism_id not in self.prisms:
             logger.warning(f"Prism {prism_id} not found")
@@ -152,9 +143,7 @@ class PrismIntegrator:
         return prism.refract(data)
 
     def integrate_with_uor(
-        self,
-        prism: Prism,
-        source: str = "prism"
+        self, prism: Prism, source: str = "prism"
     ) -> UORObject:
         """Integrate prism with UOR system."""
         uor_obj = prism.wrap_with_uor(source)
@@ -185,8 +174,7 @@ def reset_prism_integrator():
 
 
 def create_prism(
-    prism_id: str,
-    facets: Optional[List[PrismFacet]] = None
+    prism_id: str, facets: Optional[List[PrismFacet]] = None
 ) -> Prism:
     """Convenience function to create a prism."""
     integrator = get_prism_integrator()

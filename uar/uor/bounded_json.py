@@ -135,7 +135,8 @@ class JsonValue:
         # Add case tag prefix for UOR case distinction (CT-T)
         case_byte = bytes([self.case.value])
         canonical_bytes = (
-            canonical if isinstance(canonical, bytes)
+            canonical
+            if isinstance(canonical, bytes)
             else canonical.encode("utf-8")
         )
         return case_byte + canonical_bytes
@@ -158,8 +159,9 @@ class JsonValue:
             ]
         elif isinstance(obj, dict):
             return {
-                unicodedata.normalize("NFC", k):
-                self._apply_nfc_normalization(v, depth + 1)
+                unicodedata.normalize("NFC", k): self._apply_nfc_normalization(
+                    v, depth + 1
+                )
                 for k, v in obj.items()
             }
         else:
@@ -183,6 +185,7 @@ class JsonValue:
         elif algorithm == "blake3":
             try:
                 import blake3  # type: ignore
+
                 return "blake3:" + blake3.blake3(canonical).hexdigest()
             except ImportError:
                 logger.warning(

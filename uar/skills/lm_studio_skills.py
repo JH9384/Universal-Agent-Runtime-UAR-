@@ -27,6 +27,7 @@ from typing import Dict, Any
 
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -114,7 +115,7 @@ def lm_studio_chat(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "OpenAI client not available (install openai package)"
+            "error": "OpenAI client not available (install openai package)",
         }
 
     meta = ctx.goal.metadata or {}
@@ -132,8 +133,7 @@ def lm_studio_chat(ctx: PipelineContext) -> Dict[str, Any]:
         host = os.getenv("LM_STUDIO_HOST", "localhost")
         port = os.getenv("LM_STUDIO_PORT", "1234")
         logger.info(  # noqa
-            "Calling LM Studio chat at %s:%s with model %s",
-            host, port, model
+            "Calling LM Studio chat at %s:%s with model %s", host, port, model
         )
 
         response = client.chat.completions.create(
@@ -156,9 +156,15 @@ def lm_studio_chat(ctx: PipelineContext) -> Dict[str, Any]:
             "message": response.choices[0].message.content,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -188,7 +194,7 @@ def lm_studio_completion(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "OpenAI client not available (install openai package)"
+            "error": "OpenAI client not available (install openai package)",
         }
 
     meta = ctx.goal.metadata or {}
@@ -203,7 +209,9 @@ def lm_studio_completion(ctx: PipelineContext) -> Dict[str, Any]:
         port = os.getenv("LM_STUDIO_PORT", "1234")
         logger.info(  # noqa
             "Calling LM Studio completion at %s:%s with model %s",
-            host, port, model
+            host,
+            port,
+            model,
         )
 
         response = client.completions.create(
@@ -226,9 +234,15 @@ def lm_studio_completion(ctx: PipelineContext) -> Dict[str, Any]:
             "text": response.choices[0].text,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -259,7 +273,7 @@ def lm_studio_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "OpenAI client not available (install openai package)"
+            "error": "OpenAI client not available (install openai package)",
         }
 
     meta = ctx.goal.metadata or {}
@@ -269,8 +283,7 @@ def lm_studio_embedding(ctx: PipelineContext) -> Dict[str, Any]:
         host = os.getenv("LM_STUDIO_HOST", "localhost")
         port = os.getenv("LM_STUDIO_PORT", "1234")
         logger.info(  # noqa
-            "Calling LM Studio embedding at %s:%s",
-            host, port
+            "Calling LM Studio embedding at %s:%s", host, port
         )
 
         response = client.embeddings.create(
@@ -291,8 +304,12 @@ def lm_studio_embedding(ctx: PipelineContext) -> Dict[str, Any]:
             "embedding": response.data[0].embedding,
             "dimensions": len(response.data[0].embedding),
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:

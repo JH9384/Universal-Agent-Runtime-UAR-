@@ -65,9 +65,9 @@ SHUTDOWN_SLEEP = 0.1  # seconds
 
 # WebSocket robustness
 WS_HEARTBEAT_INTERVAL = 20.0  # seconds
-WS_HEARTBEAT_TIMEOUT = 60.0   # seconds without pong before disconnect
-WS_BATCH_SIZE = 10            # max events per WebSocket send batch
-WS_BATCH_TIMEOUT = 0.05       # seconds to wait before flushing partial batch
+WS_HEARTBEAT_TIMEOUT = 60.0  # seconds without pong before disconnect
+WS_BATCH_SIZE = 10  # max events per WebSocket send batch
+WS_BATCH_TIMEOUT = 0.05  # seconds to wait before flushing partial batch
 
 # Streaming bounds
 MAX_STREAM_EVENTS = 5000
@@ -92,9 +92,7 @@ def _validate_recipe(recipe: Any) -> bool:
         logger.warning(f"Recipe missing 'id' field: {recipe}")
         return False
     if "skills" not in recipe:
-        logger.warning(
-            f"Recipe '{recipe.get('id')}' missing 'skills' field"
-        )
+        logger.warning(f"Recipe '{recipe.get('id')}' missing 'skills' field")
         return False
     if not isinstance(recipe["skills"], list):
         logger.warning(
@@ -250,7 +248,8 @@ async def lifespan(app: FastAPI):
 
 # CORS configuration
 CORS_ORIGINS = [
-    o for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    o
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
     if o
 ]
 CORS_ALLOW_CREDENTIALS = (
@@ -394,9 +393,7 @@ class RunRequest(BaseModel):
         for i, item in enumerate(v):
             # Check required fields
             if not isinstance(item, dict):
-                raise ValueError(
-                    f"execution_order[{i}] must be an object"
-                )
+                raise ValueError(f"execution_order[{i}] must be an object")
             if "type" not in item:
                 raise ValueError(
                     f"execution_order[{i}] missing required field: type"
@@ -436,6 +433,7 @@ class RunRequest(BaseModel):
             elif item["type"] == "skill":
                 # Import here to avoid circular dependency
                 from uar.core.registry import registry
+
                 if not registry.is_registered(item["content"]):
                     raise ValueError(
                         f"execution_order[{i}] references unknown "
@@ -647,8 +645,7 @@ async def run_goal(
             suggestion = "Please check your request and try again."
             if "Path" in error_type:
                 suggestion = (
-                    "Please verify the file path exists and "
-                    "is accessible."
+                    "Please verify the file path exists and is accessible."
                 )
             elif "Permission" in error_type:
                 suggestion = "Please check file permissions and try again."
@@ -739,13 +736,10 @@ async def stream_goal_ws(
         # Receive the run request from WebSocket with timeout
         # to prevent malicious clients from holding connections open
         # indefinitely
-        websocket_timeout = int(
-            os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30")
-        )
+        websocket_timeout = int(os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30"))
         try:
             data = await asyncio.wait_for(
-                websocket.receive_json(),
-                timeout=websocket_timeout
+                websocket.receive_json(), timeout=websocket_timeout
             )
         except asyncio.TimeoutError:
             logger.warning(
@@ -773,10 +767,10 @@ async def stream_goal_ws(
         # Validate request size before parsing
         # Use same limit as HTTP endpoints (10MB)
         from uar.api.middleware import DEFAULT_MAX_REQUEST_BODY_BYTES
+
         max_body_size = int(
             os.getenv(
-                "MAX_REQUEST_BODY_BYTES",
-                str(DEFAULT_MAX_REQUEST_BODY_BYTES)
+                "MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_REQUEST_BODY_BYTES)
             )
         )
         json_size = len(json.dumps(data))
@@ -843,9 +837,7 @@ async def stream_goal_ws(
         )
 
         # Generate rate limit key using shared function
-        client_ip = (
-            websocket.client.host if websocket.client else "unknown"
-        )
+        client_ip = websocket.client.host if websocket.client else "unknown"
         rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
 
         # Extract first skill for skill-specific rate limiting
@@ -926,10 +918,8 @@ async def stream_goal_ws(
         user_info = auth_middleware(credentials)
 
         # Log request (request_id generated at line 556)
-        user_str = user_info['user'] if user_info else 'anonymous'
-        logger.info(
-            f"[{request_id}] WebSocket request from {user_str}"
-        )
+        user_str = user_info["user"] if user_info else "anonymous"
+        logger.info(f"[{request_id}] WebSocket request from {user_str}")
 
         try:
             goal = _build_goal(req)
@@ -1009,15 +999,17 @@ async def stream_goal_ws(
                 logger.error(
                     f"[{request_id}] Error during executor.iter_events: "
                     f"{str(exec_error)}",
-                    exc_info=True
+                    exc_info=True,
                 )
                 # Send error event to client
-                await websocket.send_json({
-                    "type": "error",
-                    "error": str(exec_error),
-                    "error_type": type(exec_error).__name__,
-                    "request_id": request_id
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "error": str(exec_error),
+                        "error_type": type(exec_error).__name__,
+                        "request_id": request_id,
+                    }
+                )
                 raise
 
             # Ensure persistence even if client disconnects
@@ -1035,12 +1027,14 @@ async def stream_goal_ws(
                     pass
 
         except ValidationError as e:
-            await websocket.send_json({
-                "type": "error",
-                "error": str(e),
-                "error_type": "ValidationError",
-                "request_id": request_id
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "error": str(e),
+                    "error_type": "ValidationError",
+                    "request_id": request_id,
+                }
+            )
         except Exception as e:
             logger.error(
                 f"[{request_id}] WebSocket error: {str(e)}",
@@ -1052,14 +1046,16 @@ async def stream_goal_ws(
                         else "unknown"
                     ),
                     "authenticated": credentials is not None,
+                },
+            )
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "request_id": request_id,
                 }
             )
-            await websocket.send_json({
-                "type": "error",
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "request_id": request_id
-            })
 
     except WebSocketDisconnect:
         logger.info(f"[{request_id}] WebSocket disconnected")
@@ -1069,12 +1065,10 @@ async def stream_goal_ws(
             extra={
                 "request_id": request_id,
                 "client_host": (
-                    websocket.client.host
-                    if websocket.client
-                    else "unknown"
+                    websocket.client.host if websocket.client else "unknown"
                 ),
                 "authenticated": credentials is not None,
-            }
+            },
         )
     finally:
         try:
@@ -1388,17 +1382,12 @@ async def stream_goal(
 
                         # Check if heartbeat needed
                         current_time = time.time()
-                        if (
-                            current_time - last_heartbeat
-                            > heartbeat_interval
-                        ):
+                        if current_time - last_heartbeat > heartbeat_interval:
                             yield emit(
                                 create_event(
                                     "heartbeat",
                                     run_id="pending",
-                                    payload={
-                                        "timestamp": current_time
-                                    },
+                                    payload={"timestamp": current_time},
                                 )
                             )
                             last_heartbeat = current_time
@@ -1537,8 +1526,7 @@ async def stream_goal(
             suggestion = "Please check your request and try again."
             if "Path" in error_type:
                 suggestion = (
-                    "Please verify the file path exists and "
-                    "is accessible."
+                    "Please verify the file path exists and is accessible."
                 )
             elif "Permission" in error_type:
                 suggestion = "Please check file permissions and try again."
@@ -1626,9 +1614,7 @@ async def websocket_run(websocket: WebSocket):
             )
 
         # Apply rate limiting
-        client_ip = (
-            websocket.client.host if websocket.client else "unknown"
-        )
+        client_ip = websocket.client.host if websocket.client else "unknown"
         rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
         allowed, _ = rate_limiter.is_allowed(
             rate_limit_key,
@@ -1651,9 +1637,7 @@ async def websocket_run(websocket: WebSocket):
 
         from uar.core.executor import Executor
 
-        websocket_timeout = int(
-            os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30")
-        )
+        websocket_timeout = int(os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30"))
         try:
             data = await asyncio.wait_for(
                 websocket.receive_json(),
@@ -1766,9 +1750,7 @@ async def websocket_run(websocket: WebSocket):
                 err_event = create_event(
                     "error",
                     run_id="unknown",
-                    error=(
-                        f"Event limit reached ({MAX_STREAM_EVENTS})."
-                    ),
+                    error=(f"Event limit reached ({MAX_STREAM_EVENTS})."),
                 )
                 full_events.append(err_event)
                 await websocket.send_json(err_event)
@@ -1779,8 +1761,7 @@ async def websocket_run(websocket: WebSocket):
                     payload={
                         "status": "failed",
                         "errors": [
-                            f"Event limit reached "
-                            f"({MAX_STREAM_EVENTS})"
+                            f"Event limit reached ({MAX_STREAM_EVENTS})"
                         ],
                     },
                 )
@@ -1836,8 +1817,7 @@ async def websocket_run(websocket: WebSocket):
                     "error",
                     run_id="unknown",
                     error=(
-                        "Execution completed but persistence failed: "
-                        f"{str(e)}"
+                        f"Execution completed but persistence failed: {str(e)}"
                     ),
                 )
             )
@@ -1848,9 +1828,7 @@ async def websocket_run(websocket: WebSocket):
         logger.error(f"WebSocket error: {str(e)}", exc_info=True)
         if websocket.client_state == WebSocketState.CONNECTED:
             try:
-                await websocket.send_json(
-                    {"type": "error", "error": str(e)}
-                )
+                await websocket.send_json({"type": "error", "error": str(e)})
             except Exception:
                 pass
     finally:
@@ -2016,9 +1994,7 @@ async def readiness_probe():
         checks["circuit_breakers"] = True
         checks["open_circuits"] = []
 
-    all_ready = all(
-        v for k, v in checks.items() if isinstance(v, bool)
-    )
+    all_ready = all(v for k, v in checks.items() if isinstance(v, bool))
     status_code = 200 if all_ready else 503
     return JSONResponse(
         status_code=status_code,
@@ -2209,6 +2185,7 @@ async def docs_upload(files: List[UploadFile] = File(...)):
                 # Try atomic file creation with exclusive access
                 try:
                     import os
+
                     fd = os.open(
                         dest,
                         os.O_CREAT | os.O_EXCL | os.O_WRONLY,
@@ -2517,9 +2494,8 @@ async def docs_create_folder(
         folder_name = body.get("name")
 
         # Validate input types
-        if (
-            not isinstance(parent_path, str)
-            or not isinstance(folder_name, str)
+        if not isinstance(parent_path, str) or not isinstance(
+            folder_name, str
         ):
             return JSONResponse(
                 status_code=400,
@@ -2549,8 +2525,7 @@ async def docs_create_folder(
                 content={
                     "error": "Invalid folder name",
                     "message": (
-                        "Folder name cannot be empty or "
-                        "whitespace only"
+                        "Folder name cannot be empty or whitespace only"
                     ),
                     "request_id": request_id,
                 },
@@ -2598,8 +2573,7 @@ async def docs_create_folder(
                 content={
                     "error": "Invalid folder name",
                     "message": (
-                        "Folder name exceeds maximum "
-                        "length of 255 characters"
+                        "Folder name exceeds maximum length of 255 characters"
                     ),
                     "request_id": request_id,
                 },
@@ -2754,7 +2728,9 @@ async def cache_warm(
             continue
         try:
             goal = GoalSpec(
-                id="warm", user_intent=goal_text, objective=goal_text,
+                id="warm",
+                user_intent=goal_text,
+                objective=goal_text,
                 metadata={},
             )
             ctx = PipelineContext(goal=goal)

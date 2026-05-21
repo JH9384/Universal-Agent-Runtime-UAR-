@@ -46,6 +46,7 @@ except ImportError:
 
 try:
     import json
+
     JSON_AVAILABLE = True
 except ImportError:
     JSON_AVAILABLE = False
@@ -127,9 +128,7 @@ class RDFConverter:
             # Parse JSON-LD
             graph.parse(data=json.dumps(jsonld_data), format="json-ld")
 
-            return RDFConversionResult(
-                success=True, data=graph, format="rdf"
-            )
+            return RDFConversionResult(success=True, data=graph, format="rdf")
         except Exception as e:
             logger.error(f"JSON-LD to RDF conversion failed: {e}")
             return RDFConversionResult(success=False, error=str(e))
@@ -206,9 +205,7 @@ class RDFConverter:
             graph = Graph()
             graph.parse(data=turtle_data, format="turtle")
 
-            return RDFConversionResult(
-                success=True, data=graph, format="rdf"
-            )
+            return RDFConversionResult(success=True, data=graph, format="rdf")
         except Exception as e:
             logger.error(f"Turtle to RDF conversion failed: {e}")
             return RDFConversionResult(success=False, error=str(e))
@@ -254,9 +251,7 @@ class RDFConverter:
                     self._add_content_to_graph(graph, content_uri, value)
                 elif isinstance(value, list):
                     for item in value:
-                        self._add_property_to_graph(
-                            graph, uri, key, item
-                        )
+                        self._add_property_to_graph(graph, uri, key, item)
                 else:
                     self._add_property_to_graph(graph, uri, key, value)
 
@@ -286,9 +281,13 @@ class RDFConverter:
             obj = BNode()
             graph.add((subject, predicate, obj))
             for nested_key, nested_value in value.items():
-                self._add_property_to_graph(graph, obj, nested_key, nested_value)
+                self._add_property_to_graph(
+                    graph, obj, nested_key, nested_value
+                )
 
-    def _add_content_to_graph(self, graph: Graph, content_uri: URIRef, content: Any):
+    def _add_content_to_graph(
+        self, graph: Graph, content_uri: URIRef, content: Any
+    ):
         """Add content to the RDF graph.
 
         Args:
@@ -304,7 +303,9 @@ class RDFConverter:
             graph.add((content_uri, RDF.type, self.uor_ns.Content))
             graph.add((content_uri, self.uor_ns.value, Literal(content)))
 
-    def rdf_to_uor_envelope(self, graph: Graph, envelope_uri: str) -> RDFConversionResult:
+    def rdf_to_uor_envelope(
+        self, graph: Graph, envelope_uri: str
+    ) -> RDFConversionResult:
         """Convert RDF graph to UOR object envelope.
 
         Args:
@@ -326,11 +327,17 @@ class RDFConverter:
 
             # Extract properties
             for predicate, obj in graph.predicate_objects(subject=uri):
-                predicate_name = predicate.split("#")[-1] if "#" in predicate else predicate.split("/")[-1]
+                predicate_name = (
+                    predicate.split("#")[-1]
+                    if "#" in predicate
+                    else predicate.split("/")[-1]
+                )
 
                 if predicate_name == "content":
                     # Extract content
-                    envelope["content"] = self._extract_content_from_graph(graph, obj)
+                    envelope["content"] = self._extract_content_from_graph(
+                        graph, obj
+                    )
                 else:
                     # Extract simple property
                     if isinstance(obj, Literal):
@@ -345,7 +352,9 @@ class RDFConverter:
             logger.error(f"RDF to UOR envelope conversion failed: {e}")
             return RDFConversionResult(success=False, error=str(e))
 
-    def _extract_content_from_graph(self, graph: Graph, content_uri: Any) -> Any:
+    def _extract_content_from_graph(
+        self, graph: Graph, content_uri: Any
+    ) -> Any:
         """Extract content from RDF graph.
 
         Args:
@@ -357,7 +366,11 @@ class RDFConverter:
         """
         content = {}
         for predicate, obj in graph.predicate_objects(subject=content_uri):
-            predicate_name = predicate.split("#")[-1] if "#" in predicate else predicate.split("/")[-1]
+            predicate_name = (
+                predicate.split("#")[-1]
+                if "#" in predicate
+                else predicate.split("/")[-1]
+            )
 
             if isinstance(obj, Literal):
                 content[predicate_name] = str(obj)

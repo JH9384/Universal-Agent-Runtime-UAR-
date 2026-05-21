@@ -16,7 +16,7 @@ def dependency_map(ctx: PipelineContext) -> Dict[str, Any]:
 
     Returns:
         Dictionary containing node count, edge count, and lists of nodes and edges.
-    """
+    """  # noqa: E501
     ingest = ctx.data.get("doc_ingest") or {}
     documents = ingest.get("documents", [])
 

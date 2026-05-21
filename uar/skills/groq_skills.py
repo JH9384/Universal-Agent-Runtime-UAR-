@@ -27,6 +27,7 @@ from typing import Dict, Any
 
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -75,9 +76,7 @@ def _get_temperature(ctx: PipelineContext | None = None) -> float:
                 value = float(temp)
                 return max(0.0, min(2.0, value))
             except (ValueError, TypeError):
-                logger.warning(
-                    "Invalid groq_temperature value, using default"
-                )
+                logger.warning("Invalid groq_temperature value, using default")
     return 0.7
 
 
@@ -90,9 +89,7 @@ def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
                 value = int(tokens)
                 return max(1, min(100000, value))
             except (ValueError, TypeError):
-                logger.warning(
-                    "Invalid groq_max_tokens value, using default"
-                )
+                logger.warning("Invalid groq_max_tokens value, using default")
     return 1000
 
 
@@ -115,7 +112,7 @@ def groq_chat(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Groq client not available (install openai package and set GROQ_API_KEY)"  # noqa
+            "error": "Groq client not available (install openai package and set GROQ_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -151,9 +148,15 @@ def groq_chat(ctx: PipelineContext) -> Dict[str, Any]:
             "message": response.choices[0].message.content,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -183,7 +186,7 @@ def groq_completion(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Groq client not available (install openai package and set GROQ_API_KEY)"  # noqa
+            "error": "Groq client not available (install openai package and set GROQ_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -216,9 +219,15 @@ def groq_completion(ctx: PipelineContext) -> Dict[str, Any]:
             "text": response.choices[0].text,
             "finish_reason": response.choices[0].finish_reason,
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "completion_tokens": response.usage.completion_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "completion_tokens": response.usage.completion_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -249,7 +258,7 @@ def groq_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "Groq client not available (install openai package and set GROQ_API_KEY)"  # noqa
+            "error": "Groq client not available (install openai package and set GROQ_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -288,8 +297,12 @@ def groq_embedding(ctx: PipelineContext) -> Dict[str, Any]:
             "embedding": response.data[0].embedding,
             "dimensions": len(response.data[0].embedding),
             "usage": {  # noqa
-                "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,  # noqa
-                "total_tokens": response.usage.total_tokens if response.usage else 0,  # noqa
+                "prompt_tokens": response.usage.prompt_tokens
+                if response.usage
+                else 0,  # noqa
+                "total_tokens": response.usage.total_tokens
+                if response.usage
+                else 0,  # noqa
             },
         }
     except Exception as e:

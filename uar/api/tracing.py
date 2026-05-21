@@ -5,7 +5,7 @@ Configure via env:
   OTEL_ENABLED              - Enable/disable tracing (default: false)
   OTEL_EXPORTER_OTLP_ENDPOINT - OTLP exporter endpoint (default: http://localhost:4317)
   OTEL_SERVICE_NAME        - Service name (default: uar-api)
-"""
+"""  # noqa: E501
 
 from __future__ import annotations
 
@@ -52,11 +52,11 @@ def init_tracing() -> None:
         _tracer = trace.get_tracer(__name__)
 
         logger.info(
-            f"OpenTelemetry tracing initialized for {service_name} -> {otlp_endpoint}"
+            f"OpenTelemetry tracing initialized for {service_name} -> {otlp_endpoint}"  # noqa: E501
         )
     except ImportError:
         logger.warning(
-            "OpenTelemetry packages not installed. Install with: pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp"
+            "OpenTelemetry packages not installed. Install with: pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp"  # noqa: E501
         )
         _enabled = False
     except Exception as e:

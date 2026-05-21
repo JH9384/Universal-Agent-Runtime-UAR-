@@ -12,7 +12,7 @@ Key features:
 - Built-in observability and monitoring
 - Job scheduling and backfilling
 - Resource management
-"""
+"""  # noqa: E501
 
 import logging
 from typing import Any, Dict, List, Optional, Callable
@@ -22,20 +22,8 @@ from enum import Enum
 import uuid
 
 try:
-    from dagster import (
-        job,
-        op,
-        asset,
-        repository,
-        define_asset_job,
-        AssetKey,
-        MaterializeResult,
-        Output,
-        In,
-        Out,
-        Config,
-        RunConfig,
-    )
+    from dagster import MaterializeResult, asset, job, repository
+
     DAGSTER_AVAILABLE = True
 except ImportError:
     DAGSTER_AVAILABLE = False
@@ -48,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class PipelineStatus(Enum):
     """Status of a pipeline execution."""
+
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -57,6 +46,7 @@ class PipelineStatus(Enum):
 
 class AssetType(Enum):
     """Types of assets in the pipeline."""
+
     DOCUMENT = "document"
     VECTOR_INDEX = "vector_index"
     KNOWLEDGE_GRAPH = "knowledge_graph"
@@ -68,13 +58,14 @@ class AssetType(Enum):
 @dataclass
 class AssetDefinition:
     """Definition of an asset in the pipeline."""
+
     key: str
     asset_type: AssetType
     description: str = ""
     dependencies: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.utcnow)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -90,6 +81,7 @@ class AssetDefinition:
 @dataclass
 class PipelineExecution:
     """Execution record for a pipeline run."""
+
     execution_id: str
     pipeline_name: str
     status: PipelineStatus = PipelineStatus.PENDING
@@ -99,14 +91,16 @@ class PipelineExecution:
     assets_consumed: List[str] = field(default_factory=list)
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
             "execution_id": self.execution_id,
             "pipeline_name": self.pipeline_name,
             "status": self.status.value,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
+            "start_time": self.start_time.isoformat()
+            if self.start_time
+            else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "assets_produced": self.assets_produced,
             "assets_consumed": self.assets_consumed,
@@ -117,13 +111,13 @@ class PipelineExecution:
 
 class UARPipelineOrchestrator:
     """Orchestrator for UAR pipelines using Dagster patterns."""
-    
+
     def __init__(self):
         self.assets: Dict[str, AssetDefinition] = {}
         self.pipelines: Dict[str, Callable] = {}
         self.executions: Dict[str, PipelineExecution] = {}
         self.active_jobs: Dict[str, Any] = {}
-    
+
     def register_asset(
         self,
         key: str,
@@ -143,16 +137,16 @@ class UARPipelineOrchestrator:
         self.assets[key] = asset
         logger.info(f"Registered asset: {key} ({asset_type.value})")
         return asset
-    
+
     def get_asset(self, key: str) -> Optional[AssetDefinition]:
         """Get an asset by key."""
         return self.assets.get(key)
-    
+
     def get_asset_dependencies(self, key: str) -> List[str]:
         """Get dependencies for an asset."""
         asset = self.get_asset(key)
         return asset.dependencies if asset else []
-    
+
     def create_pipeline(
         self,
         name: str,
@@ -160,10 +154,11 @@ class UARPipelineOrchestrator:
         description: str = "",
     ) -> Callable:
         """Create a pipeline from asset dependencies.
-        
+
         This is a simplified version - in production with Dagster,
         you'd use @job decorator and asset dependencies.
         """
+
         def pipeline_fn(ctx: Dict[str, Any]):
             """Execute the pipeline."""
             execution_id = str(uuid.uuid4())
@@ -174,7 +169,7 @@ class UARPipelineOrchestrator:
                 start_time=datetime.utcnow(),
             )
             self.executions[execution_id] = execution
-            
+
             try:
                 # Execute assets in dependency order
                 executed = []
@@ -185,27 +180,27 @@ class UARPipelineOrchestrator:
                         raise ValueError(
                             f"Dependencies not satisfied for {asset_key}"
                         )
-                    
-                    # Execute the asset (in production, this would call the actual op)
+
+                    # Execute the asset (in production, this would call the actual op)  # noqa: E501
                     logger.info(f"Executing asset: {asset_key}")
                     execution.assets_produced.append(asset_key)
                     executed.append(asset_key)
-                
+
                 execution.status = PipelineStatus.SUCCESS
                 execution.end_time = datetime.utcnow()
-                
+
             except Exception as e:
                 execution.status = PipelineStatus.FAILED
                 execution.error = str(e)
                 execution.end_time = datetime.utcnow()
                 logger.error(f"Pipeline {name} failed: {e}")
-            
+
             return execution.to_dict()
-        
+
         self.pipelines[name] = pipeline_fn
         logger.info(f"Created pipeline: {name} with assets: {asset_keys}")
         return pipeline_fn
-    
+
     def execute_pipeline(
         self,
         name: str,
@@ -215,43 +210,45 @@ class UARPipelineOrchestrator:
         pipeline = self.pipelines.get(name)
         if not pipeline:
             raise ValueError(f"Pipeline not found: {name}")
-        
+
         ctx = context or {}
         result = pipeline(ctx)
-        
+
         execution_id = result.get("execution_id")
         if execution_id:
             return self.executions[execution_id]
-        
+
         raise RuntimeError("Execution ID not found in result")
-    
+
     def get_execution(self, execution_id: str) -> Optional[PipelineExecution]:
         """Get an execution by ID."""
         return self.executions.get(execution_id)
-    
+
     def get_pipeline_status(self, name: str) -> Dict[str, Any]:
         """Get status of a pipeline."""
         pipeline = self.pipelines.get(name)
         if not pipeline:
             return {"error": "Pipeline not found"}
-        
+
         # Get recent executions for this pipeline
         recent_executions = [
             exec_.to_dict()
             for exec_ in self.executions.values()
             if exec_.pipeline_name == name
         ]
-        
+
         return {
             "pipeline_name": name,
             "recent_executions": recent_executions[-10:],  # Last 10
             "total_executions": len(recent_executions),
         }
-    
+
     def get_orchestrator_status(self) -> Dict[str, Any]:
         """Get overall status of the orchestrator."""
         return {
-            "assets": {key: asset.to_dict() for key, asset in self.assets.items()},
+            "assets": {
+                key: asset.to_dict() for key, asset in self.assets.items()
+            },
             "pipelines": list(self.pipelines.keys()),
             "executions": {
                 exec_id: exec_.to_dict()
@@ -278,49 +275,49 @@ def get_orchestrator() -> UARPipelineOrchestrator:
 def create_standard_pipelines():
     """Create standard UAR pipelines."""
     orchestrator = get_orchestrator()
-    
+
     # Register standard assets
     orchestrator.register_asset(
         key="raw_documents",
         asset_type=AssetType.DOCUMENT,
         description="Raw ingested documents",
     )
-    
+
     orchestrator.register_asset(
         key="chunked_documents",
         asset_type=AssetType.DOCUMENT,
         description="Chunked and processed documents",
         dependencies=["raw_documents"],
     )
-    
+
     orchestrator.register_asset(
         key="vector_index",
         asset_type=AssetType.VECTOR_INDEX,
         description="Vector embeddings index",
         dependencies=["chunked_documents"],
     )
-    
+
     orchestrator.register_asset(
         key="knowledge_graph",
         asset_type=AssetType.KNOWLEDGE_GRAPH,
         description="Knowledge graph from documents",
         dependencies=["chunked_documents"],
     )
-    
+
     orchestrator.register_asset(
         key="rag_query_result",
         asset_type=AssetType.RAG_RESULT,
         description="RAG query results",
         dependencies=["vector_index", "knowledge_graph"],
     )
-    
+
     # Create standard pipelines
     orchestrator.create_pipeline(
         name="document_ingestion_pipeline",
         asset_keys=["raw_documents", "chunked_documents"],
         description="Ingest and process documents",
     )
-    
+
     orchestrator.create_pipeline(
         name="rag_pipeline",
         asset_keys=[
@@ -331,7 +328,7 @@ def create_standard_pipelines():
         ],
         description="Full RAG pipeline",
     )
-    
+
     orchestrator.create_pipeline(
         name="graphrag_pipeline",
         asset_keys=[
@@ -342,7 +339,7 @@ def create_standard_pipelines():
         ],
         description="GraphRAG pipeline with knowledge graph",
     )
-    
+
     logger.info("Standard pipelines created")
 
 
@@ -354,7 +351,7 @@ def create_uar_skill_pipeline(
 ):
     """Create a pipeline for a UAR skill."""
     orchestrator = get_orchestrator()
-    
+
     # Register assets if they don't exist
     for asset_key in input_assets + output_assets:
         if asset_key not in orchestrator.assets:
@@ -363,7 +360,7 @@ def create_uar_skill_pipeline(
                 asset_type=AssetType.AGENT_OUTPUT,
                 description=f"Asset from {skill_name}",
             )
-    
+
     # Create pipeline
     pipeline_name = f"{skill_name}_pipeline"
     orchestrator.create_pipeline(
@@ -371,7 +368,7 @@ def create_uar_skill_pipeline(
         asset_keys=input_assets + output_assets,
         description=description or f"Pipeline for {skill_name}",
     )
-    
+
     return pipeline_name
 
 
@@ -380,14 +377,14 @@ if DAGSTER_AVAILABLE:
     @asset(name="raw_documents")
     def raw_documents_asset(context) -> MaterializeResult:
         """Dagster asset for raw documents."""
-        
+
         # This would be called with proper context in production
         # For now, return a placeholder
         return MaterializeResult(
             description="Raw documents ingested",
             metadata={"count": 0},
         )
-    
+
     @asset(name="vector_index", deps=[raw_documents_asset])
     def vector_index_asset(
         context,
@@ -399,13 +396,13 @@ if DAGSTER_AVAILABLE:
             description="Vector index created",
             metadata={"document_count": 0},
         )
-    
+
     @job(name="uar_rag_pipeline")
     def uar_rag_job():
         """Dagster job for UAR RAG pipeline."""
         raw_documents_asset()
         vector_index_asset()
-    
+
     @repository(name="uar_repository")
     def uar_repository():
         """Dagster repository for UAR assets and jobs."""

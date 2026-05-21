@@ -42,9 +42,7 @@ def _resolve_default_db_path() -> str:
     except Exception:  # pragma: no cover - circular-import safety net
         pass
     return (
-        os.getenv("UOR_DB_PATH")
-        or os.getenv("DB_PATH")
-        or DEFAULT_DB_FILENAME
+        os.getenv("UOR_DB_PATH") or os.getenv("DB_PATH") or DEFAULT_DB_FILENAME
     )
 
 
@@ -107,13 +105,9 @@ class ObjectStore:
             self._objects.clear()
             self._lineage.clear()
             self._runtime_registry.clear()
-            for row in conn.execute(
-                "SELECT digest, record_json FROM objects"
-            ):
+            for row in conn.execute("SELECT digest, record_json FROM objects"):
                 self._objects[row["digest"]] = json.loads(row["record_json"])
-            for row in conn.execute(
-                "SELECT digest, event_json FROM lineage"
-            ):
+            for row in conn.execute("SELECT digest, event_json FROM lineage"):
                 self._lineage.setdefault(row["digest"], []).append(
                     json.loads(row["event_json"])
                 )
@@ -157,9 +151,7 @@ class ObjectStore:
     # ------------------------------------------------------------------
     # Lineage operations
     # ------------------------------------------------------------------
-    def append_lineage(
-        self, digest: str, event: Dict[str, Any]
-    ) -> None:
+    def append_lineage(self, digest: str, event: Dict[str, Any]) -> None:
         payload = json.dumps(event, sort_keys=True)
         with self._lock, self._connect() as conn:
             conn.execute(

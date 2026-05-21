@@ -96,9 +96,7 @@ class ObjectModeEnforcer:
             ObjectMode.MUTABLE_ARRAY,
         ]
 
-    def can_transition_mode(
-        self, obj: UORObject, new_mode: str
-    ) -> bool:
+    def can_transition_mode(self, obj: UORObject, new_mode: str) -> bool:
         """Check if mode transition is allowed.
 
         Args:
@@ -194,7 +192,9 @@ class ObjectModeEnforcer:
             )
 
         if index < 0 or index >= len(obj.array_elements):
-            raise ValueError(f"Invalid index {index} for array of length {len(obj.array_elements)}")
+            raise ValueError(
+                f"Invalid index {index} for array of length {len(obj.array_elements)}"  # noqa: E501
+            )
 
         obj.array_elements.pop(index)
         obj.digest = self._compute_digest(obj)
@@ -227,7 +227,7 @@ class ObjectModeEnforcer:
         if obj.mode == ObjectMode.MUTABLE_ARRAY:
             content = {
                 "content": obj.content,
-                "array_elements": obj.array_elements
+                "array_elements": obj.array_elements,
             }
 
         return compute_uor_digest(content)

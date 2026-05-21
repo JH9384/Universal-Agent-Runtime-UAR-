@@ -44,10 +44,7 @@ def get_cache() -> ResultCache:
                     max_entries = 1000
                 try:
                     max_size = int(
-                        os.getenv(
-                            "UAR_CACHE_MAX_SIZE",
-                            str(100 * 1024 * 1024)
-                        )
+                        os.getenv("UAR_CACHE_MAX_SIZE", str(100 * 1024 * 1024))
                     )
                 except (ValueError, TypeError):
                     max_size = 100 * 1024 * 1024

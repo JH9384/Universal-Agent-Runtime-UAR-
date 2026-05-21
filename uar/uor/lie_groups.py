@@ -12,6 +12,7 @@ from enum import Enum
 
 try:
     import numpy as np
+
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
@@ -76,6 +77,7 @@ class LieGroupOperations:
             return [[c, -s], [s, c]]
         else:
             import math
+
             c, s = math.cos(angle), math.sin(angle)
             return [[c, -s], [s, c]]
 
@@ -102,7 +104,7 @@ class LieGroupOperations:
 
         Returns:
             Scaling matrix
-        """
+        """  # noqa: E501
         if sy is None:
             sy = sx
         return [[sx, 0, 0], [0, sy, 0], [0, 0, 1]]
@@ -352,7 +354,9 @@ class UORObjectTransformation:
 
         for transform in transformations:
             if transform.matrix:
-                matrix = self.lie_ops.compose_matrices(matrix, transform.matrix)
+                matrix = self.lie_ops.compose_matrices(
+                    matrix, transform.matrix
+                )
             else:
                 # Generate matrix from transformation
                 temp_matrix = None

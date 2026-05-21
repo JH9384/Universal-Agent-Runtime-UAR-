@@ -37,7 +37,9 @@ class CacheEntry:
 class UORObjectCache:
     """LRU cache for UOR objects with TTL support."""
 
-    def __init__(self, max_size: int = 1000, default_ttl: Optional[float] = None):
+    def __init__(
+        self, max_size: int = 1000, default_ttl: Optional[float] = None
+    ):
         """Initialize UOR object cache.
 
         Args:
@@ -133,8 +135,7 @@ class UORObjectCache:
             Number of entries removed
         """
         expired_keys = [
-            key for key, entry in self.cache.items()
-            if entry.is_expired()
+            key for key, entry in self.cache.items() if entry.is_expired()
         ]
 
         for key in expired_keys:

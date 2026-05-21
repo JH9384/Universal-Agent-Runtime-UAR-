@@ -24,6 +24,7 @@ from typing import Dict, Any
 
 try:
     import openai
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -110,7 +111,7 @@ def openai_chat(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "OpenAI client not available (install openai package and set OPENAI_API_KEY)"  # noqa
+            "error": "OpenAI client not available (install openai package and set OPENAI_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -180,7 +181,7 @@ def openai_completion(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "OpenAI client not available (install openai package and set OPENAI_API_KEY)"  # noqa
+            "error": "OpenAI client not available (install openai package and set OPENAI_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}
@@ -246,7 +247,7 @@ def openai_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     if client is None:
         return {
             "status": "failed",
-            "error": "OpenAI client not available (install openai package and set OPENAI_API_KEY)"  # noqa
+            "error": "OpenAI client not available (install openai package and set OPENAI_API_KEY)",  # noqa
         }
 
     meta = ctx.goal.metadata or {}

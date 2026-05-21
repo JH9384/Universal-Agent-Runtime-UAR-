@@ -56,7 +56,7 @@ def run_trials(n: int = 10_000, seed: int = 42) -> None:
     successes = 0
 
     for _ in range(n):
-        # Beta distribution: most users are moderate, a few are very low/high skill.
+        # Beta distribution: most users are moderate, a few are very low/high skill.  # noqa: E501
         skill = random.betavariate(2.0, 2.0)
         ok, failed_step = simulate_user(skill)
         if ok:
@@ -78,11 +78,11 @@ def run_trials(n: int = 10_000, seed: int = 42) -> None:
     print()
     print("Interpretation:")
     print(
-        "- The largest failure points should become UI helpers or clearer docs."
+        "- The largest failure points should become UI helpers or clearer docs."  # noqa: E501
     )
     print("- If execute_sum/run_workflow dominate, add copy-paste templates.")
     print(
-        "- If digest-copy steps dominate, add UI affordances or clearer labels."
+        "- If digest-copy steps dominate, add UI affordances or clearer labels."  # noqa: E501
     )
 
 

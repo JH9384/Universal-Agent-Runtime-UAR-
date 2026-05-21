@@ -25,7 +25,7 @@ class TestCacheIntegration:
             cache_dir=temp_cache_dir,
             ttl_seconds=3600,
             max_entries=1000,
-            max_size_bytes=100 * 1024 * 1024
+            max_size_bytes=100 * 1024 * 1024,
         )
 
     def test_cache_write_and_read(self, cache):
@@ -81,7 +81,7 @@ class TestCacheIntegration:
             cache_dir=cache.cache_dir,
             ttl_seconds=3600,
             max_entries=2,
-            max_size_bytes=1024
+            max_size_bytes=1024,
         )
 
         # Add 3 entries (exceeds max_entries)
@@ -91,19 +91,22 @@ class TestCacheIntegration:
                 f"skill_{i}",
                 {"input_path": f"test_{i}"},
                 f"goal_{i}",
-                {"output": f"result_{i}"}
+                {"output": f"result_{i}"},
             )
 
         # First entry should be evicted (LRU based on write time)
-        assert cache_small.get(
-            "skill_0", {"input_path": "test_0"}, "goal_0"
-        ) is None
-        assert cache_small.get(
-            "skill_1", {"input_path": "test_1"}, "goal_1"
-        ) is not None
-        assert cache_small.get(
-            "skill_2", {"input_path": "test_2"}, "goal_2"
-        ) is not None
+        assert (
+            cache_small.get("skill_0", {"input_path": "test_0"}, "goal_0")
+            is None
+        )
+        assert (
+            cache_small.get("skill_1", {"input_path": "test_1"}, "goal_1")
+            is not None
+        )
+        assert (
+            cache_small.get("skill_2", {"input_path": "test_2"}, "goal_2")
+            is not None
+        )
 
 
 class TestWebSocketIntegration:
@@ -133,20 +136,19 @@ class TestEndToEnd:
                 cache_dir=Path(tmpdir),
                 ttl_seconds=3600,
                 max_entries=100,
-                max_size_bytes=10 * 1024 * 1024
+                max_size_bytes=10 * 1024 * 1024,
             )
 
             complex_result = {
-                "nested": {
-                    "data": [1, 2, 3],
-                    "metadata": {"key": "value"}
-                },
-                "list": [{"a": 1}, {"b": 2}]
+                "nested": {"data": [1, 2, 3], "metadata": {"key": "value"}},
+                "list": [{"a": 1}, {"b": 2}],
             }
 
             cache.set(
-                "complex_skill", {"ctx": "data"}, "complex_goal",
-                complex_result
+                "complex_skill",
+                {"ctx": "data"},
+                "complex_goal",
+                complex_result,
             )
             cached = cache.get(
                 "complex_skill", {"ctx": "data"}, "complex_goal"

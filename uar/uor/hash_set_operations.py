@@ -281,9 +281,7 @@ class ObjectSetComparison:
         """
         self.operations = HashSetOperations(algorithm=algorithm)
 
-    def compare(
-        self, set_a: ObjectSet, set_b: ObjectSet
-    ) -> Dict[str, Any]:
+    def compare(self, set_a: ObjectSet, set_b: ObjectSet) -> Dict[str, Any]:
         """Compare two object sets and provide detailed analysis.
 
         Args:

@@ -36,7 +36,7 @@ class UORVector:
         """Compute UOR digest for the vector."""
         vector_uor = wrap_input_data(
             {"shape": self.data.shape, "mean": float(np.mean(self.data))},
-            source="vector_ops"
+            source="vector_ops",
         )
         self.digest = vector_uor.digest
         return self.digest
@@ -51,17 +51,17 @@ class UORVectorOps:
         self.vector_cache: Dict[str, UORVector] = {}
 
     def create_vector(
-        self,
-        data: np.ndarray,
-        source: str = "unknown"
+        self, data: np.ndarray, source: str = "unknown"
     ) -> UORVector:
         """Create a UOR vector with integrity tracking."""
         vector = UORVector(data=data)
         vector.compute_digest()
-        vector.provenance.append({
-            "source": source,
-            "operation": "create_vector",
-        })
+        vector.provenance.append(
+            {
+                "source": source,
+                "operation": "create_vector",
+            }
+        )
 
         if vector.digest:
             self.vector_cache[vector.digest] = vector
@@ -69,10 +69,7 @@ class UORVectorOps:
         return vector
 
     def compute_similarity(
-        self,
-        vec1: UORVector,
-        vec2: UORVector,
-        method: str = "cosine"
+        self, vec1: UORVector, vec2: UORVector, method: str = "cosine"
     ) -> float:
         """Compute similarity between two vectors."""
         if vec1.data.shape != vec2.data.shape:
@@ -94,18 +91,18 @@ class UORVectorOps:
             raise ValueError(f"Unknown similarity method: {method}")
 
         # Track operation
-        vec1.provenance.append({
-            "source": "vector_ops",
-            "operation": f"similarity_{method}",
-            "target_vector": vec2.digest,
-        })
+        vec1.provenance.append(
+            {
+                "source": "vector_ops",
+                "operation": f"similarity_{method}",
+                "target_vector": vec2.digest,
+            }
+        )
 
         return float(similarity)
 
     def apply_transformation(
-        self,
-        vector: UORVector,
-        transformation: Transformation
+        self, vector: UORVector, transformation: Transformation
     ) -> UORVector:
         """Apply a mathematical transformation to a vector."""
         # Use Lie groups for transformation
@@ -123,16 +120,18 @@ class UORVectorOps:
         # Create new UOR vector
         new_vector = self.create_vector(
             transformed_data,
-            source=f"transform:{transformation.transformation_type.value}"
+            source=f"transform:{transformation.transformation_type.value}",
         )
 
         # Copy provenance and add transformation record
         new_vector.provenance = vector.provenance.copy()
-        new_vector.provenance.append({
-            "source": "vector_ops",
-            "operation": "apply_transformation",
-            "transformation_type": transformation.transformation_type.value,
-        })
+        new_vector.provenance.append(
+            {
+                "source": "vector_ops",
+                "operation": "apply_transformation",
+                "transformation_type": transformation.transformation_type.value,  # noqa: E501
+            }
+        )
 
         return new_vector
 
@@ -141,7 +140,7 @@ class UORVectorOps:
         query_vector: UORVector,
         vector_list: List[UORVector],
         method: str = "cosine",
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
     ) -> List[Tuple[int, float]]:
         """Compute similarity against a list of vectors."""
         similarities = []

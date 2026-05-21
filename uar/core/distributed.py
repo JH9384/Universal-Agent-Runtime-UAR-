@@ -80,7 +80,7 @@ class WorkerPool:
     def _next_task_id(self) -> str:
         with self._task_counter_lock:
             self._task_counter += 1
-            return f"task-{self._task_counter}-{int(time.time()*1000)}"
+            return f"task-{self._task_counter}-{int(time.time() * 1000)}"
 
     def _execute_task(self, task: WorkerTask) -> WorkerResult:
         """Execute a single task (runs in worker thread)."""
@@ -156,9 +156,7 @@ class WorkerPool:
         assert self._executor is not None
         return self._executor.submit(self._execute_task, task)
 
-    def map_tasks(
-        self, tasks: List[WorkerTask]
-    ) -> List[WorkerResult]:
+    def map_tasks(self, tasks: List[WorkerTask]) -> List[WorkerResult]:
         """Execute multiple tasks and collect results."""
         if not tasks:
             return []
@@ -273,9 +271,7 @@ class DistributedExecutor:
     ) -> RunRecord:
         """Execute and return a RunRecord."""
         events = list(
-            self.iter_events(
-                strategy, goal, timeout_seconds=timeout_seconds
-            )
+            self.iter_events(strategy, goal, timeout_seconds=timeout_seconds)
         )
         if not events:
             raise ValidationError("No events generated during execution")
@@ -330,9 +326,7 @@ def get_distributed_executor() -> DistributedExecutor:
     if _distributed_executor is None:
         with _dist_lock:
             if _distributed_executor is None:
-                pool_size = int(
-                    os.getenv("UAR_DISTRIBUTED_POOL_SIZE", "4")
-                )
+                pool_size = int(os.getenv("UAR_DISTRIBUTED_POOL_SIZE", "4"))
                 _distributed_executor = DistributedExecutor(
                     pool=WorkerPool(max_workers=pool_size)
                 )

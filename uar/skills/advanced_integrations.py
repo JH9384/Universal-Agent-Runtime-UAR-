@@ -37,7 +37,10 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         - results: Results from each agent in the sequence
     """
     try:
-        from uar.core.agent_framework import execute_agent_workflow, get_orchestrator
+        from uar.core.agent_framework import (
+            execute_agent_workflow,
+            get_orchestrator,
+        )
 
         orchestrator = get_orchestrator()
 
@@ -112,7 +115,9 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
         # Get metadata
         metadata = ctx.get("metadata", {})
         role_str = metadata.get("role", "researcher")
-        task_description = metadata.get("task_description", ctx.get("goal", ""))
+        task_description = metadata.get(
+            "task_description", ctx.get("goal", "")
+        )
         expected_output = metadata.get("expected_output", "")
 
         # Map role string to enum
@@ -252,8 +257,12 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "knowledge_graph": RetrievalStrategy.KNOWLEDGE_GRAPH,
         }
 
-        chunking_strategy = chunking_map.get(chunking_str, ChunkingStrategy.HIERARCHICAL)
-        retrieval_strategy = retrieval_map.get(retrieval_str, RetrievalStrategy.HYBRID)
+        chunking_strategy = chunking_map.get(
+            chunking_str, ChunkingStrategy.HIERARCHICAL
+        )
+        retrieval_strategy = retrieval_map.get(
+            retrieval_str, RetrievalStrategy.HYBRID
+        )
 
         # Create RAG config
         config = RAGConfig(
@@ -323,14 +332,18 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "auto_merging": RetrievalStrategy.AUTO_MERGING,
             "knowledge_graph": RetrievalStrategy.KNOWLEDGE_GRAPH,
         }
-        retrieval_strategy = retrieval_map.get(retrieval_str, RetrievalStrategy.HYBRID)
+        retrieval_strategy = retrieval_map.get(
+            retrieval_str, RetrievalStrategy.HYBRID
+        )
 
         # Get RAG instance
         rag = get_rag_instance()
 
         # Execute query
         query = ctx.get("goal", "")
-        result = rag.query(query, retrieval_strategy=retrieval_strategy, top_k=top_k)
+        result = rag.query(
+            query, retrieval_strategy=retrieval_strategy, top_k=top_k
+        )
 
         return {
             "status": "success",
@@ -475,7 +488,9 @@ def guardrail_check(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "compliance": GuardrailType.COMPLIANCE,
             "output_validation": GuardrailType.OUTPUT_VALIDATION,
         }
-        guardrail_type = guardrail_map.get(guardrail_str, GuardrailType.CONTENT_SAFETY)
+        guardrail_type = guardrail_map.get(
+            guardrail_str, GuardrailType.CONTENT_SAFETY
+        )
 
         # Check guardrails
         violations = governance.guardrails.check(
@@ -593,7 +608,7 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     Returns:
         Dict with graph query results
-    """
+    """  # noqa: E501
     try:
         from uar.core.flexible_graphrag import (
             GraphBackend,
@@ -638,7 +653,9 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
         # Query the graph
         query = ctx.get("goal", "")
-        result = graphrag.query_graph(query, strategy=search_strategy, top_k=top_k)
+        result = graphrag.query_graph(
+            query, strategy=search_strategy, top_k=top_k
+        )
 
         return {
             "status": "success",
@@ -661,6 +678,7 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Multi-Agent Blackboard Communication
 # ---------------------------------------------------------------------------
+
 
 @register_skill
 def blackboard_message(ctx: Dict[str, Any]) -> Dict[str, Any]:

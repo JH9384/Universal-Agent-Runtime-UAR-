@@ -114,9 +114,7 @@ def validate_code(code: str) -> None:
 
     for node in ast.walk(tree):
         if not isinstance(node, ALLOWED_AST_NODES):
-            raise SandboxError(
-                f"Disallowed syntax: {type(node).__name__}"
-            )
+            raise SandboxError(f"Disallowed syntax: {type(node).__name__}")
         if isinstance(node, ast.Name) and node.id not in ALLOWED_NAMES:
             raise SandboxError(f"Disallowed name: {node.id}")
         if isinstance(node, ast.Call):
@@ -124,9 +122,7 @@ def validate_code(code: str) -> None:
                 not isinstance(node.func, ast.Name)
                 or node.func.id not in ALLOWED_BUILTINS
             ):
-                raise SandboxError(
-                    "Only approved builtin calls are allowed"
-                )
+                raise SandboxError("Only approved builtin calls are allowed")
 
 
 def _object_value(obj: Dict[str, Any]) -> Any:
@@ -163,9 +159,7 @@ def _safe_child_exec(
             "parameters": parameters,
             "contents": [obj.get("content") for obj in input_objects],
             "values": [_object_value(obj) for obj in input_objects],
-            "attributes": [
-                obj.get("attributes", {}) for obj in input_objects
-            ],
+            "attributes": [obj.get("attributes", {}) for obj in input_objects],
         }
         # eval is intentional and gated by validate_code's AST allowlist.
         result = eval(  # noqa: S307
@@ -219,9 +213,7 @@ def run_code(
         raise SandboxError("Execution failed without result") from exc
 
     if not payload.get("ok"):
-        raise SandboxError(
-            f"Execution failed: {payload.get('error')}"
-        )
+        raise SandboxError(f"Execution failed: {payload.get('error')}")
     return payload.get("result")
 
 

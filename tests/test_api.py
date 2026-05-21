@@ -173,9 +173,7 @@ class TestHierarchicalExecutionIntegration:
                         if line.startswith("data: ")
                     ]
                     if data_lines:
-                        events.append(
-                            _json.loads("".join(data_lines))
-                        )
+                        events.append(_json.loads("".join(data_lines)))
 
         types = [e["type"] for e in events]
         assert "recipe_start" in types
@@ -285,9 +283,7 @@ class TestEcosystemAPI:
                         if line.startswith("data: ")
                     ]
                     if data_lines:
-                        events.append(
-                            _json.loads("".join(data_lines))
-                        )
+                        events.append(_json.loads("".join(data_lines)))
 
         types = [e["type"] for e in events]
         assert "skill_start" in types

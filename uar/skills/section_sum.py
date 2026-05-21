@@ -15,6 +15,6 @@ def section_sum(ctx: PipelineContext) -> Dict[str, Any]:
 
     Returns:
         Dictionary with a summary message.
-    """
+    """  # noqa: E501
     summary = f"Processed goal: {ctx.goal.objective}"
     return {"summary": summary}

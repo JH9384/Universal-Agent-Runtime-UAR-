@@ -15,6 +15,7 @@ class SecurityManager:
     def __init__(self):
         # Import from middleware to use single source of truth
         from .middleware import API_KEYS
+
         self.api_keys = API_KEYS
 
     def validate_api_key(self, key: str) -> Optional[Dict[str, str]]:

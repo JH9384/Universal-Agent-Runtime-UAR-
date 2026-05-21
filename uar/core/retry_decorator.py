@@ -75,8 +75,10 @@ def with_retry(
                         raise
 
             # This should never be reached, but for type safety
-            raise last_error if last_error else Exception(
-                "Unexpected error in retry"
+            raise (
+                last_error
+                if last_error
+                else Exception("Unexpected error in retry")
             )
 
         return wrapper

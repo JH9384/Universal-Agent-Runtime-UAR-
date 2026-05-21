@@ -118,16 +118,19 @@ def validate_dagster_config() -> Dict[str, Any]:
     dagster_home = os.getenv("DAGSTER_HOME")
     dagster_postgres_user = os.getenv("DAGSTER_POSTGRES_USER")
     dagster_postgres_password = os.getenv("DAGSTER_POSTGRES_PASSWORD")
-    dagster_postgres_db = os.getenv("DAGSTER_POSTGRES_DB")
 
     if not dagster_home:
         warnings.append("DAGSTER_HOME not set (optional)")
 
     if dagster_postgres_user and not dagster_postgres_password:
-        issues.append("DAGSTER_POSTGRES_USER set but DAGSTER_POSTGRES_PASSWORD not set")
+        issues.append(
+            "DAGSTER_POSTGRES_USER set but DAGSTER_POSTGRES_PASSWORD not set"
+        )
 
     if dagster_postgres_password and not dagster_postgres_user:
-        issues.append("DAGSTER_POSTGRES_PASSWORD set but DAGSTER_POSTGRES_USER not set")
+        issues.append(
+            "DAGSTER_POSTGRES_PASSWORD set but DAGSTER_POSTGRES_USER not set"
+        )
 
     return {
         "valid": len(issues) == 0,

@@ -38,7 +38,7 @@ def _gather_documents(ctx) -> list:
 
 
 def _build_context_block(docs: list) -> str:
-    """Format documents into a model-friendly context block, truncated to limits."""
+    """Format documents into a model-friendly context block, truncated to limits."""  # noqa: E501
     if not docs:
         return ""
     parts: list[str] = []
@@ -109,7 +109,7 @@ def ollama_generate(ctx):
         if context:
             prompt = (
                 f"{objective}\n\n"
-                f"Use the following file contents as your sole source of truth.\n"
+                f"Use the following file contents as your sole source of truth.\n"  # noqa: E501
                 f"{context}\n"
                 f"Now respond to the goal above based on these files."
             )

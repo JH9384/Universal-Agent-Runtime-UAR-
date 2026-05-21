@@ -14,7 +14,7 @@ Goal Metadata:
     physics_from_unit - Source unit (for conversions)
     physics_to_unit - Target unit (for conversions)
     physics_coordinate - Coordinate data (for transformations)
-"""
+"""  # noqa: E501
 
 import os
 import logging
@@ -27,7 +27,9 @@ from uar.core.contracts import PipelineContext
 logger = logging.getLogger(__name__)
 
 # Circuit breaker for physics operations
-_physics_cb = CircuitBreaker("physics_compute", failure_threshold=3, recovery_timeout=30.0)
+_physics_cb = CircuitBreaker(
+    "physics_compute", failure_threshold=3, recovery_timeout=30.0
+)
 
 # Configuration
 PHYSICS_TIMEOUT = float(os.getenv("PHYSICS_TIMEOUT_SECONDS", "30"))
@@ -37,6 +39,7 @@ MAX_DATA_SIZE = int(os.getenv("PHYSICS_MAX_DATA_SIZE", "10485760"))
 def _check_astropy_available() -> bool:
     """Check if Astropy is available with graceful degradation."""
     import importlib.util
+
     return importlib.util.find_spec("astropy") is not None
 
 
@@ -54,7 +57,7 @@ def _convert_units(value: str, from_unit: str, to_unit: str) -> Dict[str, Any]:
             "original_unit": from_unit,
             "converted_value": str(converted.value),
             "converted_unit": to_unit,
-            "numerical_value": float(converted.value)
+            "numerical_value": float(converted.value),
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -67,8 +70,8 @@ def _calculate_distance(
     from astropy.coordinates import SkyCoord
 
     try:
-        c1 = SkyCoord(ra1, dec1, unit='deg')
-        c2 = SkyCoord(ra2, dec2, unit='deg')
+        c1 = SkyCoord(ra1, dec1, unit="deg")
+        c2 = SkyCoord(ra2, dec2, unit="deg")
         separation = c1.separation(c2)
 
         return {
@@ -77,7 +80,7 @@ def _calculate_distance(
             "coordinate2": f"{ra2}, {dec2}",
             "angular_distance": str(separation),
             "angular_distance_degrees": separation.degree,
-            "angular_distance_arcsec": separation.arcsecond
+            "angular_distance_arcsec": separation.arcsecond,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -91,19 +94,15 @@ def _transform_coordinate(
     from astropy.coordinates import FK5, ICRS, Galactic
 
     try:
-        frames = {
-            'icrs': ICRS,
-            'fk5': FK5,
-            'galactic': Galactic
-        }
+        frames = {"icrs": ICRS, "fk5": FK5, "galactic": Galactic}
 
         if from_frame not in frames or to_frame not in frames:
             return {
                 "success": False,
-                "error": f"Unsupported frame. Available: {list(frames.keys())}"
+                "error": f"Unsupported frame. Available: {list(frames.keys())}",  # noqa: E501
             }
 
-        c = SkyCoord(ra, dec, unit='deg', frame=frames[from_frame])
+        c = SkyCoord(ra, dec, unit="deg", frame=frames[from_frame])
         transformed = c.transform(frames[to_frame])
 
         return {
@@ -113,7 +112,7 @@ def _transform_coordinate(
             "original_ra": ra,
             "original_dec": dec,
             "transformed_ra": str(transformed.ra),
-            "transformed_dec": str(transformed.dec)
+            "transformed_dec": str(transformed.dec),
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -132,7 +131,7 @@ def _calculate_energy(wavelength: str) -> Dict[str, Any]:
             "success": True,
             "wavelength": str(wave),
             "energy": str(energy),
-            "energy_eV": energy.value
+            "energy_eV": energy.value,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -151,7 +150,7 @@ def _calculate_redshift(z: str) -> Dict[str, Any]:
             "success": True,
             "redshift": z,
             "luminosity_distance": str(distance),
-            "luminosity_distance_Mpc": distance.value
+            "luminosity_distance_Mpc": distance.value,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -178,13 +177,13 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
 
     Returns:
         Dictionary with computation results or error information.
-    """
+    """  # noqa: E501
     # Check Astropy availability
     if not _check_astropy_available():
         return {
             "status": "failed",
-            "error": "Astropy not installed. Install with: pip install astropy",
-            "operation": "unavailable"
+            "error": "Astropy not installed. Install with: pip install astropy",  # noqa: E501
+            "operation": "unavailable",
         }
 
     # Get parameters from goal metadata
@@ -199,7 +198,7 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
         return {
             "status": "failed",
             "error": "physics_value is required in goal metadata",
-            "operation": operation
+            "operation": operation,
         }
 
     # Execute operation with circuit breaker
@@ -211,11 +210,7 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
         )
     except Exception as exc:
         logger.warning(f"physics_compute failed: {exc}")
-        return {
-            "status": "failed",
-            "error": str(exc),
-            "operation": operation
-        }
+        return {"status": "failed", "error": str(exc), "operation": operation}
 
     # Add metadata to result
     result["operation"] = operation
@@ -226,8 +221,7 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 def _execute_operation(
-    operation: str, physics_type: str, value: str,
-    from_unit: str, to_unit: str
+    operation: str, physics_type: str, value: str, from_unit: str, to_unit: str
 ) -> Dict[str, Any]:
     """Execute the specified physics operation."""
     operations = {
@@ -236,7 +230,7 @@ def _execute_operation(
             value, from_unit, to_unit, physics_type
         ),
         "calculate": lambda: _calculate_physics(physics_type, value),
-        "query": lambda: _query_physics(physics_type, value)
+        "query": lambda: _query_physics(physics_type, value),
     }
 
     if operation not in operations:
@@ -245,7 +239,7 @@ def _execute_operation(
             "error": (
                 f"Unknown operation: {operation}. "
                 f"Available: {list(operations.keys())}"
-            )
+            ),
         }
 
     return operations[operation]()
@@ -256,7 +250,7 @@ def _calculate_physics(physics_type: str, value: str) -> Dict[str, Any]:
     calculations = {
         "energy": lambda: _calculate_energy(value),
         "redshift": lambda: _calculate_redshift(value),
-        "distance": lambda: _calculate_distance_from_value(value)
+        "distance": lambda: _calculate_distance_from_value(value),
     }
 
     if physics_type not in calculations:
@@ -265,7 +259,7 @@ def _calculate_physics(physics_type: str, value: str) -> Dict[str, Any]:
             "error": (
                 f"Unknown calculation type: {physics_type}. "
                 f"Available: {list(calculations.keys())}"
-            )
+            ),
         }
 
     return calculations[physics_type]()
@@ -278,7 +272,7 @@ def _query_physics(physics_type: str, value: str) -> Dict[str, Any]:
         "success": True,
         "query_type": physics_type,
         "value": value,
-        "message": "Query functionality - extend as needed"
+        "message": "Query functionality - extend as needed",
     }
 
 
@@ -286,11 +280,11 @@ def _calculate_distance_from_value(value: str) -> Dict[str, Any]:
     """Calculate distance from coordinate string."""
     # Parse coordinate string format: "ra1,dec1,ra2,dec2"
     try:
-        parts = value.split(',')
+        parts = value.split(",")
         if len(parts) != 4:
             return {
                 "success": False,
-                "error": "Format should be: ra1,dec1,ra2,dec2"
+                "error": "Format should be: ra1,dec1,ra2,dec2",
             }
         return _calculate_distance(parts[0], parts[1], parts[2], parts[3])
     except Exception as exc:

@@ -16,7 +16,7 @@ Goal metadata overrides:
   autonomi_public       — set True for public upload (default: False/private)
   autonomi_address      — address/data map for download
   autonomi_dest         — destination path for download
-"""
+"""  # noqa: E501
 
 from __future__ import annotations
 
@@ -112,12 +112,12 @@ def autonomi_upload(ctx):
       autonomi_source : file path to upload (required)
       autonomi_network : "testnet" or "mainnet" (default: testnet)
       autonomi_private_key : EVM wallet private key (optional, overrides env var)
-    """
+    """  # noqa: E501
     mod = _get_autonomi()
     if mod is None:
         return {
             "status": "failed",
-            "error": "autonomi Python package not installed. Run: pip install autonomi",
+            "error": "autonomi Python package not installed. Run: pip install autonomi",  # noqa: E501
         }
 
     source = ctx.goal.metadata.get("autonomi_source")
@@ -206,12 +206,12 @@ def autonomi_download(ctx):
 
     Returns:
       {status, dest_path, address, public, network, error?}
-    """
+    """  # noqa: E501
     mod = _get_autonomi()
     if mod is None:
         return {
             "status": "failed",
-            "error": "autonomi Python package not installed. Run: pip install autonomi",
+            "error": "autonomi Python package not installed. Run: pip install autonomi",  # noqa: E501
         }
 
     address = ctx.goal.metadata.get("autonomi_address")

@@ -35,6 +35,7 @@ def _utcnow() -> datetime:
 
 class GuardrailType(Enum):
     """Types of guardrails."""
+
     CONTENT_SAFETY = "content_safety"
     RATE_LIMIT = "rate_limit"
     BUDGET = "budget"
@@ -45,6 +46,7 @@ class GuardrailType(Enum):
 
 class ViolationSeverity(Enum):
     """Severity levels for violations."""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -54,6 +56,7 @@ class ViolationSeverity(Enum):
 @dataclass
 class GuardrailViolation:
     """Represents a guardrail violation."""
+
     violation_id: str
     guardrail_type: GuardrailType
     severity: ViolationSeverity
@@ -78,6 +81,7 @@ class GuardrailViolation:
 @dataclass
 class Budget:
     """Budget tracking for agent resources."""
+
     agent_id: str
     max_tokens: int = 100000
     max_api_calls: int = 1000
@@ -139,6 +143,7 @@ class Budget:
 @dataclass
 class BlackboardEntry:
     """Entry in the shared blackboard."""
+
     entry_id: str
     key: str
     value: Any
@@ -420,8 +425,7 @@ class GovernanceSystem:
         # reaching the limit is still allowed.
         would_exceed = (
             budget.used_tokens + tokens > budget.max_tokens
-            or budget.used_api_calls + api_calls
-            > budget.max_api_calls
+            or budget.used_api_calls + api_calls > budget.max_api_calls
             or budget.used_cost_usd + cost_usd > budget.max_cost_usd
         )
         if would_exceed:
@@ -513,7 +517,7 @@ def setup_default_guardrails():
 
     # Rate limit checker
     def rate_limit_checker(
-        data: Dict[str, Any]
+        data: Dict[str, Any],
     ) -> Optional[GuardrailViolation]:
         """Check for rate limit violations."""
         requests_per_minute = data.get("requests_per_minute", 0)

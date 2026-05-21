@@ -11,6 +11,7 @@ from enum import Enum
 
 try:
     import dns.resolver
+
     DNS_AVAILABLE = True
 except ImportError:
     DNS_AVAILABLE = False
@@ -234,7 +235,7 @@ class UORDNSResolver:
             dynamic DNS server configuration.
         """
         logger.warning(
-            f"DNS registration not implemented for {digest} at {location.get_url()}"
+            f"DNS registration not implemented for {digest} at {location.get_url()}"  # noqa: E501
         )
         logger.warning(
             "DNS registration requires dynamic DNS server configuration"
@@ -318,7 +319,9 @@ class DistributedObjectGraph:
         msg = f"Added local object: {digest}"
         logger.info(msg)
 
-    def get_object(self, digest: str, domain: str = "uor.local") -> Optional[Any]:
+    def get_object(
+        self, digest: str, domain: str = "uor.local"
+    ) -> Optional[Any]:
         """Get object, resolving location if needed.
 
         Args:

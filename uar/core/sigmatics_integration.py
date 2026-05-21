@@ -62,13 +62,15 @@ class SigilExpression:
         # In a full implementation, this would use the Sigmatics library
         if self.operation == "sum":
             values = [
-                s.value for s in self.sigils
+                s.value
+                for s in self.sigils
                 if isinstance(s.value, (int, float))
             ]
             self.result = sum(values)
         elif self.operation == "product":
             values = [
-                s.value for s in self.sigils
+                s.value
+                for s in self.sigils
                 if isinstance(s.value, (int, float))
             ]
             self.result = 1
@@ -85,15 +87,12 @@ class SigilExpression:
             self.evaluate()
 
         uor_obj = UORObject(
-            data=self.result,
-            mode=ObjectMode.IMMUTABLE_SINGULAR
+            data=self.result, mode=ObjectMode.IMMUTABLE_SINGULAR
         )
         uor_obj.compute_digest()
         uor_obj.add_provenance(source, "sigil_expression")
         uor_obj.add_schema_extension("sigil_operation", self.operation)
-        uor_obj.add_schema_extension(
-            "sigil_count", len(self.sigils)
-        )
+        uor_obj.add_schema_extension("sigil_count", len(self.sigils))
 
         self.uor_object = uor_obj
         return uor_obj
@@ -121,15 +120,12 @@ class SigmaticsIntegrator:
         """Check if Sigmatics CLI is available."""
         try:
             result = subprocess.run(
-                ["sigmatics", "--version"],
-                capture_output=True,
-                timeout=5
+                ["sigmatics", "--version"], capture_output=True, timeout=5
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
             logger.warning(
-                "Sigmatics CLI not found. "
-                "Using Python-native implementations."
+                "Sigmatics CLI not found. Using Python-native implementations."
             )
             return False
 
@@ -137,15 +133,13 @@ class SigmaticsIntegrator:
         self,
         symbol: str,
         value: Optional[Union[int, float, str]] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Sigil:
         """Create a sigil object."""
         return Sigil(symbol=symbol, value=value, metadata=metadata)
 
     def create_expression(
-        self,
-        sigils: List[Sigil],
-        operation: str
+        self, sigils: List[Sigil], operation: str
     ) -> SigilExpression:
         """Create a sigil expression."""
         expr = SigilExpression(sigils=sigils, operation=operation)
@@ -159,8 +153,7 @@ class SigmaticsIntegrator:
         return f"{expr.operation}:{symbols}"
 
     def evaluate_via_cli(
-        self,
-        expression_data: Dict[str, Any]
+        self, expression_data: Dict[str, Any]
     ) -> Optional[Any]:
         """
         Evaluate a sigil expression using the Sigmatics CLI.
@@ -180,7 +173,7 @@ class SigmaticsIntegrator:
                 ["sigmatics", "evaluate", json.dumps(expression_data)],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
 
             if result.returncode == 0:
@@ -194,9 +187,7 @@ class SigmaticsIntegrator:
             return None
 
     def integrate_with_uor(
-        self,
-        sigil_expr: SigilExpression,
-        source: str = "sigmatics"
+        self, sigil_expr: SigilExpression, source: str = "sigmatics"
     ) -> UORObject:
         """Integrate sigil expression with UOR system."""
         uor_obj = sigil_expr.wrap_with_uor(source)
@@ -204,16 +195,13 @@ class SigmaticsIntegrator:
         # Add schema extensions for sigil algebra tracking
         uor_obj.add_schema_extension("sigil_algebra", True)
         uor_obj.add_schema_extension(
-            "sigil_symbols",
-            [s.symbol for s in sigil_expr.sigils]
+            "sigil_symbols", [s.symbol for s in sigil_expr.sigils]
         )
 
         return uor_obj
 
     def batch_process_sigils(
-        self,
-        sigil_list: List[Sigil],
-        operation: str = "sum"
+        self, sigil_list: List[Sigil], operation: str = "sum"
     ) -> List[UORObject]:
         """Process multiple sigils and return UOR objects."""
         results = []
@@ -249,7 +237,7 @@ def reset_sigmatics_integrator():
 def create_sigil(
     symbol: str,
     value: Optional[Union[int, float, str]] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> Sigil:
     """Convenience function to create a sigil."""
     integrator = get_sigmatics_integrator()
@@ -257,8 +245,7 @@ def create_sigil(
 
 
 def create_sigil_expression(
-    sigils: List[Sigil],
-    operation: str
+    sigils: List[Sigil], operation: str
 ) -> SigilExpression:
     """Convenience function to create a sigil expression."""
     integrator = get_sigmatics_integrator()

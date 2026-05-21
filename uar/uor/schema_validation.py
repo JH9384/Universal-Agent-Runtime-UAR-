@@ -40,10 +40,18 @@ class UORSchemaValidator:
             "type": "object",
             "required": ["digest", "mediaType", "mode", "schema", "content"],
             "properties": {
-                "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$",
+                },
                 "mediaType": {"type": "string"},
-                "mode": {"enum": ["immutable_singular", "mutable_singular",
-                         "mutable_array"]},
+                "mode": {
+                    "enum": [
+                        "immutable_singular",
+                        "mutable_singular",
+                        "mutable_array",
+                    ]
+                },
                 "schema": {"type": "string"},
                 "attributes": {"type": "object"},
                 "links": {"type": "array", "items": {"type": "object"}},
@@ -54,7 +62,12 @@ class UORSchemaValidator:
         # Execution record schema
         self.schemas["uar.schema.execution_record.v1"] = {
             "type": "object",
-            "required": ["execution_id", "skill", "input_digest", "output_digest"],
+            "required": [
+                "execution_id",
+                "skill",
+                "input_digest",
+                "output_digest",
+            ],
             "properties": {
                 "execution_id": {"type": "string"},
                 "skill": {"type": "string"},
@@ -151,11 +164,12 @@ class UORSchemaValidator:
                         if not self._check_type(value, expected_type):
                             errors.append(
                                 f"Field '{field}' has wrong type: "
-                                f"expected {expected_type}, got {type(value).__name__}"
+                                f"expected {expected_type}, got {type(value).__name__}"  # noqa: E501
                             )
 
                     if "pattern" in field_schema and isinstance(value, str):
                         import re
+
                         if not re.match(field_schema["pattern"], value):
                             errors.append(
                                 f"Field '{field}' does not match pattern: "
@@ -207,7 +221,9 @@ class UORSchemaValidator:
         """
         return self.validate(envelope, "uor.schema.object.v1")
 
-    def validate_execution_record(self, record: Dict) -> tuple[bool, List[str]]:
+    def validate_execution_record(
+        self, record: Dict
+    ) -> tuple[bool, List[str]]:
         """Validate execution record.
 
         Args:

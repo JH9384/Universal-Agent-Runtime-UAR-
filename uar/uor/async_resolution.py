@@ -57,14 +57,10 @@ class AsyncObjectResolver:
         Returns:
             Dictionary mapping digest to object data
         """
-        tasks = [
-            self.fetch_object(digest, fetch_func) for digest in digests
-        ]
+        tasks = [self.fetch_object(digest, fetch_func) for digest in digests]
         results = await asyncio.gather(*tasks)
 
-        return {
-            digest: obj for digest, obj in zip(digests, results)
-        }
+        return {digest: obj for digest, obj in zip(digests, results)}
 
     async def fetch_with_retry(
         self,
@@ -93,13 +89,13 @@ class AsyncObjectResolver:
                     f"Attempt {attempt + 1}/{max_retries} failed for {digest}"
                 )
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(backoff * (2 ** attempt))
+                    await asyncio.sleep(backoff * (2**attempt))
             except Exception as e:
                 attempt_info = f"Attempt {attempt + 1}/{max_retries} error"
                 err_msg = f"{attempt_info} for {digest}: {e}"
                 logger.error(err_msg)
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(backoff * (2 ** attempt))
+                    await asyncio.sleep(backoff * (2**attempt))
 
         return None
 
@@ -153,9 +149,7 @@ class AsyncObjectProcessor:
         Returns:
             List of processed results
         """
-        tasks = [
-            self.process_object(obj, process_func) for obj in objects
-        ]
+        tasks = [self.process_object(obj, process_func) for obj in objects]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         return results
@@ -186,10 +180,13 @@ class AsyncBatchValidator:
         Returns:
             List of validation results
         """
+
         def validate_single(obj: Dict[str, Any]) -> Any:
             return validator.validate_envelope(obj)
 
-        results = await self.processor.process_objects(objects, validate_single)
+        results = await self.processor.process_objects(
+            objects, validate_single
+        )
         return results
 
 

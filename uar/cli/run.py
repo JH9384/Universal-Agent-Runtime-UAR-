@@ -93,7 +93,7 @@ def cmd_replay(args):
         print("\nEvent stream:")
         for event in record.events:
             print(
-                f"  [{event['type']}] {event['skill']}: {event.get('timestamp')}"
+                f"  [{event['type']}] {event['skill']}: {event.get('timestamp')}"  # noqa: E501
             )
             if event.get("error"):
                 print(f"    Error: {event['error']}")

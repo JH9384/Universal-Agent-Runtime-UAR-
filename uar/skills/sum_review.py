@@ -15,7 +15,7 @@ def sum_review(ctx: PipelineContext) -> Dict[str, Any]:
 
     Returns:
         Dictionary containing skills executed, event count, and observations.
-    """
+    """  # noqa: E501
     insights = {
         "skills_executed": list(ctx.data.keys()),
         "events_count": len(ctx.events),

@@ -59,7 +59,9 @@ class UORMerkleTree:
         elif self.hash_algorithm == "sha3-256":
             return hashlib.sha3_256(data).hexdigest()
         else:
-            raise ValueError(f"Unsupported hash algorithm: {self.hash_algorithm}")
+            raise ValueError(
+                f"Unsupported hash algorithm: {self.hash_algorithm}"
+            )
 
     def _hash_pair(self, left: str, right: str) -> str:
         """Hash pair of digests.
@@ -181,6 +183,7 @@ class UORMerkleTree:
         Returns:
             Parent node or None
         """
+
         def search(current: Optional[MerkleNode]) -> Optional[MerkleNode]:
             if not current or current.is_leaf:
                 return None

@@ -129,6 +129,7 @@ def _http_get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
 # UOR-ADDR Integration
 # ---------------------------------------------------------------------------
 
+
 class UORAddrClient:
     """Client wrapping UOR-ADDR-1 canonicalization and content addressing.
 
@@ -190,6 +191,7 @@ class UORAddrClient:
 # ---------------------------------------------------------------------------
 # Hologram Integration
 # ---------------------------------------------------------------------------
+
 
 class HologramClient:
     """Client for gethologram.ai geometric virtual compute API.
@@ -266,6 +268,7 @@ class HologramClient:
 # Moltbook Forum Integration
 # ---------------------------------------------------------------------------
 
+
 class MoltbookClient:
     """Client for moltbook.com/m/uor community forum.
 
@@ -311,6 +314,7 @@ class MoltbookClient:
 # Prism-BTC Integration (placeholder)
 # ---------------------------------------------------------------------------
 
+
 class PrismBTCClient:
     """Client for afflom/prism-btc Bitcoin anchoring.
 
@@ -354,6 +358,7 @@ class PrismBTCClient:
 # ---------------------------------------------------------------------------
 # Severance AI Integration (placeholder)
 # ---------------------------------------------------------------------------
+
 
 class SeveranceAIClient:
     """Client for dkypuros/Project_Severance_AI.
@@ -404,6 +409,7 @@ class SeveranceAIClient:
 # UOR Foundation Live API Integration
 # ---------------------------------------------------------------------------
 
+
 class UORFoundationClient:
     """Client for the live UOR Foundation API (api.uor.foundation).
 
@@ -447,6 +453,7 @@ class UORFoundationClient:
 # ---------------------------------------------------------------------------
 # Anunix Integration (placeholder)
 # ---------------------------------------------------------------------------
+
 
 class AnunixClient:
     """Client for AdamPippert/Anunix self-healing automation OS.
@@ -495,6 +502,7 @@ class AnunixClient:
 # ---------------------------------------------------------------------------
 # Ecosystem Coordinator
 # ---------------------------------------------------------------------------
+
 
 class UOREcosystem:
     """Unified coordinator for all UOR ecosystem integrations."""

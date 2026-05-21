@@ -19,7 +19,7 @@ class JsonRunStore:
     """
 
     def __init__(self, path: Optional[str] = None):
-        # Use absolute path from environment or default to runs/ in project root
+        # Use absolute path from environment or default to runs/ in project root  # noqa: E501
         if path is None:
             runs_dir = Path(os.getenv("RUNS_DIR", "runs")).resolve()
             default_path = runs_dir / "uar_runs.jsonl"
@@ -31,7 +31,7 @@ class JsonRunStore:
 
     @contextmanager
     def _acquire_lock(self, shared: bool = False):
-        """Acquire file lock for read or write operations with context manager."""
+        """Acquire file lock for read or write operations with context manager."""  # noqa: E501
         self._lock_file.touch(exist_ok=True)
         lock_fd = open(self._lock_file, "w")
         try:

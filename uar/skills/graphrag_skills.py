@@ -485,8 +485,7 @@ def graphrag_query(ctx):
         return {
             "status": "failed",
             "error": (
-                f"No GraphRAG workspace at {root}. "
-                "Run graphrag_index first."
+                f"No GraphRAG workspace at {root}. Run graphrag_index first."
             ),
         }
 

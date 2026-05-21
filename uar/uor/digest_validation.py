@@ -90,9 +90,7 @@ class DigestValidator:
                 error=f"Validation error: {e}",
             )
 
-    def validate_envelope(
-        self, envelope: Dict[str, Any]
-    ) -> ValidationResult:
+    def validate_envelope(self, envelope: Dict[str, Any]) -> ValidationResult:
         """Validate UOR object envelope digest.
 
         Args:
@@ -214,8 +212,11 @@ class DigestVerifier:
 
         if len(objects) != len(chain):
             return False, [
-                (0, f"Chain length mismatch: {len(objects)} objects, "
-                    f"{len(chain)} expected digests")
+                (
+                    0,
+                    f"Chain length mismatch: {len(objects)} objects, "
+                    f"{len(chain)} expected digests",
+                )
             ]
 
         for i, (obj, expected) in enumerate(zip(objects, chain)):

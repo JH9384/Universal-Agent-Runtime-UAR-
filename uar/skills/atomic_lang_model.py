@@ -85,9 +85,7 @@ def _call_alm(
     client = _get_http_client()
 
     if client is None:
-        logger.warning(
-            "httpx not available, using mock responses for ALM"
-        )
+        logger.warning("httpx not available, using mock responses for ALM")
         return _mock_alm_response(endpoint, payload)
 
     base_url = _get_service_url(ctx)
@@ -100,9 +98,7 @@ def _call_alm(
         response.raise_for_status()
         return response.json()
     except httpx.HTTPStatusError as e:
-        logger.error(
-            "ALM service returned error: %s", e.response.status_code
-        )
+        logger.error("ALM service returned error: %s", e.response.status_code)
         try:
             error_detail = e.response.json()
         except Exception:
@@ -210,9 +206,7 @@ def alm_analyze(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     try:
-        result = _call_alm(
-            "analyze", {"grammar_spec": grammar_spec}, ctx
-        )
+        result = _call_alm("analyze", {"grammar_spec": grammar_spec}, ctx)
         return {"status": "completed", "grammar_spec": grammar_spec, **result}
     except Exception as e:
         logger.exception("alm_analyze failed")
@@ -247,9 +241,7 @@ def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     try:
-        result = _call_alm(
-            "generate", {"prefix": prefix, "count": count}, ctx
-        )
+        result = _call_alm("generate", {"prefix": prefix, "count": count}, ctx)
         return {
             "status": "completed",
             "prefix": prefix,

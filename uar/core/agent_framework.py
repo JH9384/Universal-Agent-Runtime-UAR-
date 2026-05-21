@@ -33,6 +33,7 @@ try:
         UserProxyAgent,
         ConversableAgent,
     )
+
     AUTOGEN_AVAILABLE = True
 except ImportError:
     AUTOGEN_AVAILABLE = False
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 class MessageType(Enum):
     """Types of messages that can be sent between agents."""
+
     TEXT = "text"
     TOOL_CALL = "tool_call"
     TOOL_RESPONSE = "tool_response"
@@ -56,6 +58,7 @@ class MessageType(Enum):
 @dataclass
 class AgentMessage:
     """A message sent between agents."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     type: MessageType = MessageType.TEXT
     content: str = ""
@@ -96,6 +99,7 @@ class AgentMessage:
 @dataclass
 class AgentCapability:
     """Represents a capability an agent can perform."""
+
     name: str
     description: str
     parameters: Dict[str, Any] = field(default_factory=dict)
@@ -122,7 +126,7 @@ class Agent:
     def register_handler(
         self,
         message_type: MessageType,
-        handler: Callable[[AgentMessage], Optional[AgentMessage]]
+        handler: Callable[[AgentMessage], Optional[AgentMessage]],
     ):
         """Register a handler for a specific message type."""
         if message_type not in self.message_handlers:
@@ -398,20 +402,24 @@ async def execute_agent_workflow(
         agent = orchestrator.get_agent(agent_id)
         if not agent:
             logger.error(f"Agent not found: {agent_id}")
-            results.append({
-                "agent_id": agent_id,
-                "error": "Agent not found",
-            })
+            results.append(
+                {
+                    "agent_id": agent_id,
+                    "error": "Agent not found",
+                }
+            )
             continue
 
         current_message.recipient_id = agent_id
         response = await orchestrator.route_message(current_message)
 
-        results.append({
-            "agent_id": agent_id,
-            "message": current_message.to_dict(),
-            "response": response.to_dict() if response else None,
-        })
+        results.append(
+            {
+                "agent_id": agent_id,
+                "message": current_message.to_dict(),
+                "response": response.to_dict() if response else None,
+            }
+        )
 
         if response:
             current_message = response

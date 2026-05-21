@@ -22,7 +22,7 @@ def get_circuit_breaker(
     name: str,
     failure_threshold: int = 3,
     recovery_timeout: float = 30.0,
-    half_open_max: int = 1
+    half_open_max: int = 1,
 ) -> CircuitBreaker:
     """Get or create a circuit breaker for a service.
 
@@ -41,7 +41,7 @@ def get_circuit_breaker(
                 name=name,
                 failure_threshold=failure_threshold,
                 recovery_timeout=recovery_timeout,
-                half_open_max=half_open_max
+                half_open_max=half_open_max,
             )
         return _circuit_breakers[name]
 
@@ -50,7 +50,7 @@ def with_circuit_breaker(
     service_name: str,
     failure_threshold: int = 3,
     recovery_timeout: float = 30.0,
-    half_open_max: int = 1
+    half_open_max: int = 1,
 ):
     """Decorator to wrap a function with circuit breaker protection.
 
@@ -66,12 +66,10 @@ def with_circuit_breaker(
         recovery_timeout: Seconds to wait before trying again
         half_open_max: Max calls allowed in half-open state
     """
+
     def decorator(func: Callable) -> Callable:
         cb = get_circuit_breaker(
-            service_name,
-            failure_threshold,
-            recovery_timeout,
-            half_open_max
+            service_name, failure_threshold, recovery_timeout, half_open_max
         )
 
         @wraps(func)
@@ -84,11 +82,10 @@ def with_circuit_breaker(
                     f"skipping {func.__name__}"
                 )
                 # Re-raise as SkillExecutionError to maintain contract
-                raise SkillExecutionError(
-                    func.__name__, original_error=e
-                )
+                raise SkillExecutionError(func.__name__, original_error=e)
 
         return wrapper
+
     return decorator
 
 
@@ -111,7 +108,4 @@ def get_circuit_breaker_states() -> dict[str, str]:
     Returns:
         Dict mapping service names to their current state
     """
-    return {
-        name: cb.state.value
-        for name, cb in _circuit_breakers.items()
-    }
+    return {name: cb.state.value for name, cb in _circuit_breakers.items()}

@@ -265,7 +265,7 @@ class AdversarialAudit:
         print(f"Passed: {self.passed}")
         print(f"Failed: {self.failed}")
         print(
-            f"Success Rate: {self.passed / (self.passed + self.failed) * 100:.1f}%"
+            f"Success Rate: {self.passed / (self.passed + self.failed) * 100:.1f}%"  # noqa: E501
         )
         print("=" * 60)
 

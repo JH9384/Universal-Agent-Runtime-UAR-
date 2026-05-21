@@ -62,7 +62,7 @@ class SecurityPolicy:
                 "enabled": self.enabled,
                 "rules": self.rules,
             },
-            mode=ObjectMode.IMMUTABLE_SINGULAR
+            mode=ObjectMode.IMMUTABLE_SINGULAR,
         )
         uor_obj.compute_digest()
         uor_obj.add_provenance(source, "security_policy")
@@ -84,22 +84,20 @@ class EgoGuardForgeIntegrator:
         policy_id: str,
         name: str,
         description: str,
-        rules: Dict[str, Any]
+        rules: Dict[str, Any],
     ) -> SecurityPolicy:
         """Create a security policy."""
         policy = SecurityPolicy(
             policy_id=policy_id,
             name=name,
             description=description,
-            rules=rules
+            rules=rules,
         )
         self.policies[policy_id] = policy
         return policy
 
     def evaluate_policies(
-        self,
-        context: Dict[str, Any],
-        policy_ids: Optional[List[str]] = None
+        self, context: Dict[str, Any], policy_ids: Optional[List[str]] = None
     ) -> Dict[str, bool]:
         """Evaluate security policies against context."""
         results = {}
@@ -115,19 +113,19 @@ class EgoGuardForgeIntegrator:
                 results[policy_id] = result
 
                 # Audit trail
-                self.audit_trail.append({
-                    "policy_id": policy_id,
-                    "result": result,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "context": context,
-                })
+                self.audit_trail.append(
+                    {
+                        "policy_id": policy_id,
+                        "result": result,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "context": context,
+                    }
+                )
 
         return results
 
     def integrate_with_uor(
-        self,
-        policy: SecurityPolicy,
-        source: str = "ego_guard"
+        self, policy: SecurityPolicy, source: str = "ego_guard"
     ) -> UORObject:
         """Integrate security policy with UOR system."""
         uor_obj = policy.wrap_with_uor(source)
@@ -138,10 +136,7 @@ class EgoGuardForgeIntegrator:
 
         return uor_obj
 
-    def get_audit_trail(
-        self,
-        limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    def get_audit_trail(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get security audit trail."""
         return self.audit_trail[-limit:]
 
@@ -165,10 +160,7 @@ def reset_ego_guard_integrator():
 
 
 def create_security_policy(
-    policy_id: str,
-    name: str,
-    description: str,
-    rules: Dict[str, Any]
+    policy_id: str, name: str, description: str, rules: Dict[str, Any]
 ) -> SecurityPolicy:
     """Convenience function to create a security policy."""
     integrator = get_ego_guard_integrator()

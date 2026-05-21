@@ -47,8 +47,7 @@ class Config:
             secret_key = os.getenv("SECRET_KEY")
             if not secret_key:
                 raise ValueError(
-                    "SECRET_KEY environment variable "
-                    "must be set in production"
+                    "SECRET_KEY environment variable must be set in production"
                 )
             self.secret_key = secret_key
         else:
@@ -120,17 +119,14 @@ class Config:
         # Path priority: UOR_DB_PATH (preferred) > legacy DB_PATH >
         # default ./uar.sqlite3 next to the runtime working directory.
         self.uor_db_path = Path(
-            os.getenv("UOR_DB_PATH")
-            or os.getenv("DB_PATH")
-            or "uar.sqlite3"
+            os.getenv("UOR_DB_PATH") or os.getenv("DB_PATH") or "uar.sqlite3"
         )
 
         # Optional UOR extensions (atlas, prism, sigmatics, ego-guard).
         # Off by default so missing optional deps never break the
         # default-import path; opt in via env.
         self.uor_extensions_enabled = (
-            os.getenv("UAR_ENABLE_UOR_EXTENSIONS", "false").lower()
-            == "true"
+            os.getenv("UAR_ENABLE_UOR_EXTENSIONS", "false").lower() == "true"
         )
 
         # Autonomi Network Configuration

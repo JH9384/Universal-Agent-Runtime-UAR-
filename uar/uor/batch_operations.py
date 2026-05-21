@@ -134,11 +134,13 @@ class BatchProcessor:
                 idx = futures[future]
                 try:
                     is_valid, errors = future.result()
-                    result.results.append({
-                        "index": idx,
-                        "valid": is_valid,
-                        "errors": errors,
-                    })
+                    result.results.append(
+                        {
+                            "index": idx,
+                            "valid": is_valid,
+                            "errors": errors,
+                        }
+                    )
                     if is_valid:
                         result.successful += 1
                     else:
@@ -200,7 +202,9 @@ class BatchProcessor:
                 idx = futures[future]
                 try:
                     transformed = future.result()
-                    result.results.append({"index": idx, "object": transformed})
+                    result.results.append(
+                        {"index": idx, "object": transformed}
+                    )
                     result.successful += 1
                 except Exception as e:
                     result.failed += 1
@@ -228,9 +232,7 @@ class BatchProcessor:
         """
         return transform_func(obj)
 
-    def batch_canonicalize(
-        self, objects: List[Dict[str, Any]]
-    ) -> BatchResult:
+    def batch_canonicalize(self, objects: List[Dict[str, Any]]) -> BatchResult:
         """Canonicalize multiple objects in batch.
 
         Args:
@@ -255,7 +257,9 @@ class BatchProcessor:
                 idx = futures[future]
                 try:
                     canonical = future.result()
-                    result.results.append({"index": idx, "canonical": canonical})
+                    result.results.append(
+                        {"index": idx, "canonical": canonical}
+                    )
                     result.successful += 1
                 except Exception as e:
                     result.failed += 1
@@ -265,9 +269,7 @@ class BatchProcessor:
 
         return result
 
-    def _canonicalize_single(
-        self, obj: Dict[str, Any], index: int
-    ) -> str:
+    def _canonicalize_single(self, obj: Dict[str, Any], index: int) -> str:
         """Canonicalize a single object.
 
         Args:
@@ -343,6 +345,4 @@ class BatchDeduplicator:
             digest_map[digest].append(obj)
 
         # Return only duplicates
-        return {
-            d: objs for d, objs in digest_map.items() if len(objs) > 1
-        }
+        return {d: objs for d, objs in digest_map.items() if len(objs) > 1}

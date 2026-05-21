@@ -24,6 +24,7 @@ from typing import Dict, Any
 
 try:
     import google.generativeai as genai
+
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
@@ -120,10 +121,7 @@ def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     if not os.getenv("GEMINI_API_KEY"):
-        return {
-            "status": "failed",
-            "error": "GEMINI_API_KEY not set"
-        }
+        return {"status": "failed", "error": "GEMINI_API_KEY not set"}
 
     meta = ctx.goal.metadata or {}
     messages = meta.get("messages", [])
@@ -141,7 +139,9 @@ def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
 
         model = genai.GenerativeModel(  # noqa
             model_name=model_name,
-            system_instruction=system_instruction if system_instruction else None,  # noqa
+            system_instruction=system_instruction
+            if system_instruction
+            else None,  # noqa
             generation_config=genai.GenerationConfig(  # noqa
                 temperature=temperature,
                 max_output_tokens=max_tokens,
@@ -185,9 +185,15 @@ def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
             "model": model_name,
             "message": response.text,
             "usage": {
-                "prompt_tokens": response.usage_metadata.prompt_token_count if response.usage_metadata else 0,  # noqa
-                "output_tokens": response.usage_metadata.candidates_token_count if response.usage_metadata else 0,  # noqa
-                "total_tokens": response.usage_metadata.total_token_count if response.usage_metadata else 0,  # noqa
+                "prompt_tokens": response.usage_metadata.prompt_token_count
+                if response.usage_metadata
+                else 0,  # noqa
+                "output_tokens": response.usage_metadata.candidates_token_count
+                if response.usage_metadata
+                else 0,  # noqa
+                "total_tokens": response.usage_metadata.total_token_count
+                if response.usage_metadata
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -221,10 +227,7 @@ def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     if not os.getenv("GEMINI_API_KEY"):
-        return {
-            "status": "failed",
-            "error": "GEMINI_API_KEY not set"
-        }
+        return {"status": "failed", "error": "GEMINI_API_KEY not set"}
 
     meta = ctx.goal.metadata or {}
     prompt = meta.get("prompt", ctx.goal.objective)
@@ -258,9 +261,15 @@ def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
             "model": model_name,
             "text": response.text,
             "usage": {
-                "prompt_tokens": response.usage_metadata.prompt_token_count if response.usage_metadata else 0,  # noqa
-                "output_tokens": response.usage_metadata.candidates_token_count if response.usage_metadata else 0,  # noqa
-                "total_tokens": response.usage_metadata.total_token_count if response.usage_metadata else 0,  # noqa
+                "prompt_tokens": response.usage_metadata.prompt_token_count
+                if response.usage_metadata
+                else 0,  # noqa
+                "output_tokens": response.usage_metadata.candidates_token_count
+                if response.usage_metadata
+                else 0,  # noqa
+                "total_tokens": response.usage_metadata.total_token_count
+                if response.usage_metadata
+                else 0,  # noqa
             },
         }
     except Exception as e:
@@ -295,10 +304,7 @@ def gemini_embedding(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     if not os.getenv("GEMINI_API_KEY"):
-        return {
-            "status": "failed",
-            "error": "GEMINI_API_KEY not set"
-        }
+        return {"status": "failed", "error": "GEMINI_API_KEY not set"}
 
     meta = ctx.goal.metadata or {}
     text = meta.get("text", ctx.goal.objective)

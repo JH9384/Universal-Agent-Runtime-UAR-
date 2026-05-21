@@ -30,6 +30,7 @@ def _utcnow() -> datetime:
 
 try:
     from neo4j import GraphDatabase
+
     NEO4J_AVAILABLE = True
 except ImportError:
     NEO4J_AVAILABLE = False
@@ -46,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 class GraphBackend(Enum):
     """Supported graph database backends."""
+
     NEO4J = "neo4j"
     MEMGRAPH = "memgraph"
     RDF = "rdf"
@@ -54,6 +56,7 @@ class GraphBackend(Enum):
 
 class SearchStrategy(Enum):
     """Search strategies for graph queries."""
+
     VECTOR = "vector"
     FULLTEXT = "fulltext"
     PROPERTY_GRAPH = "property_graph"
@@ -64,6 +67,7 @@ class SearchStrategy(Enum):
 @dataclass
 class GraphEntity:
     """Represents an entity in the knowledge graph."""
+
     entity_id: str
     entity_type: str
     name: str
@@ -86,6 +90,7 @@ class GraphEntity:
 @dataclass
 class GraphRelation:
     """Represents a relation between entities."""
+
     relation_id: str
     source_id: str
     target_id: str
@@ -110,6 +115,7 @@ class GraphRelation:
 @dataclass
 class OntologySchema:
     """Schema definition for graph ontology."""
+
     entity_types: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     relation_types: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     constraints: Dict[str, Any] = field(default_factory=dict)
@@ -426,8 +432,7 @@ class FlexibleGraphRAG:
         )
 
         return [
-            self.entities[entity_id]
-            for entity_id, _ in sorted_results[:top_k]
+            self.entities[entity_id] for entity_id, _ in sorted_results[:top_k]
         ]
 
     def _cosine_similarity(

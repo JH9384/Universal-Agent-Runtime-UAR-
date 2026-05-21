@@ -88,14 +88,14 @@ class EventContractError(UARError):
 
 
 class ExternalServiceError(UARError):
-    """Raised when an external service (Ollama, GraphRAG, Autonomi) is unreachable."""
+    """Raised when an external service (Ollama, GraphRAG, Autonomi) is unreachable."""  # noqa: E501
 
     code = ErrorCode.EXTERNAL_DOWN
 
     def __init__(self, service: str, detail: str = ""):
         self.service = service
         super().__init__(
-            f"External service '{service}' unavailable{f': {detail}' if detail else ''}"
+            f"External service '{service}' unavailable{f': {detail}' if detail else ''}"  # noqa: E501
         )
 
 

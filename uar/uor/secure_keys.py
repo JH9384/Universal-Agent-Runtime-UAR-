@@ -98,7 +98,7 @@ class SecureKeyStore:
         keys = []
         for key in os.environ:
             if key.startswith(self.prefix):
-                key_id = key[len(self.prefix):]
+                key_id = key[len(self.prefix) :]
                 keys.append(key_id.lower())
         return keys
 
@@ -197,7 +197,9 @@ class KeyManager:
             from cryptography.hazmat.primitives import hashes
             from cryptography.hazmat.primitives.asymmetric import padding
             from cryptography.hazmat.backends import default_backend
-            from cryptography.hazmat.primitives.serialization import load_pem_private_key
+            from cryptography.hazmat.primitives.serialization import (
+                load_pem_private_key,
+            )
             import base64
 
             private_key_pem = self.key_store.retrieve_key(f"{key_id}_private")
@@ -246,7 +248,9 @@ class KeyManager:
             from cryptography.hazmat.primitives import hashes
             from cryptography.hazmat.primitives.asymmetric import padding
             from cryptography.hazmat.backends import default_backend
-            from cryptography.hazmat.primitives.serialization import load_pem_public_key
+            from cryptography.hazmat.primitives.serialization import (
+                load_pem_public_key,
+            )
             import base64
 
             public_key_pem = self.key_store.retrieve_key(f"{key_id}_public")

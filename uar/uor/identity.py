@@ -118,14 +118,14 @@ def compute_identity_chain(x: int, n: int = 8) -> dict:
     x_bnot = bnot(x, n)
     x_neg_bnot = neg(x_bnot, n)
     x_succ = succ(x, n)
-    valid = (x_neg_bnot == x_succ)
+    valid = x_neg_bnot == x_succ
 
     return {
-        'x': x,
-        'bnot': x_bnot,
-        'neg_bnot': x_neg_bnot,
-        'succ': x_succ,
-        'valid': valid,
+        "x": x,
+        "bnot": x_bnot,
+        "neg_bnot": x_neg_bnot,
+        "succ": x_succ,
+        "valid": valid,
     }
 
 
@@ -141,7 +141,9 @@ class UORIdentityVerifier:
         self.n = n
         self.mod = 1 << n
 
-    def verify_object_identity(self, digest: str, expected: Union[int, str]) -> bool:
+    def verify_object_identity(
+        self, digest: str, expected: Union[int, str]
+    ) -> bool:
         """Verify object identity using digest-based operations.
 
         Args:

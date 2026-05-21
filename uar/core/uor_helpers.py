@@ -32,7 +32,7 @@ class UORHelper:
     def wrap_data_with_uor(
         data: Any,
         source: str = "unknown",
-        mode: ObjectMode = ObjectMode.IMMUTABLE_SINGULAR
+        mode: ObjectMode = ObjectMode.IMMUTABLE_SINGULAR,
     ) -> UORObject:
         """Wrap data with UOR object."""
         uor_obj = UORObject(data=data, mode=mode)
@@ -42,8 +42,7 @@ class UORHelper:
 
     @staticmethod
     def verify_uor_chain(
-        uor_obj: UORObject,
-        expected_sources: List[str]
+        uor_obj: UORObject, expected_sources: List[str]
     ) -> bool:
         """Verify that UOR object has expected provenance sources."""
         actual_sources = [p["source"] for p in uor_obj.provenance]
@@ -107,7 +106,7 @@ class UORAssetHelper:
                 policy_id="pipeline_policy",
                 name="Pipeline Security",
                 description="Security for pipeline",
-                rules={"enabled": True}
+                rules={"enabled": True},
             )
             policy_uor = guard_int.integrate_with_uor(policy)
             results["policy_digest"] = policy_uor.digest
@@ -256,9 +255,7 @@ class UORValidationHelper:
         }
 
         for i, uor_obj in enumerate(uor_objects):
-            obj_validation = UORValidationHelper.validate_uor_object(
-                uor_obj
-            )
+            obj_validation = UORValidationHelper.validate_uor_object(uor_obj)
 
             if not obj_validation["valid"]:
                 validation["valid"] = False
@@ -280,6 +277,7 @@ class UORValidationHelper:
 
 
 # Convenience functions for common operations
+
 
 def wrap_and_track(data: Any, source: str) -> UORObject:
     """Wrap data with UOR and track provenance."""

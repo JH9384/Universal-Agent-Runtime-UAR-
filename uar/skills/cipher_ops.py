@@ -13,7 +13,7 @@ Goal Metadata:
     cipher_data - Data to process (base64 encoded string)
     cipher_key - Key for operations (base64 encoded)
     cipher_iv - IV for block ciphers (optional, base64 encoded)
-"""
+"""  # noqa: E501
 
 import os
 import logging
@@ -27,16 +27,21 @@ from uar.core.contracts import PipelineContext
 logger = logging.getLogger(__name__)
 
 # Circuit breaker for crypto operations
-_cipher_cb = CircuitBreaker("cipher_ops", failure_threshold=3, recovery_timeout=30.0)
+_cipher_cb = CircuitBreaker(
+    "cipher_ops", failure_threshold=3, recovery_timeout=30.0
+)
 
 # Configuration
 CIPHER_TIMEOUT = float(os.getenv("CIPHER_TIMEOUT_SECONDS", "30"))
-MAX_DATA_SIZE = int(os.getenv("CIPHER_MAX_DATA_SIZE", "10485760"))  # 10MB default
+MAX_DATA_SIZE = int(
+    os.getenv("CIPHER_MAX_DATA_SIZE", "10485760")
+)  # 10MB default
 
 
 def _check_pycryptodome_available() -> bool:
     """Check if PyCryptodome is available with graceful degradation."""
     import importlib.util
+
     return importlib.util.find_spec("Crypto") is not None
 
 
@@ -50,10 +55,12 @@ def _decode_base64(data: str) -> bytes:
 
 def _encode_base64(data: bytes) -> str:
     """Encode data to base64."""
-    return base64.b64encode(data).decode('utf-8')
+    return base64.b64encode(data).decode("utf-8")
 
 
-def _aes_encrypt(data: bytes, key: bytes, iv: bytes | None = None) -> Dict[str, Any]:
+def _aes_encrypt(
+    data: bytes, key: bytes, iv: bytes | None = None
+) -> Dict[str, Any]:
     """Encrypt data using AES-CBC."""
     from Crypto.Cipher import AES
     from Crypto.Random import get_random_bytes
@@ -70,13 +77,15 @@ def _aes_encrypt(data: bytes, key: bytes, iv: bytes | None = None) -> Dict[str, 
             "success": True,
             "encrypted_data": _encode_base64(encrypted),
             "iv": _encode_base64(iv),
-            "algorithm": "AES-CBC"
+            "algorithm": "AES-CBC",
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
 
-def _aes_decrypt(encrypted_data: bytes, key: bytes, iv: bytes) -> Dict[str, Any]:
+def _aes_decrypt(
+    encrypted_data: bytes, key: bytes, iv: bytes
+) -> Dict[str, Any]:
     """Decrypt data using AES-CBC."""
     from Crypto.Cipher import AES
     from Crypto.Util.Padding import unpad
@@ -89,7 +98,7 @@ def _aes_decrypt(encrypted_data: bytes, key: bytes, iv: bytes) -> Dict[str, Any]
         return {
             "success": True,
             "decrypted_data": _encode_base64(unpadded),
-            "algorithm": "AES-CBC"
+            "algorithm": "AES-CBC",
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -105,7 +114,10 @@ def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
         elif algorithm == "SHA512":
             hasher = SHA512.new()  # type: ignore
         else:
-            return {"success": False, "error": f"Unsupported algorithm: {algorithm}"}
+            return {
+                "success": False,
+                "error": f"Unsupported algorithm: {algorithm}",
+            }
 
         hasher.update(data)
         digest = hasher.digest()
@@ -113,7 +125,7 @@ def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
         return {
             "success": True,
             "hash": _encode_base64(digest),
-            "algorithm": algorithm
+            "algorithm": algorithm,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -130,7 +142,7 @@ def _sign_data(data: bytes, private_key: bytes) -> Dict[str, Any]:
         return {
             "success": True,
             "signature": _encode_base64(signature),
-            "algorithm": "Ed25519"
+            "algorithm": "Ed25519",
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -146,17 +158,13 @@ def _verify_signature(
         key = ed25519.VerifyingKey(public_key)
         key.verify(signature, data)
 
-        return {
-            "success": True,
-            "valid": True,
-            "algorithm": "Ed25519"
-        }
+        return {"success": True, "valid": True, "algorithm": "Ed25519"}
     except Exception as exc:
         return {
             "success": True,
             "valid": False,
             "error": str(exc),
-            "algorithm": "Ed25519"
+            "algorithm": "Ed25519",
         }
 
 
@@ -181,13 +189,13 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
 
     Returns:
         Dictionary with operation results or error information.
-    """
+    """  # noqa: E501
     # Check PyCryptodome availability
     if not _check_pycryptodome_available():
         return {
             "status": "failed",
-            "error": "PyCryptodome not installed. Install with: pip install pycryptodome",
-            "operation": "unavailable"
+            "error": "PyCryptodome not installed. Install with: pip install pycryptodome",  # noqa: E501
+            "operation": "unavailable",
         }
 
     # Get parameters from goal metadata
@@ -202,7 +210,7 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
         return {
             "status": "failed",
             "error": "cipher_data is required in goal metadata",
-            "operation": operation
+            "operation": operation,
         }
 
     try:
@@ -211,14 +219,14 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
         return {
             "status": "failed",
             "error": f"Invalid cipher_data: {exc}",
-            "operation": operation
+            "operation": operation,
         }
 
     if len(data) > MAX_DATA_SIZE:
         return {
             "status": "failed",
             "error": f"Data too large (max {MAX_DATA_SIZE} bytes)",
-            "operation": operation
+            "operation": operation,
         }
 
     # Decode key if provided
@@ -230,7 +238,7 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
             return {
                 "status": "failed",
                 "error": f"Invalid cipher_key: {exc}",
-                "operation": operation
+                "operation": operation,
             }
 
     # Decode IV if provided
@@ -242,23 +250,17 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
             return {
                 "status": "failed",
                 "error": f"Invalid cipher_iv: {exc}",
-                "operation": operation
+                "operation": operation,
             }
 
     # Execute operation with circuit breaker
     try:
         result = _cipher_cb.call(
-            lambda: _execute_operation(
-                operation, algorithm, data, key, iv
-            )
+            lambda: _execute_operation(operation, algorithm, data, key, iv)
         )
     except Exception as exc:
         logger.warning(f"cipher_ops failed: {exc}")
-        return {
-            "status": "failed",
-            "error": str(exc),
-            "operation": operation
-        }
+        return {"status": "failed", "error": str(exc), "operation": operation}
 
     # Add metadata to result
     result["operation"] = operation
@@ -269,7 +271,11 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 def _execute_operation(
-    operation: str, algorithm: str, data: bytes, key: bytes | None, iv: bytes | None
+    operation: str,
+    algorithm: str,
+    data: bytes,
+    key: bytes | None,
+    iv: bytes | None,
 ) -> Dict[str, Any]:
     """Execute the specified cryptographic operation."""
     operations = {
@@ -277,7 +283,7 @@ def _execute_operation(
         "decrypt": lambda: _aes_decrypt(data, key, iv),
         "hash": lambda: _hash_data(data, algorithm),
         "sign": lambda: _sign_data(data, key),
-        "verify": lambda: _verify_signature(data, key, iv)
+        "verify": lambda: _verify_signature(data, key, iv),
     }
 
     if operation not in operations:
@@ -286,7 +292,7 @@ def _execute_operation(
             "error": (
                 f"Unknown operation: {operation}. "
                 f"Available: {list(operations.keys())}"
-            )
+            ),
         }
 
     return operations[operation]()

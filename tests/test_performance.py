@@ -26,7 +26,7 @@ class TestCachePerformance:
             cache_dir=temp_cache_dir,
             ttl_seconds=3600,
             max_entries=1000,
-            max_size_bytes=100 * 1024 * 1024
+            max_size_bytes=100 * 1024 * 1024,
         )
 
         # Pre-populate cache
@@ -35,7 +35,7 @@ class TestCachePerformance:
                 f"skill_{i}",
                 {"input": f"test_{i}"},
                 f"goal_{i}",
-                {"output": f"result_{i}"}
+                {"output": f"result_{i}"},
             )
 
         # Measure get performance
@@ -53,7 +53,7 @@ class TestCachePerformance:
             cache_dir=temp_cache_dir,
             ttl_seconds=3600,
             max_entries=1000,
-            max_size_bytes=100 * 1024 * 1024
+            max_size_bytes=100 * 1024 * 1024,
         )
 
         # Measure set performance
@@ -63,7 +63,7 @@ class TestCachePerformance:
                 f"skill_{i}",
                 {"input": f"test_{i}"},
                 f"goal_{i}",
-                {"output": f"result_{i}"}
+                {"output": f"result_{i}"},
             )
         duration = time.time() - start
 

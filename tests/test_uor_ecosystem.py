@@ -56,9 +56,7 @@ class TestUORAddrClient:
 
 class TestHologramClient:
     def test_mock_query_when_no_key(self, monkeypatch):
-        monkeypatch.setattr(
-            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
-        )
+        monkeypatch.setattr("uar.core.uor_ecosystem.HTTPX_AVAILABLE", False)
         client = HologramClient()
         assert not client.enabled
         result = client.query("test-model", {"x": 42})
@@ -66,9 +64,7 @@ class TestHologramClient:
         assert result["model_id"] == "test-model"
 
     def test_status_without_key(self, monkeypatch):
-        monkeypatch.setattr(
-            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
-        )
+        monkeypatch.setattr("uar.core.uor_ecosystem.HTTPX_AVAILABLE", False)
         client = HologramClient()
         result = client.status()
         assert result["status"] == "mock"
@@ -76,18 +72,14 @@ class TestHologramClient:
 
 class TestMoltbookClient:
     def test_list_topics_mock(self, monkeypatch):
-        monkeypatch.setattr(
-            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
-        )
+        monkeypatch.setattr("uar.core.uor_ecosystem.HTTPX_AVAILABLE", False)
         monkeypatch.setenv("MOLTBOOK_API_KEY", "")
         client = MoltbookClient()
         result = client.list_topics()
         assert result["status"] == "mock"
 
     def test_search_mock(self, monkeypatch):
-        monkeypatch.setattr(
-            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
-        )
+        monkeypatch.setattr("uar.core.uor_ecosystem.HTTPX_AVAILABLE", False)
         monkeypatch.setenv("MOLTBOOK_API_KEY", "")
         client = MoltbookClient()
         result = client.search("uor", limit=5)
@@ -164,16 +156,12 @@ class TestUOREcosystem:
 
 class TestHTTPHelpers:
     def test_http_post_without_httpx(self, monkeypatch):
-        monkeypatch.setattr(
-            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
-        )
+        monkeypatch.setattr("uar.core.uor_ecosystem.HTTPX_AVAILABLE", False)
         result = _http_post("http://example.com", {})
         assert result["status"] == "mock"
 
     def test_http_get_without_httpx(self, monkeypatch):
-        monkeypatch.setattr(
-            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
-        )
+        monkeypatch.setattr("uar.core.uor_ecosystem.HTTPX_AVAILABLE", False)
         result = _http_get("http://example.com")
         assert result["status"] == "mock"
 
@@ -231,9 +219,7 @@ class TestUORFoundationClient:
         assert client.enabled is True
 
     def test_status_mock_when_no_httpx(self, monkeypatch):
-        monkeypatch.setattr(
-            "uar.core.uor_ecosystem.HTTPX_AVAILABLE", False
-        )
+        monkeypatch.setattr("uar.core.uor_ecosystem.HTTPX_AVAILABLE", False)
         client = UORFoundationClient()
         result = client.status()
         assert result["reachable"] is False
@@ -243,9 +229,10 @@ class TestUORFoundationClient:
         from uar.core.uor_ecosystem import _is_url_safe
 
         # The UOR Foundation API is a public endpoint — should be safe
-        assert _is_url_safe(
-            "https://api.uor.foundation/v1/kernel/op/verify?x=42"
-        ) is True
+        assert (
+            _is_url_safe("https://api.uor.foundation/v1/kernel/op/verify?x=42")
+            is True
+        )
 
 
 class TestEcosystemStatusLive:
