@@ -97,6 +97,14 @@ class ObjectStore:
                 "digest TEXT NOT NULL"
                 ")"
             )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS object_content ("
+                "digest TEXT PRIMARY KEY, "
+                "media_type TEXT NOT NULL, "
+                "content_bytes BLOB NOT NULL, "
+                "created_at TEXT NOT NULL"
+                ")"
+            )
             conn.commit()
 
     def load_db(self) -> None:
@@ -129,6 +137,42 @@ class ObjectStore:
         if obj is None:
             raise KeyError(digest)
         return obj
+
+    def store_content(
+        self, digest: str, media_type: str, content: bytes
+    ) -> None:
+        """Store binary content keyed by object digest."""
+        from datetime import datetime, timezone
+
+        created_at = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO object_content "
+                "(digest, media_type, content_bytes, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (digest, media_type, content, created_at),
+            )
+            conn.commit()
+
+    def get_content(self, digest: str) -> Optional[Dict[str, Any]]:
+        """Retrieve binary content for a digest.
+
+        Returns a dict with ``media_type``, ``content_bytes``, and
+        ``created_at`` keys, or ``None`` if no content exists.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT media_type, content_bytes, created_at "
+                "FROM object_content WHERE digest = ?",
+                (digest,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "media_type": row["media_type"],
+            "content_bytes": row["content_bytes"],
+            "created_at": row["created_at"],
+        }
 
     def put_object(self, record: Dict[str, Any]) -> None:
         digest = record["digest"]

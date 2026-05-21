@@ -19,7 +19,14 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
 
 from uar.objects import (
     AGENTS,
@@ -104,6 +111,46 @@ def get_object(
     store: ObjectStore = Depends(get_store),
 ) -> Dict[str, Any]:
     return _require_object(store, digest)
+
+
+@router.post("/objects/{digest}/content")
+def post_object_content(
+    digest: str,
+    file: UploadFile,
+    store: ObjectStore = Depends(get_store),
+) -> Dict[str, Any]:
+    """Upload binary content for an existing UOR object."""
+    _require_object(store, digest)
+    content = file.file.read()
+    store.store_content(digest, file.content_type or "application/octet-stream", content)  # noqa: E501
+    return {
+        "digest": digest,
+        "media_type": file.content_type or "application/octet-stream",
+        "size": len(content),
+    }
+
+
+@router.get("/objects/{digest}/download")
+def get_object_download(
+    digest: str,
+    store: ObjectStore = Depends(get_store),
+) -> Response:
+    """Download binary content keyed by object digest."""
+    _require_object(store, digest)
+    blob = store.get_content(digest)
+    if blob is None:
+        raise HTTPException(
+            status_code=404, detail=f"No content for object: {digest}"
+        )
+    return Response(
+        content=blob["content_bytes"],
+        media_type=blob["media_type"],
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{digest.replace(":", "_")}"'
+            ),
+        },
+    )
 
 
 # ----------------------------------------------------------------------

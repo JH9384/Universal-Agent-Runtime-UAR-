@@ -2131,6 +2131,23 @@ export function UARPanel() {
           >
             💡
           </button>
+          {events.length > 0 && (
+            <button
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(events, null, 2)], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'events.json'
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+              className={styles.skillGuideButton}
+              title="Download all events as JSON"
+            >
+              📥
+            </button>
+          )}
         </div>
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>

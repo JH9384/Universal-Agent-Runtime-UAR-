@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect, type MouseEvent } from 'react'
+import { toPng } from 'html-to-image'
 import ReactFlow, {
   Background,
   Controls,
@@ -260,6 +261,7 @@ interface GraphVisualizerProps {
 
 export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisualizerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const flowRef = useRef<HTMLDivElement>(null)
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [filterType, setFilterType] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -440,6 +442,18 @@ export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisu
         a.download = 'graph.mmd'
         a.click()
         URL.revokeObjectURL(url)
+      } else if (format === 'png') {
+        const el = flowRef.current
+        if (el) {
+          toPng(el, { backgroundColor: darkMode ? '#1f2937' : '#ffffff' })
+            .then((dataUrl) => {
+              const a = document.createElement('a')
+              a.href = dataUrl
+              a.download = 'graph.png'
+              a.click()
+            })
+            .catch((err) => console.error('PNG export failed:', err))
+        }
       }
       onExport?.(format)
     },
@@ -499,11 +513,14 @@ export function GraphVisualizer({ graph, darkMode = false, onExport }: GraphVisu
           <button className={styles.toolbarButton} onClick={() => handleExport('mermaid')} title="Export Mermaid">
             Mermaid
           </button>
+          <button className={styles.toolbarButton} onClick={() => handleExport('png')} title="Export PNG">
+            PNG
+          </button>
         </div>
       </div>
 
       {/* ReactFlow canvas */}
-      <div className={styles.flowWrapper}>
+      <div ref={flowRef} className={styles.flowWrapper}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
