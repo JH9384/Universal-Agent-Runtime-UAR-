@@ -1254,12 +1254,16 @@ async def get_recipes():
 
 
 @app.post("/api/uar/recipes")
-async def create_recipe(recipe: dict[str, Any]):
+async def create_recipe(
+    recipe: dict[str, Any],
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Create a new user recipe.
 
     The recipe body must contain ``id``, ``label``, and ``skills``.
     User recipes are persisted to ``.uar_data/user_recipes.json``.
     """
+    auth_middleware(credentials)
     recipe_id = recipe.get("id")
     if not recipe_id or not isinstance(recipe_id, str):
         raise HTTPException(
@@ -1298,8 +1302,13 @@ async def create_recipe(recipe: dict[str, Any]):
 
 
 @app.put("/api/uar/recipes/{recipe_id}")
-async def update_recipe(recipe_id: str, recipe: dict[str, Any]):
+async def update_recipe(
+    recipe_id: str,
+    recipe: dict[str, Any],
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Update an existing user recipe."""
+    auth_middleware(credentials)
     if recipe_id in DEFAULT_RECIPES:
         raise HTTPException(
             status_code=403,
@@ -1334,8 +1343,12 @@ async def update_recipe(recipe_id: str, recipe: dict[str, Any]):
 
 
 @app.delete("/api/uar/recipes/{recipe_id}")
-async def delete_recipe(recipe_id: str):
+async def delete_recipe(
+    recipe_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Delete a user recipe."""
+    auth_middleware(credentials)
     if recipe_id in DEFAULT_RECIPES:
         raise HTTPException(
             status_code=403,
