@@ -1,6 +1,8 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { GraphVisualizer } from './GraphVisualizer'
 import { TrefoilKnotVisualizer } from './TrefoilKnotVisualizer'
+import { MolecularVisualizer } from './MolecularVisualizer'
+import { QuantumCircuitVisualizer } from './QuantumCircuitVisualizer'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -391,6 +393,8 @@ export function UARPanel() {
   const [eventViewMode, setEventViewMode] = useState<'json' | 'timeline'>('timeline')
   const [graph, setGraph] = useState<any>(null)
   const [trefoilData, setTrefoilData] = useState<any>(null)
+  const [molecularData, setMolecularData] = useState<any>(null)
+  const [quantumData, setQuantumData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -901,7 +905,7 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
-    setEvents([]); setGraph(null); setTrefoilData(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1098,6 +1102,12 @@ export function UARPanel() {
                   setCurrentSkill(`Completed: ${json.skill}`)
                   if (json.skill === 'trefoil_simulation' && json.payload?.result) {
                     setTrefoilData(json.payload.result)
+                  }
+                  if (json.skill === 'molecular_visualization' && json.payload?.result) {
+                    setMolecularData(json.payload.result)
+                  }
+                  if (json.skill === 'quantum_circuit_visualization' && json.payload?.result) {
+                    setQuantumData(json.payload.result)
                   }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
@@ -1316,7 +1326,7 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); eventCountRef.current = 0 }, [])
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -2259,8 +2269,40 @@ export function UARPanel() {
           </div>
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
-              <div className={styles.graphContainer} style={{ minHeight: '400px' }}>
+              <div className={styles.graphContainer}>
                 <TrefoilKnotVisualizer data={trefoilData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Molecular Visualization */}
+      {(molecularData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🧬 Molecular Structure</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <MolecularVisualizer data={molecularData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quantum Circuit Visualization */}
+      {(quantumData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>⚛️ Quantum Circuit</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <QuantumCircuitVisualizer data={quantumData} darkMode={darkMode} />
               </div>
             </div>
           </div>
