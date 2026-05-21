@@ -1808,6 +1808,16 @@ async def websocket_run(websocket: WebSocket):
                 credentials=auth_header[7:],
             )
 
+        # Browser WebSocket cannot send custom headers, so also accept
+        # token via query parameter (e.g. /ws/run?token=...).
+        if credentials is None:
+            token = websocket.query_params.get("token")
+            if token:
+                credentials = HTTPAuthorizationCredentials(
+                    scheme="Bearer",
+                    credentials=token,
+                )
+
         # Get user info for ownership tracking
         user_info = auth_middleware(credentials)
         user_str = user_info["user"] if user_info else None

@@ -1103,7 +1103,9 @@ export function UARPanel() {
       const connect = async (): Promise<boolean> => {
         return new Promise((resolve) => {
           const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-          ws = new WebSocket(`${proto}//${window.location.host}/ws/run`)
+          const token = localStorage.getItem('uar_api_key')
+          const wsUrl = token ? `${proto}//${window.location.host}/ws/run?token=${encodeURIComponent(token)}` : `${proto}//${window.location.host}/ws/run`
+          ws = new WebSocket(wsUrl)
           wsRef.current = ws
           setWsStatus(retryCount > 0 ? 'reconnecting' : 'connecting')
 
