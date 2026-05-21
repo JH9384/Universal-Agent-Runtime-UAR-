@@ -261,6 +261,7 @@ import uar.skills.verilator_sim  # noqa
 import uar.skills.micropython  # noqa
 import uar.skills.platformio  # noqa
 import uar.skills.stub_skills  # noqa
+import uar.skills.data_viz_3d  # noqa
 
 
 # Lifespan for graceful startup/shutdown

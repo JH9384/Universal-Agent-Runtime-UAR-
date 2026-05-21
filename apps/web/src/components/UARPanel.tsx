@@ -1,17 +1,4 @@
-import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
-import { GraphVisualizer } from './GraphVisualizer'
-import { TrefoilKnotVisualizer } from './TrefoilKnotVisualizer'
-import { MolecularVisualizer } from './MolecularVisualizer'
-import { QuantumCircuitVisualizer } from './QuantumCircuitVisualizer'
-import { PhysicsVisualizer } from './PhysicsVisualizer'
-import { MathVisualizer } from './MathVisualizer'
-import { RiscvVisualizer } from './RiscvVisualizer'
-import { VerilogVisualizer } from './VerilogVisualizer'
-import { FpgaVisualizer } from './FpgaVisualizer'
-import { CipherDashboard } from './CipherDashboard'
-import { EcosystemDashboard } from './EcosystemDashboard'
-import { DocIngestDashboard } from './DocIngestDashboard'
-import { AutonomiDashboard } from './AutonomiDashboard'
+import { useMemo, useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -20,6 +7,36 @@ import { useDarkMode } from '../hooks/useDarkMode'
 import { generateUniqueId } from '../utils/idGenerator'
 import RecipeTimeline from './RecipeTimeline'
 import styles from './UARPanel.module.css'
+
+// Lazy-loaded visualizers — only fetched when their skill data arrives
+const GraphVisualizer = lazy(() =>
+  import('./GraphVisualizer').then((m) => ({ default: m.GraphVisualizer })))
+const TrefoilKnotVisualizer = lazy(() =>
+  import('./TrefoilKnotVisualizer').then((m) => ({ default: m.TrefoilKnotVisualizer })))
+const MolecularVisualizer = lazy(() =>
+  import('./MolecularVisualizer').then((m) => ({ default: m.MolecularVisualizer })))
+const QuantumCircuitVisualizer = lazy(() =>
+  import('./QuantumCircuitVisualizer').then((m) => ({ default: m.QuantumCircuitVisualizer })))
+const PhysicsVisualizer = lazy(() =>
+  import('./PhysicsVisualizer').then((m) => ({ default: m.PhysicsVisualizer })))
+const MathVisualizer = lazy(() =>
+  import('./MathVisualizer').then((m) => ({ default: m.MathVisualizer })))
+const RiscvVisualizer = lazy(() =>
+  import('./RiscvVisualizer').then((m) => ({ default: m.RiscvVisualizer })))
+const VerilogVisualizer = lazy(() =>
+  import('./VerilogVisualizer').then((m) => ({ default: m.VerilogVisualizer })))
+const FpgaVisualizer = lazy(() =>
+  import('./FpgaVisualizer').then((m) => ({ default: m.FpgaVisualizer })))
+const CipherDashboard = lazy(() =>
+  import('./CipherDashboard').then((m) => ({ default: m.CipherDashboard })))
+const EcosystemDashboard = lazy(() =>
+  import('./EcosystemDashboard').then((m) => ({ default: m.EcosystemDashboard })))
+const DocIngestDashboard = lazy(() =>
+  import('./DocIngestDashboard').then((m) => ({ default: m.DocIngestDashboard })))
+const AutonomiDashboard = lazy(() =>
+  import('./AutonomiDashboard').then((m) => ({ default: m.AutonomiDashboard })))
+const DataViz3D = lazy(() =>
+  import('./DataViz3D').then((m) => ({ default: m.DataViz3D })))
 
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
@@ -413,6 +430,7 @@ export function UARPanel() {
   const [ecosystemData, setEcosystemData] = useState<any>(null)
   const [docIngestData, setDocIngestData] = useState<any>(null)
   const [autonomiData, setAutonomiData] = useState<any>(null)
+  const [dataViz3D, setDataViz3D] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -923,7 +941,7 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
-    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setDataViz3D(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1154,6 +1172,9 @@ export function UARPanel() {
                   if (json.skill === 'autonomi_status' && json.payload?.result) {
                     setAutonomiData(json.payload.result)
                   }
+                  if (json.skill === 'data_viz_3d' && json.payload?.result) {
+                    setDataViz3D(json.payload.result)
+                  }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
                 if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
@@ -1371,7 +1392,7 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setDataViz3D(null); eventCountRef.current = 0 }, [])
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -2300,7 +2321,9 @@ export function UARPanel() {
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             <div className={styles.graphContainer}>
-              <GraphVisualizer graph={graph} darkMode={darkMode} />
+              <Suspense fallback={<div className={styles.loadingFallback}>Loading graph...</div>}>
+                <GraphVisualizer graph={graph} darkMode={darkMode} />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -2315,7 +2338,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <TrefoilKnotVisualizer data={trefoilData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading 3D simulation...</div>}>
+                  <TrefoilKnotVisualizer data={trefoilData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2331,7 +2356,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <MolecularVisualizer data={molecularData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading molecule...</div>}>
+                  <MolecularVisualizer data={molecularData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2347,7 +2374,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <QuantumCircuitVisualizer data={quantumData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading quantum circuit...</div>}>
+                  <QuantumCircuitVisualizer data={quantumData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2363,7 +2392,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <PhysicsVisualizer data={physicsData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading physics results...</div>}>
+                  <PhysicsVisualizer data={physicsData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2379,7 +2410,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <MathVisualizer data={mathData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading math results...</div>}>
+                  <MathVisualizer data={mathData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2395,7 +2428,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <RiscvVisualizer data={riscvData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading RISC-V simulation...</div>}>
+                  <RiscvVisualizer data={riscvData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2411,7 +2446,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <VerilogVisualizer data={verilogData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading Verilog...</div>}>
+                  <VerilogVisualizer data={verilogData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2427,7 +2464,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <FpgaVisualizer data={fpgaData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading FPGA results...</div>}>
+                  <FpgaVisualizer data={fpgaData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2443,7 +2482,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <CipherDashboard data={cipherData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading crypto results...</div>}>
+                  <CipherDashboard data={cipherData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2459,7 +2500,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <EcosystemDashboard data={ecosystemData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading ecosystem status...</div>}>
+                  <EcosystemDashboard data={ecosystemData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2475,7 +2518,9 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <DocIngestDashboard data={docIngestData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading document list...</div>}>
+                  <DocIngestDashboard data={docIngestData} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
@@ -2491,7 +2536,27 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <AutonomiDashboard data={autonomiData} darkMode={darkMode} />
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading Autonomi status...</div>}>
+                  <AutonomiDashboard data={autonomiData} darkMode={darkMode} />
+                </Suspense>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3D Data Visualization */}
+      {(dataViz3D || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🧊 3D Mesh Visualization</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading 3D mesh...</div>}>
+                  <DataViz3D data={dataViz3D} darkMode={darkMode} />
+                </Suspense>
               </div>
             </div>
           </div>
