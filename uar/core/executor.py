@@ -1745,7 +1745,10 @@ class Executor:
                 params_stack = ctx.data.get("_recipe_params")
                 if params_stack and isinstance(params_stack, list):
                     params_stack.pop()
-                ctx.data.pop("_recipe_params", None)
+                    # Only remove the key if the stack is empty;
+                    # otherwise parent recipe params are preserved.
+                    if not params_stack:
+                        ctx.data.pop("_recipe_params", None)
 
                 status = "completed" if not recipe_errors else "failed"
                 self._recipe_post_execute(

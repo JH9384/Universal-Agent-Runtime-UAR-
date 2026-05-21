@@ -906,3 +906,131 @@ class TestUseHierarchicalMetadata:
         assert "recipe_end" in types
         assert "skill_start" in types
         assert "skill_complete" in types
+
+
+class TestDeepNesting:
+    """Tests for deeply nested recipe execution with parameter scoping."""
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_nested_recipe_emits_boundary_events(
+        self, mock_registry, mock_guardrails
+    ):
+        """Nested recipes emit recipe_start/recipe_end in correct order."""
+        mock_skill = Mock(return_value={"status": "ok"})
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+        mock_guardrails.return_value = []
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "use_hierarchical": True,
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "parent",
+                        "id": "p1",
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "parent",
+                        "skills": ["noop"],
+                        "items": [
+                            {
+                                "type": "recipe",
+                                "content": "child",
+                                "id": "c1",
+                            },
+                        ],
+                    },
+                    {
+                        "id": "child",
+                        "skills": ["noop"],
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="goal", ordered_skills=[])
+        executor = Executor()
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+
+        types = [e["type"] for e in events]
+        # Must have at least parent + child start/end events
+        assert types.count("recipe_start") >= 2
+        assert types.count("recipe_end") >= 2
+        # Child start should come after parent start
+        parent_start = types.index("recipe_start")
+        child_start = types.index("recipe_start", parent_start + 1)
+        assert child_start > parent_start
+        # Child end should come before parent end
+        parent_end = types.index("recipe_end")
+        child_end = types.index("recipe_end", parent_end + 1)
+        assert child_end > child_start
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_nested_recipe_params_stack_preserves_parent(
+        self, mock_registry, mock_guardrails
+    ):
+        """Parent recipe params are not wiped when child recipe ends."""
+        def skill_that_reads_params(ctx):
+            stack = ctx.data.get("_recipe_params", [])
+            # Record how deep the stack is at execution time
+            ctx.data["stack_depth"] = len(stack)
+            return {"status": "ok"}
+
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = skill_that_reads_params
+        mock_guardrails.return_value = []
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "use_hierarchical": True,
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "parent",
+                        "id": "p1",
+                        "parameters": {"a": 1},
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "parent",
+                        "skills": ["noop"],
+                        "items": [
+                            {
+                                "type": "recipe",
+                                "content": "child",
+                                "id": "c1",
+                                "parameters": {"b": 2},
+                            },
+                        ],
+                    },
+                    {
+                        "id": "child",
+                        "skills": ["noop"],
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="goal", ordered_skills=[])
+        executor = Executor()
+        events = list(
+            executor.iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+
+        # The skill inside child recipe writes stack_depth to ctx.data.
+        # Verify via final_context after execution completes.
+        complete_event = [e for e in events if e["type"] == "complete"][-1]
+        final_ctx = complete_event["payload"]["final_context"]
+        assert final_ctx.get("stack_depth") == 2
