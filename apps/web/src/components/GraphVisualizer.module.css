@@ -1,0 +1,338 @@
+.graphContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.graphContainer.dark {
+  background: #111827;
+}
+
+.flowWrapper {
+  flex: 1;
+  position: relative;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  z-index: 10;
+}
+
+.dark .toolbar {
+  background: #1f2937;
+  border-bottom-color: #374151;
+}
+
+.searchInput {
+  flex: 1;
+  max-width: 220px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.dark .searchInput {
+  background: #111827;
+  border-color: #374151;
+  color: #f9fafb;
+}
+
+.filterSelect {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+}
+
+.dark .filterSelect {
+  background: #111827;
+  border-color: #374151;
+  color: #f9fafb;
+}
+
+.toolbarButton {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.toolbarButton:hover {
+  background: #f3f4f6;
+}
+
+.dark .toolbarButton {
+  background: #374151;
+  border-color: #4b5563;
+  color: #e5e7eb;
+}
+
+.dark .toolbarButton:hover {
+  background: #4b5563;
+}
+
+.exportGroup {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* Custom node */
+.customNode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 2px solid;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 100px;
+  max-width: 200px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.dark .customNode {
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+.customNode:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.selectedNode {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+}
+
+.nodeIcon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.nodeLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6b7280;
+  padding: 32px;
+  text-align: center;
+}
+
+.dark .emptyState {
+  color: #9ca3af;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.emptyHint {
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.emptyHint code {
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.dark .emptyHint code {
+  background: #374151;
+}
+
+/* Detail panel */
+.detailPanel {
+  position: absolute;
+  right: 12px;
+  top: 52px;
+  width: 260px;
+  max-height: calc(100% - 64px);
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 20;
+  font-size: 13px;
+}
+
+.darkPanel {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f9fafb;
+}
+
+.detailHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px;
+}
+
+.darkPanel .detailHeader {
+  border-bottom-color: #374151;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0 4px;
+}
+
+.darkPanel .closeBtn {
+  color: #9ca3af;
+}
+
+.detailBody {
+  padding: 10px 12px;
+}
+
+.detailRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.darkPanel .detailRow {
+  border-bottom-color: #374151;
+}
+
+.detailLabel {
+  color: #6b7280;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  min-width: 50px;
+}
+
+.darkPanel .detailLabel {
+  color: #9ca3af;
+}
+
+.detailValue {
+  text-align: right;
+  word-break: break-all;
+  color: #1f2937;
+}
+
+.darkPanel .detailValue {
+  color: #f9fafb;
+}
+
+.detailBadge {
+  padding: 2px 8px;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Legend */
+.legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+  font-size: 11px;
+  max-width: 80%;
+}
+
+.darkLegend {
+  background: rgba(31, 41, 55, 0.92);
+  border-color: #374151;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legendText {
+  color: #4b5563;
+  text-transform: capitalize;
+}
+
+.darkLegend .legendText {
+  color: #d1d5db;
+}
+
+/* ReactFlow overrides */
+:global(.react-flow__minimap) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:global(.react-flow__controls) {
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+:global(.react-flow__attribution) {
+  display: none;
+}

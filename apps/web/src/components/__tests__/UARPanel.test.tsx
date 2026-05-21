@@ -15,6 +15,22 @@ vi.mock('reactflow', () => ({
     <div data-testid="reactflow">{children}</div>
   ),
   Background: () => <div data-testid="background" />,
+  Controls: () => <div data-testid="controls" />,
+  MiniMap: () => <div data-testid="minimap" />,
+  Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Handle: () => null,
+  Position: { Top: 'top', Bottom: 'bottom', Left: 'left', Right: 'right' },
+  MarkerType: { ArrowClosed: 'arrowclosed' },
+  useNodesState: () => [
+    [],
+    () => {},
+    () => {},
+  ] as [never[], () => void, (changes: unknown[]) => void],
+  useEdgesState: () => [
+    [],
+    () => {},
+    () => {},
+  ] as [never[], () => void, (changes: unknown[]) => void],
 }))
 
 // Mock fetch

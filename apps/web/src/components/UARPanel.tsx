@@ -1,6 +1,5 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
-import ReactFlow, { Background } from 'reactflow'
-import 'reactflow/dist/style.css'
+import { GraphVisualizer } from './GraphVisualizer'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
 import { SkillGuide } from './SkillGuide'
@@ -15,19 +14,6 @@ const RECIPES_KEY = 'uar.recipes'
 const RECENT_MAX = 8
 
 // TypeScript interfaces for type safety
-interface GraphNode {
-  id?: string
-  skill?: string
-  type?: string
-  [key: string]: any
-}
-
-interface GraphEdge {
-  from?: string
-  to?: string
-  [key: string]: any
-}
-
 interface ExecutionOrderItem {
   id: string
   type: 'skill' | 'recipe'
@@ -399,7 +385,6 @@ export function UARPanel() {
   const [events, setEvents] = useState<any[]>([])
   const [eventViewMode, setEventViewMode] = useState<'json' | 'timeline'>('timeline')
   const [graph, setGraph] = useState<any>(null)
-  const [selectedNode, setSelectedNode] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -1313,54 +1298,7 @@ export function UARPanel() {
     wsRef.current = null
   }, [])
 
-  const { nodes, edges } = useMemo(() => {
-    if (!graph) return { nodes: [], edges: [] }
-    const nodeIndex = new Map<string, string>()
-    const nodes = (graph.nodes || []).map((n: GraphNode, i: number) => {
-      const nodeId = n.id || n.skill || String(i)
-      nodeIndex.set(nodeId, String(i))
-      const nodeType = n.type || 'skill'
-      // Color coding based on node type
-      const typeColors: Record<string, string> = {
-        skill: '#3b82f6',
-        file: '#10b981',
-        module: '#f59e0b',
-        function: '#8b5cf6',
-        entity: '#ec4899',
-        default: '#6b7280'
-      }
-      return {
-        id: String(i),
-        data: { label: n.skill || String(nodeId).split('/').pop(), type: nodeType, originalIndex: i },
-        position: { x: (i % 5) * 180, y: Math.floor(i / 5) * 120 },
-        style: {
-          background: typeColors[nodeType] || typeColors.default,
-          color: 'white',
-          border: '1px solid #ffffff',
-          borderRadius: '8px',
-          padding: '8px 12px',
-          fontSize: '12px',
-          fontWeight: '500'
-        }
-      }
-    })
-    const edges = (graph.edges || [])
-      .map((e: GraphEdge, i: number) => {
-        const source = e.from ? nodeIndex.get(e.from) : undefined
-        const target = e.to ? nodeIndex.get(e.to) : undefined
-        if (source === undefined || target === undefined) return null
-        return { 
-          id: String(i), 
-          source, 
-          target,
-          label: e.type || '',
-          style: { stroke: '#94a3b8', strokeWidth: 2 },
-          labelStyle: { fontSize: '10px', fill: '#6b7280' }
-        }
-      })
-      .filter(Boolean)
-    return { nodes, edges }
-  }, [graph])
+  // Graph rendering is delegated to GraphVisualizer component
 
   const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); eventCountRef.current = 0 }, [])
 
@@ -2303,64 +2241,8 @@ export function UARPanel() {
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             <div className={styles.graphContainer}>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                fitView
-                onNodeClick={(e, node) => {
-                  const idx = node.data?.originalIndex
-                  setSelectedNode(typeof idx === 'number' ? graph?.nodes?.[idx] : undefined)
-                }}
-                onPaneClick={() => setSelectedNode(null)}
-              >
-                <Background />
-              </ReactFlow>
+              <GraphVisualizer graph={graph} darkMode={darkMode} />
             </div>
-            {graph && (
-              <div className={styles.graphLegend}>
-                <strong>Legend:</strong>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendColor} ${styles.legendColorSkill}`}></span>
-                  <span>Skill</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendColor} ${styles.legendColorFile}`}></span>
-                  <span>File</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendColor} ${styles.legendColorModule}`}></span>
-                  <span>Module</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendColor} ${styles.legendColorFunction}`}></span>
-                  <span>Function</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendColor} ${styles.legendColorEntity}`}></span>
-                  <span>Entity</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendColor} ${styles.legendColorOther}`}></span>
-                  <span>Other</span>
-                </div>
-              </div>
-            )}
-            {selectedNode && (
-              <div className={styles.nodeDetails}>
-                <div className={styles.nodeDetailsHeader}>
-                  <strong>Node Details</strong>
-                  <button onClick={() => setSelectedNode(null)} className={styles.modalCloseButton} aria-label="Close node details">✕</button>
-                </div>
-                <div className={styles.nodeDetailsContent}>
-                  <p><strong>ID:</strong> {selectedNode.id || selectedNode.skill || 'N/A'}</p>
-                  <p><strong>Skill:</strong> {selectedNode.skill || 'N/A'}</p>
-                  <p><strong>Type:</strong> {selectedNode.type || 'skill'}</p>
-                  {selectedNode.metadata && (
-                    <p><strong>Metadata:</strong> {JSON.stringify(selectedNode.metadata, null, 2)}</p>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
