@@ -39,6 +39,11 @@
   color: #f8fafc;
 }
 
+.toolbarButtons {
+  display: flex;
+  gap: 6px;
+}
+
 .toolbarButton {
   padding: 4px 8px;
   border: none;
@@ -73,6 +78,13 @@
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   z-index: 10;
+  max-width: 320px;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
 }
 
 .legend {
@@ -93,4 +105,43 @@
   height: 10px;
   border-radius: 50%;
   display: inline-block;
+}
+
+.dotColor0 {
+  background: #3b82f6;
+}
+
+.dotColor1 {
+  background: #10b981;
+}
+
+.dotColor2 {
+  background: #f59e0b;
+}
+
+.dotCore {
+  background: #ffffff;
+}
+
+.controls {
+  margin-top: 10px;
+  border-top: 1px solid #334155;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.controlLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.slider {
+  flex: 1;
+  max-width: 140px;
+  accent-color: #3b82f6;
 }

@@ -201,6 +201,8 @@ const SKILL_GROUPS = [
       { id: 'relativity',      label: 'relativity',      desc: 'General relativity with EinsteinPy: spacetime metrics, geodesics, gravitational physics (requires einsteinpy)' },
       { id: 'data_viz_3d',     label: 'data_viz_3d',     desc: '3D visualization with PyVista: mesh analysis, VTK integration, scientific plotting (requires pyvista)' },
       { id: 'trefoil_simulation', label: 'trefoil_simulation', desc: 'Triple trefoil knot quaternion equilibrium: Clifford torus skeleton with Frenet frame rotation and emergent singularity core (requires numpy)' },
+      { id: 'molecular_visualization', label: 'molecular_visualization', desc: '3D molecular structures: water, methane, benzene, caffeine, protein backbone with bond topology (no deps)' },
+      { id: 'quantum_circuit_visualization', label: 'quantum_circuit_visualization', desc: '3D quantum circuit layout: qubit registers, gates, entanglement connections (no deps)' },
     ]
   },
   {

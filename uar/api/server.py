@@ -31,6 +31,11 @@ from pydantic import (
 )
 
 from uar.core.contracts import GoalSpec
+from uar.core.binary_stream import (
+    serialize_trefoil,
+    serialize_molecular,
+    serialize_quantum_circuit,
+)
 from uar.core.exceptions import UARError, ValidationError, PathSecurityError
 from uar.core.planner import SimplePlanner
 from uar.core.replay import run_record_from_events
@@ -245,6 +250,8 @@ import uar.skills.together_skills  # noqa
 import uar.skills.advanced_integrations  # noqa
 import uar.skills.uor_ecosystem_skills  # noqa
 import uar.skills.trefoil_simulation  # noqa
+import uar.skills.molecular_visualization  # noqa
+import uar.skills.quantum_circuit_visualization  # noqa
 
 
 # Lifespan for graceful startup/shutdown
@@ -566,6 +573,40 @@ def _build_goal(req: RunRequest) -> GoalSpec:
         required_skills=skills,
         metadata=metadata,
     )
+
+
+async def _stream_binary_visualization(
+    websocket: WebSocket,
+    event: Dict[str, Any],
+) -> None:
+    """Send binary simulation data after a skill_complete JSON event.
+
+    Detects visualization skills and streams their 3D data as
+    binary WebSocket frames for efficient client rendering.
+    """
+    skill = event.get("skill")
+    payload = event.get("payload", {})
+    result = payload.get("result", {})
+
+    serializers = {
+        "trefoil_simulation": serialize_trefoil,
+        "molecular_visualization": serialize_molecular,
+        "quantum_circuit_visualization": serialize_quantum_circuit,
+    }
+
+    serializer = serializers.get(skill)
+    if not serializer:
+        return
+
+    try:
+        chunks = serializer(result)
+        for name, data in chunks.items():
+            await websocket.send_bytes(
+                name.encode("utf-8") + b"\x00" + data
+            )
+    except Exception:
+        # Binary streaming is best-effort; JSON event already sent
+        pass
 
 
 def get_current_user(
@@ -1017,6 +1058,12 @@ async def stream_goal_ws(
                     events.append(event)
                     full_events.append(event)
                     await websocket.send_json(event)
+
+                    # Stream binary visualization data for 3D skills
+                    if event.get("type") == "skill_complete":
+                        await _stream_binary_visualization(
+                            websocket, event
+                        )
 
                     # Persist to store on completion
                     if event.get("type") == "complete":
@@ -1780,6 +1827,14 @@ async def websocket_run(websocket: WebSocket):
                         await websocket.send_json(ev)
                     except Exception:
                         pass
+                    # Stream binary visualization data for 3D skills
+                    if ev.get("type") == "skill_complete":
+                        try:
+                            await _stream_binary_visualization(
+                                websocket, ev
+                            )
+                        except Exception:
+                            pass
                 batch = []
                 batch_deadline = None
 
