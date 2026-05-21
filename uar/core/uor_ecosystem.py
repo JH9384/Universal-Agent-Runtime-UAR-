@@ -312,36 +312,43 @@ class MoltbookClient:
 # ---------------------------------------------------------------------------
 
 class PrismBTCClient:
-    """Placeholder client for afflom/prism-btc Bitcoin anchoring.
+    """Client for afflom/prism-btc Bitcoin anchoring.
 
-    This integration is pending public availability of the prism-btc
-    reference implementation.  When available, UAR will support:
-
-    - Anchoring UOR digests to the Bitcoin blockchain
-    - Verifying on-chain proof-of-existence for UOR objects
-    - PRISM data refraction with BTC settlement
+    Set PRISM_BTC_API_URL to activate live calls.  When no URL is
+    configured the client returns a placeholder response.
     """
 
     def __init__(self) -> None:
-        self.enabled = False
+        self.enabled = True
         self.api_url = os.getenv("PRISM_BTC_API_URL", "")
 
     def anchor_digest(self, digest: str) -> Dict[str, Any]:
-        """Anchor a UOR digest on Bitcoin (not yet implemented)."""
-        return {
-            "status": "placeholder",
-            "digest": digest,
-            "note": "prism-btc integration pending public release",
-        }
+        """Anchor a UOR digest on Bitcoin."""
+        if not self.api_url:
+            return {
+                "status": "placeholder",
+                "digest": digest,
+                "note": "Set PRISM_BTC_API_URL to activate",
+            }
+        return _http_post(
+            f"{self.api_url}/anchor",
+            {"digest": digest},
+            timeout=30.0,
+        )
 
     def verify_anchor(self, digest: str) -> Dict[str, Any]:
-        """Verify an on-chain anchor (not yet implemented)."""
-        return {
-            "status": "placeholder",
-            "digest": digest,
-            "verified": None,
-            "note": "prism-btc integration pending public release",
-        }
+        """Verify an on-chain anchor."""
+        if not self.api_url:
+            return {
+                "status": "placeholder",
+                "digest": digest,
+                "verified": None,
+                "note": "Set PRISM_BTC_API_URL to activate",
+            }
+        return _http_get(
+            f"{self.api_url}/verify?digest={digest}",
+            timeout=10.0,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -349,40 +356,48 @@ class PrismBTCClient:
 # ---------------------------------------------------------------------------
 
 class SeveranceAIClient:
-    """Placeholder client for dkypuros/Project_Severance_AI.
+    """Client for dkypuros/Project_Severance_AI.
 
-    When the project repository becomes publicly available this client
-    will provide:
-
-    - Modular AI inference with separation-of-concerns
-    - Runtime model swapping without pipeline restart
-    - Formal verification hooks for AI outputs
+    Set SEVERANCE_AI_URL to activate live calls.  When no URL is
+    configured the client returns a placeholder response.
     """
 
     def __init__(self) -> None:
-        self.enabled = False
+        self.enabled = True
         self.service_url = os.getenv("SEVERANCE_AI_URL", "")
 
     def infer(self, prompt: str, model: str = "default") -> Dict[str, Any]:
-        """Run inference via Severance AI (placeholder)."""
-        return {
-            "status": "placeholder",
-            "prompt": prompt,
-            "model": model,
-            "note": "Severance AI integration pending public release",
-        }
+        """Run inference via Severance AI."""
+        if not self.service_url:
+            return {
+                "status": "placeholder",
+                "prompt": prompt,
+                "model": model,
+                "note": "Set SEVERANCE_AI_URL to activate",
+            }
+        return _http_post(
+            f"{self.service_url}/infer",
+            {"prompt": prompt, "model": model},
+            timeout=30.0,
+        )
 
     def verify_output(
         self, output: str, criteria: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Verify an inference output against formal criteria."""
-        return {
-            "status": "placeholder",
-            "output": output,
-            "criteria": criteria,
-            "verified": None,
-            "note": "Severance AI integration pending public release",
-        }
+        if not self.service_url:
+            return {
+                "status": "placeholder",
+                "output": output,
+                "criteria": criteria,
+                "verified": None,
+                "note": "Set SEVERANCE_AI_URL to activate",
+            }
+        return _http_post(
+            f"{self.service_url}/verify",
+            {"output": output, "criteria": criteria},
+            timeout=10.0,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -434,40 +449,47 @@ class UORFoundationClient:
 # ---------------------------------------------------------------------------
 
 class AnunixClient:
-    """Placeholder client for AdamPippert/Anunix self-healing automation OS.
+    """Client for AdamPippert/Anunix self-healing automation OS.
 
-    When the project repository becomes publicly available this client
-    will provide:
-
-    - Remote shell/command execution on Anunix-managed hosts
-    - Health-check polling for self-healing infrastructure
-    - Automated remediation trigger API
+    Set ANUNIX_API_URL to activate live calls.  When no URL is
+    configured the client returns a placeholder response.
     """
 
     def __init__(self) -> None:
-        self.enabled = False
+        self.enabled = True
         self.api_url = os.getenv("ANUNIX_API_URL", "")
         self.api_key = os.getenv("ANUNIX_API_KEY", "")
 
     def health_check(self, host_id: str) -> Dict[str, Any]:
-        """Check health of an Anunix-managed host (placeholder)."""
-        return {
-            "status": "placeholder",
-            "host_id": host_id,
-            "healthy": None,
-            "note": "Anunix integration pending public release",
-        }
+        """Check health of an Anunix-managed host."""
+        if not self.api_url:
+            return {
+                "status": "placeholder",
+                "host_id": host_id,
+                "healthy": None,
+                "note": "Set ANUNIX_API_URL to activate",
+            }
+        return _http_get(
+            f"{self.api_url}/hosts/{host_id}/health",
+            timeout=10.0,
+        )
 
     def run_command(self, host_id: str, command: str) -> Dict[str, Any]:
-        """Execute a command on an Anunix host (placeholder)."""
-        return {
-            "status": "placeholder",
-            "host_id": host_id,
-            "command": command,
-            "stdout": "",
-            "stderr": "",
-            "note": "Anunix integration pending public release",
-        }
+        """Execute a command on an Anunix host."""
+        if not self.api_url:
+            return {
+                "status": "placeholder",
+                "host_id": host_id,
+                "command": command,
+                "stdout": "",
+                "stderr": "",
+                "note": "Set ANUNIX_API_URL to activate",
+            }
+        return _http_post(
+            f"{self.api_url}/hosts/{host_id}/exec",
+            {"command": command},
+            timeout=30.0,
+        )
 
 
 # ---------------------------------------------------------------------------
