@@ -1,0 +1,21 @@
+{
+  "goal": "Have a researcher and analyst collaborate on evaluating project documentation quality.",
+  "skills": ["agent_workflow"],
+  "metadata": {
+    "workflow_type": "sequential",
+    "agent_sequence": ["researcher", "analyst"],
+    "initial_message": "Research the docs, then analyze the most important improvement opportunities.",
+    "agents": [
+      {
+        "id": "researcher",
+        "name": "Researcher",
+        "description": "Finds relevant facts and source material."
+      },
+      {
+        "id": "analyst",
+        "name": "Analyst",
+        "description": "Turns research notes into prioritized recommendations."
+      }
+    ]
+  }
+}

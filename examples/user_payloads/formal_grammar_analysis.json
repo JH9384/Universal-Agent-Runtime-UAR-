@@ -1,0 +1,7 @@
+{
+  "goal": "Analyze this simple grammar for correctness and formal-language structure.",
+  "skills": ["alm_analyze"],
+  "metadata": {
+    "grammar_spec": "expr ::= term (( '+' | '-' ) term)*\nterm ::= factor (( '*' | '/' ) factor)*\nfactor ::= NUMBER | '(' expr ')'"
+  }
+}

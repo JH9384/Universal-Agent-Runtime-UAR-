@@ -1,0 +1,4 @@
+{
+  "goal": "Check all configured UOR ecosystem integrations and report their status.",
+  "skills": ["uor_ecosystem_status"]
+}

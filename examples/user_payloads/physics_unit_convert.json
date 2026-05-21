@@ -1,0 +1,11 @@
+{
+  "goal": "Convert a distance from kilometers to meters.",
+  "skills": ["physics_compute"],
+  "metadata": {
+    "physics_operation": "convert",
+    "physics_type": "unit",
+    "physics_value": "42",
+    "physics_from_unit": "km",
+    "physics_to_unit": "m"
+  }
+}

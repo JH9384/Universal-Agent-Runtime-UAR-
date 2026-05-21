@@ -1,0 +1,8 @@
+{
+  "goal": "Check whether this proposed response is safe to publish.",
+  "skills": ["guardrail_check"],
+  "metadata": {
+    "guardrail_type": "content_safety",
+    "content": "This release note explains new graph visualization features and user examples."
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "goal": "Solve a quadratic equation and return the symbolic roots.",
+  "skills": ["math_compute"],
+  "metadata": {
+    "math_operation": "solve",
+    "math_expression": "x**2 - 5*x + 6",
+    "math_variable": "x"
+  }
+}

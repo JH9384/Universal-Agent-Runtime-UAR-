@@ -101,7 +101,105 @@ Use UOR endpoints for object storage, runtime execution, lineage, and workflows.
 
 **Python example**: `examples/user_uor_workflow_example.py`
 
-## Example 7: Visual Debugging Checklist
+## Example 7: Guardrails and Governance Check
+
+**User need**: "Validate content safety and inspect agent budgets before publishing."
+
+**Recommended skills**:
+
+- `guardrail_check`
+- `budget_status`
+- `blackboard_status`
+
+**What to look at**:
+
+- Guardrail violations in the event stream.
+- Budget tokens, API calls, and cost remaining.
+- Blackboard entries for agent coordination.
+
+**API payload**: `examples/user_payloads/guardrail_check.json`  
+**API payload**: `examples/user_payloads/governance_status.json`
+
+## Example 8: Multi-Agent Workflow
+
+**User need**: "Have multiple agents collaborate on a task."
+
+**Recommended skills**:
+
+- `agent_workflow`
+
+**Useful metadata**:
+
+- `workflow_type`: `sequential` or `parallel`
+- `agent_sequence`: ordered agent IDs
+- `agents`: agent definitions with roles
+
+**API payload**: `examples/user_payloads/multi_agent_workflow.json`
+
+## Example 9: Storage Health Check
+
+**User need**: "Check if decentralized storage is ready before uploading."
+
+**Recommended skills**:
+
+- `autonomi_status`
+
+**API payload**: `examples/user_payloads/storage_status.json`
+
+## Example 10: Formal Grammar Analysis
+
+**User need**: "Analyze or verify a formal grammar specification."
+
+**Recommended skills**:
+
+- `alm_analyze`
+- `alm_generate`
+- `alm_verify`
+
+**Useful metadata**:
+
+- `grammar_spec`: BNF or EBNF grammar string
+- `prefix`: token prefix for generation
+- `count`: number of tokens to generate
+
+**API payload**: `examples/user_payloads/formal_grammar_analysis.json`
+
+## Example 11: STEM Compute
+
+**User need**: "Run symbolic math or physics calculations."
+
+**Recommended skills**:
+
+- `math_compute`
+- `physics_compute`
+
+**Useful metadata for math**:
+
+- `math_operation`: `solve`, `simplify`, `differentiate`, `integrate`, `evaluate`
+- `math_expression`: expression string
+- `math_variable`: variable name (default `x`)
+
+**Useful metadata for physics**:
+
+- `physics_operation`: `convert`, `transform`, `calculate`, `query`
+- `physics_type`: `unit`, `coordinate`, `time`, `distance`, `energy`
+- `physics_value`: value to process
+- `physics_from_unit` / `physics_to_unit`: for conversions
+
+**API payload**: `examples/user_payloads/math_solve.json`  
+**API payload**: `examples/user_payloads/physics_unit_convert.json`
+
+## Example 12: Ecosystem Health Check
+
+**User need**: "Check the status of all configured UOR ecosystem integrations."
+
+**Recommended skills**:
+
+- `uor_ecosystem_status`
+
+**API payload**: `examples/user_payloads/ecosystem_status.json`
+
+## Example 13: Visual Debugging Checklist
 
 When a run does not look right:
 
@@ -111,7 +209,7 @@ When a run does not look right:
 4. **Export graph JSON** and confirm the graph has expected `nodes` and `edges`.
 5. **Switch to JSON events** to inspect raw `recipe_start`, `skill_start`, `metrics`, and `orchestration_plan` events.
 
-## Example 8: Which Workflow Should I Pick?
+## Example 14: Which Workflow Should I Pick?
 
 | Need | Start With | Add Later |
 | --- | --- | --- |
@@ -122,6 +220,12 @@ When a run does not look right:
 | Inspect performance | Any streaming run | Metrics dashboard |
 | Debug ordering | Recipes + streaming | Timeline JSON events |
 | Store verifiable objects | UOR `/objects` | Lineage/workflow endpoints |
+| Validate content safety | `guardrail_check` | `budget_status` |
+| Multi-agent collaboration | `agent_workflow` | Configure `agents` metadata |
+| Check storage readiness | `autonomi_status` | `autonomi_upload` |
+| Analyze formal grammar | `alm_analyze` | `alm_generate` |
+| Symbolic math | `math_compute` | `physics_compute` |
+| Check integrations | `uor_ecosystem_status` | Individual ecosystem skills |
 
 ## Copy-Paste cURL Pattern
 

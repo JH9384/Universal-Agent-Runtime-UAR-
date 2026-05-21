@@ -1,0 +1,7 @@
+{
+  "goal": "Inspect governance status for agent coordination.",
+  "skills": ["budget_status", "blackboard_status"],
+  "metadata": {
+    "agent_id": "research_agent"
+  }
+}

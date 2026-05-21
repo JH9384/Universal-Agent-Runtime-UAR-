@@ -1,0 +1,4 @@
+{
+  "goal": "Check decentralized storage availability before attempting an upload.",
+  "skills": ["autonomi_status"]
+}
