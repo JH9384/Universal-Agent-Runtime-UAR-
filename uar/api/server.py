@@ -255,6 +255,12 @@ import uar.skills.quantum_circuit_visualization  # noqa
 import uar.skills.riscv_sim  # noqa
 import uar.skills.verilog_parse  # noqa
 import uar.skills.fpga_verify  # noqa
+import uar.skills.myhdl_design  # noqa
+import uar.skills.riscv_cycle  # noqa
+import uar.skills.verilator_sim  # noqa
+import uar.skills.micropython  # noqa
+import uar.skills.platformio  # noqa
+import uar.skills.stub_skills  # noqa
 
 
 # Lifespan for graceful startup/shutdown
