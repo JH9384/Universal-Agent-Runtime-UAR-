@@ -873,7 +873,6 @@ async def stream_goal_ws(
         from uar.api.middleware import (
             _extract_skill_from_request_data,
             check_rate_limit,
-            rate_limiter,
         )
 
         # Generate rate limit key using shared function

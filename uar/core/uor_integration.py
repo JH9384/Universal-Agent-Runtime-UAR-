@@ -138,7 +138,7 @@ class UORObject:
             {
                 "type": transformation_type,
                 "parameters": parameters,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 
@@ -169,7 +169,7 @@ class UORIntegrator:
                 "digest": uor_obj.digest,
                 "source": source,
                 "operation": operation,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 

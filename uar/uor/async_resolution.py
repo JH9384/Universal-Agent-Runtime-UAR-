@@ -38,7 +38,7 @@ class AsyncObjectResolver:
         async with self.semaphore:
             try:
                 # Run the synchronous fetch function in a thread pool
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 obj = await loop.run_in_executor(None, fetch_func, digest)
                 return obj
             except Exception as e:
@@ -128,7 +128,7 @@ class AsyncObjectProcessor:
         """
         async with self.semaphore:
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 result = await loop.run_in_executor(None, process_func, obj)
                 return result
             except Exception as e:

@@ -167,7 +167,11 @@ class KeyManager:
                     key_id=key_id,
                     key_type="rsa",
                     algorithm=f"rsa-{key_size}",
-                    created_at=datetime.datetime.utcnow().isoformat(),
+                    created_at=(
+                        datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat()
+                    ),
                     description=f"RSA {key_size}-bit key pair",
                 )
 

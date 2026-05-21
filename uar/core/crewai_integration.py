@@ -263,8 +263,8 @@ class TaskOrchestrator:
         task_ids: List[str],
     ) -> Dict[str, Any]:
         """Execute a workflow of tasks with dependency resolution."""
-        results = {}
-        executed = set()
+        results: Dict[str, Any] = {}
+        executed: set[str] = set()
 
         while len(executed) < len(task_ids):
             progress = False
@@ -465,7 +465,7 @@ async def execute_standard_workflow(
             orchestrator.register_agent(agent)
 
     # Create tasks
-    task_ids = []
+    task_ids: list[str] = []
     for i, (role, description) in enumerate(workflow):
         task = orchestrator.create_task(
             description=description,
