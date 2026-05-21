@@ -33,7 +33,7 @@ try:
     NEO4J_AVAILABLE = True
 except ImportError:
     NEO4J_AVAILABLE = False
-    logging.warning(
+    logging.getLogger(__name__).debug(
         "Neo4j not available. Install with: pip install neo4j>=5.0"
     )
 

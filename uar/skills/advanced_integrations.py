@@ -659,3 +659,101 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "error": str(e),
             "message": "Failed to execute Flexible GraphRAG",
         }
+
+
+# ---------------------------------------------------------------------------
+# Multi-Agent Blackboard Communication
+# ---------------------------------------------------------------------------
+
+@register_skill
+def blackboard_message(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Post or read messages on a shared blackboard for inter-agent comms.
+
+    This skill enables agents to communicate via a shared key-value
+    store within the pipeline context.  It is the foundational
+    primitive for multi-agent coordination.
+
+    Metadata:
+      action      — "post" | "read" | "list" (default "read")
+      channel     — blackboard channel name (default "default")
+      key         — message key (required for post/read)
+      value       — message payload (required for post)
+    """
+    goal = ctx.get("goal", {})
+    meta = goal.get("metadata", {}) if isinstance(goal, dict) else {}
+
+    action = meta.get("action", "read")
+    channel = meta.get("channel", "default")
+    key = meta.get("key", "")
+    value = meta.get("value")
+
+    # Ensure blackboard root exists in context
+    bb = ctx.setdefault("blackboard", {})
+    if not isinstance(bb, dict):
+        bb = {}
+        ctx["blackboard"] = bb
+
+    if action == "post":
+        if not key:
+            return {
+                "status": "failed",
+                "error": "metadata 'key' required for post",
+            }
+        ch = bb.setdefault(channel, {})
+        if not isinstance(ch, dict):
+            ch = {}
+            bb[channel] = ch
+        ch[key] = {
+            "value": value,
+            "timestamp": __import__("time").time(),
+        }
+        return {
+            "status": "completed",
+            "action": "post",
+            "channel": channel,
+            "key": key,
+        }
+
+    elif action == "read":
+        if not key:
+            return {
+                "status": "failed",
+                "error": "metadata 'key' required for read",
+            }
+        ch = bb.get(channel, {})
+        if not isinstance(ch, dict):
+            return {
+                "status": "completed",
+                "action": "read",
+                "channel": channel,
+                "key": key,
+                "found": False,
+                "value": None,
+            }
+        entry = ch.get(key)
+        return {
+            "status": "completed",
+            "action": "read",
+            "channel": channel,
+            "key": key,
+            "found": key in ch,
+            "value": entry["value"] if entry else None,
+            "timestamp": entry.get("timestamp") if entry else None,
+        }
+
+    elif action == "list":
+        ch = bb.get(channel, {})
+        if not isinstance(ch, dict):
+            ch = {}
+        return {
+            "status": "completed",
+            "action": "list",
+            "channel": channel,
+            "keys": list(ch.keys()),
+            "count": len(ch),
+        }
+
+    return {
+        "status": "failed",
+        "error": f"Unknown action: {action}",
+    }
