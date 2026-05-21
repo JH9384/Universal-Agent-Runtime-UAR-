@@ -1440,12 +1440,14 @@ export function UARPanel() {
         onPick={onPick}
       />
 
+      <a href="#main-content" className={styles.skipLink}>Skip to main content</a>
       <div className={styles.header}>
         <h3 className={styles.headerTitle}>🤖 Universal Agent Runtime (UAR)</h3>
         <button
           onClick={() => setDarkMode(!darkMode)}
           className={styles.skillGuideButton}
           title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {darkMode ? '☀️' : '🌙'}
         </button>
@@ -1453,6 +1455,8 @@ export function UARPanel() {
           onClick={() => setShowHelp(!showHelp)}
           className={styles.skillGuideButton}
           title="Toggle quick start tips"
+          aria-label="Toggle quick start tips"
+          aria-pressed={showHelp}
         >
           💡
         </button>
@@ -1460,12 +1464,14 @@ export function UARPanel() {
           onClick={() => setSkillGuideOpen(true)}
           className={styles.skillGuideButton}
           title="View detailed skill documentation"
+          aria-label="View detailed skill documentation"
         >
           📘
         </button>
         <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" onError={() => setUorImageError(true)} />}</a></span>
       </div>
 
+      <main id="main-content" className={styles.mainContent}>
       {showHelp && (
         <div className={styles.helpBox}>
           <div className={styles.helpSection}>
@@ -1494,8 +1500,8 @@ export function UARPanel() {
           <strong>Error:</strong> {error.message}
           {error.code && <span className={styles.errorCode}>[{error.code}]</span>}
           {error.requestId && <span className={styles.errorCode}>req: {error.requestId}</span>}
-          <button onClick={() => setError(null)} className={styles.dismissButton}>Dismiss</button>
-          <button onClick={() => { navigator.clipboard.writeText(JSON.stringify(error, null, 2)).catch(() => {}) }} className={styles.copyButton}>Copy</button>
+          <button onClick={() => setError(null)} className={styles.dismissButton} aria-label="Dismiss error">Dismiss</button>
+          <button onClick={() => { navigator.clipboard.writeText(JSON.stringify(error, null, 2)).catch(() => {}) }} className={styles.copyButton} aria-label="Copy error details to clipboard">Copy</button>
         </div>
       )}
 
@@ -1513,6 +1519,7 @@ export function UARPanel() {
             }}
             className={styles.skillGuideButton}
             title="View tips"
+            aria-label="View document tips"
           >
             💡
           </button>
@@ -1521,6 +1528,7 @@ export function UARPanel() {
             disabled={isRunning}
             className={styles.pickButton}
             title="Open file picker"
+            aria-label="Open file picker"
           >📂 Pick…</button>
         </div>
 
@@ -1559,7 +1567,7 @@ export function UARPanel() {
             <div className={styles.presetsContainer}>
               <div className={styles.label}>
                 📚 Library ({library.length}{libBusy && ' · refreshing…'})
-                <button onClick={refreshLibrary} className={styles.refreshButton} title="Refresh library list">↻</button>
+                <button onClick={refreshLibrary} className={styles.refreshButton} title="Refresh library list" aria-label="Refresh library list">↻</button>
                 {libraryPath && (
                   <button onClick={() => onPick(libraryPath)} className={styles.useAllButton} title="Use whole library as input_path">
                     use all
@@ -1574,11 +1582,11 @@ export function UARPanel() {
                     <div key={f.path}
                       className={`${styles.libraryItem} ${inputPath === f.path ? styles.libraryItemSelected : ''}`}
                     >
-                      <span className={styles.libraryItemName} onClick={() => onPick(f.path)} title={f.path}>
+                      <span className={styles.libraryItemName} onClick={() => onPick(f.path)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onPick(f.path) } }} tabIndex={0} role="button" title={f.path} aria-label={`Select file ${f.name}`}>
                         📄 {f.name}
                       </span>
                       <span className={styles.libraryItemSize}>{human(f.size)}</span>
-                      <button onClick={() => deleteLibFile(f.name)} disabled={isRunning} className={styles.deleteButton} title="Delete">✕</button>
+                      <button onClick={() => deleteLibFile(f.name)} disabled={isRunning} className={styles.deleteButton} title="Delete" aria-label={`Delete file ${f.name}`}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -1619,8 +1627,8 @@ export function UARPanel() {
                   disabled={isRunning}
                   className={styles.input}
                 />
-                <button onClick={copyPath} disabled={!inputPath} className={styles.iconButton} title="Copy path to clipboard">📋</button>
-                <button onClick={() => setInputPath('')} disabled={!inputPath || isRunning} className={styles.iconButton} title="Clear input path">✕</button>
+                <button onClick={copyPath} disabled={!inputPath} className={styles.iconButton} title="Copy path to clipboard" aria-label="Copy path to clipboard">📋</button>
+                <button onClick={() => setInputPath('')} disabled={!inputPath || isRunning} className={styles.iconButton} title="Clear input path" aria-label="Clear input path">✕</button>
               </div>
             </div>
           </div>
@@ -1639,6 +1647,7 @@ export function UARPanel() {
               }}
               className={styles.skillGuideButton}
               title="View tips"
+              aria-label="View goal tips"
             >
               💡
             </button>
@@ -1676,13 +1685,14 @@ export function UARPanel() {
               }}
               className={styles.skillGuideButton}
               title="View tips"
+              aria-label="View skills tips"
             >
               💡
             </button>
-            <button onClick={() => toggleAllGroups(false)} className={styles.collapseAllButton} disabled={isRunning} title="Collapse all">
+            <button onClick={() => toggleAllGroups(false)} className={styles.collapseAllButton} disabled={isRunning} title="Collapse all" aria-label="Collapse all skill groups">
               ▼
             </button>
-            <button onClick={() => toggleAllGroups(true)} className={styles.collapseAllButton} disabled={isRunning} title="Expand all">
+            <button onClick={() => toggleAllGroups(true)} className={styles.collapseAllButton} disabled={isRunning} title="Expand all" aria-label="Expand all skill groups">
               ▲
             </button>
             <button onClick={() => {
@@ -1696,13 +1706,13 @@ export function UARPanel() {
                 setSkillLastPositions({})
                 return newOrder
               })
-            }} className={styles.collapseAllButton} disabled={isRunning} title="Clear all selected skills">
+            }} className={styles.collapseAllButton} disabled={isRunning} title="Clear all selected skills" aria-label="Clear all selected skills">
               ✕
             </button>
-            <button onClick={undoSkills} className={styles.collapseAllButton} disabled={isRunning || skillHistoryIndex === 0} title="Undo">
+            <button onClick={undoSkills} className={styles.collapseAllButton} disabled={isRunning || skillHistoryIndex === 0} title="Undo" aria-label="Undo skill selection">
               ↶
             </button>
-            <button onClick={redoSkills} className={styles.collapseAllButton} disabled={isRunning || skillHistoryIndex === skillHistory.length - 1} title="Redo">
+            <button onClick={redoSkills} className={styles.collapseAllButton} disabled={isRunning || skillHistoryIndex === skillHistory.length - 1} title="Redo" aria-label="Redo skill selection">
               ↷
             </button>
           </label>
@@ -1713,7 +1723,7 @@ export function UARPanel() {
                   const isCollapsed = collapsedGroups[group.name]
                   return (
                     <div key={group.name} className={styles.skillGroup}>
-                      <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
+                      <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
                         <span className={styles.skillGroupIcon}>{group.icon}</span>
                         <span className={styles.skillGroupName}>{group.name}</span>
                         <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
@@ -2068,6 +2078,7 @@ export function UARPanel() {
             }}
             className={styles.skillGuideButton}
             title="View tips"
+            aria-label="View run tips"
           >
             💡
           </button>
@@ -2078,6 +2089,8 @@ export function UARPanel() {
             disabled={isRunning}
             className={`${styles.runButton} ${styles.smallButton}`}
             title={useWebSocket ? 'Using WebSocket transport' : 'Using SSE transport (click to switch)'}
+            aria-label={useWebSocket ? 'Switch to SSE transport' : 'Switch to WebSocket transport'}
+            aria-pressed={useWebSocket}
           >
             {useWebSocket ? '⚡ WS' : '⬡ SSE'}
           </button>
@@ -2090,6 +2103,8 @@ export function UARPanel() {
                 ? 'Hierarchical execution: recipes run as discrete units with snapshot/retry/params scoping'
                 : 'Flat execution: recipes expand into a single skill list (click to switch)'
             }
+            aria-label={useHierarchical ? 'Switch to flat execution' : 'Switch to hierarchical execution'}
+            aria-pressed={useHierarchical}
           >
             {useHierarchical ? '🔀 Nested' : '➡ Flat'}
           </button>
@@ -2219,6 +2234,7 @@ export function UARPanel() {
             }}
             className={styles.skillGuideButton}
             title="View tips"
+            aria-label="View events tips"
           >
             💡
           </button>
@@ -2235,6 +2251,7 @@ export function UARPanel() {
               }}
               className={styles.skillGuideButton}
               title="Download all events as JSON"
+              aria-label="Download all events as JSON"
             >
               📥
             </button>
@@ -2296,6 +2313,7 @@ export function UARPanel() {
             }}
             className={styles.skillGuideButton}
             title="View tips"
+            aria-label="View graph tips"
           >
             💡
           </button>
@@ -2616,6 +2634,7 @@ export function UARPanel() {
               data-section="Documents"
               tabIndex={0}
               role="button"
+              aria-expanded={expandedTipSections['Documents']}
             >
               <span className={styles.tipsPopupSectionTitle}>Documents</span>
               <span>{expandedTipSections['Documents'] ? '▼' : '▶'}</span>
@@ -2647,6 +2666,7 @@ export function UARPanel() {
               data-section="Goal"
               tabIndex={0}
               role="button"
+              aria-expanded={expandedTipSections['Goal']}
             >
               <span className={styles.tipsPopupSectionTitle}>Goal</span>
               <span>{expandedTipSections['Goal'] ? '▼' : '▶'}</span>
@@ -2676,6 +2696,7 @@ export function UARPanel() {
               data-section="Skills"
               tabIndex={0}
               role="button"
+              aria-expanded={expandedTipSections['Skills']}
             >
               <span className={styles.tipsPopupSectionTitle}>Skills</span>
               <span>{expandedTipSections['Skills'] ? '▼' : '▶'}</span>
@@ -2708,6 +2729,7 @@ export function UARPanel() {
                 data-section={group.name}
                 tabIndex={0}
                 role="button"
+                aria-expanded={expandedTipSections[group.name]}
               >
                 <span className={styles.tipsPopupSectionTitle}>{group.name}</span>
                 <span>{expandedTipSections[group.name] ? '▼' : '▶'}</span>
@@ -2880,6 +2902,7 @@ export function UARPanel() {
               data-section="Run"
               tabIndex={0}
               role="button"
+              aria-expanded={expandedTipSections['Run']}
             >
               <span className={styles.tipsPopupSectionTitle}>Run</span>
               <span>{expandedTipSections['Run'] ? '▼' : '▶'}</span>
@@ -2912,6 +2935,7 @@ export function UARPanel() {
               data-section="Events"
               tabIndex={0}
               role="button"
+              aria-expanded={expandedTipSections['Events']}
             >
               <span className={styles.tipsPopupSectionTitle}>Events</span>
               <span>{expandedTipSections['Events'] ? '▼' : '▶'}</span>
@@ -2944,6 +2968,7 @@ export function UARPanel() {
               data-section="Graph"
               tabIndex={0}
               role="button"
+              aria-expanded={expandedTipSections['Graph']}
             >
               <span className={styles.tipsPopupSectionTitle}>Dependency Graph</span>
               <span>{expandedTipSections['Graph'] ? '▼' : '▶'}</span>
@@ -3389,6 +3414,7 @@ export function UARPanel() {
           </div>
         </div>
       )}
+    </main>
     </div>
   )
 }

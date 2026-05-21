@@ -4,6 +4,28 @@ body {
   padding: 0;
 }
 
+.skipLink {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: #fff;
+  padding: 8px 16px;
+  text-decoration: none;
+  z-index: 1000;
+  border-radius: 0 0 4px 0;
+  font-size: 13px;
+  transition: top 0.2s;
+}
+
+.skipLink:focus {
+  top: 0;
+}
+
+.mainContent {
+  display: block;
+}
+
 .container {
   padding: 20px;
   max-width: 1200px;
