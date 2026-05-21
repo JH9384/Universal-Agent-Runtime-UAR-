@@ -11,6 +11,7 @@ import { FpgaVisualizer } from './FpgaVisualizer'
 import { CipherDashboard } from './CipherDashboard'
 import { EcosystemDashboard } from './EcosystemDashboard'
 import { DocIngestDashboard } from './DocIngestDashboard'
+import { AutonomiDashboard } from './AutonomiDashboard'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -411,6 +412,7 @@ export function UARPanel() {
   const [cipherData, setCipherData] = useState<any>(null)
   const [ecosystemData, setEcosystemData] = useState<any>(null)
   const [docIngestData, setDocIngestData] = useState<any>(null)
+  const [autonomiData, setAutonomiData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -921,7 +923,7 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
-    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1149,6 +1151,9 @@ export function UARPanel() {
                   if (json.skill === 'doc_ingest' && json.payload?.result) {
                     setDocIngestData(json.payload.result)
                   }
+                  if (json.skill === 'autonomi_status' && json.payload?.result) {
+                    setAutonomiData(json.payload.result)
+                  }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
                 if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
@@ -1366,7 +1371,7 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); eventCountRef.current = 0 }, [])
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -2471,6 +2476,22 @@ export function UARPanel() {
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
                 <DocIngestDashboard data={docIngestData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Autonomi Storage */}
+      {(autonomiData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>☁️ Autonomi Storage</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <AutonomiDashboard data={autonomiData} darkMode={darkMode} />
               </div>
             </div>
           </div>
