@@ -662,6 +662,7 @@ async def run_goal(
             executor = Executor()
             timeout = req.timeout_seconds or 5.0
             result = executor.run(strategy, goal, timeout_seconds=timeout)
+            result.user_id = user_info["user"] if user_info else None
 
             store.append(result)
             logger.info(
@@ -1079,7 +1080,7 @@ async def stream_goal_ws(
                     if event.get("type") == "complete":
                         try:
                             record = run_record_from_events(
-                                full_events, strategy.ordered_skills
+                                full_events, strategy.ordered_skills, user_str
                             )
                             store.append(record)
                             persisted = True
@@ -1113,7 +1114,7 @@ async def stream_goal_ws(
             if full_events and not persisted:
                 try:
                     record = run_record_from_events(
-                        full_events, strategy.ordered_skills
+                        full_events, strategy.ordered_skills, user_str
                     )
                     store.append(record)
                     logger.info(
@@ -1378,6 +1379,7 @@ async def stream_goal(
 
         # Get user info
         user_info = auth_middleware(credentials)
+        user_id = user_info["user"] if user_info else None
 
         # Log request
         request_id = request_logging_middleware(request, user_info)
@@ -1503,7 +1505,7 @@ async def stream_goal(
                     # Persist successful run
                     try:
                         record = run_record_from_events(
-                            full_events, strategy.ordered_skills
+                            full_events, strategy.ordered_skills, user_id
                         )
                         store.append(record)
                         persisted = True
@@ -1553,7 +1555,7 @@ async def stream_goal(
                     if full_events and not persisted:
                         try:
                             record = run_record_from_events(
-                                full_events, strategy.ordered_skills
+                                full_events, strategy.ordered_skills, user_id
                             )
                             store.append(record)
                             logger.info(
@@ -1715,6 +1717,10 @@ async def websocket_run(websocket: WebSocket):
                 scheme="Bearer",
                 credentials=auth_header[7:],
             )
+
+        # Get user info for ownership tracking
+        user_info = auth_middleware(credentials)
+        user_str = user_info["user"] if user_info else None
 
         # Apply rate limiting
         client_ip = websocket.client.host if websocket.client else "unknown"
@@ -1912,7 +1918,7 @@ async def websocket_run(websocket: WebSocket):
         try:
             if full_events:
                 record = run_record_from_events(
-                    full_events, strategy.ordered_skills
+                    full_events, strategy.ordered_skills, user_str
                 )
                 store.append(record)
                 await websocket.send_json(
@@ -1980,8 +1986,12 @@ async def list_runs(
     request_id = request_logging_middleware(request, user_info)
 
     try:
-        runs = store.list_records()
-        logger.info(f"[{request_id}] Listed {len(runs)} runs")
+        user_id = user_info["user"] if user_info else None
+        runs = store.list_records(user_id=user_id)
+        logger.info(
+            f"[{request_id}] Listed {len(runs)} runs "
+            f"for user {user_id or 'anonymous'}"
+        )
         return runs
 
     except Exception as e:

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 @dataclass
@@ -43,3 +43,4 @@ class RunRecord:
     errors: List[str] = field(default_factory=list)
     events: List[Dict[str, Any]] = field(default_factory=list)
     final_context: Dict[str, Any] = field(default_factory=dict)
+    user_id: Optional[str] = None

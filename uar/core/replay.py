@@ -3,6 +3,9 @@ from typing import Iterable, List, Optional
 from uar.core.contracts import RunRecord
 from uar.core.exceptions import EventContractError
 
+
+OptionalStr = Optional[str]
+
 EVENT_SCHEMA_VERSION = "uar.event.v1"
 REQUIRED_EVENT_KEYS = {
     "schema_version",
@@ -63,7 +66,9 @@ def validate_event_stream(events: Iterable[dict]) -> list[dict]:
 
 
 def run_record_from_events(
-    events: Iterable[dict], skills: Optional[List[str]] = None
+    events: Iterable[dict],
+    skills: Optional[List[str]] = None,
+    user_id: OptionalStr = None,
 ) -> RunRecord:
     event_list = validate_event_stream(events)
     start_event = event_list[0]
@@ -79,6 +84,7 @@ def run_record_from_events(
         errors=payload.get("errors", []),
         events=event_list,
         final_context=payload.get("final_context", {}),
+        user_id=user_id,
     )
 
 

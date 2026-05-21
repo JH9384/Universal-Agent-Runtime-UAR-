@@ -52,8 +52,11 @@ class JsonRunStore:
                     f.flush()
                     os.fsync(f.fileno())
 
-    def list_records(self) -> List[dict]:
-        """List all records with shared lock for consistency."""
+    def list_records(self, user_id: Optional[str] = None) -> List[dict]:
+        """List records with shared lock for consistency.
+
+        If user_id is provided, only return records owned by that user.
+        """
         if not self.path.exists():
             return []
 
@@ -65,7 +68,10 @@ class JsonRunStore:
                         line = line.strip()
                         if line:
                             try:
-                                records.append(json.loads(line))
+                                record = json.loads(line)
+                                owner = record.get("user_id")
+                                if user_id is None or owner == user_id:
+                                    records.append(record)
                             except json.JSONDecodeError:
                                 # Skip corrupted lines
                                 continue
