@@ -252,6 +252,9 @@ import uar.skills.uor_ecosystem_skills  # noqa
 import uar.skills.trefoil_simulation  # noqa
 import uar.skills.molecular_visualization  # noqa
 import uar.skills.quantum_circuit_visualization  # noqa
+import uar.skills.riscv_sim  # noqa
+import uar.skills.verilog_parse  # noqa
+import uar.skills.fpga_verify  # noqa
 
 
 # Lifespan for graceful startup/shutdown

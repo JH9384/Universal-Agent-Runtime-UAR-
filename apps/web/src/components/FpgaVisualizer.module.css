@@ -1,0 +1,231 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.dark {
+  background: #0f172a;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.toolbarButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.tabButton {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tabButton:hover {
+  color: #f8fafc;
+}
+
+.tabActive {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.summaryBar {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  font-size: 12px;
+  color: #94a3b8;
+  flex-wrap: wrap;
+}
+
+.summaryItem strong {
+  color: #f8fafc;
+}
+
+.pass {
+  color: #34d399;
+}
+
+.fail {
+  color: #f87171;
+}
+
+.scrollContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Port Table */
+.portTable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.portHeader {
+  display: grid;
+  grid-template-columns: 1fr 80px 60px;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 1px solid #334155;
+}
+
+.portRow {
+  display: grid;
+  grid-template-columns: 1fr 80px 60px;
+  gap: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.portRow:nth-child(even) {
+  background: #1e293b;
+}
+
+.portName {
+  color: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.input { color: #60a5fa; }
+.output { color: #f472b6; }
+.inout { color: #a78bfa; }
+
+.portWidth {
+  color: #64748b;
+}
+
+/* Waveform Table */
+.waveTable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.waveHeader {
+  display: grid;
+  grid-template-columns: 50px repeat(auto-fit, minmax(40px, 1fr));
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 1px solid #334155;
+}
+
+.waveRow {
+  display: grid;
+  grid-template-columns: 50px repeat(auto-fit, minmax(40px, 1fr));
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.waveRow:nth-child(even) {
+  background: #1e293b;
+}
+
+.waveCycle {
+  color: #f8fafc;
+}
+
+.waveValue {
+  color: #34d399;
+}
+
+/* Results */
+.allPass {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #34d399;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.assertTable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.assertHeader {
+  display: grid;
+  grid-template-columns: 60px 1fr 80px 60px 60px;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 1px solid #334155;
+}
+
+.assertRow {
+  display: grid;
+  grid-template-columns: 60px 1fr 80px 60px 60px;
+  gap: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.assertRow:nth-child(even) {
+  background: #1e293b;
+}
+
+.assertSig {
+  color: #f472b6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.failBadge {
+  color: #f87171;
+  font-weight: 600;
+}

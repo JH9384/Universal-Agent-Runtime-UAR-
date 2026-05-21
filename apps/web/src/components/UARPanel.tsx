@@ -5,6 +5,9 @@ import { MolecularVisualizer } from './MolecularVisualizer'
 import { QuantumCircuitVisualizer } from './QuantumCircuitVisualizer'
 import { PhysicsVisualizer } from './PhysicsVisualizer'
 import { MathVisualizer } from './MathVisualizer'
+import { RiscvVisualizer } from './RiscvVisualizer'
+import { VerilogVisualizer } from './VerilogVisualizer'
+import { FpgaVisualizer } from './FpgaVisualizer'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -399,6 +402,9 @@ export function UARPanel() {
   const [quantumData, setQuantumData] = useState<any>(null)
   const [physicsData, setPhysicsData] = useState<any>(null)
   const [mathData, setMathData] = useState<any>(null)
+  const [riscvData, setRiscvData] = useState<any>(null)
+  const [verilogData, setVerilogData] = useState<any>(null)
+  const [fpgaData, setFpgaData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -909,7 +915,7 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
-    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1118,6 +1124,15 @@ export function UARPanel() {
                   }
                   if (json.skill === 'math_compute' && json.payload?.result) {
                     setMathData(json.payload.result)
+                  }
+                  if (json.skill === 'riscv_sim' && json.payload?.result) {
+                    setRiscvData(json.payload.result)
+                  }
+                  if (json.skill === 'verilog_parse' && json.payload?.result) {
+                    setVerilogData(json.payload.result)
+                  }
+                  if (json.skill === 'fpga_verify' && json.payload?.result) {
+                    setFpgaData(json.payload.result)
                   }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
@@ -1336,7 +1351,7 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); eventCountRef.current = 0 }, [])
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -2345,6 +2360,54 @@ export function UARPanel() {
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
                 <MathVisualizer data={mathData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RISC-V Simulation */}
+      {(riscvData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🖥️ RISC-V Simulation</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <RiscvVisualizer data={riscvData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verilog Parse */}
+      {(verilogData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🔌 Verilog HDL</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <VerilogVisualizer data={verilogData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FPGA Verification */}
+      {(fpgaData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>⚡ FPGA Verification</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <FpgaVisualizer data={fpgaData} darkMode={darkMode} />
               </div>
             </div>
           </div>

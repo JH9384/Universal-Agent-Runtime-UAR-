@@ -1,0 +1,281 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.dark {
+  background: #0f172a;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.toolbarButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.tabButton {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tabButton:hover {
+  color: #f8fafc;
+}
+
+.tabActive {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.scrollContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Module Cards */
+.moduleCard {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.moduleHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.moduleHeader:hover {
+  background: #334155;
+}
+
+.moduleName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #60a5fa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.moduleStats {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.moduleBody {
+  padding: 8px 12px;
+  border-top: 1px solid #334155;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.subSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subTitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #34d399;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.portRow {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.input { color: #60a5fa; font-size: 10px; text-transform: uppercase; }
+.output { color: #f472b6; font-size: 10px; text-transform: uppercase; }
+.inout { color: #a78bfa; font-size: 10px; text-transform: uppercase; }
+
+.portName {
+  color: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.portWidth {
+  color: #64748b;
+  font-size: 10px;
+  text-align: right;
+}
+
+.instRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 60px;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.instMod {
+  color: #60a5fa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.instName {
+  color: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.instConns {
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: right;
+}
+
+.assignRow {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.assignLhs {
+  color: #f472b6;
+}
+
+.assignRhs {
+  color: #94a3b8;
+}
+
+/* Hierarchy */
+.hierarchyTree {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.treeRoot {
+  font-size: 13px;
+  font-weight: 600;
+  color: #60a5fa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  margin-bottom: 6px;
+}
+
+.treeChildren {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 16px;
+  border-left: 2px solid #334155;
+}
+
+.treeChild {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.treeMod {
+  color: #60a5fa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.treeInst {
+  color: #f8fafc;
+}
+
+/* Signals Table */
+.signalTable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sigHeader {
+  display: grid;
+  grid-template-columns: 1fr 1fr 80px 60px;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 1px solid #334155;
+}
+
+.sigRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 80px 60px;
+  gap: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.sigRow:nth-child(even) {
+  background: #1e293b;
+}
+
+.sigMod {
+  color: #60a5fa;
+}
+
+.sigName {
+  color: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.sigType {
+  color: #34d399;
+}
+
+.sigWidth {
+  color: #94a3b8;
+}
