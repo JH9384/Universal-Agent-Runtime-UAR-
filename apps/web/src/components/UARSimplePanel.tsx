@@ -1,6 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import styles from './UARSimplePanel.module.css'
 
+// Helper to build Authorization header when API key is present
+function authHeaders(init?: Record<string, string>): Record<string, string> {
+  const key = localStorage.getItem('uar_api_key')
+  if (!key) return init || {}
+  return { Authorization: `Bearer ${key}`, ...init }
+}
+
 const MAX_EVENTS = 500
 const RECENT_KEY = 'uar.simple.recent'
 const RECENT_MAX = 10

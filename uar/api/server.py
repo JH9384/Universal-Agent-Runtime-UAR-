@@ -323,19 +323,35 @@ app.add_middleware(
 # Apply request logging, body parsing, and size-limit middleware
 apply_middleware(app)
 
+# Security scheme for API key authentication
+security = HTTPBearer(auto_error=False)
+
+
+def require_auth(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict[str, Any]:
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
+    return user_info
+
+
 # Include advanced integrations router
-app.include_router(advanced_router)
+app.include_router(advanced_router, dependencies=[Depends(require_auth)])
 
 # Include consolidated UOR object/runtime/agent router (formerly
 # apps/api-python/main.py).
 from uar.api.routers import uor_router  # noqa: E402
 
-app.include_router(uor_router)
+app.include_router(uor_router, dependencies=[Depends(require_auth)])
 
 store = JsonRunStore()
-
-# Security scheme for API key authentication
-security = HTTPBearer(auto_error=False)
 
 
 # Custom exception handlers for UAR exceptions
@@ -1196,7 +1212,9 @@ def _user_recipes_path() -> str:
     return str(p)
 
 
-def _load_user_recipes() -> dict[str, dict[str, Any]]:
+def _load_user_recipes(
+    user_id: Optional[str] = None,
+) -> dict[str, dict[str, Any]]:
     """Load user-created recipes from disk."""
     path = _user_recipes_path()
     if not os.path.exists(path):
@@ -1205,7 +1223,13 @@ def _load_user_recipes() -> dict[str, dict[str, Any]]:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict):
-            return data
+            if user_id is None:
+                return data
+            return {
+                k: v
+                for k, v in data.items()
+                if v.get("user_id") == user_id or v.get("user_id") is None
+            }
     except (json.JSONDecodeError, OSError):
         pass
     return {}
@@ -1219,13 +1243,19 @@ def _save_user_recipes(recipes: dict[str, dict[str, Any]]) -> None:
 
 
 @app.get("/api/uar/recipes")
-async def get_recipes():
+async def get_recipes(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Return canonical + user-created recipe definitions.
 
     Canonical recipes are sourced from ``DEFAULT_RECIPES``.  User
     recipes are merged on top so the frontend sees a unified list.
+    Anonymous callers see only canonical recipes.
     """
-    user_recipes = _load_user_recipes()
+    user_info = auth_middleware(credentials)
+    user_recipes = _load_user_recipes(
+        user_id=user_info["user"] if user_info else None
+    )
     recipes = []
     seen = set()
     # Canonical recipes first
@@ -1240,16 +1270,17 @@ async def get_recipes():
         )
         seen.add(recipe_id)
     # User recipes appended (preserved across restarts)
-    for recipe_id, recipe in user_recipes.items():
-        if recipe_id not in seen:
-            recipes.append(
-                {
-                    "id": recipe_id,
-                    "label": recipe.get("label", recipe_id),
-                    "skills": recipe.get("skills", []),
-                    "hint": recipe.get("hint", ""),
-                }
-            )
+    if user_info:
+        for recipe_id, recipe in user_recipes.items():
+            if recipe_id not in seen:
+                recipes.append(
+                    {
+                        "id": recipe_id,
+                        "label": recipe.get("label", recipe_id),
+                        "skills": recipe.get("skills", []),
+                        "hint": recipe.get("hint", ""),
+                    }
+                )
     return {"recipes": recipes}
 
 
@@ -1263,7 +1294,15 @@ async def create_recipe(
     The recipe body must contain ``id``, ``label``, and ``skills``.
     User recipes are persisted to ``.uar_data/user_recipes.json``.
     """
-    auth_middleware(credentials)
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     recipe_id = recipe.get("id")
     if not recipe_id or not isinstance(recipe_id, str):
         raise HTTPException(
@@ -1295,6 +1334,7 @@ async def create_recipe(
                 "message": "skills must be a list of strings",
             },
         )
+    recipe["user_id"] = user_info["user"]
     user_recipes = _load_user_recipes()
     user_recipes[recipe_id] = recipe
     _save_user_recipes(user_recipes)
@@ -1308,7 +1348,15 @@ async def update_recipe(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Update an existing user recipe."""
-    auth_middleware(credentials)
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     if recipe_id in DEFAULT_RECIPES:
         raise HTTPException(
             status_code=403,
@@ -1318,6 +1366,16 @@ async def update_recipe(
             },
         )
     user_recipes = _load_user_recipes()
+    existing = user_recipes.get(recipe_id)
+    owner = existing.get("user_id") if existing else None
+    if owner and owner != user_info["user"]:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "forbidden",
+                "message": "Not owner of this recipe",
+            },
+        )
     if recipe_id not in user_recipes:
         raise HTTPException(
             status_code=404,
@@ -1337,6 +1395,7 @@ async def update_recipe(
                 "message": "skills must be a list of strings",
             },
         )
+    recipe["user_id"] = user_info["user"]
     user_recipes[recipe_id] = recipe
     _save_user_recipes(user_recipes)
     return {"updated": recipe_id}
@@ -1348,7 +1407,15 @@ async def delete_recipe(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Delete a user recipe."""
-    auth_middleware(credentials)
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     if recipe_id in DEFAULT_RECIPES:
         raise HTTPException(
             status_code=403,
@@ -1358,6 +1425,16 @@ async def delete_recipe(
             },
         )
     user_recipes = _load_user_recipes()
+    existing = user_recipes.get(recipe_id)
+    owner = existing.get("user_id") if existing else None
+    if owner and owner != user_info["user"]:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "forbidden",
+                "message": "Not owner of this recipe",
+            },
+        )
     if recipe_id not in user_recipes:
         raise HTTPException(
             status_code=404,
@@ -2081,7 +2158,18 @@ def _check_metrics_auth(
 
 
 @app.get("/api/health/circuit-breakers")
-async def circuit_breaker_health():
+async def health_circuit_breakers(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     """Circuit breaker status for all external services."""
     from uar.core.circuit_breaker_decorator import (
         get_circuit_breaker_states,
@@ -2289,8 +2377,19 @@ def _resolve_docs_path(raw: str):
         500: {"model": ErrorResponse, "description": "Internal server error"}
     },
 )
-async def docs_presets():
+async def docs_presets(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Return convenient preset document paths inside PROJECT_ROOT."""
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     project_root = _docs_root()
     library = _library_dir()
     candidates = ["docs", "specs", "tests", "apps/web/src", "uar"]
@@ -2314,11 +2413,21 @@ async def docs_presets():
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
 )
-async def docs_upload(files: List[UploadFile] = File(...)):
-    """
-    Upload one or more files into the default library directory.
-    Filenames are sanitized; duplicates get a numeric suffix.
-    """
+async def docs_upload(
+    files: List[UploadFile] = File(...),
+    overwrite: bool = False,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Upload files to the document library."""
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     from pathlib import Path
 
     request_id = str(uuid.uuid4())
@@ -2466,8 +2575,19 @@ async def docs_upload(files: List[UploadFile] = File(...)):
 
 
 @app.get("/api/uar/docs/library")
-async def docs_library():
-    """List files in the default ingest library."""
+async def docs_library_list(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """List all files currently in the document library."""
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     library = _library_dir()
     entries = []
     total = 0
@@ -2494,8 +2614,20 @@ async def docs_library():
 
 
 @app.delete("/api/uar/docs/library")
-async def docs_library_delete(name: str):
+async def docs_library_delete(
+    name: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Delete a single file from the library by its basename."""
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     from pathlib import Path
 
     library = _library_dir()
@@ -2534,13 +2666,25 @@ async def docs_library_delete(name: str):
     },
 )
 async def docs_browse(
-    path: str, limit: int = DEFAULT_BROWSE_LIMIT, recursive: bool = False
+    path: str,
+    limit: int = DEFAULT_BROWSE_LIMIT,
+    recursive: bool = False,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
+    """Browse directories with optional recursion.
+
+    Validates path for traversal attempts and returns entries
+    with a safe ``name`` field for front-end consumption.
     """
-    Directory/file browser. When recursive=false (default), lists the
-    immediate children of a directory (navigable). When recursive=true,
-    lists all files under the path (doc_ingest preview).
-    """
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
     request_id = str(uuid.uuid4())
     try:
         p = _resolve_docs_path(path)
@@ -2644,20 +2788,27 @@ async def docs_browse(
     },
 )
 async def docs_create_folder(
-    request: Request,
+    payload: dict,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
-    """
-    Create a new folder in the docs directory.
+    """Create a folder inside the library directory."""
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
+    """Create a new folder in the docs directory.
     Expects JSON body with 'path' (parent directory) and 'name' (folder name).
     """
     request_id = str(uuid.uuid4())
-    auth_middleware(credentials)  # Auth check, result unused
-    try:
-        body = await request.json()
-        parent_path = body.get("path")
-        folder_name = body.get("name")
+    parent_path = payload.get("path")
+    folder_name = payload.get("name")
 
+    try:
         # Validate input types
         if not isinstance(parent_path, str) or not isinstance(
             folder_name, str
@@ -2726,75 +2877,58 @@ async def docs_create_folder(
                 status_code=400,
                 content={
                     "error": "Invalid folder name",
-                    "message": f"'{folder_name}' is a reserved system name",
-                    "request_id": request_id,
-                },
-            )
-
-        # Check length limits (most filesystems limit to 255 chars)
-        if len(folder_name) > 255:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Invalid folder name",
                     "message": (
-                        "Folder name exceeds maximum length of 255 characters"
+                        f"'{folder_name}' is a reserved Windows name"
                     ),
                     "request_id": request_id,
                 },
             )
 
-        # Prevent names starting/ending with dot (hidden files on Unix)
-        if folder_name.startswith(".") or folder_name.endswith("."):
+        # Validate parent path
+        parent_path = os.path.normpath(parent_path).lstrip(os.sep)
+        if ".." in parent_path.split(os.sep):
             return JSONResponse(
                 status_code=400,
                 content={
-                    "error": "Invalid folder name",
-                    "message": "Folder name cannot start or end with a dot",
+                    "error": "Invalid path",
+                    "message": "Parent path contains traversal attempt",
                     "request_id": request_id,
                 },
             )
 
-        # Resolve and validate parent path
-        parent = _resolve_docs_path(parent_path)
-        if not parent.exists():
-            return JSONResponse(
-                status_code=404,
-                content={
-                    "error": "Parent directory not found",
-                    "message": str(parent),
-                    "request_id": request_id,
-                },
-            )
-
-        if not parent.is_dir():
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Parent is not a directory",
-                    "message": str(parent),
-                    "request_id": request_id,
-                },
-            )
-
-        # Create the new folder
-        new_folder = parent / folder_name
+        # Resolve paths
+        library = _library_dir()
         try:
-            new_folder.mkdir(parents=False, exist_ok=False)
-            logger.info(f"[{request_id}] Created folder: {new_folder}")
-        except FileExistsError:
+            target_parent = (library / parent_path).resolve()
+            target_parent.relative_to(library.resolve())
+        except (OSError, ValueError):
             return JSONResponse(
-                status_code=409,
+                status_code=400,
                 content={
-                    "error": "Folder already exists",
-                    "message": str(new_folder),
+                    "error": "Invalid path",
+                    "message": "Parent path is outside library",
+                    "request_id": request_id,
+                },
+            )
+
+        # Create folder
+        new_folder = target_parent / folder_name
+        try:
+            new_folder.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "Folder creation failed",
+                    "message": str(e),
                     "request_id": request_id,
                 },
             )
 
         return {
-            "path": str(new_folder),
-            "message": "Folder created successfully",
+            "created": str(new_folder),
+            "name": folder_name,
+            "path": str(target_parent),
             "request_id": request_id,
         }
 
@@ -2807,161 +2941,15 @@ async def docs_create_folder(
                 "request_id": request_id,
             },
         )
-    except Exception as e:
-        logger.exception(f"[{request_id}] docs_create_folder failed")
+    except Exception:
+        logger.exception(
+            f"[{request_id}] docs_create_folder failed"
+        )
         return JSONResponse(
             status_code=500,
             content={
-                "error": "Internal server error",
-                "message": str(e),
+                "error": "Folder creation failed",
+                "message": "Internal server error",
                 "request_id": request_id,
             },
         )
-
-
-@app.get("/api/uar/cache/stats")
-async def cache_stats(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Cache statistics for all backends."""
-    auth_middleware(credentials)
-    from uar.core.cache import get_cache
-
-    cache = get_cache()
-    return cache.get_stats()
-
-
-@app.post("/api/uar/cache/invalidate")
-async def cache_invalidate(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Invalidate cache entries by skill or clear all."""
-    auth_middleware(credentials)
-    body = await request.json()
-    skill_name = body.get("skill_name")
-    from uar.core.cache import clear_global_cache
-
-    clear_global_cache(skill_name=skill_name)
-    return {
-        "invalidated": True,
-        "skill_name": skill_name,
-        "message": (
-            f"Cache cleared for '{skill_name}'"
-            if skill_name
-            else "All cache cleared"
-        ),
-    }
-
-
-@app.post("/api/uar/cache/warm")
-async def cache_warm(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Warm cache by executing skills with provided inputs.
-
-    Accepts a list of {skill, goal, ctx} objects and pre-computes
-    results, storing them in the cache.
-    """
-    auth_middleware(credentials)
-    body = await request.json()
-    entries = body.get("entries", [])
-    if not isinstance(entries, list):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_entries",
-                "message": "entries must be a list",
-            },
-        )
-
-    from uar.core.cache import get_cache
-    from uar.core.registry import registry
-    from uar.core.contracts import GoalSpec, PipelineContext
-    from uar.core.executor import _run_with_timeout
-
-    cache = get_cache()
-    warmed = 0
-    failed = 0
-    for entry in entries:
-        skill_name = entry.get("skill")
-        goal_text = entry.get("goal", "")
-        ctx_data = entry.get("ctx", {})
-        if not skill_name or not registry.is_registered(skill_name):
-            failed += 1
-            continue
-        try:
-            goal = GoalSpec(
-                id="warm",
-                user_intent=goal_text,
-                objective=goal_text,
-                metadata={},
-            )
-            ctx = PipelineContext(goal=goal)
-            ctx.data.update(ctx_data)
-            fn = registry.get(skill_name)
-            result = _run_with_timeout(fn, ctx, timeout_seconds=60.0)
-            cache.set(skill_name, ctx.data, goal_text, result)
-            warmed += 1
-        except Exception:
-            failed += 1
-
-    return {"warmed": warmed, "failed": failed, "total": len(entries)}
-
-
-@app.get("/api/status")
-async def get_status(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Get system status and user info"""
-    user_info = auth_middleware(credentials)
-
-    return {
-        "status": "operational",
-        "user": user_info,
-        "available_skills": [
-            "section_sum",
-            "doc_ingest",
-            "dependency_map",
-            "sum_review",
-            "ollama_generate",
-            "graphrag_init",
-            "graphrag_index",
-            "graphrag_query",
-            "autonomi_upload",
-            "autonomi_download",
-            "autonomi_status",
-            "alm_analyze",
-            "alm_generate",
-            "alm_verify",
-            "cipher_ops",
-            "math_compute",
-            "physics_compute",
-            "openai_chat",
-            "openai_completion",
-            "openai_embedding",
-            "lm_studio_chat",
-            "lm_studio_completion",
-            "lm_studio_embedding",
-            "anthropic_chat",
-            "anthropic_completion",
-            "anthropic_embedding",
-            "gemini_chat",
-            "gemini_completion",
-            "gemini_embedding",
-            "mistral_chat",
-            "mistral_completion",
-            "mistral_embedding",
-            "groq_chat",
-            "groq_completion",
-            "groq_embedding",
-            "huggingface_chat",
-            "huggingface_completion",
-            "huggingface_embedding",
-            "together_chat",
-            "together_completion",
-            "together_embedding",
-        ],
-    }

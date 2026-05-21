@@ -8,6 +8,13 @@ import { generateUniqueId } from '../utils/idGenerator'
 import RecipeTimeline from './RecipeTimeline'
 import styles from './UARPanel.module.css'
 
+// Helper to build Authorization header when API key is present
+function authHeaders(init?: Record<string, string>): Record<string, string> {
+  const key = localStorage.getItem('uar_api_key')
+  if (!key) return init || {}
+  return { Authorization: `Bearer ${key}`, ...init }
+}
+
 // Lazy-loaded visualizers — only fetched when their skill data arrives
 const GraphVisualizer = lazy(() =>
   import('./GraphVisualizer').then((m) => ({ default: m.GraphVisualizer })))
@@ -571,7 +578,7 @@ export function UARPanel() {
   const refreshLibrary = useCallback(async () => {
     setLibBusy(true)
     try {
-      const r = await fetch('/api/uar/docs/library')
+      const r = await fetch('/api/uar/docs/library', { headers: authHeaders() })
       const j = await r.json()
       if (r.ok) {
         setLibrary(j.entries || [])
@@ -582,7 +589,7 @@ export function UARPanel() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/uar/docs/presets')
+    fetch('/api/uar/docs/presets', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => {
         setPresets(d.presets || [])
@@ -596,7 +603,7 @@ export function UARPanel() {
       .catch(() => {})
     refreshLibrary()
     // Fetch backend skills for validation consistency
-    fetch('/api/uar/skills')
+    fetch('/api/uar/skills', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => {
         setBackendSkills(d.skills || [])
@@ -606,7 +613,7 @@ export function UARPanel() {
         setBackendSkills(AVAILABLE_SKILLS.map(s => s.id))
       })
     // Fetch canonical recipes from backend to eliminate drift
-    fetch('/api/uar/recipes')
+    fetch('/api/uar/recipes', { headers: authHeaders() })
       .then((r) => r.json())
       .then((d) => {
         const fetched = (d.recipes || []) as Recipe[]
@@ -644,7 +651,7 @@ export function UARPanel() {
     const timer = setTimeout(() => ctrl.abort(), 60_000) // 60s safety
     try {
       const r = await fetch('/api/uar/docs/upload', {
-        method: 'POST', body: fd, signal: ctrl.signal,
+        method: 'POST', headers: authHeaders(), body: fd, signal: ctrl.signal,
       })
       clearTimeout(timer)
       const j = await r.json()
@@ -669,7 +676,7 @@ export function UARPanel() {
   const deleteLibFile = async (name: string) => {
     if (!confirm(`Delete "${name}" from library?`)) return
     try {
-      const r = await fetch(`/api/uar/docs/library?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
+      const r = await fetch(`/api/uar/docs/library?name=${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders() })
       if (r.ok) refreshLibrary()
       else {
         const j = await r.json().catch(() => ({}))
@@ -1282,7 +1289,7 @@ export function UARPanel() {
       setStartTime(Date.now())
       const res = await fetch('/api/uar/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
         signal: abortControllerRef.current.signal,
       })
@@ -1396,7 +1403,7 @@ export function UARPanel() {
 
   const fetchRuns = useCallback(async () => {
     try {
-      const res = await fetch('/api/uar/runs')
+      const res = await fetch('/api/uar/runs', { headers: authHeaders() })
       if (res.ok) {
         const data = await res.json()
         setRunsHistory(Array.isArray(data) ? data : [])
@@ -3235,7 +3242,7 @@ export function UARPanel() {
                       try {
                         const res = await fetch(url, {
                           method,
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: authHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify(newRecipe),
                         })
                         if (!res.ok && res.status !== 403 && res.status !== 409) {
