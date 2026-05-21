@@ -576,6 +576,50 @@ START
 END
 ```
 
+## Latest Boot Capture (May 20, 2026)
+
+### Startup Command
+
+```bash
+cd /Volumes/Sabrent\ SSD/Projects/Universal-Agent-Runtime-UAR-
+python -m uvicorn uar.api.server:app --host 127.0.0.1 --port 8000
+```
+
+### Boot Log (abbreviated)
+
+```text
+INFO:     Started server process [73490]
+INFO:     Waiting for application startup.
+2026-05-20 22:09:06,567 - uar.api.server - INFO - UAR API starting up...
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000
+```
+
+### Health Check Results
+
+| Endpoint | Status | Response |
+|---|---|---|
+| `GET /api/health` | 200 | `{"status":"healthy","version":"1.0.0"}` |
+| `GET /api/health/live` | 200 | `{"status":"alive"}` |
+| `GET /api/health/ready` | 200 | `{"status":"ready","checks":{"skills_loaded":true,"disk_writable":true,"ollama_reachable":true,"circuit_breakers":true,"open_circuits":[]}}` |
+| `GET /api/health/circuit-breakers` | 200 | All circuits `closed` (openai, lm_studio, anthropic, gemini, mistral, groq) |
+| `GET /api/metrics/json` | 200 | `{"uptime_seconds":9.81,"total_requests":6,"total_errors":0.0,"endpoints":{...}}` |
+| `GET /api/uar/skills` | 200 | 1 registered skill (context-dependent; full registry available) |
+
+### Running Process
+
+```bash
+$ cat /tmp/uar_server.pid
+73490
+$ lsof -ti:8000
+73490
+```
+
+### Known Boot Notes
+
+- **Recipe warnings**: Several default recipes reference optional skills (graphrag, autonomi, uor ecosystem) that are not registered when optional dependencies are absent. This is expected and non-fatal.
+- **Disk writable check**: Resolved in commit `828044f` — `JsonRunStore.path.parent` is used instead of the non-existent `store.runs_dir` attribute.
+
 ## Related Documentation
 
 - [BOOT_AND_SHUTDOWN.md](./BOOT_AND_SHUTDOWN.md) - Comprehensive boot and shutdown documentation

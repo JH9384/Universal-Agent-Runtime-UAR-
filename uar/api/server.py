@@ -2037,7 +2037,7 @@ async def readiness_probe():
 
     # Check disk writable
     try:
-        test_file = store.runs_dir / ".health_check"
+        test_file = store.path.parent / ".health_check"
         test_file.write_text("ok")
         test_file.unlink()
         checks["disk_writable"] = True
