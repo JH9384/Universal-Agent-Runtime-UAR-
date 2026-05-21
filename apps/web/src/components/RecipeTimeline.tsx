@@ -8,6 +8,20 @@ type TimelineItem = {
   status: 'running' | 'complete' | 'failed' | 'aborted'
   skills: { name: string; status: 'pending' | 'running' | 'complete' | 'failed' }[]
   isOpen: boolean
+  depth: number
+  retries: number
+  startTime?: number
+  endTime?: number
+}
+
+type FlatEvent = {
+  type: 'recipe' | 'skill'
+  label: string
+  status: string
+  depth: number
+  instanceId?: string
+  skillName?: string
+  durationMs?: number
 }
 
 export default function RecipeTimeline({
@@ -29,6 +43,7 @@ export default function RecipeTimeline({
         const recipeId = e.payload?.recipe_id || ''
         const instanceId = e.payload?.instance_id || ''
         const label = recipes.find((r) => r.id === recipeId)?.label || recipeId
+        const depth = stack.length
         const item: TimelineItem = {
           id: recipeId,
           instanceId,
@@ -36,6 +51,9 @@ export default function RecipeTimeline({
           status: 'running',
           skills: [],
           isOpen: true,
+          depth,
+          retries: 0,
+          startTime: e.timestamp,
         }
         stack.push(item)
         recipeSkillMap.set(instanceId, new Set())
@@ -50,6 +68,7 @@ export default function RecipeTimeline({
               : item.status === 'running'
                 ? 'complete'
                 : item.status
+            item.endTime = e.timestamp
           }
           result.push(item)
         }
@@ -78,12 +97,25 @@ export default function RecipeTimeline({
             break
           }
         }
+      } else if (e?.type === 'recipe_retry') {
+        const instanceId = e.payload?.instance_id || ''
+        for (let i = stack.length - 1; i >= 0; i--) {
+          if (stack[i].instanceId === instanceId) {
+            stack[i].retries += 1
+            break
+          }
+        }
+        for (const item of result) {
+          if (item.instanceId === instanceId) {
+            item.retries += 1
+            break
+          }
+        }
       }
     }
 
     while (stack.length > 0) {
       const item = stack.pop()!
-      item.status = 'aborted'
       result.push(item)
     }
 
@@ -99,96 +131,84 @@ export default function RecipeTimeline({
     })
   }
 
-  if (timeline.length === 0) {
-    return (
-      <div className={styles.timelineContainer}>
-        <div className={styles.timelineEmpty}>
-          No recipe events yet. Start a run to see the timeline.
-        </div>
-      </div>
-    )
-  }
-
-  const statusClass = (status: string) => {
+  const statusIcon = (status: string) => {
     switch (status) {
-      case 'running':
-        return styles.statusRunning
       case 'complete':
-        return styles.statusComplete
+        return '✅'
       case 'failed':
-        return styles.statusFailed
+        return '❌'
       case 'aborted':
-        return styles.statusAborted
+        return '🚫'
+      case 'running':
+        return '⏳'
       default:
-        return ''
+        return '⏳'
     }
   }
 
-  const skillClass = (status: string) => {
-    switch (status) {
-      case 'complete':
-        return styles.timelineSkillComplete
-      case 'failed':
-        return styles.timelineSkillFailed
-      case 'running':
-        return styles.timelineSkillRunning
-      default:
-        return ''
-    }
+  const depthIndent = (depth: number) => ({ paddingLeft: `${depth * 16 + 8}px` })
+
+  const durationText = (item: TimelineItem) => {
+    if (!item.startTime || !item.endTime) return ''
+    const ms = item.endTime - item.startTime
+    if (ms < 1000) return `${ms.toFixed(0)}ms`
+    return `${(ms / 1000).toFixed(1)}s`
   }
 
   return (
-    <div className={styles.timelineContainer}>
-      {timeline.map((recipe) => {
-        const isOpen = openRecipes.has(recipe.instanceId)
-        return (
-          <div key={recipe.instanceId} className={styles.timelineRecipe}>
-            <div
-              className={styles.timelineRecipeHeader}
-              onClick={() => toggleRecipe(recipe.instanceId)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ')
-                  toggleRecipe(recipe.instanceId)
-              }}
-            >
-              <span className={styles.timelineRecipeIcon}>
-                {isOpen ? '▼' : '▶'}
+    <div className={styles.timeline}>
+      {timeline.map((item) => (
+        <div
+          key={item.instanceId}
+          className={styles.recipeBlock}
+          style={depthIndent(item.depth)}
+        >
+          <div
+            className={styles.recipeHeader}
+            onClick={() => toggleRecipe(item.instanceId)}
+          >
+            <span className={styles.statusIcon}>{statusIcon(item.status)}</span>
+            <span className={styles.recipeLabel}>{item.label}</span>
+            {item.retries > 0 && (
+              <span className={styles.retryBadge} title="Retry count">
+                🔄 {item.retries}
               </span>
-              <span className={styles.timelineRecipeLabel}>{recipe.label}</span>
-              <span
-                className={`${styles.timelineRecipeStatus} ${statusClass(recipe.status)}`}
-              >
-                {recipe.status}
-              </span>
-            </div>
-            {isOpen && (
-              <div className={styles.timelineSkills}>
-                {recipe.skills.length === 0 ? (
-                  <div className={styles.timelineEmptySkill}>
-                    No skills executed yet
-                  </div>
-                ) : (
-                  recipe.skills.map((skill, idx) => (
-                    <div
-                      key={idx}
-                      className={`${styles.timelineSkill} ${skillClass(skill.status)}`}
-                    >
-                      <span className={styles.timelineSkillName}>
-                        {skill.name}
-                      </span>
-                      <span className={styles.timelineSkillStatus}>
-                        {skill.status}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
             )}
+            <span className={styles.duration}>{durationText(item)}</span>
+            <span className={styles.expandIcon}>
+              {openRecipes.has(item.instanceId) ? '▼' : '▶'}
+            </span>
           </div>
-        )
-      })}
+          {openRecipes.has(item.instanceId) && (
+            <div className={styles.skillsList}>
+              {item.skills.length === 0 && (
+                <div className={styles.noSkills}>No skills executed</div>
+              )}
+              {item.skills.map((skill, idx) => (
+                <div
+                  key={`${skill.name}-${idx}`}
+                  className={styles.skillItem}
+                  style={depthIndent(item.depth + 1)}
+                >
+                  <span className={styles.statusIcon}>
+                    {skill.status === 'complete'
+                      ? '✅'
+                      : skill.status === 'failed'
+                        ? '❌'
+                        : skill.status === 'running'
+                          ? '⏳'
+                          : '⏸️'}
+                  </span>
+                  <span className={styles.skillName}>{skill.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      {timeline.length === 0 && (
+        <div className={styles.noEvents}>No recipe events found</div>
+      )}
     </div>
   )
 }

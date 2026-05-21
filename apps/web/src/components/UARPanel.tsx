@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { GraphVisualizer } from './GraphVisualizer'
+import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
 import { SkillGuide } from './SkillGuide'
@@ -2054,36 +2055,7 @@ export function UARPanel() {
         </div>
         {metrics && !isRunning && (
           <div className={styles.metricsPanel} title="Execution metrics from last run">
-            <div className={styles.metricsHeader}>Run Metrics</div>
-            <div className={styles.metricsGrid}>
-              <div className={styles.metricsItem}>
-                <span className={styles.metricsValue}>{metrics.total_time_sec.toFixed(2)}s</span>
-                <span className={styles.metricsLabel}>Total Time</span>
-              </div>
-              <div className={styles.metricsItem}>
-                <span className={styles.metricsValue}>{metrics.event_count}</span>
-                <span className={styles.metricsLabel}>Events</span>
-              </div>
-              <div className={styles.metricsItem}>
-                <span className={styles.metricsValue}>{metrics.cache_hits}</span>
-                <span className={styles.metricsLabel}>Cache Hits</span>
-              </div>
-              <div className={styles.metricsItem}>
-                <span className={styles.metricsValue}>{metrics.cache_misses}</span>
-                <span className={styles.metricsLabel}>Cache Misses</span>
-              </div>
-              {metrics.skill_times_ms && Object.keys(metrics.skill_times_ms).length > 0 && (
-                <div className={styles.metricsSkills}>
-                  <div className={styles.metricsSkillsHeader}>Skill Timing</div>
-                  {Object.entries(metrics.skill_times_ms).map(([skill, ms]) => (
-                    <div key={skill} className={styles.metricsSkillRow}>
-                      <span className={styles.metricsSkillName}>{skill}</span>
-                      <span className={styles.metricsSkillTime}>{ms.toFixed(1)}ms</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <MetricsDashboard metrics={metrics} darkMode={darkMode} />
           </div>
         )}
         <div className={styles.statusText} title="Current system status">
