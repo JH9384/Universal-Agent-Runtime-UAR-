@@ -40,6 +40,10 @@ class Config:
             os.getenv("API_WORKERS", str(DEFAULT_API_WORKERS))
         )
 
+        # Debug flag must be set before is_production check
+        self.debug = os.getenv("DEBUG", "false").lower() == "true"
+        self.log_level = os.getenv("LOG_LEVEL", "info").upper()
+
         # Security Configuration
         # In production, SECRET_KEY must be explicitly set
         # In development, generate one if not set
@@ -54,8 +58,6 @@ class Config:
             self.secret_key = os.getenv(
                 "SECRET_KEY", self._generate_secret_key()
             )
-        self.debug = os.getenv("DEBUG", "false").lower() == "true"
-        self.log_level = os.getenv("LOG_LEVEL", "info").upper()
 
         # Rate Limiting
         self.rate_limit_enabled = (
