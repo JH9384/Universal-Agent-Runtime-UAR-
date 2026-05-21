@@ -2,7 +2,6 @@
 Tests for Flexible GraphRAG integration.
 """
 
-import pytest
 from uar.core.flexible_graphrag import (
     GraphBackend,
     SearchStrategy,

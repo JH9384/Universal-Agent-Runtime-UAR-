@@ -179,7 +179,6 @@ async def _async_event_stream(executor, strategy, goal, timeout, cid=""):
     Runs the blocking generator in the default thread pool so the
     async event loop stays responsive.
     """
-    loop = asyncio.get_event_loop()
     it = executor.iter_events(
         strategy, goal, timeout_seconds=timeout, correlation_id=cid
     )
@@ -190,6 +189,7 @@ async def _async_event_stream(executor, strategy, goal, timeout, cid=""):
         except StopIteration:
             return None
 
+    loop = asyncio.get_running_loop()
     while True:
         event = await loop.run_in_executor(None, _next)
         if event is None:
@@ -1473,10 +1473,10 @@ async def stream_goal(
                                 f"[{request_id}] Stream persisted "
                                 f"{len(events)} events (fallback)"
                             )
-                        except Exception as e:
+                        except Exception as persist_err:
                             logger.error(
                                 f"[{request_id}] Failed to persist stream "
-                                f"events in finally: {str(e)}"
+                                f"events in finally: {str(persist_err)}"
                             )
 
             return StreamingResponse(

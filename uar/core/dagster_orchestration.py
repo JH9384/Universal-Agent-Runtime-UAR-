@@ -15,7 +15,7 @@ Key features:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Callable, TypeVar
+from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -380,7 +380,6 @@ if DAGSTER_AVAILABLE:
     @asset(name="raw_documents")
     def raw_documents_asset(context) -> MaterializeResult:
         """Dagster asset for raw documents."""
-        from uar.skills.doc_ingest_enhanced import doc_ingest_enhanced
         
         # This would be called with proper context in production
         # For now, return a placeholder

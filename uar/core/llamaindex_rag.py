@@ -15,11 +15,10 @@ Key features:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field
 from datetime import datetime
-import uuid
 
 try:
     from llama_index import (

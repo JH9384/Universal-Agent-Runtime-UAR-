@@ -11,7 +11,7 @@ This module provides UAR skill wrappers for the integrated frameworks:
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from uar.core.registry import register_skill
 
 logger = logging.getLogger(__name__)
@@ -133,7 +133,6 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
         orchestrator.register_agent(agent)
 
         # Create and assign task
-        from uar.core.crewai_integration import AgentTask
 
         task = orchestrator.create_task(
             description=task_description,
@@ -597,11 +596,9 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         from uar.core.flexible_graphrag import (
-            FlexibleGraphRAG,
             GraphBackend,
             SearchStrategy,
             get_graphrag_instance,
-            create_standard_ontology,
         )
 
         # Get metadata

@@ -14,7 +14,7 @@ Key features:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -27,7 +27,7 @@ except ImportError:
     CREWAI_AVAILABLE = False
     logging.warning("CrewAI not available. Install with: pip install crewai>=0.80")
 
-from uar.core.agent_framework import Agent, AgentMessage, MessageType
+from uar.core.agent_framework import Agent
 
 
 logger = logging.getLogger(__name__)

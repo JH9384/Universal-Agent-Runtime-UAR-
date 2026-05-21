@@ -65,7 +65,6 @@ def _calculate_distance(
 ) -> Dict[str, Any]:
     """Calculate angular distance between two coordinates."""
     from astropy.coordinates import SkyCoord
-    from astropy import units as u
 
     try:
         c1 = SkyCoord(ra1, dec1, unit='deg')
@@ -142,7 +141,6 @@ def _calculate_energy(wavelength: str) -> Dict[str, Any]:
 def _calculate_redshift(z: str) -> Dict[str, Any]:
     """Calculate cosmological properties from redshift."""
     from astropy.cosmology import Planck18
-    from astropy import units as u
 
     try:
         z_val = float(z)
