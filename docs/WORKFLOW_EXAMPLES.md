@@ -2,6 +2,9 @@
 
 This guide provides copy-paste examples for common UAR workflows.
 
+For a user-focused cookbook with visualization, metrics, recipe timeline,
+and UOR workflow examples, see [User Examples and Common Needs](USER_EXAMPLES.md).
+
 ## Quick Start Examples
 
 ### 1. Analyze a Codebase

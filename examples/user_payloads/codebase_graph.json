@@ -1,0 +1,8 @@
+{
+  "goal": "Analyze the codebase structure, identify important modules, and create a dependency graph for visualization.",
+  "skills": ["doc_ingest", "dependency_map", "sum_review"],
+  "input_path": ".",
+  "metadata": {
+    "use_hierarchical": true
+  }
+}

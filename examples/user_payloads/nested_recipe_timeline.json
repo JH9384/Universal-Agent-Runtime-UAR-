@@ -1,0 +1,20 @@
+{
+  "goal": "Analyze the project using a mixed recipe and skill order so the UI can show recipe timeline nesting and metrics.",
+  "skills": ["doc_ingest", "dependency_map", "sum_review"],
+  "input_path": ".",
+  "execution_order": [
+    {
+      "id": "dep-map-recipe-1",
+      "type": "recipe",
+      "content": "dep_map"
+    },
+    {
+      "id": "summary-skill-1",
+      "type": "skill",
+      "content": "sum_review"
+    }
+  ],
+  "metadata": {
+    "use_hierarchical": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "goal": "Index the documentation and source files into a knowledge graph for later semantic search.",
+  "skills": ["graphrag_index"],
+  "input_path": ".",
+  "metadata": {
+    "graphrag_method": "local"
+  }
+}

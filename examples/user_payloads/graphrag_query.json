@@ -1,0 +1,7 @@
+{
+  "goal": "What are the main components, responsibilities, and integration points in this project?",
+  "skills": ["graphrag_query"],
+  "metadata": {
+    "graphrag_method": "local"
+  }
+}

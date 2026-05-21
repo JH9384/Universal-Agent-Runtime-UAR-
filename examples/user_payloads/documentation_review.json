@@ -1,0 +1,8 @@
+{
+  "goal": "Review the documentation, identify missing sections, unclear instructions, and the top five improvements.",
+  "skills": ["doc_ingest", "ollama_generate", "sum_review"],
+  "input_path": "./docs",
+  "metadata": {
+    "ollama_model": "llama3.1"
+  }
+}
