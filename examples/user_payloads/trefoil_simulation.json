@@ -1,0 +1,10 @@
+{
+  "goal": "Compute triple trefoil knot quaternion equilibrium on Clifford torus",
+  "input_path": "",
+  "parameters": {
+    "num_points": 256,
+    "num_trefoils": 3,
+    "rotation_speed": 1.0
+  },
+  "skills": ["trefoil_simulation"]
+}

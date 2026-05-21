@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { GraphVisualizer } from './GraphVisualizer'
+import { TrefoilKnotVisualizer } from './TrefoilKnotVisualizer'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -199,6 +200,7 @@ const SKILL_GROUPS = [
       { id: 'bio_compute',     label: 'bio_compute',     desc: 'Bioinformatics with Biopython: DNA/RNA/protein analysis, sequence alignment (requires biopython)' },
       { id: 'relativity',      label: 'relativity',      desc: 'General relativity with EinsteinPy: spacetime metrics, geodesics, gravitational physics (requires einsteinpy)' },
       { id: 'data_viz_3d',     label: 'data_viz_3d',     desc: '3D visualization with PyVista: mesh analysis, VTK integration, scientific plotting (requires pyvista)' },
+      { id: 'trefoil_simulation', label: 'trefoil_simulation', desc: 'Triple trefoil knot quaternion equilibrium: Clifford torus skeleton with Frenet frame rotation and emergent singularity core (requires numpy)' },
     ]
   },
   {
@@ -386,6 +388,7 @@ export function UARPanel() {
   const [events, setEvents] = useState<any[]>([])
   const [eventViewMode, setEventViewMode] = useState<'json' | 'timeline'>('timeline')
   const [graph, setGraph] = useState<any>(null)
+  const [trefoilData, setTrefoilData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -896,7 +899,7 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
-    setEvents([]); setGraph(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1089,7 +1092,12 @@ export function UARPanel() {
                   return [...next, json]
                 })
                 if (json.type === 'skill_start' && json.skill) setCurrentSkill(json.skill)
-                if (json.type === 'skill_complete' && json.skill) setCurrentSkill(`Completed: ${json.skill}`)
+                if (json.type === 'skill_complete' && json.skill) {
+                  setCurrentSkill(`Completed: ${json.skill}`)
+                  if (json.skill === 'trefoil_simulation' && json.payload?.result) {
+                    setTrefoilData(json.payload.result)
+                  }
+                }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
                 if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
                 if (json.type === 'orchestration_plan' && json.payload?.graph) setGraph(json.payload.graph)
@@ -1261,7 +1269,12 @@ export function UARPanel() {
                 return [...next, json]
               })
               if (json.type === 'skill_start' && json.skill) setCurrentSkill(json.skill)
-              if (json.type === 'skill_complete' && json.skill) setCurrentSkill(`Completed: ${json.skill}`)
+              if (json.type === 'skill_complete' && json.skill) {
+                setCurrentSkill(`Completed: ${json.skill}`)
+                if (json.skill === 'trefoil_simulation' && json.payload?.result) {
+                  setTrefoilData(json.payload.result)
+                }
+              }
               if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
               if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
               if (json.type === 'orchestration_plan' && json.payload?.graph) setGraph(json.payload.graph)
@@ -1301,7 +1314,7 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); eventCountRef.current = 0 }, [])
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -2235,6 +2248,22 @@ export function UARPanel() {
           </div>
         </div>
       </div>
+
+      {/* 3D Trefoil Visualization */}
+      {(trefoilData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🌀 3D Trefoil Simulation</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer} style={{ minHeight: '400px' }}>
+                <TrefoilKnotVisualizer data={trefoilData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {skillGuideOpen && (
         <div
