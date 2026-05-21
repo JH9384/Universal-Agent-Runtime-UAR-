@@ -58,6 +58,33 @@ from uar.api.metrics import get_metrics_collector
 
 # Constants
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+
+
+class _WebSocketConnectionCounter:
+    """Global WebSocket connection cap with async-safe acquire/release."""
+
+    def __init__(self, max_connections: int = 0):
+        self.max_connections = max_connections
+        self.count = 0
+        self.lock = asyncio.Lock()
+
+    async def acquire(self) -> bool:
+        if self.max_connections <= 0:
+            return True
+        async with self.lock:
+            if self.count >= self.max_connections:
+                return False
+            self.count += 1
+            return True
+
+    def release(self) -> None:
+        if self.max_connections > 0:
+            self.count = max(0, self.count - 1)
+
+
+_ws_conn_counter = _WebSocketConnectionCounter(
+    int(os.getenv("WEBSOCKET_MAX_CONNECTIONS", "0"))
+)
 CHUNK_SIZE = 1024 * 64  # 64KB
 DEFAULT_BROWSE_LIMIT = 200
 BACKPRESSURE_DELAY = 0.1  # seconds
@@ -716,6 +743,11 @@ async def stream_goal_ws(
         await websocket.close(code=1008, reason="Rate limit exceeded")
         return
 
+    # Enforce global WebSocket connection cap
+    if not await _ws_conn_counter.acquire():
+        await websocket.close(code=1008, reason="Too many connections")
+        return
+
     await websocket.accept()
     websocket.state.correlation_id = correlation_id
 
@@ -1079,6 +1111,7 @@ async def stream_goal_ws(
             },
         )
     finally:
+        _ws_conn_counter.release()
         try:
             await websocket.close()
         except Exception:
@@ -1606,6 +1639,11 @@ async def websocket_run(websocket: WebSocket):
             "error": error,
         }
 
+    # Enforce global WebSocket connection cap
+    if not await _ws_conn_counter.acquire():
+        await websocket.close(code=1008, reason="Too many connections")
+        return
+
     await websocket.accept()
     heartbeat_task = None
     heartbeat_stop = asyncio.Event()
@@ -1840,6 +1878,7 @@ async def websocket_run(websocket: WebSocket):
             except Exception:
                 pass
     finally:
+        _ws_conn_counter.release()
         heartbeat_stop.set()
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
@@ -1907,8 +1946,14 @@ async def liveness_probe():
 
 
 @app.get("/api/metrics")
-async def metrics_endpoint():
-    """Prometheus-compatible metrics endpoint."""
+async def metrics_endpoint(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Prometheus-compatible metrics endpoint.
+
+    Optionally protected by METRICS_API_KEY env var in production.
+    """
+    _check_metrics_auth(credentials)
     metrics = get_metrics_collector()
     return Response(
         content=metrics.get_prometheus_format(),
@@ -1917,10 +1962,34 @@ async def metrics_endpoint():
 
 
 @app.get("/api/metrics/json")
-async def metrics_json_endpoint():
-    """JSON metrics endpoint for debugging."""
+async def metrics_json_endpoint(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """JSON metrics endpoint for debugging.
+
+    Optionally protected by METRICS_API_KEY env var in production.
+    """
+    _check_metrics_auth(credentials)
     metrics = get_metrics_collector()
     return metrics.get_metrics()
+
+
+def _check_metrics_auth(
+    credentials: Optional[HTTPAuthorizationCredentials],
+) -> None:
+    """Require Bearer token if METRICS_API_KEY is configured."""
+    expected = os.getenv("METRICS_API_KEY", "").strip()
+    if not expected:
+        return
+    token = credentials.credentials if credentials else ""
+    if token != expected:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "Unauthorized",
+                "message": "Valid metrics API key required",
+            },
+        )
 
 
 @app.get("/api/health/circuit-breakers")

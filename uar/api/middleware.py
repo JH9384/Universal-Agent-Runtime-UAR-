@@ -246,6 +246,76 @@ def reset_rate_limiter():
         rate_limiter._request_count = 0
 
 
+class RedisRateLimiter:
+    """Redis-backed distributed rate limiter for multi-instance deployments.
+
+    Uses Redis sorted sets with automatic TTL expiration.  Requires
+    ``redis`` package and ``REDIS_URL`` environment variable.
+    """
+
+    def __init__(self, redis_url: str):
+        import redis
+
+        self._redis = redis.from_url(redis_url, decode_responses=True)
+
+    def is_allowed(
+        self, key: str, limit: int, window: int
+    ) -> tuple[bool, int]:
+        import redis
+
+        now = time.time()
+        window_start = now - window
+        pipe = self._redis.pipeline()
+        zset_key = f"uar:ratelimit:{key}"
+        pipe.zremrangebyscore(zset_key, 0, window_start)
+        pipe.zcard(zset_key)
+        pipe.zadd(zset_key, {str(now): now})
+        pipe.expire(zset_key, window)
+        try:
+            _, current_count, _, _ = pipe.execute()
+        except redis.RedisError:
+            # Redis unavailable: permissive fallback
+            return True, limit - 1
+        if current_count >= limit:
+            # Roll back the just-added entry
+            self._redis.zrem(zset_key, str(now))
+            return False, 0
+        remaining = max(0, limit - current_count - 1)
+        return True, remaining
+
+    def get_remaining(self, key: str, limit: int, window: int) -> int:
+        import redis
+
+        window_start = time.time() - window
+        try:
+            self._redis.zremrangebyscore(
+                f"uar:ratelimit:{key}", 0, window_start
+            )
+            current = self._redis.zcard(f"uar:ratelimit:{key}")
+        except redis.RedisError:
+            return limit
+        return max(0, limit - current)
+
+
+def create_rate_limiter() -> RateLimiter:
+    """Factory: return RedisRateLimiter if REDIS_URL is set, else in-memory."""
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if redis_url:
+        try:
+            return RedisRateLimiter(redis_url)  # type: ignore[return-value]
+        except ImportError:
+            logger.warning(
+                "REDIS_URL set but redis package not installed; "
+                "falling back to in-memory rate limiter"
+            )
+    return RateLimiter()
+
+
+# Replace the module-level instance with the factory result so that
+# importing modules always get the correct backend.
+rate_limiter = create_rate_limiter()
+
+
 def _load_api_keys() -> Dict[str, Dict]:
     """Load API keys from environment variable.
 

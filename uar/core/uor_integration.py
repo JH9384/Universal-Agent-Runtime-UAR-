@@ -21,7 +21,7 @@ Key features:
 import logging
 from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import json
@@ -121,7 +121,7 @@ class UORObject:
     ):
         """Add provenance information to the object."""
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
         self.provenance.append(
             {
                 "source": source,

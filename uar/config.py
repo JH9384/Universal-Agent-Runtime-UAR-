@@ -315,7 +315,8 @@ def validate_docker_environment() -> list[str]:
 
     if in_docker:
         # In Docker, certain things should always be true
-        if os.getuid() == 0:
+        # os.getuid() is Unix-only; skip root check on Windows
+        if hasattr(os, "getuid") and os.getuid() == 0:
             issues.append(
                 "Running as root in Docker container "
                 "(should use non-root user)"
