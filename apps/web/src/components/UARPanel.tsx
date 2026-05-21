@@ -3,6 +3,8 @@ import { GraphVisualizer } from './GraphVisualizer'
 import { TrefoilKnotVisualizer } from './TrefoilKnotVisualizer'
 import { MolecularVisualizer } from './MolecularVisualizer'
 import { QuantumCircuitVisualizer } from './QuantumCircuitVisualizer'
+import { PhysicsVisualizer } from './PhysicsVisualizer'
+import { MathVisualizer } from './MathVisualizer'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -395,6 +397,8 @@ export function UARPanel() {
   const [trefoilData, setTrefoilData] = useState<any>(null)
   const [molecularData, setMolecularData] = useState<any>(null)
   const [quantumData, setQuantumData] = useState<any>(null)
+  const [physicsData, setPhysicsData] = useState<any>(null)
+  const [mathData, setMathData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -905,7 +909,7 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
-    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1108,6 +1112,12 @@ export function UARPanel() {
                   }
                   if (json.skill === 'quantum_circuit_visualization' && json.payload?.result) {
                     setQuantumData(json.payload.result)
+                  }
+                  if (json.skill === 'physics_compute' && json.payload?.result) {
+                    setPhysicsData(json.payload.result)
+                  }
+                  if (json.skill === 'math_compute' && json.payload?.result) {
+                    setMathData(json.payload.result)
                   }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
@@ -1326,7 +1336,7 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); eventCountRef.current = 0 }, [])
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -2303,6 +2313,38 @@ export function UARPanel() {
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
                 <QuantumCircuitVisualizer data={quantumData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Physics Computation */}
+      {(physicsData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🔭 Physics Computation</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <PhysicsVisualizer data={physicsData} darkMode={darkMode} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Math Computation */}
+      {(mathData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>📐 Math Computation</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <MathVisualizer data={mathData} darkMode={darkMode} />
               </div>
             </div>
           </div>
