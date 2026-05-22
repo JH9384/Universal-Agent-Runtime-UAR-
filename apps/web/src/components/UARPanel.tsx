@@ -536,7 +536,7 @@ export function UARPanel() {
     const initial: Record<string, boolean> = {}
     const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
     // Only expand key sections by default for better performance
-    const keySections = ['Documents', 'Goal', 'Skills']
+    const keySections = ['Documents', 'Goal']
     sections.forEach(s => initial[s] = keySections.includes(s))
     return initial
   })
