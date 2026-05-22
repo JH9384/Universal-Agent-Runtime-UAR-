@@ -6,7 +6,7 @@
   border-radius: 8px;
 }
 
-.dark {
+:global(.dark) {
   background: #111827;
 }
 
@@ -26,7 +26,7 @@
   text-align: center;
 }
 
-.dark .card {
+:global(.dark) .card {
   background: #1f2937;
   border-color: #374151;
 }
@@ -39,7 +39,7 @@
   margin-bottom: 4px;
 }
 
-.dark .cardLabel {
+:global(.dark) .cardLabel {
   color: #9ca3af;
 }
 
@@ -49,7 +49,7 @@
   color: #1f2937;
 }
 
-.dark .cardValue {
+:global(.dark) .cardValue {
   color: #f9fafb;
 }
 
@@ -67,7 +67,7 @@
   letter-spacing: 0.05em;
 }
 
-.dark .sectionTitle {
+:global(.dark) .sectionTitle {
   color: #d1d5db;
 }
 
@@ -85,7 +85,7 @@
   overflow: hidden;
 }
 
-.dark .cacheBarBg {
+:global(.dark) .cacheBarBg {
   background: #451a03;
 }
 
@@ -103,7 +103,7 @@
   color: #6b7280;
 }
 
-.dark .cacheLegend {
+:global(.dark) .cacheLegend {
   color: #9ca3af;
 }
 
@@ -121,7 +121,7 @@
   color: #1f2937;
 }
 
-.dark .cacheRate {
+:global(.dark) .cacheRate {
   color: #f9fafb;
 }
 
@@ -149,7 +149,7 @@
   text-align: right;
 }
 
-.dark .barLabel {
+:global(.dark) .barLabel {
   color: #d1d5db;
 }
 
@@ -161,7 +161,7 @@
   overflow: hidden;
 }
 
-.dark .barTrack {
+:global(.dark) .barTrack {
   background: #374151;
 }
 
@@ -180,7 +180,7 @@
   font-family: monospace;
 }
 
-.dark .barValue {
+:global(.dark) .barValue {
   color: #9ca3af;
 }
 
@@ -196,7 +196,7 @@
   text-align: center;
 }
 
-.dark .empty {
+:global(.dark) .empty {
   color: #9ca3af;
 }
 

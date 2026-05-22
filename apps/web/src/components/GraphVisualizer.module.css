@@ -29,7 +29,7 @@
   z-index: 10;
 }
 
-.dark .toolbar {
+:global(.dark) .toolbar {
   background: #1f2937;
   border-bottom-color: #374151;
 }
@@ -45,7 +45,7 @@
   color: #111827;
 }
 
-.dark .searchInput {
+:global(.dark) .searchInput {
   background: #111827;
   border-color: #374151;
   color: #f9fafb;
@@ -61,7 +61,7 @@
   cursor: pointer;
 }
 
-.dark .filterSelect {
+:global(.dark) .filterSelect {
   background: #111827;
   border-color: #374151;
   color: #f9fafb;
@@ -82,13 +82,13 @@
   background: #f3f4f6;
 }
 
-.dark .toolbarButton {
+:global(.dark) .toolbarButton {
   background: #374151;
   border-color: #4b5563;
   color: #e5e7eb;
 }
 
-.dark .toolbarButton:hover {
+:global(.dark) .toolbarButton:hover {
   background: #4b5563;
 }
 
@@ -116,7 +116,7 @@
   transition: box-shadow 0.15s, transform 0.15s;
 }
 
-.dark .customNode {
+:global(.dark) .customNode {
   background: #1f2937;
   color: #f9fafb;
 }
@@ -194,7 +194,7 @@
   text-align: center;
 }
 
-.dark .emptyState {
+:global(.dark) .emptyState {
   color: #9ca3af;
 }
 
@@ -216,7 +216,7 @@
   font-size: 12px;
 }
 
-.dark .emptyHint code {
+:global(.dark) .emptyHint code {
   background: #374151;
 }
 

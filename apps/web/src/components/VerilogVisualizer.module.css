@@ -9,7 +9,7 @@
   background: #0f172a;
 }
 
-.dark {
+:global(.dark) {
   background: #0f172a;
 }
 

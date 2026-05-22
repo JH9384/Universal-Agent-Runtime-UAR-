@@ -1466,171 +1466,171 @@ body {
 }
 
 /* Dark mode styles */
-.dark .container {
+:global(.dark) .container {
   background-color: #1a1a1a;
   color: #e5e5e5;
 }
 
-.dark .header {
+:global(.dark) .header {
   background-color: #2d2d2d;
   border-bottom-color: #404040;
 }
 
-.dark .headerTitle {
+:global(.dark) .headerTitle {
   color: #e5e5e5;
 }
 
-.dark .section {
+:global(.dark) .section {
   background-color: #2d2d2d;
   border-color: #404040;
 }
 
-.dark .sectionHeader {
+:global(.dark) .sectionHeader {
   color: #e5e5e5;
 }
 
-.dark .input,
-.dark .textarea {
+:global(.dark) .input,
+:global(.dark) .textarea {
   background-color: #1a1a1a;
   border-color: #404040;
   color: #e5e5e5;
 }
 
-.dark .chip {
+:global(.dark) .chip {
   background-color: #3d3d3d;
   color: #e5e5e5;
   border-color: #505050;
 }
 
-.dark .chipActive {
+:global(.dark) .chipActive {
   background-color: #3b82f6;
   color: white;
 }
 
-.dark .button {
+:global(.dark) .button {
   background-color: #3d3d3d;
   color: #e5e5e5;
   border-color: #505050;
 }
 
-.dark .button:hover {
+:global(.dark) .button:hover {
   background-color: #4d4d4d;
 }
 
-.dark .eventItem {
+:global(.dark) .eventItem {
   background-color: #2d2d2d;
   border-color: #404040;
 }
 
-.dark .modalOverlay {
+:global(.dark) .modalOverlay {
   background-color: rgba(0, 0, 0, 0.8);
 }
 
-.dark .modalContent {
+:global(.dark) .modalContent {
   background-color: #2d2d2d;
   border-color: #404040;
 }
 
-.dark .helpBox {
+:global(.dark) .helpBox {
   background-color: #2d2d2d;
   border-color: #404040;
 }
 
-.dark .tipsPopup {
-  background-color: #2d2d2d;
-  border-color: #404040;
-  color: #e5e5e5;
-}
-
-.dark .tipsPopupSection {
-  border-color: #404040;
-}
-
-.dark .tipsPopupSectionHeader {
-  color: #e5e5e5;
-}
-
-.dark .tipsPopupSectionContent {
-  color: #e5e5e5;
-}
-
-.dark .graphLegend {
+:global(.dark) .tipsPopup {
   background-color: #2d2d2d;
   border-color: #404040;
   color: #e5e5e5;
 }
 
-.dark .nodeDetails {
+:global(.dark) .tipsPopupSection {
+  border-color: #404040;
+}
+
+:global(.dark) .tipsPopupSectionHeader {
+  color: #e5e5e5;
+}
+
+:global(.dark) .tipsPopupSectionContent {
+  color: #e5e5e5;
+}
+
+:global(.dark) .graphLegend {
   background-color: #2d2d2d;
   border-color: #404040;
   color: #e5e5e5;
 }
 
-.dark .projectRoot {
+:global(.dark) .nodeDetails {
+  background-color: #2d2d2d;
+  border-color: #404040;
   color: #e5e5e5;
 }
 
-.dark .builderToggleButton {
+:global(.dark) .projectRoot {
+  color: #e5e5e5;
+}
+
+:global(.dark) .builderToggleButton {
   background-color: #3d3d3d;
   color: #e5e5e5;
   border-color: #505050;
 }
 
-.dark .builderToggleButton:hover {
+:global(.dark) .builderToggleButton:hover {
   background-color: #4d4d4d;
 }
 
-.dark .builderToggleActive {
+:global(.dark) .builderToggleActive {
   background-color: #3b82f6;
   color: white;
   border-color: #3b82f6;
 }
 
-.dark .builderPaletteSkills {
+:global(.dark) .builderPaletteSkills {
   background-color: #1a1a1a;
   border-color: #404040;
 }
 
-.dark .builderPaletteChip {
+:global(.dark) .builderPaletteChip {
   background-color: #1e3a5f;
   color: #6db3f2;
   border-color: #2a5a8a;
 }
 
-.dark .builderPaletteChip:hover {
+:global(.dark) .builderPaletteChip:hover {
   background-color: #3b82f6;
   color: white;
 }
 
-.dark .builderDropZone {
+:global(.dark) .builderDropZone {
   background-color: #1a1a1a;
   border-color: #505050;
 }
 
-.dark .builderDropZone:has(.builderRecipeChip) {
+:global(.dark) .builderDropZone:has(.builderRecipeChip) {
   border-color: #404040;
   background-color: #2d2d2d;
 }
 
-.dark .builderEmpty {
+:global(.dark) .builderEmpty {
   color: #888;
 }
 
-.dark .builderRecipeChip {
+:global(.dark) .builderRecipeChip {
   background-color: #1e3a5f;
   border-color: #2a5a8a;
 }
 
-.dark .builderRecipeChipIndex {
+:global(.dark) .builderRecipeChipIndex {
   background-color: #2d2d2d;
   color: #6db3f2;
 }
 
-.dark .builderRecipeChipRemove {
+:global(.dark) .builderRecipeChipRemove {
   color: #ef4444;
 }
 
-.dark .builderRecipeChipRemove:hover {
+:global(.dark) .builderRecipeChipRemove:hover {
   color: #f87171;
 }
 
