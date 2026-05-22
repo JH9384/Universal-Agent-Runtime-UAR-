@@ -1814,7 +1814,7 @@ export function UARPanel() {
                 })}
               </div>
               <div className={styles.orderText} title="Skills execute in this order">
-                <strong>Order:</strong>
+                <strong>Order of Operation:</strong>
                 {unifiedOrder.length > 0 && (
                   <button
                     onClick={() => {
