@@ -272,3 +272,55 @@ def test_relativity_uses_dynamic_dimensions():
         assert "range(4)" not in line, (
             "Hardcoded range(4) found; should use variable dim"
         )
+
+
+# ---------------------------------------------------------------------------
+# 11. Histogram metrics with p50/p99
+# ---------------------------------------------------------------------------
+
+
+def test_histogram_tracks_percentiles():
+    """Histogram should approximate p50 and p99 from bucket counts."""
+    from uar.api.metrics import Histogram
+
+    h = Histogram()
+    for i in range(100):
+        h.observe(i * 0.01)  # 0.00 to 0.99
+
+    # p50 should be near 0.50
+    assert 0.45 <= h.percentile(0.50) <= 0.55
+    # p99 should be near 0.99
+    assert 0.95 <= h.percentile(0.99) <= 1.05
+
+
+def test_metrics_collector_includes_p50_p99():
+    """get_metrics should include p50_ms and p99_ms for each endpoint."""
+    from uar.api.metrics import MetricsCollector
+
+    mc = MetricsCollector()
+    mc.record_request("GET /test", 0.1)
+    mc.record_request("GET /test", 0.2)
+    mc.record_request("GET /test", 0.3)
+
+    data = mc.get_metrics()
+    ep = data["endpoints"]["GET /test"]
+    assert "p50_ms" in ep
+    assert "p99_ms" in ep
+    assert ep["p50_ms"] > 0
+
+
+def test_prometheus_format_emits_histogram_buckets():
+    """Prometheus output should include _bucket, _count, _sum lines."""
+    from uar.api.metrics import MetricsCollector
+
+    mc = MetricsCollector()
+    mc.record_request("GET /test", 0.05)
+    mc.record_skill("math_compute", 0.1)
+
+    prom = mc.get_prometheus_format()
+    assert "uar_request_duration_seconds_bucket" in prom
+    assert "uar_request_duration_seconds_count" in prom
+    assert "uar_request_duration_seconds_sum" in prom
+    assert "uar_skill_duration_seconds_bucket" in prom
+    assert "uar_skill_duration_seconds_count" in prom
+    assert "uar_skill_errors" in prom

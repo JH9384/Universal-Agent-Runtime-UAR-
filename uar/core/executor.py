@@ -17,6 +17,7 @@ from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .registry import registry
 from .validation import validate_timeout
 from .recipes import DEFAULT_RECIPES
+from ..api.metrics import get_metrics_collector
 
 # GC hint threshold: trigger gc.collect() after runs with many events
 # to reduce memory pressure from accumulated intermediate objects.
@@ -975,8 +976,10 @@ class Executor:
                             result = _run_with_timeout(
                                 fn, ctx, timeout_seconds
                             )
-                            _metrics_skill_times[skill_name] = (
-                                time.time() - _skill_t0
+                            _skill_dur = time.time() - _skill_t0
+                            _metrics_skill_times[skill_name] = _skill_dur
+                            get_metrics_collector().record_skill(
+                                skill_name, _skill_dur, error=False
                             )
 
                             # Output guardrails check
@@ -1046,6 +1049,11 @@ class Executor:
                                     skill=skill_name,
                                     error=str(last_error),
                                     payload={"attempts": attempt + 1},
+                                )
+                                get_metrics_collector().record_skill(
+                                    skill_name,
+                                    time.time() - _skill_t0,
+                                    error=True,
                                 )
                                 _add_error(f"{skill_name}: {str(last_error)}")
                                 if (
@@ -1420,8 +1428,12 @@ class Executor:
             skill_name = "sum_review"
             yield _ev("skill_start", skill=skill_name)
             try:
+                _s0 = time.time()
                 summary = _run_with_timeout(
                     registry.get(skill_name), ctx, timeout_seconds
+                )
+                get_metrics_collector().record_skill(
+                    skill_name, time.time() - _s0, error=False
                 )
                 outputs.append({skill_name: summary})
                 yield _ev(
@@ -1430,6 +1442,9 @@ class Executor:
                     payload={"result": summary},
                 )
             except Exception as e:
+                get_metrics_collector().record_skill(
+                    skill_name, time.time() - _s0, error=True
+                )
                 # Review failures don't fail the entire execution
                 errors.append(f"Review failed: {str(e)}")
 

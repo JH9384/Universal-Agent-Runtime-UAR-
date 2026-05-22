@@ -5,9 +5,55 @@ Provides Prometheus-compatible metrics and basic runtime statistics.
 
 import time
 import threading
+import functools
 from collections import defaultdict
-from typing import Dict, Any
-from dataclasses import dataclass
+from typing import Dict, Any, Callable, Optional
+from dataclasses import dataclass, field
+
+
+# Prometheus histogram buckets (seconds)
+DEFAULT_BUCKETS = [
+    0.005, 0.01, 0.025, 0.05, 0.075,
+    0.1, 0.25, 0.5, 0.75, 1.0,
+    2.5, 5.0, 7.5, 10.0, float("inf"),
+]
+
+
+@dataclass
+class Histogram:
+    """Prometheus-style histogram with fixed buckets."""
+    buckets: list = field(default_factory=lambda: DEFAULT_BUCKETS.copy())
+    counts: Dict[float, int] = field(default_factory=lambda: defaultdict(int))
+    total_sum: float = 0.0
+    total_count: int = 0
+
+    def observe(self, value: float) -> None:
+        self.total_sum += value
+        self.total_count += 1
+        for b in self.buckets:
+            if value <= b:
+                self.counts[b] += 1
+                break
+
+    def percentile(self, p: float) -> float:
+        """Return approximate percentile from histogram."""
+        if self.total_count == 0:
+            return 0.0
+        target = int(self.total_count * p)
+        cumulative = 0
+        prev_bucket = 0.0
+        for b in sorted(self.buckets):
+            cumulative += self.counts.get(b, 0)
+            if cumulative >= target:
+                # Linear interpolation within bucket
+                bucket_width = b - prev_bucket
+                if bucket_width == 0 or b == float("inf"):
+                    return prev_bucket
+                overshoot = cumulative - target
+                fraction = overshoot / max(self.counts.get(b, 1), 1)
+                return prev_bucket + bucket_width * (1 - fraction)
+            prev_bucket = b
+        return prev_bucket
 
 
 @dataclass
@@ -15,15 +61,27 @@ class RequestMetrics:
     count: int = 0
     total_duration: float = 0.0
     errors: int = 0
+    histogram: Histogram = field(default_factory=Histogram)
+
+
+@dataclass
+class SkillMetrics:
+    count: int = 0
+    total_duration: float = 0.0
+    errors: int = 0
+    histogram: Histogram = field(default_factory=Histogram)
 
 
 class MetricsCollector:
-    """Collects and aggregates request metrics."""
+    """Collects and aggregates request and skill metrics."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._endpoint_metrics: Dict[str, RequestMetrics] = defaultdict(
             RequestMetrics
+        )
+        self._skill_metrics: Dict[str, SkillMetrics] = defaultdict(
+            SkillMetrics
         )
         self._total_requests = 0
         self._total_errors = 0
@@ -38,9 +96,22 @@ class MetricsCollector:
             metrics = self._endpoint_metrics[endpoint]
             metrics.count += 1
             metrics.total_duration += duration
+            metrics.histogram.observe(duration)
             if error:
                 metrics.errors += 1
                 self._total_errors += 1
+
+    def record_skill(
+        self, skill_name: str, duration: float, error: bool = False
+    ) -> None:
+        """Record a skill execution metric."""
+        with self._lock:
+            metrics = self._skill_metrics[skill_name]
+            metrics.count += 1
+            metrics.total_duration += duration
+            metrics.histogram.observe(duration)
+            if error:
+                metrics.errors += 1
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get current metrics snapshot."""
@@ -54,8 +125,24 @@ class MetricsCollector:
                 endpoint_stats[endpoint] = {
                     "count": m.count,
                     "avg_duration_ms": round(avg_duration * 1000, 2),
+                    "p50_ms": round(m.histogram.percentile(0.50) * 1000, 2),
+                    "p99_ms": round(m.histogram.percentile(0.99) * 1000, 2),
                     "error_rate": round(m.errors / m.count * 100, 2)
                     if m.count > 0
+                    else 0.0,
+                }
+            skill_stats = {}
+            for skill, sm in self._skill_metrics.items():
+                avg_duration = (
+                    sm.total_duration / sm.count if sm.count > 0 else 0.0
+                )
+                skill_stats[skill] = {
+                    "count": sm.count,
+                    "avg_duration_ms": round(avg_duration * 1000, 2),
+                    "p50_ms": round(sm.histogram.percentile(0.50) * 1000, 2),
+                    "p99_ms": round(sm.histogram.percentile(0.99) * 1000, 2),
+                    "error_rate": round(sm.errors / sm.count * 100, 2)
+                    if sm.count > 0
                     else 0.0,
                 }
             return {
@@ -68,6 +155,7 @@ class MetricsCollector:
                 if self._total_requests > 0
                 else 0.0,
                 "endpoints": endpoint_stats,
+                "skills": skill_stats,
             }
 
     def get_prometheus_format(self) -> str:
@@ -82,22 +170,58 @@ class MetricsCollector:
             lines.append("# TYPE uar_errors_total counter")
             lines.append(f"uar_errors_total {self._total_errors}")
 
+            # Request duration histogram
             lines.append(
                 "# HELP uar_request_duration_seconds Request duration"
             )
             lines.append("# TYPE uar_request_duration_seconds histogram")
-
             for endpoint, m in self._endpoint_metrics.items():
-                avg = m.total_duration / m.count if m.count > 0 else 0.0
+                for b in sorted(m.histogram.buckets):
+                    le = "+Inf" if b == float("inf") else f"{b}"
+                    count = m.histogram.counts.get(b, 0)
+                    lines.append(
+                        f'uar_request_duration_seconds_bucket'
+                        f'{{endpoint="{endpoint}",le="{le}"}} {count}'
+                    )
                 lines.append(
-                    f'uar_request_duration_seconds{{endpoint="{endpoint}"}} '
-                    f"{avg:.4f}"
+                    f'uar_request_duration_seconds_count'
+                    f'{{endpoint="{endpoint}"}} {m.count}'
                 )
                 lines.append(
-                    f'uar_request_count{{endpoint="{endpoint}"}} {m.count}'
+                    f'uar_request_duration_seconds_sum'
+                    f'{{endpoint="{endpoint}"}} '
+                    f"{m.histogram.total_sum:.4f}"
                 )
                 lines.append(
-                    f'uar_request_errors{{endpoint="{endpoint}"}} {m.errors}'
+                    f'uar_request_errors'
+                    f'{{endpoint="{endpoint}"}} {m.errors}'
+                )
+
+            # Skill duration histogram
+            lines.append(
+                "# HELP uar_skill_duration_seconds Skill execution duration"
+            )
+            lines.append("# TYPE uar_skill_duration_seconds histogram")
+            for skill, sm in self._skill_metrics.items():
+                for b in sorted(sm.histogram.buckets):
+                    le = "+Inf" if b == float("inf") else f"{b}"
+                    count = sm.histogram.counts.get(b, 0)
+                    lines.append(
+                        f'uar_skill_duration_seconds_bucket'
+                        f'{{skill="{skill}",le="{le}"}} {count}'
+                    )
+                lines.append(
+                    f'uar_skill_duration_seconds_count'
+                    f'{{skill="{skill}"}} {sm.count}'
+                )
+                lines.append(
+                    f'uar_skill_duration_seconds_sum'
+                    f'{{skill="{skill}"}} '
+                    f"{sm.histogram.total_sum:.4f}"
+                )
+                lines.append(
+                    f'uar_skill_errors'
+                    f'{{skill="{skill}"}} {sm.errors}'
                 )
 
             return "\n".join(lines) + "\n"
@@ -110,3 +234,35 @@ _metrics = MetricsCollector()
 def get_metrics_collector() -> MetricsCollector:
     """Get the global metrics collector instance."""
     return _metrics
+
+
+def timed(
+    endpoint: Optional[str] = None,
+    record_error: bool = True,
+) -> Callable:
+    """Decorator to auto-time a function and record metrics.
+
+    Usage::
+        @timed(endpoint="/api/uar/run")
+        async def run_goal(...):
+            ...
+    """
+    def decorator(func: Callable) -> Callable:
+        name = endpoint or func.__qualname__
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            collector = get_metrics_collector()
+            start = time.perf_counter()
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                if record_error:
+                    duration = time.perf_counter() - start
+                    collector.record_request(name, duration, error=True)
+                raise
+            finally:
+                duration = time.perf_counter() - start
+                collector.record_request(name, duration, error=False)
+        return wrapper
+    return decorator
