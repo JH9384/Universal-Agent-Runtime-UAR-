@@ -1542,15 +1542,38 @@ body {
   color: #e5e5e5;
 }
 
+:global(.dark) .tipsPopupHeader {
+  background-color: #2d2d2d;
+  border-color: #404040;
+}
+
+:global(.dark) .tipsPopupTitle {
+  color: #e5e5e5;
+}
+
+:global(.dark) .tipsPopupClose {
+  color: #aaa;
+}
+
+:global(.dark) .tipsPopupClose:hover {
+  color: #e5e5e5;
+}
+
 :global(.dark) .tipsPopupSection {
   border-color: #404040;
 }
 
 :global(.dark) .tipsPopupSectionHeader {
   color: #e5e5e5;
+  background-color: #2d2d2d;
+}
+
+:global(.dark) .tipsPopupSectionHeader:hover {
+  background-color: #3d3d3d;
 }
 
 :global(.dark) .tipsPopupSectionContent {
+  background-color: #1a1a1a;
   color: #e5e5e5;
 }
 
