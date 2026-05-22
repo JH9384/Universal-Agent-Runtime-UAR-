@@ -483,6 +483,7 @@ export function UARPanel() {
 
   // Document management
   const [presets, setPresets] = useState<Preset[]>([])
+  const [presetsLoaded, setPresetsLoaded] = useState(false)
   const [projectRoot, setProjectRoot] = useState<string>('')
   const [libraryPath, setLibraryPath] = useState<string>('')
   const [library, setLibrary] = useState<LibFile[]>([])
@@ -614,6 +615,7 @@ export function UARPanel() {
       .then((r) => r.json())
       .then((d) => {
         setPresets(d.presets || [])
+        setPresetsLoaded(true)
         setProjectRoot(d.project_root || '')
         if (d.library) {
           setLibraryPath(d.library)
@@ -621,7 +623,7 @@ export function UARPanel() {
           setInputPath((cur) => cur || d.library)
         }
       })
-      .catch(() => {})
+      .catch(() => { setPresetsLoaded(true) })
     refreshLibrary()
     // Fetch backend skills for validation consistency
     fetch('/api/uar/skills', { headers: authHeaders() })
@@ -1664,7 +1666,8 @@ export function UARPanel() {
 
             <div className={styles.presetsContainer}>
               <div className={styles.label} title="Quick access to pre-configured project directories">Presets</div>
-              {presets.length === 0 && <span className={styles.loadingText}>(loading…)</span>}
+              {!presetsLoaded && <span className={styles.loadingText}>(loading…)</span>}
+              {presetsLoaded && presets.length === 0 && <span className={styles.loadingText}>(none)</span>}
               {presets.map((p) => (
                 <button key={p.path} disabled={isRunning} onClick={() => onPick(p.path)} className={chip(inputPath === p.path, isRunning)} title={p.path}>
                   {p.name}
