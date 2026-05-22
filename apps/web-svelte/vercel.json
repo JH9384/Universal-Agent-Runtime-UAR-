@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".svelte-kit/output",
+  "framework": "sveltekit",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://api.uar.dev/api/$1"
+    }
+  ]
+}

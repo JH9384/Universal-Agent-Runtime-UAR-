@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from uar.api.routers.uor import get_store
-from uar.api.server import app
+from uar.api.server import app, require_auth
 from uar.objects import ObjectStore, seed_standard_runtimes
 
 CI_STABLE_TIMEOUT = 10.0
@@ -27,11 +27,16 @@ def uor(tmp_path):
     store = ObjectStore(db_path=str(tmp_path / "uor-test.sqlite3"))
     seed_standard_runtimes(store)
     app.dependency_overrides[get_store] = lambda: store
+    app.dependency_overrides[require_auth] = lambda: {
+        "user": "test",
+        "tier": "authenticated",
+    }
     try:
         with TestClient(app) as client:
             yield store, client
     finally:
         app.dependency_overrides.pop(get_store, None)
+        app.dependency_overrides.pop(require_auth, None)
 
 
 def create_object(

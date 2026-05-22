@@ -3,7 +3,7 @@
 import asyncio
 import time
 
-from uar.api.server import AdaptiveBackpressure
+from uar.services.execution import AdaptiveBackpressure
 from uar.core.executor import (
     _RECIPE_EXPANSION_CACHE,
     _expand_execution_order_with_markers,
