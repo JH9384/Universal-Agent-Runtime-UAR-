@@ -277,6 +277,177 @@ const SKILLS: Skill[] = [
     example: 'Goal: "Status check" → Skills: [uor_ecosystem_status]',
     output: 'Status map for all 6 ecosystem integrations',
     category: 'Ecosystem'
+  },
+  {
+    id: 'molecular_visualization',
+    label: 'molecular_visualization',
+    desc: 'Generate 3D molecular structure visualizations',
+    useCase: 'Visualize molecular structures with interactive 3D rendering',
+    example: 'Goal: "Show molecule" → Skills: [molecular_visualization]',
+    output: '3D molecular data with atoms, bonds, and element colors',
+    category: 'Analysis'
+  },
+  {
+    id: 'quantum_circuit_visualization',
+    label: 'quantum_circuit_visualization',
+    desc: 'Generate 3D quantum circuit layouts',
+    useCase: 'Visualize quantum circuits with qubit tracks, gates, and entanglement connections',
+    example: 'Goal: "Show quantum circuit" → Skills: [quantum_circuit_visualization]',
+    output: '3D quantum circuit data with gates, qubit tracks, and entanglements',
+    category: 'Analysis'
+  },
+  {
+    id: 'trefoil_simulation',
+    label: 'trefoil_simulation',
+    desc: 'Simulate and visualize 3D trefoil knot dynamics',
+    useCase: 'Interactive 3D trefoil knot simulation with parameter controls',
+    example: 'Goal: "Simulate trefoil" → Skills: [trefoil_simulation]',
+    output: '3D trefoil knot data with keyframes, expansion, and rotation controls',
+    category: 'Analysis'
+  },
+  {
+    id: 'data_viz_3d',
+    label: 'data_viz_3d',
+    desc: 'Generate 3D mesh visualizations',
+    useCase: 'Create interactive 3D mesh renders from geometric data',
+    example: 'Goal: "Visualize mesh" → Skills: [data_viz_3d]',
+    output: '3D mesh data with vertices, normals, and face indices',
+    category: 'Analysis'
+  },
+  {
+    id: 'verilog_parse',
+    label: 'verilog_parse',
+    desc: 'Parse Verilog HDL source code for module analysis',
+    useCase: 'Extract modules, ports, signals, and instances from Verilog',
+    example: 'Goal: "Parse Verilog" → Skills: [verilog_parse]',
+    output: 'Module hierarchy, port definitions, signal declarations, and instance connections',
+    category: 'Analysis'
+  },
+  {
+    id: 'fpga_verify',
+    label: 'fpga_verify',
+    desc: 'Verify Verilog modules with generated test vectors',
+    useCase: 'Generate pseudo-random test vectors and verify combinational logic',
+    example: 'Goal: "Verify FPGA module" → Skills: [verilog_parse, fpga_verify]',
+    prerequisites: ['verilog_parse'],
+    output: 'Test vector results, waveform metadata, pass/fail assertions',
+    category: 'Analysis'
+  },
+  {
+    id: 'riscv_sim',
+    label: 'riscv_sim',
+    desc: 'Simulate RISC-V assembly programs',
+    useCase: 'Emulate RISC-V instructions with symbol support and flexible execution',
+    example: 'Goal: "Simulate RISC-V" → Skills: [riscv_sim]',
+    output: 'Execution trace, register state, and memory contents',
+    category: 'Analysis'
+  },
+  {
+    id: 'physics_compute',
+    label: 'physics_compute',
+    desc: 'Physics and astronomy calculations',
+    useCase: 'Unit conversions, coordinate transforms, cosmology computations',
+    example: 'Goal: "Convert units" → Skills: [physics_compute]',
+    output: 'Computed physics values with units and precision',
+    category: 'Analysis'
+  },
+  {
+    id: 'math_compute',
+    label: 'math_compute',
+    desc: 'Symbolic math with SymPy',
+    useCase: 'Solve equations, differentiate, integrate, simplify expressions',
+    example: 'Goal: "Solve equation" → Skills: [math_compute]',
+    output: 'Symbolic math results and numerical evaluations',
+    category: 'Analysis'
+  },
+  {
+    id: 'cipher_ops',
+    label: 'cipher_ops',
+    desc: 'Cryptographic operations',
+    useCase: 'Encrypt/decrypt data, hash functions, digital signatures',
+    example: 'Goal: "Encrypt data" → Skills: [cipher_ops]',
+    output: 'Encrypted/decrypted data, hashes, or signatures',
+    category: 'Analysis'
+  },
+  {
+    id: 'openai_skills',
+    label: 'openai_skills',
+    desc: 'OpenAI GPT models for text generation and analysis',
+    useCase: 'Chat, completion, embeddings with GPT-4 and GPT-3.5',
+    example: 'Goal: "Analyze with GPT" → Skills: [doc_ingest, openai_skills]',
+    prerequisites: ['doc_ingest', 'OPENAI_API_KEY'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
+  },
+  {
+    id: 'anthropic_skills',
+    label: 'anthropic_skills',
+    desc: 'Anthropic Claude models for high-quality reasoning',
+    useCase: 'Claude 3 Opus, Sonnet, Haiku for complex reasoning tasks',
+    example: 'Goal: "Reason about code" → Skills: [doc_ingest, anthropic_skills]',
+    prerequisites: ['doc_ingest', 'ANTHROPIC_API_KEY'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
+  },
+  {
+    id: 'gemini_skills',
+    label: 'gemini_skills',
+    desc: 'Google Gemini models for multimodal capabilities',
+    useCase: 'Gemini Pro for text, image, and multimodal tasks',
+    example: 'Goal: "Analyze with Gemini" → Skills: [doc_ingest, gemini_skills]',
+    prerequisites: ['doc_ingest', 'GEMINI_API_KEY'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
+  },
+  {
+    id: 'mistral_skills',
+    label: 'mistral_skills',
+    desc: 'Mistral models for efficient inference',
+    useCase: 'Mistral 7B, Mixtral for fast local and cloud inference',
+    example: 'Goal: "Generate with Mistral" → Skills: [doc_ingest, mistral_skills]',
+    prerequisites: ['doc_ingest', 'MISTRAL_API_KEY'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
+  },
+  {
+    id: 'groq_skills',
+    label: 'groq_skills',
+    desc: 'Groq ultra-fast inference with LPU acceleration',
+    useCase: 'Real-time responses with LPU-accelerated inference',
+    example: 'Goal: "Fast inference" → Skills: [doc_ingest, groq_skills]',
+    prerequisites: ['doc_ingest', 'GROQ_API_KEY'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
+  },
+  {
+    id: 'huggingface_skills',
+    label: 'huggingface_skills',
+    desc: 'Hugging Face models via Inference API',
+    useCase: 'Access thousands of models via Hugging Face Inference API',
+    example: 'Goal: "Run HF model" → Skills: [doc_ingest, huggingface_skills]',
+    prerequisites: ['doc_ingest', 'HF_API_KEY'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
+  },
+  {
+    id: 'together_skills',
+    label: 'together_skills',
+    desc: 'Together.ai optimized open-source models',
+    useCase: 'Fast inference with optimized open-source models',
+    example: 'Goal: "Run Together model" → Skills: [doc_ingest, together_skills]',
+    prerequisites: ['doc_ingest', 'TOGETHER_API_KEY'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
+  },
+  {
+    id: 'lm_studio_skills',
+    label: 'lm_studio_skills',
+    desc: 'Local models via LM Studio',
+    useCase: 'Run local LLMs with LM Studio GUI interface',
+    example: 'Goal: "Local inference" → Skills: [doc_ingest, lm_studio_skills]',
+    prerequisites: ['doc_ingest', 'LM Studio running locally'],
+    output: 'AI-generated response with model info and context stats',
+    category: 'AI'
   }
 ]
 

@@ -1509,17 +1509,20 @@ export function UARPanel() {
             <ul className={styles.helpList}>
               <li>1. <strong>Select documents</strong> from the library or upload files</li>
               <li>2. <strong>Set a goal</strong> describing what you want to accomplish</li>
-              <li>3. <strong>Choose skills</strong> to apply (use recipes for quick workflows)</li>
-              <li>4. <strong>Run</strong> and monitor the execution in real-time</li>
+              <li>3. <strong>Build your order</strong> - add skills and recipes to the unified list, drag-and-drop to reorder</li>
+              <li>4. <strong>Run</strong> and watch real-time events, 3D visualizers, and dependency graphs appear</li>
             </ul>
           </div>
           <div className={styles.helpSection}>
             <strong>Pro Tips:</strong>
             <ul className={styles.helpList}>
-              <li>Use <strong>Recipes</strong> for common workflows</li>
-              <li><strong>doc_ingest</strong> reads files from your input_path</li>
-              <li>Skills execute in the order shown</li>
-              <li>Hover over skills for descriptions</li>
+              <li><strong>Unified Order</strong>: Mix skills and recipes freely - each gets a unique color and ID</li>
+              <li><strong>Duplicate</strong> items to repeat a skill without rebuilding the whole sequence</li>
+              <li><strong>Recipes</strong> (🍳) encapsulate workflows - create your own in the Recipe Builder</li>
+              <li><strong>3D Visualizers</strong> auto-appear when skills produce data - click 🎥 to record video</li>
+              <li><strong>WebSocket mode</strong> is more resilient for long runs than default SSE</li>
+              <li><strong>Hierarchical mode</strong> runs recipes as discrete units with retry per recipe block</li>
+              <li>Hover over skills for descriptions; click 💡 per section for detailed tips</li>
             </ul>
           </div>
         </div>
@@ -2734,15 +2737,17 @@ export function UARPanel() {
             {expandedTipSections['Skills'] && (
               <div className={styles.tipsPopupSectionContent}>
                 <ul>
-                  <li><strong>doc_ingest</strong> must be first to read files into context - without it, other skills have no data to process</li>
-                  <li><strong>Skill order matters</strong>: Skills execute sequentially, with each receiving the output of previous skills</li>
-                  <li><strong>Recipes</strong> provide pre-configured skill combinations for common workflows - use them as starting points</li>
+                  <li><strong>Unified Order</strong>: Skills and recipes are combined in a single ordered list - drag-and-drop to reorder, mix skills and recipes freely</li>
+                  <li><strong>Multiple instances</strong>: Add the same skill multiple times - each gets a unique color and ID for easy tracking</li>
+                  <li><strong>Recipes</strong> (🍳 prefix) expand into their skills at runtime but appear as single units in the order - great for encapsulating workflows</li>
+                  <li><strong>Duplicate / Remove</strong>: Use the buttons on each order item to clone or remove without breaking the sequence</li>
+                  <li><strong>Skill order matters</strong>: By default skills execute sequentially, with each receiving the output of previous skills. Enable <strong>hierarchical mode</strong> for discrete recipe units with snapshot/retry</li>
+                  <li><strong>Parallel execution</strong>: Groups of independent skills run in parallel automatically - the executor handles grouping</li>
                   <li><strong>AI/LLM skills</strong> require API keys (set in environment) or local services (Ollama, LM Studio must be running)</li>
                   <li><strong>Advanced options</strong> appear dynamically when relevant skills are selected (e.g., GraphRAG method, Ollama model)</li>
                   <li><strong>Skill dependencies</strong>: Some skills require specific outputs from earlier skills (e.g., graphrag_query needs graphrag_index first)</li>
                   <li><strong>Hover over skills</strong> to see descriptions of what each skill does</li>
                   <li><strong>Collapse/expand groups</strong> to focus on specific skill categories</li>
-                  <li><strong>Clear selection</strong> by clicking selected skills again to deselect them</li>
                 </ul>
               </div>
             )}
@@ -2940,16 +2945,18 @@ export function UARPanel() {
             {expandedTipSections['Run'] && (
               <div className={styles.tipsPopupSectionContent}>
                 <ul>
-                  <li><strong>Run Stream</strong> executes selected skills in sequence with real-time event updates - skills run one after another</li>
-                  <li><strong>Stop button</strong> appears during execution to abort the current run - useful if a skill is taking too long or you made a mistake</li>
+                  <li><strong>Run Stream</strong> executes the unified order with real-time event updates via SSE or WebSocket</li>
+                  <li><strong>WebSocket toggle</strong>: Switch between SSE (default) and WebSocket for streaming - WebSocket includes auto-reconnect and heartbeat resilience</li>
+                  <li><strong>Hierarchical mode</strong>: Enable for discrete recipe execution with snapshot/retry per recipe block instead of flat expansion</li>
+                  <li><strong>Stop button</strong> appears during execution to abort the current run - works for both SSE and WebSocket transports</li>
                   <li><strong>Clear Events</strong> removes previous run data from the display - doesn't affect the server, just the UI</li>
-                  <li><strong>Status bar</strong> shows running state, event count, and graph availability - monitor progress at a glance</li>
-                  <li><strong>Execution time</strong> and current skill are displayed while running - track which skill is active and total duration</li>
-                  <li><strong>Prerequisites</strong>: Goal must be non-empty and at least one skill must be selected to enable the Run button</li>
-                  <li><strong>Event limit</strong>: System stops after 1000 events to prevent memory issues - large runs may need to be split</li>
-                  <li><strong>Error handling</strong>: Errors are displayed in the error box with details and copy functionality</li>
-                  <li><strong>Concurrency</strong>: Only one run at a time - the Run button is disabled while another run is in progress</li>
-                  <li><strong>Streaming</strong>: Events stream in real-time via Server-Sent Events - you see progress as it happens</li>
+                  <li><strong>Status bar</strong> shows running state, event count, and current skill/recipe at a glance</li>
+                  <li><strong>3D Visualizers</strong>: When skills produce 3D data (molecular, quantum circuit, trefoil, mesh), interactive panels appear automatically with 🎥 video recording and 📷 PNG export</li>
+                  <li><strong>Graph panel</strong>: Dependency graphs appear when dependency_map or GraphRAG skills emit graph data</li>
+                  <li><strong>Prerequisites</strong>: Goal must be non-empty and at least one skill or recipe must be selected</li>
+                  <li><strong>Event limit</strong>: System stops after 1000 events to prevent memory issues</li>
+                  <li><strong>Error handling</strong>: Errors are displayed in the error banner with details, copy-to-clipboard, and dismiss</li>
+                  <li><strong>Concurrency</strong>: Only one run at a time - the Run button is disabled while another is in progress</li>
                 </ul>
               </div>
             )}
@@ -2973,16 +2980,19 @@ export function UARPanel() {
             {expandedTipSections['Events'] && (
               <div className={styles.tipsPopupSectionContent}>
                 <ul>
-                  <li><strong>Events</strong> show real-time execution details from each skill - JSON-formatted log of what's happening</li>
-                  <li><strong>Display limit</strong>: Shows the last 50 events in the UI (full history available in server logs)</li>
-                  <li><strong>Event types</strong>: skill_start, skill_complete, error, orchestration_plan, and more</li>
-                  <li><strong>skill_start</strong>: Indicates a skill has begun execution - includes skill name and metadata</li>
-                  <li><strong>skill_complete</strong>: Indicates a skill finished successfully - includes results and output data</li>
-                  <li><strong>error</strong>: Something went wrong - includes error message and context for debugging</li>
-                  <li><strong>orchestration_plan</strong>: Shows the execution plan before skills run - useful for understanding workflow</li>
-                  <li><strong>Debugging</strong>: Use events to understand execution flow and identify where failures occur</li>
-                  <li><strong>JSON format</strong>: Allows for programmatic analysis and export if needed</li>
-                  <li><strong>Timestamps</strong>: Each event includes timing information for performance analysis</li>
+                  <li><strong>Events</strong> show real-time execution details - JSON-formatted log streamed via SSE or WebSocket</li>
+                  <li><strong>Event limit</strong>: UI displays up to 1000 events; the stream auto-terminates past the server limit to prevent memory issues</li>
+                  <li><strong>orchestration_plan</strong>: Sent first - shows the full execution graph with skills and recipe boundaries</li>
+                  <li><strong>recipe_start</strong> / <strong>recipe_end</strong>: Mark the beginning and end of a recipe block (hierarchical mode) with duration metrics</li>
+                  <li><strong>recipe_skipped</strong>: Emitted when a recipe's condition evaluates false (conditional recipes)</li>
+                  <li><strong>skill_start</strong>: A skill has begun execution - includes skill name and metadata</li>
+                  <li><strong>skill_complete</strong>: A skill finished successfully - includes results and output data for visualizers</li>
+                  <li><strong>parallel_start</strong> / <strong>parallel_complete</strong>: Marks parallel skill group execution boundaries</li>
+                  <li><strong>metrics</strong>: Aggregated performance data (total time, cache hits/misses, per-skill timing) sent at completion</li>
+                  <li><strong>error</strong> / <strong>skill_failed</strong>: Something went wrong - includes error message, request ID, and context</li>
+                  <li><strong>heartbeat</strong>: Keeps SSE/WebSocket connections alive during long runs - filtered from the UI log to reduce noise</li>
+                  <li><strong>complete</strong>: Final event indicating run status (completed / failed) with any accumulated errors</li>
+                  <li><strong>Debugging</strong>: Use the event filter buttons (All, Recipes, Skills, Errors) to focus on specific event types</li>
                 </ul>
               </div>
             )}
