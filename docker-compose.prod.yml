@@ -17,13 +17,17 @@ services:
       - RATE_LIMIT_ANONYMOUS=10
       - RATE_LIMIT_AUTHENTICATED=100
       - RATE_LIMIT_WINDOW=60
+      - REDIS_URL=redis://redis:6379/0
       - ALM_SERVICE_URL=http://alm-service:5001/api/v1
     volumes:
       - ./runs:/var/lib/uar/runs
       - ./logs:/var/log/uar
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -45,7 +49,7 @@ services:
     networks:
       - uar-network
 
-  # Optional: Redis for rate limiting (future enhancement)
+  # Redis for shared rate limiting and caching (required in production)
   redis:
     image: redis:alpine
     ports:
@@ -55,8 +59,11 @@ services:
     restart: unless-stopped
     networks:
       - uar-network
-    profiles:
-      - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
 
 volumes:
   redis-data:

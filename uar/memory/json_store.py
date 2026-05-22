@@ -2,6 +2,7 @@ import fcntl
 import json
 import os
 import threading
+import time
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -76,3 +77,52 @@ class JsonRunStore:
                                 # Skip corrupted lines
                                 continue
                 return records
+
+    def purge_old_records(self, retention_days: int) -> int:
+        """Remove records older than *retention_days* from the JSONL file.
+
+        Returns the number of records removed.
+        """
+        if retention_days <= 0 or not self.path.exists():
+            return 0
+
+        cutoff = time.time() - (retention_days * 86400)
+        removed = 0
+        kept_lines: List[str] = []
+
+        with self._thread_lock:
+            with self._acquire_lock():
+                with self.path.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        raw = line.strip()
+                        if not raw:
+                            continue
+                        try:
+                            record = json.loads(raw)
+                            ts = record.get("timestamp")
+                            if ts and isinstance(ts, (int, float)):
+                                if ts < cutoff:
+                                    removed += 1
+                                    continue
+                        except json.JSONDecodeError:
+                            # Keep corrupted lines rather than losing data
+                            pass
+                        kept_lines.append(raw)
+
+                # Rewrite only if we removed something
+                if removed > 0:
+                    tmp = self.path.with_suffix(".jsonl.tmp")
+                    with tmp.open("w", encoding="utf-8") as f:
+                        for raw in kept_lines:
+                            f.write(raw + "\n")
+                        f.flush()
+                        os.fsync(f.fileno())
+                    try:
+                        tmp.replace(self.path)
+                    except PermissionError:
+                        # Windows: cannot replace if file is open; fallback
+                        import shutil
+                        shutil.copy2(str(tmp), str(self.path))
+                        tmp.unlink()
+
+        return removed

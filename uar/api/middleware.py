@@ -8,12 +8,12 @@ from collections import defaultdict, deque, OrderedDict
 from functools import wraps
 from typing import Dict, Optional, List, Any
 
-import json
 import logging
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from uar.api.metrics import get_metrics_collector
+from uar.core.audit import get_audit_logger
 
 logger = logging.getLogger(__name__)
 
@@ -235,15 +235,16 @@ class RateLimiter:
             return max(0, limit - len(request_times))
 
 
-rate_limiter = RateLimiter()
-
-
 def reset_rate_limiter():
     """Reset rate limiter state (for testing only)."""
-    with rate_limiter._lock:
-        rate_limiter.requests.clear()
-        rate_limiter._key_order.clear()
-        rate_limiter._request_count = 0
+    # rate_limiter is created lazily by create_rate_limiter()
+    _rl = globals().get("rate_limiter")
+    if _rl is None:
+        return
+    with _rl._lock:
+        _rl.requests.clear()
+        _rl._key_order.clear()
+        _rl._request_count = 0
 
 
 class RedisRateLimiter:
@@ -298,8 +299,14 @@ class RedisRateLimiter:
 
 
 def create_rate_limiter() -> RateLimiter:
-    """Factory: return RedisRateLimiter if REDIS_URL is set, else in-memory."""
+    """Factory: return RedisRateLimiter if REDIS_URL is set, else in-memory.
+
+    In production, Redis is strongly recommended (and will be required
+    in a future release) so that rate limits are shared across workers.
+    """
     redis_url = os.getenv("REDIS_URL", "").strip()
+    is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
+
     if redis_url:
         try:
             return RedisRateLimiter(redis_url)  # type: ignore[return-value]
@@ -308,6 +315,21 @@ def create_rate_limiter() -> RateLimiter:
                 "REDIS_URL set but redis package not installed; "
                 "falling back to in-memory rate limiter"
             )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Failed to connect to Redis at %s: %s. "
+                "Falling back to in-memory rate limiter.",
+                redis_url,
+                exc,
+            )
+
+    if is_production:
+        logger.warning(
+            "Running in production without REDIS_URL. "
+            "Rate limits will be per-process and inconsistent "
+            "under multi-worker or multi-replica deployments."
+        )
+
     return RateLimiter()
 
 
@@ -317,14 +339,24 @@ rate_limiter = create_rate_limiter()
 
 
 def _load_api_keys() -> Dict[str, Dict]:
-    """Load API keys from environment variable.
+    """Load API keys from environment variable or file.
 
     Format: comma-separated key:user:tier pairs
-    Example: dev-key-12345:developer:authenticated,
-             prod-key-67890:production:authenticated
+    If API_KEYS_FILE is set, reads keys from that file instead.
     """
-    api_keys_str = os.getenv("API_KEYS", "")
-    api_keys = {}
+    api_keys: Dict[str, Dict] = {}
+    api_keys_file = os.getenv("API_KEYS_FILE", "").strip()
+    if api_keys_file:
+        try:
+            with open(api_keys_file, "r", encoding="utf-8") as f:
+                api_keys_str = f.read().strip()
+        except OSError as exc:
+            logger.error(
+                "Cannot read API_KEYS_FILE %s: %s", api_keys_file, exc
+            )
+            return api_keys
+    else:
+        api_keys_str = os.getenv("API_KEYS", "")
 
     if api_keys_str:
         for key_entry in api_keys_str.split(","):
@@ -333,14 +365,11 @@ def _load_api_keys() -> Dict[str, Dict]:
                 key = parts[0].strip()
                 user = parts[1].strip()
                 tier = parts[2].strip() if len(parts) > 2 else "authenticated"
-
-                # Validate key and user are not empty
                 if not key or not user:
                     logger.warning(
                         f"Skipping invalid API key entry: {key_entry}"
                     )
                     continue
-
                 api_keys[key] = {"user": user, "tier": tier}
 
     return api_keys
@@ -348,6 +377,39 @@ def _load_api_keys() -> Dict[str, Dict]:
 
 # Load API keys from environment (no hardcoded keys)
 API_KEYS = _load_api_keys()
+_API_KEYS_FILE = os.getenv("API_KEYS_FILE", "").strip()
+_API_KEYS_MTIME = 0.0
+if _API_KEYS_FILE:
+    try:
+        _API_KEYS_MTIME = os.path.getmtime(_API_KEYS_FILE)
+    except OSError:
+        pass
+
+# Thread-safe lock for hot-reloading API keys
+_api_keys_lock = threading.Lock()
+
+
+def _maybe_reload_api_keys() -> None:
+    """Hot-reload API keys if API_KEYS_FILE has changed.
+
+    Thread-safe: concurrent requests will block on the lock
+    during reload, ensuring they always see a consistent key set.
+    """
+    global API_KEYS, _API_KEYS_MTIME
+    if not _API_KEYS_FILE:
+        return
+    with _api_keys_lock:
+        try:
+            mtime = os.path.getmtime(_API_KEYS_FILE)
+        except OSError:
+            return
+        if mtime > _API_KEYS_MTIME:
+            _API_KEYS_MTIME = mtime
+            new_keys = _load_api_keys()
+            if new_keys:
+                API_KEYS = new_keys
+                logger.info("API keys reloaded from %s", _API_KEYS_FILE)
+
 
 security = HTTPBearer(auto_error=False)
 
@@ -376,33 +438,11 @@ def _extract_skill_from_request(request: Request) -> Optional[str]:
 
     For run/stream endpoints, extracts the first skill from the skills list.
     Returns None if no skill can be determined.
+
+    Note: Body parsing was removed from middleware to avoid consuming
+    the ASGI stream. Skill-based rate limiting now relies on
+    endpoint-level data via _extract_skill_from_request_data.
     """
-    try:
-        # Import recipe helper from shared module to avoid circular import
-        from uar.core.recipes import get_recipe_skills
-
-        # Try to get body from state if already parsed by middleware
-        if hasattr(request.state, "_parsed_body"):
-            body = request.state._parsed_body
-            if isinstance(body, dict):
-                if "skills" in body and body["skills"]:
-                    return body["skills"][0]
-                if "execution_order" in body and body["execution_order"]:
-                    first_item = body["execution_order"][0]
-                    if isinstance(first_item, dict):
-                        if first_item.get("type") == "skill":
-                            return first_item.get("content")
-                        elif first_item.get("type") == "recipe":
-                            content = first_item.get("content")
-                            if content is not None and isinstance(
-                                content, str
-                            ):
-                                recipe_skills = get_recipe_skills(content)
-                                if recipe_skills:
-                                    return recipe_skills[0]
-    except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
-        pass
-
     return None
 
 
@@ -492,15 +532,25 @@ def build_rate_limit_key(
 
 
 def rate_limit_middleware(
-    request: Request, credentials: Optional[HTTPAuthorizationCredentials]
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials],
+    first_skill: Optional[str] = None,
 ):
-    """Rate limiting middleware with skill-specific limits"""
+    """Rate limiting middleware with skill-specific limits.
+
+    Args:
+        request: FastAPI Request object.
+        credentials: Optional bearer token credentials.
+        first_skill: Optional pre-parsed first skill name. When provided,
+            this is used instead of trying to extract from the request body,
+            avoiding ASGI stream consumption.
+    """
     # Use shared function to get rate limit key and tier in one call
     client_ip = request.client.host if request.client else "unknown"
     rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
 
     # Check for skill-specific rate limits
-    skill_name = _extract_skill_from_request(request)
+    skill_name = first_skill or _extract_skill_from_request(request)
     if skill_name and skill_name in SKILL_RATE_LIMITS:
         limit = SKILL_RATE_LIMITS[skill_name]["requests"]
         window = SKILL_RATE_LIMITS[skill_name]["window"]
@@ -525,6 +575,7 @@ def rate_limit_middleware(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "error": "Rate limit exceeded",
+                "error_code": "RATE_LIMIT_EXCEEDED",
                 "message": f"{limit} requests per {window} seconds allowed.",
                 "request_id": getattr(request.state, "request_id", "unknown"),
                 "skill": skill_name if skill_name else None,
@@ -538,11 +589,17 @@ def rate_limit_middleware(
 
 def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
     """Authentication middleware"""
+    _maybe_reload_api_keys()
     if not credentials:
         # Allow anonymous access with lower rate limits
         return None
 
-    if credentials.credentials not in API_KEYS:
+    with _api_keys_lock:
+        key_valid = credentials.credentials in API_KEYS
+        if key_valid:
+            user_info = API_KEYS[credentials.credentials].copy()
+
+    if not key_valid:
         logger.warning(
             f"Invalid API key attempted: {credentials.credentials[:8]}..."
         )
@@ -550,13 +607,47 @@ def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
                 "error": "Invalid API key",
+                "error_code": "INVALID_API_KEY",
                 "message": "The provided API key is not valid",
             },
         )
 
-    user_info = API_KEYS[credentials.credentials]
     logger.info(f"Authenticated user: {user_info['user']}")
     return user_info
+
+
+_SENSITIVE_QUERY_KEYS = frozenset(
+    {
+        "token",
+        "key",
+        "secret",
+        "password",
+        "passwd",
+        "api_key",
+        "apikey",
+        "auth",
+        "credential",
+        "session",
+        "jwt",
+        "bearer",
+    }
+)
+
+
+def _redact_query_params(url) -> str:
+    """Return URL query string with sensitive values masked."""
+    if not url.query:
+        return ""
+    from urllib.parse import parse_qsl, urlencode
+
+    params = parse_qsl(url.query)
+    redacted = []
+    for k, v in params:
+        if k.lower() in _SENSITIVE_QUERY_KEYS:
+            redacted.append((k, "***"))
+        else:
+            redacted.append((k, v))
+    return "?" + urlencode(redacted)
 
 
 def request_logging_middleware(request: Request, user_info: Optional[Dict]):
@@ -569,10 +660,14 @@ def request_logging_middleware(request: Request, user_info: Optional[Dict]):
     request.state.request_id = request_id
     request.state.correlation_id = correlation_id
 
+    # Build safe URL for logging (redact sensitive query params)
+    safe_query = _redact_query_params(request.url)
+    safe_url = f"{request.url.path}{safe_query}"
+
     user_str = f"user:{user_info['user']}" if user_info else "anonymous"
     logger.info(
         f"[cid={correlation_id}][req={request_id}] {request.method} "
-        f"{request.url.path} "
+        f"{safe_url} "
         f"from {request.client.host if request.client else 'unknown'} "
         f"({user_str})"
     )
@@ -608,6 +703,7 @@ def error_handler_middleware(func):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "error": "Internal server error",
+                    "error_code": "INTERNAL_SERVER_ERROR",
                     "message": "An unexpected error occurred",
                     "request_id": request_id,
                 },
@@ -635,7 +731,7 @@ def apply_middleware(app):
 
     Actual execution order (outermost to innermost):
     1. log_requests (last @app.middleware registered)
-    2. parse_request_body (second to last @app.middleware)
+    2. api_version_rewrite (second to last @app.middleware)
     3. limit_request_body (first @app.middleware registered)
 
     Note: CORS is already applied in server.py via add_middleware.
@@ -663,10 +759,10 @@ def apply_middleware(app):
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         content={
                             "error": "Request body too large",
+                            "error_code": "BODY_TOO_LARGE",
                             "message": (
                                 f"Maximum body size is {max_body_size} bytes"
                             ),
-                            "code": "BODY_TOO_LARGE",
                         },
                     )
             except ValueError:
@@ -674,27 +770,13 @@ def apply_middleware(app):
                 pass
         return await call_next(request)
 
-    # Request body parser - parses body early for rate limiting
+    # API version rewrite — supports /api/v1/ as alias for /api/
     # Runs second to last - second @app.middleware registered
     @app.middleware("http")
-    async def parse_request_body(request: Request, call_next):
-        # Parse JSON body for POST/PUT/PATCH requests
-        # and store in state for rate limiting middleware
-        if request.method in ("POST", "PUT", "PATCH"):
-            content_type = request.headers.get("content-type", "")
-            if "application/json" in content_type:
-                try:
-                    body_bytes = await request.body()
-                    if body_bytes:
-                        body = json.loads(body_bytes)
-                        request.state._parsed_body = body
-                        # Store body bytes in state for potential re-use
-                        # Endpoints can access via
-                        # request.state._parsed_body_bytes
-                        request.state._parsed_body_bytes = body_bytes
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    # Invalid JSON, let the endpoint handle it
-                    pass
+    async def api_version_rewrite(request: Request, call_next):
+        path = request.url.path
+        if path.startswith("/api/v1/"):
+            request.scope["path"] = path.replace("/api/v1/", "/api/", 1)
         return await call_next(request)
 
     # Request logging middleware
@@ -717,22 +799,25 @@ def apply_middleware(app):
         metrics.record_request(endpoint, process_time, error=is_error)
 
         # Structured audit log for security/compliance
-        audit_entry = {
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "level": (
-                "AUDIT" if request.url.path.startswith("/api/") else "INFO"
-            ),
-            "correlation_id": correlation_id,
-            "request_id": request_id,
-            "client_ip": request.client.host if request.client else None,
-            "method": request.method,
-            "path": request.url.path,
-            "status_code": response.status_code,
-            "duration_ms": round(process_time * 1000, 2),
-            "user_agent": request.headers.get("user-agent", "unknown"),
-            "referer": request.headers.get("referer"),
-        }
-        logger.info(json.dumps(audit_entry))
+        if request.url.path.startswith("/api/"):
+            audit = get_audit_logger()
+            audit.write(
+                event_type="api_access",
+                actor=getattr(request.state, "user_id", "anonymous"),
+                action=request.method,
+                resource=request.url.path,
+                outcome=(
+                    "success" if response.status_code < 400 else "failure"
+                ),
+                details={
+                    "status_code": response.status_code,
+                    "duration_ms": round(process_time * 1000, 2),
+                },
+                request_id=request_id,
+                client_ip=(
+                    request.client.host if request.client else None
+                ),
+            )
 
         logger.info(
             f"[cid={correlation_id}][req={request_id}] {request.method} "
@@ -760,4 +845,29 @@ def apply_middleware(app):
             response.headers["X-RateLimit-Remaining"] = str(remaining)
             response.headers["X-RateLimit-Window"] = str(window)
 
+        return response
+
+    # Security headers middleware
+    # Runs first (outermost) - last @app.middleware registered
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src *"
+        )
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()"
+        )
+        # HSTS only in production
+        if os.getenv("ENVIRONMENT", "").lower() == "production":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response

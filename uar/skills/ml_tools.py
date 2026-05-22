@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.safe_eval import safe_eval
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,8 @@ def optuna_tune(ctx: PipelineContext) -> Dict[str, Any]:
     """Hyperparameter optimization with Optuna.
 
     Metadata:
-        optuna_objective: Python expression for objective using 'trial' (Optuna trial)
+        optuna_objective:
+            Python expression for objective using 'trial' (Optuna trial)
         optuna_direction: 'minimize' or 'maximize'
         optuna_n_trials:  number of trials (default 20)
         optuna_params:    dict of parameter search spaces
@@ -22,7 +24,10 @@ def optuna_tune(ctx: PipelineContext) -> Dict[str, Any]:
     """
     import importlib.util
     if importlib.util.find_spec("optuna") is None:
-        return {"status": "failed", "error": "Optuna not installed. pip install optuna"}  # noqa: E501
+        return {
+            "status": "failed",
+            "error": "Optuna not installed. pip install optuna",
+        }
 
     import optuna
     import numpy as np
@@ -30,7 +35,10 @@ def optuna_tune(ctx: PipelineContext) -> Dict[str, Any]:
     meta = ctx.goal.metadata or {}
     direction = meta.get("optuna_direction", "minimize")
     n_trials = int(meta.get("optuna_n_trials", 20))
-    params_def = meta.get("optuna_params", {"x": {"type": "float", "low": -10, "high": 10}})
+    params_def = meta.get(
+        "optuna_params",
+        {"x": {"type": "float", "low": -10, "high": 10}},
+    )
 
     def objective(trial):
         # Build kwargs from params definition
@@ -38,15 +46,19 @@ def optuna_tune(ctx: PipelineContext) -> Dict[str, Any]:
         for name, spec in params_def.items():
             t = spec.get("type", "float")
             if t == "float":
-                kwargs[name] = trial.suggest_float(name, spec["low"], spec["high"])
+                kwargs[name] = trial.suggest_float(
+                    name, spec["low"], spec["high"]
+                )
             elif t == "int":
-                kwargs[name] = trial.suggest_int(name, spec["low"], spec["high"])
+                kwargs[name] = trial.suggest_int(
+                    name, spec["low"], spec["high"]
+                )
             elif t == "categorical":
                 kwargs[name] = trial.suggest_categorical(name, spec["choices"])
 
         # User provides the expression
         expr = meta.get("optuna_objective", "x**2")
-        return eval(expr, {"np": np, **kwargs})
+        return safe_eval(expr, {"np": np, **kwargs})
 
     try:
         study = optuna.create_study(direction=direction)
@@ -79,7 +91,10 @@ def chromadb_store(ctx: PipelineContext) -> Dict[str, Any]:
     """
     import importlib.util
     if importlib.util.find_spec("chromadb") is None:
-        return {"status": "failed", "error": "ChromaDB not installed. pip install chromadb"}  # noqa: E501
+        return {
+            "status": "failed",
+            "error": "ChromaDB not installed. pip install chromadb",
+        }
 
     import chromadb
     from chromadb.config import Settings
@@ -99,7 +114,11 @@ def chromadb_store(ctx: PipelineContext) -> Dict[str, Any]:
             if not ids:
                 ids = [f"doc_{i}" for i in range(len(docs))]
             collection.add(documents=docs, ids=ids, metadatas=metas)
-            return {"status": "completed", "added": len(docs), "collection": collection_name}
+            return {
+                "status": "completed",
+                "added": len(docs),
+                "collection": collection_name,
+            }
 
         elif operation == "query":
             query = meta.get("chroma_query", "")
@@ -117,14 +136,25 @@ def chromadb_store(ctx: PipelineContext) -> Dict[str, Any]:
 
         elif operation == "peek":
             results = collection.peek()
-            return {"status": "completed", "count": len(results.get("ids", [])), "preview": results}
+            return {
+                "status": "completed",
+                "count": len(results.get("ids", [])),
+                "preview": results,
+            }
 
         elif operation == "delete":
             ids = meta.get("chroma_ids", [])
             collection.delete(ids=ids)
-            return {"status": "completed", "deleted": len(ids), "collection": collection_name}
+            return {
+                "status": "completed",
+                "deleted": len(ids),
+                "collection": collection_name,
+            }
 
         else:
-            return {"status": "failed", "error": f"Unknown operation: {operation}"}
+            return {
+                "status": "failed",
+                "error": f"Unknown operation: {operation}",
+            }
     except Exception as exc:
         return {"status": "failed", "error": str(exc)}

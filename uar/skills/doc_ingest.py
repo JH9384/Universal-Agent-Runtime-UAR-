@@ -33,11 +33,25 @@ MAX_TOTAL_SIZE = (
 )  # 100MB total limit to prevent memory exhaustion
 
 # Resolve allowed root from environment or use current working directory
-# In production, set PROJECT_ROOT env var to ensure consistent path resolution
+# In production, PROJECT_ROOT must be explicitly set to prevent
+# path traversal attacks from unexpected CWD values.
+_is_production = (
+    os.getenv("ENVIRONMENT", "").lower() == "production"
+)
 _allowed_root_env = os.getenv("PROJECT_ROOT") or os.getenv("RUNS_DIR")
 ALLOWED_ROOT = (
     Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
 )
+
+
+def _ensure_production_root() -> None:
+    """Validate PROJECT_ROOT is set at runtime (not import time)."""
+    if _is_production and not _allowed_root_env:
+        raise RuntimeError(
+            "PROJECT_ROOT environment variable must be set in production"
+        )
+
+
 ALLOWED_EXTENSIONS = {
     # docs / text
     ".txt",
@@ -463,6 +477,7 @@ def doc_ingest(ctx):
     - Comprehensive error handling for individual files
     - Security validation at every access point
     """
+    _ensure_production_root()
     input_path = ctx.goal.metadata.get("input_path")
     if not input_path:
         return {"documents": [], "warning": "No input_path provided"}

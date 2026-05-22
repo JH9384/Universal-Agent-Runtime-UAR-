@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
 import threading
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List
+from functools import wraps
 
 from .exceptions import SkillNotFoundError, ValidationError
 
@@ -65,5 +67,36 @@ def register_skill(name: str) -> Callable[[Callable], Callable]:
     def decorator(fn: Callable) -> Callable:
         registry.register(name, fn)
         return fn
+
+    return decorator
+
+
+def requires_package(
+    package: str, *, install_hint: str = ""
+) -> Callable[[Callable], Callable]:
+    """Decorator that checks an optional dependency is available at call time.
+
+    If *package* is not importable, the wrapped function returns a
+    standardized error dict instead of raising ``ImportError``.
+
+    Args:
+        package: Top-level package name to check (e.g. ``"scipy"``).
+        install_hint: Optional ``pip install`` hint for the error message.
+    """
+
+    def decorator(fn: Callable) -> Callable:
+        @wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if importlib.util.find_spec(package) is None:
+                hint = f" {install_hint}" if install_hint else ""
+                return {
+                    "status": "failed",
+                    "error": (
+                        f"{package} is not installed.{hint}"
+                    ),
+                }
+            return fn(*args, **kwargs)
+
+        return wrapper
 
     return decorator

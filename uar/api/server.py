@@ -55,6 +55,7 @@ from .middleware import (
     rate_limiter,
     RATE_LIMITS,
     apply_middleware,
+    _extract_skill_from_request_data,
 )
 from .tracing import trace_span
 from uar.api.metrics import get_metrics_collector
@@ -64,6 +65,63 @@ from uar.services import (
     EventService,
     GoalExecutionService,
 )
+
+# Optional OpenTelemetry tracing (no-op if not installed)
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor,
+        ConsoleSpanExporter,
+    )
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+    _tracing_available = True
+except ImportError:
+    _tracing_available = False
+
+    class _NoOpTracer:  # type: ignore[no-redef]
+        """Fallback tracer when OpenTelemetry is not installed."""
+
+        def start_as_current_span(self, name, **_kwargs):
+            class _NoOpContextManager:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_exc):
+                    pass
+
+            return _NoOpContextManager()
+
+    trace = _NoOpTracer()  # type: ignore[misc]
+
+
+def _setup_tracing(app: FastAPI) -> None:
+    """Initialize OpenTelemetry tracing if enabled and available."""
+    if not _tracing_available:
+        return
+    if os.getenv("UAR_ENABLE_TRACING", "").lower() != "true":
+        return
+
+    provider = TracerProvider()
+    # Console exporter for local dev; OTLP for production
+    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        try:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
+
+            exporter = OTLPSpanExporter()
+        except ImportError:
+            exporter = ConsoleSpanExporter()
+    else:
+        exporter = ConsoleSpanExporter()
+
+    provider.add_span_processor(BatchSpanProcessor(exporter))
+    trace.set_tracer_provider(provider)
+    FastAPIInstrumentor().instrument_app(app)
+    logger.info("OpenTelemetry tracing initialized")
+
 
 # Constants
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
@@ -97,7 +155,9 @@ _ws_conn_counter = _WebSocketConnectionCounter(
 CHUNK_SIZE = 1024 * 64  # 64KB
 DEFAULT_BROWSE_LIMIT = 200
 BACKPRESSURE_DELAY = 0.1  # seconds
-SHUTDOWN_SLEEP = 0.1  # seconds
+SHUTDOWN_SLEEP = float(
+    os.getenv("SHUTDOWN_GRACE_SECONDS", "30")
+)  # seconds to drain active requests
 
 # WebSocket robustness
 WS_HEARTBEAT_INTERVAL = 20.0  # seconds
@@ -166,6 +226,32 @@ from uar.core.recipes import validate_recipes  # noqa
 validate_recipes()
 
 
+async def _retention_purge_loop() -> None:
+    """Background task: purge old run records periodically."""
+    from uar.memory.json_store import JsonRunStore
+    from uar.config import config
+
+    if config.run_retention_days <= 0:
+        return
+
+    import asyncio
+
+    store = JsonRunStore()
+    while True:
+        try:
+            await asyncio.sleep(3600)  # Check every hour
+            removed = store.purge_old_records(config.run_retention_days)
+            if removed > 0:
+                logger.info(
+                    f"Purged {removed} run records older than "
+                    f"{config.run_retention_days} days"
+                )
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Retention purge failed: %s", exc)
+
+
 # Lifespan for graceful startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -182,14 +268,48 @@ async def lifespan(app: FastAPI):
         seed_standard_runtimes(get_default_store())
     except Exception as exc:  # noqa: BLE001 - non-fatal at startup
         logger.warning("UOR runtime seeding skipped: %s", exc)
+
+    # Initialize optional OpenTelemetry tracing
+    _setup_tracing(app)
+
+    # Start background data retention purge task
+    purge_task = None
+    from uar.config import config
+
+    if config.run_retention_days > 0:
+        import asyncio
+
+        purge_task = asyncio.create_task(_retention_purge_loop())
+
     yield
-    # Shutdown - drain in-flight requests
+    # Shutdown - drain in-flight requests and WebSocket connections
+    if purge_task is not None:
+        purge_task.cancel()
+        try:
+            await purge_task
+        except asyncio.CancelledError:
+            pass
     logger.info(
-        "UAR API shutting down, draining requests (5s grace period)..."
+        "UAR API shutting down, draining active connections "
+        f"({SHUTDOWN_SLEEP}s grace period)..."
     )
     import asyncio
 
-    await asyncio.sleep(SHUTDOWN_SLEEP)  # Let any in-flight requests complete
+    start_shutdown = time.time()
+    while time.time() - start_shutdown < SHUTDOWN_SLEEP:
+        ws_active = _ws_conn_counter.count
+        if ws_active == 0:
+            logger.info("All connections drained cleanly")
+            break
+        logger.info(
+            f"Waiting for {ws_active} active WebSocket(s) to close..."
+        )
+        await asyncio.sleep(1.0)
+    else:
+        logger.warning(
+            f"Shutdown grace period expired with "
+            f"{_ws_conn_counter.count} active connection(s) remaining"
+        )
     logger.info("UAR API shutdown complete")
 
 
@@ -230,6 +350,7 @@ security = HTTPBearer(auto_error=False)
 
 
 def require_auth(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict[str, Any]:
     user_info = auth_middleware(credentials)
@@ -241,6 +362,7 @@ def require_auth(
                 "message": "Authentication required",
             },
         )
+    request.state.user_id = user_info["user"]
     return user_info
 
 
@@ -420,8 +542,11 @@ class RunResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: str
+    error_code: Optional[str] = None
+    message: Optional[str] = None
     detail: Optional[str] = None
     field: Optional[str] = None
+    request_id: Optional[str] = None
 
 
 def _build_goal(req: RunRequest) -> GoalSpec:
@@ -554,8 +679,11 @@ async def run_goal(
 ):
     """Execute a goal and return the complete result"""
     with trace_span("api.run_goal", {"goal": req.goal[:50]}):
-        # Apply rate limiting
-        rate_limit_middleware(request, credentials)
+        # Apply rate limiting (pass parsed skill to avoid ASGI stream reuse)
+        first_skill = _extract_skill_from_request_data(
+            req.skills, req.execution_order
+        )
+        rate_limit_middleware(request, credentials, first_skill=first_skill)
 
         # Get user info
         user_info = auth_middleware(credentials)
@@ -837,10 +965,7 @@ async def stream_goal_ws(
             return
 
         # Apply rate limiting with skill extraction
-        from uar.api.middleware import (
-            _extract_skill_from_request_data,
-            check_rate_limit,
-        )
+        from uar.api.middleware import check_rate_limit
 
         # Generate rate limit key using shared function
         client_ip = websocket.client.host if websocket.client else "unknown"
@@ -1141,8 +1266,11 @@ async def stream_goal(
 ):
     """Execute a goal and stream events in real-time"""
     with trace_span("api.stream_goal", {"goal": req.goal[:50]}):
-        # Apply rate limiting
-        rate_limit_middleware(request, credentials)
+        # Apply rate limiting (pass parsed skill to avoid ASGI stream reuse)
+        first_skill = _extract_skill_from_request_data(
+            req.skills, req.execution_order
+        )
+        rate_limit_middleware(request, credentials, first_skill=first_skill)
 
         # Get user info
         user_info = auth_middleware(credentials)
@@ -1641,7 +1769,11 @@ def _check_metrics_auth(
     expected = os.getenv("METRICS_API_KEY", "").strip()
     if not expected:
         return
-    token = credentials.credentials if credentials else ""
+    token = (
+        credentials.credentials
+        if credentials and credentials.scheme == "Bearer"
+        else ""
+    )
     if token != expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1725,6 +1857,20 @@ async def readiness_probe():
         checks["ollama_reachable"] = r.is_success
     except Exception:
         checks["ollama_reachable"] = False
+
+    # Check Redis connectivity (if configured)
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if redis_url:
+        try:
+            import redis as _redis
+
+            r = _redis.from_url(redis_url, socket_connect_timeout=2)
+            r.ping()
+            checks["redis_reachable"] = True
+        except Exception:
+            checks["redis_reachable"] = False
+    else:
+        checks["redis_reachable"] = None  # not configured
 
     # Check circuit breaker states (non-blocking, informational)
     try:
@@ -2019,10 +2165,11 @@ async def docs_upload(
                     out.write(chunk)
         except Exception as e:
             logger.exception(f"[{request_id}] upload failed for {safe_name}")
-            try:
-                temp_dest.unlink()
-            except OSError:
-                pass
+            for p in (temp_dest, dest):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
             rejected.append({"name": safe_name, "reason": str(e)})
             continue
         finally:
@@ -2055,11 +2202,12 @@ async def docs_upload(
                     {"name": safe_name, "reason": f"Rename failed: {e}"}
                 )
         else:
-            # File too large - clean up temp file
-            try:
-                temp_dest.unlink()
-            except OSError:
-                pass
+            # File too large - clean up temp and placeholder
+            for p in (temp_dest, dest):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
 
     return {
         "library": str(library),

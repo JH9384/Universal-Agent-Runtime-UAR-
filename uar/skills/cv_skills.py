@@ -20,7 +20,10 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
     """
     import importlib.util
     if importlib.util.find_spec("cv2") is None:
-        return {"status": "failed", "error": "OpenCV not installed. pip install opencv-python"}  # noqa: E501
+        return {
+            "status": "failed",
+            "error": "OpenCV not installed. pip install opencv-python",
+        }
 
     import cv2
     from pathlib import Path
@@ -36,7 +39,10 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
     try:
         img = cv2.imread(img_path)
         if img is None:
-            return {"status": "failed", "error": f"Could not read image: {img_path}"}
+            return {
+                "status": "failed",
+                "error": f"Could not read image: {img_path}",
+            }
 
         if operation == "grayscale":
             out = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -51,16 +57,23 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
         elif operation == "contour":
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             _, thresh = cv2.threshold(gray, 127, 255, 0)
-            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)  # noqa: E501
+            contours, _ = cv2.findContours(
+                thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            )
             out = cv2.drawContours(img.copy(), contours, -1, (0, 255, 0), 2)
         elif operation == "resize":
             w = params.get("width", img.shape[1] // 2)
             h = params.get("height", img.shape[0] // 2)
             out = cv2.resize(img, (w, h))
         else:
-            return {"status": "failed", "error": f"Unknown operation: {operation}"}
+            return {
+                "status": "failed",
+                "error": f"Unknown operation: {operation}",
+            }
 
-        out_path = params.get("output_path", img_path.replace(".", "_processed."))
+        out_path = params.get(
+            "output_path", img_path.replace(".", "_processed.")
+        )
         cv2.imwrite(out_path, out)
 
         return {
@@ -85,7 +98,10 @@ def yolo_detect(ctx: PipelineContext) -> Dict[str, Any]:
     """
     import importlib.util
     if importlib.util.find_spec("ultralytics") is None:
-        return {"status": "failed", "error": "ultralytics not installed. pip install ultralytics"}  # noqa: E501
+        return {
+            "status": "failed",
+            "error": "ultralytics not installed. pip install ultralytics",
+        }
 
     from ultralytics import YOLO
     from pathlib import Path

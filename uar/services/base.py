@@ -25,7 +25,13 @@ class BaseService(ABC):
         self._deps = deps
         self._logger = logging.getLogger(self.__class__.__module__)
 
-    def _log(self, level: str, msg: str, request_id: Optional[str] = None, **extra: Any) -> None:
+    def _log(
+        self,
+        level: str,
+        msg: str,
+        request_id: Optional[str] = None,
+        **extra: Any,
+    ) -> None:
         """Structured log with optional request_id."""
         if request_id:
             msg = f"[{request_id}] {msg}"
@@ -35,7 +41,9 @@ class BaseService(ABC):
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self, exc_type: Any, exc_val: Any, exc_tb: Any
+    ) -> None:
         """Async context manager exit."""
         pass
 
@@ -43,6 +51,8 @@ class BaseService(ABC):
         """Sync context manager entry."""
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(
+        self, exc_type: Any, exc_val: Any, exc_tb: Any
+    ) -> None:
         """Sync context manager exit."""
         pass

@@ -85,6 +85,11 @@ class Config:
         )  # 10MB
         self.max_files = int(os.getenv("MAX_FILES", str(DEFAULT_MAX_FILES)))
 
+        # Data retention: 0 disables automatic purging
+        self.run_retention_days = int(
+            os.getenv("RUN_RETENTION_DAYS", "0")
+        )
+
         # Ollama Configuration
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
@@ -313,8 +318,8 @@ def validate_docker_environment() -> list[str]:
     issues = []
 
     # Check if running in Docker
-    in_docker = os.path.exists("/.dockerenv") or os.getenv(
-        "DOCKER_CONTAINER", False
+    in_docker = os.path.exists("/.dockerenv") or (
+        os.getenv("DOCKER_CONTAINER", "").lower() == "true"
     )
 
     if in_docker:

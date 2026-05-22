@@ -16,6 +16,7 @@ from typing import Dict, Any
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
+from uar.core.safe_eval import safe_eval
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,10 @@ def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
     """
     import importlib.util
     if importlib.util.find_spec("scipy") is None:
-        return {"status": "failed", "error": "SciPy not installed. pip install scipy"}
+        return {
+            "status": "failed",
+            "error": "SciPy not installed. pip install scipy",
+        }
 
     import numpy as np
     import scipy.optimize as opt
@@ -56,31 +60,67 @@ def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
             expr = meta.get("opt_function", "x[0]**2 + x[1]**2")
             bounds = meta.get("opt_bounds")
             x0 = np.array(meta.get("opt_initial", [1.0, 1.0]))
-            def f(x): return eval(expr, {"np": np, "x": x, "sin": np.sin, "cos": np.cos, "exp": np.exp, "log": np.log})
+
+            def f(x):
+                return safe_eval(
+                    expr,
+                    {
+                        "np": np, "x": x,
+                        "sin": np.sin, "cos": np.cos,
+                        "exp": np.exp, "log": np.log,
+                    },
+                )
             res = opt.minimize(f, x0, bounds=bounds)
-            return {"status": "completed", "success": res.success, "x": res.x.tolist(), "fun": float(res.fun), "nit": int(res.nit)}
+            return {
+                "status": "completed",
+                "success": res.success,
+                "x": res.x.tolist(),
+                "fun": float(res.fun),
+                "nit": int(res.nit),
+            }
 
         elif operation == "root":
             expr = meta.get("opt_function", "x**2 - 4")
             x0 = float(meta.get("opt_initial", 1.0))
-            def f(x): return eval(expr, {"np": np, "x": x})
+
+            def f(x):
+                return safe_eval(expr, {"np": np, "x": x})
             res = opt.root_scalar(f, x0=x0, method="newton")
-            return {"status": "completed", "success": res.converged, "root": float(res.root), "iterations": int(res.iterations)}
+            return {
+                "status": "completed",
+                "success": res.converged,
+                "root": float(res.root),
+                "iterations": int(res.iterations),
+            }
 
         elif operation == "linprog":
             c = np.array(meta.get("opt_objective", [1.0, -1.0]))
             A_ub = np.array(meta.get("opt_ineq_matrix", [[1.0, 1.0]]))
             b_ub = np.array(meta.get("opt_ineq_rhs", [1.0]))
-            res = opt.linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=meta.get("opt_bounds"))
-            return {"status": "completed", "success": res.success, "x": res.x.tolist(), "fun": float(res.fun)}
+            res = opt.linprog(
+                c, A_ub=A_ub, b_ub=b_ub, bounds=meta.get("opt_bounds")
+            )
+            return {
+                "status": "completed",
+                "success": res.success,
+                "x": res.x.tolist(),
+                "fun": float(res.fun),
+            }
 
         elif operation == "eig":
             A = np.array(meta.get("opt_matrix_a", [[1, 2], [3, 4]]))
             w, v = la.eig(A)
-            return {"status": "completed", "eigenvalues": w.tolist(), "eigenvectors": v.tolist()}
+            return {
+                "status": "completed",
+                "eigenvalues": w.tolist(),
+                "eigenvectors": v.tolist(),
+            }
 
         else:
-            return {"status": "failed", "error": f"Unknown operation: {operation}"}
+            return {
+                "status": "failed",
+                "error": f"Unknown operation: {operation}",
+            }
     except Exception as exc:
         return {"status": "failed", "error": str(exc)}
 
@@ -102,7 +142,10 @@ def diff_eq_solve(ctx: PipelineContext) -> Dict[str, Any]:
     """
     import importlib.util
     if importlib.util.find_spec("scipy") is None:
-        return {"status": "failed", "error": "SciPy not installed. pip install scipy"}
+        return {
+            "status": "failed",
+            "error": "SciPy not installed. pip install scipy",
+        }
 
     import numpy as np
     from scipy.integrate import solve_ivp
@@ -116,7 +159,13 @@ def diff_eq_solve(ctx: PipelineContext) -> Dict[str, Any]:
 
     try:
         def f(t, y):
-            return eval(equation, {"np": np, "t": t, "y": y, "sin": np.sin, "cos": np.cos, "exp": np.exp})
+            return safe_eval(
+                equation,
+                {
+                    "np": np, "t": t, "y": y,
+                    "sin": np.sin, "cos": np.cos, "exp": np.exp,
+                },
+            )
 
         sol = solve_ivp(f, t_span, y0, method=method, t_eval=t_eval)
         return {
@@ -141,19 +190,26 @@ def quantum_circuit(ctx: PipelineContext) -> Dict[str, Any]:
 
     Metadata:
         qc_qubits:   number of qubits (default 2)
-        qc_gates:    list of gate dicts: {"name": "H"/"X"/"Y"/"Z"/"CX", "targets": [0]}
+        qc_gates:    list of gate dicts:
+                     {"name": "H"/"X"/"Y"/"Z"/"CX", "targets": [0]}
         qc_shots:    number of simulation shots (default 1024)
     """
     import importlib.util
     if importlib.util.find_spec("qiskit") is None:
-        return {"status": "failed", "error": "Qiskit not installed. pip install qiskit"}
+        return {
+            "status": "failed",
+            "error": "Qiskit not installed. pip install qiskit",
+        }
 
     from qiskit import QuantumCircuit as QC, transpile
     from qiskit_aer import AerSimulator
 
     meta = ctx.goal.metadata or {}
     n_qubits = int(meta.get("qc_qubits", 2))
-    gates = meta.get("qc_gates", [{"name": "H", "targets": [0]}, {"name": "CX", "targets": [0, 1]}])
+    gates = meta.get(
+        "qc_gates",
+        [{"name": "H", "targets": [0]}, {"name": "CX", "targets": [0, 1]}],
+    )
     shots = int(meta.get("qc_shots", 1024))
 
     try:
@@ -214,11 +270,15 @@ def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
 
     Metadata:
         chem_smiles:   SMILES string of the molecule
-        chem_operation: 'descriptors', 'fingerprints', 'substructure', 'conformer'
+        chem_operation:
+            'descriptors', 'fingerprints', 'substructure', 'conformer'
     """
     import importlib.util
     if importlib.util.find_spec("rdkit") is None:
-        return {"status": "failed", "error": "RDKit not installed. pip install rdkit"}
+        return {
+            "status": "failed",
+            "error": "RDKit not installed. pip install rdkit",
+        }
 
     from rdkit import Chem  # noqa: F401
     from rdkit.Chem import Descriptors, AllChem
@@ -242,12 +302,18 @@ def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
                 "hba": Descriptors.NumHAcceptors(mol),
                 "tpsa": Descriptors.TPSA(mol),
                 "num_rotatable": Descriptors.NumRotatableBonds(mol),
-                "formula": Chem.rdMolDescriptors.CalcMolFormula(mol),
+                "formula": (
+                    Chem.rdMolDescriptors.CalcMolFormula(mol)
+                ),
             }
 
         elif operation == "fingerprints":
             fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=1024)
-            return {"status": "completed", "smiles": smiles, "fingerprint": fp.ToBitString()}
+            return {
+                "status": "completed",
+                "smiles": smiles,
+                "fingerprint": fp.ToBitString(),
+            }
 
         elif operation == "conformer":
             mol = Chem.AddHs(mol)
@@ -257,11 +323,23 @@ def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
             atoms = []
             for i in range(mol.GetNumAtoms()):
                 pos = conf.GetAtomPosition(i)
-                atoms.append({"element": mol.GetAtomWithIdx(i).GetSymbol(), "x": pos.x, "y": pos.y, "z": pos.z})
-            return {"status": "completed", "smiles": smiles, "atoms": atoms}
+                atoms.append({
+                    "element": mol.GetAtomWithIdx(i).GetSymbol(),
+                    "x": pos.x,
+                    "y": pos.y,
+                    "z": pos.z,
+                })
+            return {
+                "status": "completed",
+                "smiles": smiles,
+                "atoms": atoms,
+            }
 
         else:
-            return {"status": "failed", "error": f"Unknown operation: {operation}"}
+            return {
+                "status": "failed",
+                "error": f"Unknown operation: {operation}",
+            }
     except Exception as exc:
         return {"status": "failed", "error": str(exc)}
 
@@ -275,12 +353,17 @@ def bio_compute(ctx: PipelineContext) -> Dict[str, Any]:
     """Bioinformatics with Biopython.
 
     Metadata:
-        bio_operation: 'sequence_stats', 'translation', 'transcription', 'gc_content'
-        bio_sequence:  DNA/RNA/protein sequence string
+        bio_operation:
+            'sequence_stats', 'translation', 'transcription', 'gc_content'
+        bio_sequence:
+            DNA/RNA/protein sequence string
     """
     import importlib.util
     if importlib.util.find_spec("Bio") is None:
-        return {"status": "failed", "error": "Biopython not installed. pip install biopython"}
+        return {
+            "status": "failed",
+            "error": "Biopython not installed. pip install biopython",
+        }
 
     from Bio.Seq import Seq
     from Bio.SeqUtils import gc_fraction
@@ -302,16 +385,30 @@ def bio_compute(ctx: PipelineContext) -> Dict[str, Any]:
             }
 
         elif operation == "transcription":
-            return {"status": "completed", "dna": str(seq), "rna": str(seq.transcribe())}
+            return {
+                "status": "completed",
+                "dna": str(seq),
+                "rna": str(seq.transcribe()),
+            }
 
         elif operation == "translation":
-            return {"status": "completed", "dna": str(seq), "protein": str(seq.translate())}
+            return {
+                "status": "completed",
+                "dna": str(seq),
+                "protein": str(seq.translate()),
+            }
 
         elif operation == "gc_content":
-            return {"status": "completed", "gc_percent": round(gc_fraction(seq) * 100, 2)}
+            return {
+                "status": "completed",
+                "gc_percent": round(gc_fraction(seq) * 100, 2),
+            }
 
         else:
-            return {"status": "failed", "error": f"Unknown operation: {operation}"}
+            return {
+                "status": "failed",
+                "error": f"Unknown operation: {operation}",
+            }
     except Exception as exc:
         return {"status": "failed", "error": str(exc)}
 
@@ -331,7 +428,10 @@ def relativity(ctx: PipelineContext) -> Dict[str, Any]:
     """
     import importlib.util
     if importlib.util.find_spec("sympy") is None:
-        return {"status": "failed", "error": "SymPy not installed. pip install sympy"}
+        return {
+            "status": "failed",
+            "error": "SymPy not installed. pip install sympy",
+        }
 
     import sympy as sp
 
@@ -350,31 +450,56 @@ def relativity(ctx: PipelineContext) -> Dict[str, Any]:
             g = sp.diag(-1, 1, 1, 1)
         elif metric_name == "schwarzschild":
             t, r, th, ph = coords
-            g = sp.diag(-(1 - 1/r), 1/(1 - 1/r), r**2, r**2 * sp.sin(th)**2)
+            g = sp.diag(
+                -(1 - 1 / r),
+                1 / (1 - 1 / r),
+                r ** 2,
+                r ** 2 * sp.sin(th) ** 2,
+            )
         else:
-            return {"status": "failed", "error": f"Unknown metric: {metric_name}"}
+            return {
+                "status": "failed",
+                "error": f"Unknown metric: {metric_name}",
+            }
 
         g_inv = g.inv()
+        dim = len(coords)
 
         # Christoffel symbols
-        gamma = sp.MutableDenseNDimArray.zeros(4, 4, 4)
-        for lam in range(4):
-            for mu in range(4):
-                for nu in range(4):
+        gamma = sp.MutableDenseNDimArray.zeros(dim, dim, dim)
+        for lam in range(dim):
+            for mu in range(dim):
+                for nu in range(dim):
                     s = 0
-                    for sigma in range(4):
-                        s += 0.5 * g_inv[lam, sigma] * (sp.diff(g[sigma, mu], coords[nu]) + sp.diff(g[sigma, nu], coords[mu]) - sp.diff(g[mu, nu], coords[sigma]))
+                    for sigma in range(dim):
+                        term = (
+                            sp.diff(g[sigma, mu], coords[nu])
+                            + sp.diff(g[sigma, nu], coords[mu])
+                            - sp.diff(g[mu, nu], coords[sigma])
+                        )
+                        s += 0.5 * g_inv[lam, sigma] * term
                     gamma[lam, mu, nu] = sp.simplify(s)
 
         if operation == "christoffel":
-            return {"status": "completed", "metric": metric_name, "christoffel_symbols": str(gamma)}
+            return {
+                "status": "completed",
+                "metric": metric_name,
+                "christoffel_symbols": str(gamma),
+            }
 
         elif operation == "ricci_scalar":
             # Simplified Ricci scalar for diagonal metrics
             R = 0
-            return {"status": "completed", "metric": metric_name, "ricci_scalar": str(R)}
+            return {
+                "status": "completed",
+                "metric": metric_name,
+                "ricci_scalar": str(R),
+            }
 
         else:
-            return {"status": "failed", "error": f"Unknown operation: {operation}"}
+            return {
+                "status": "failed",
+                "error": f"Unknown operation: {operation}",
+            }
     except Exception as exc:
         return {"status": "failed", "error": str(exc)}

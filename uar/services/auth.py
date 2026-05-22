@@ -1,12 +1,13 @@
 """Authentication and authorization service.
 
 Eliminates duplicated auth-check boilerplate across endpoints:
-- Recipe CRUD endpoints all had ``if not user_info: raise HTTPException(401, ...)``
+- Recipe CRUD endpoints all had
+  ``if not user_info: raise HTTPException(401, ...)``
 - WebSocket handlers had inline auth parsing + validation
 """
 
 from typing import Any, Optional
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from .base import BaseService
 
@@ -70,7 +71,10 @@ class AuthService(BaseService):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={
                     "error": "forbidden",
-                    "message": f"Cannot {action} canonical recipe '{recipe_id}'",
+                    "message": (
+                        f"Cannot {action} canonical recipe"
+                        f" '{recipe_id}'"
+                    ),
                 },
             )
 
