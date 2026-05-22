@@ -38,8 +38,6 @@ from uar.core.binary_stream import (
 )
 from uar.core.exceptions import UARError, ValidationError, PathSecurityError
 from uar.core.planner import SimplePlanner
-from uar.core.replay import run_record_from_events
-from uar.core.orchestrator import build_orchestration_plan
 from uar.core.recipes import DEFAULT_RECIPES
 from uar.api.advanced_endpoints import router as advanced_router
 from uar.core.validation import (
@@ -60,6 +58,12 @@ from .middleware import (
 )
 from .tracing import trace_span
 from uar.api.metrics import get_metrics_collector
+from uar.services import (
+    AuthService,
+    RecipeService,
+    EventService,
+    GoalExecutionService,
+)
 
 # Constants
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
@@ -113,118 +117,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-def _validate_recipe(recipe: Any) -> bool:
-    """Validate a single recipe structure. Returns True if valid."""
-    if not isinstance(recipe, dict):
-        logger.warning(f"Invalid recipe (not a dict): {recipe}")
-        return False
-    if "id" not in recipe:
-        logger.warning(f"Recipe missing 'id' field: {recipe}")
-        return False
-    if "skills" not in recipe:
-        logger.warning(f"Recipe '{recipe.get('id')}' missing 'skills' field")
-        return False
-    if not isinstance(recipe["skills"], list):
-        logger.warning(
-            f"Recipe '{recipe['id']}' has invalid 'skills' (not a list)"
-        )
-        return False
-    return True
-
-
-def _validate_recipes(recipes: List[Any]) -> List[Dict[str, Any]]:
-    """Validate a list of recipes and return only valid ones."""
-    validated_recipes = []
-    for recipe in recipes:
-        if _validate_recipe(recipe):
-            validated_recipes.append(recipe)
-    return validated_recipes
-
-
-# Backpressure configuration
-BACKPRESSURE_ENABLED = (
-    os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
-)
-BACKPRESSURE_THRESHOLD = int(
-    os.getenv("BACKPRESSURE_THRESHOLD", "100")
-)  # Max buffered events
-
-
-class AdaptiveBackpressure:
-    """Adjusts event emission delay based on observed client consumption rate.
-
-    Tracks the wall-clock time between successful ``yield`` (SSE) or
-    ``send_json`` (WebSocket) calls. If the client is slow to consume,
-    the delay increases. If fast, it decreases. This prevents flooding a
-    slow client while minimizing latency for fast ones.
-    """
-
-    def __init__(
-        self,
-        enabled: bool = True,
-        max_delay: float = 1.0,
-        min_delay: float = 0.0,
-        slow_threshold: float = 0.5,
-        fast_threshold: float = 0.1,
-        increment: float = 0.05,
-        decrement: float = 0.02,
-    ):
-        self.enabled = enabled
-        self.max_delay = max_delay
-        self.min_delay = min_delay
-        self.slow_threshold = slow_threshold
-        self.fast_threshold = fast_threshold
-        self.increment = increment
-        self.decrement = decrement
-        self._current_delay = 0.0
-        self._last_emit_time = 0.0
-
-    async def apply(self) -> None:
-        """Sleep if the adaptive delay > 0 and adjust delay for next call."""
-        if not self.enabled:
-            return
-        now = time.time()
-        if self._last_emit_time > 0:
-            emit_duration = now - self._last_emit_time
-            if emit_duration > self.slow_threshold:
-                self._current_delay = min(
-                    self._current_delay + self.increment,
-                    self.max_delay,
-                )
-            elif emit_duration < self.fast_threshold:
-                self._current_delay = max(
-                    self._current_delay - self.decrement,
-                    self.min_delay,
-                )
-            if self._current_delay > 0:
-                await asyncio.sleep(self._current_delay)
-        self._last_emit_time = time.time()
-
-
-async def _async_event_stream(executor, strategy, goal, timeout, cid=""):
-    """Bridge sync Executor.iter_events into an async stream.
-
-    Runs the blocking generator in the default thread pool so the
-    async event loop stays responsive.
-    """
-    it = executor.iter_events(
-        strategy, goal, timeout_seconds=timeout, correlation_id=cid
-    )
-
-    def _next():
-        try:
-            return next(it)
-        except StopIteration:
-            return None
-
-    loop = asyncio.get_running_loop()
-    while True:
-        event = await loop.run_in_executor(None, _next)
-        if event is None:
-            break
-        yield event
 
 
 # register skills
@@ -635,13 +527,6 @@ async def _stream_binary_visualization(
         pass
 
 
-def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Dependency to get current authenticated user"""
-    return auth_middleware(credentials)
-
-
 @app.post(
     "/api/uar/run",
     response_model=RunResponse,
@@ -817,7 +702,12 @@ async def stream_goal_ws(
         await websocket.close(code=1008, reason="Too many connections")
         return
 
-    await websocket.accept()
+    try:
+        await websocket.accept()
+    except Exception:
+        _ws_conn_counter.release()
+        raise
+
     websocket.state.correlation_id = correlation_id
 
     _goal_id = ""
@@ -829,17 +719,15 @@ async def stream_goal_ws(
         payload=None,
         error=None,
     ):
-        return {
-            "schema_version": "uar.event.v1",
-            "type": event_type,
-            "run_id": run_id,
-            "goal_id": _goal_id,
-            "skill": skill,
-            "timestamp": time.time(),
-            "correlation_id": correlation_id,
-            "payload": payload or {},
-            "error": error,
-        }
+        return _event_svc.create(
+            event_type=event_type,
+            run_id=run_id,
+            goal_id=_goal_id,
+            skill=skill,
+            payload=payload,
+            error=error,
+            correlation_id=correlation_id,
+        )
 
     try:
         # Receive the run request from WebSocket with timeout
@@ -1032,113 +920,22 @@ async def stream_goal_ws(
         try:
             goal = _build_goal(req)
             strategy = SimplePlanner().plan(goal)
-
-            from uar.core.executor import Executor
-
-            executor = Executor()
-            timeout = req.timeout_seconds or 5.0
             _goal_id = strategy.goal_id
 
-            # Execute and stream events
-            events: list[dict] = []
-            full_events: list[dict] = []
-            persisted = False
-            event_count = 0
-            try:
-                async for event in _async_event_stream(
-                    executor, strategy, goal, timeout, correlation_id
-                ):
-                    event_count += 1
-                    if event_count >= MAX_STREAM_EVENTS:
-                        # Append triggering event so full_events is
-                        # accurate and persistence can succeed.
-                        events.append(event)
-                        full_events.append(event)
-                        err_event = create_event(
-                            "error",
-                            run_id="unknown",
-                            error=(
-                                f"Event limit reached ({MAX_STREAM_EVENTS})."
-                            ),
-                            payload={
-                                "request_id": request_id,
-                                "code": "EVENT_LIMIT",
-                            },
-                        )
-                        full_events.append(err_event)
-                        await websocket.send_json(err_event)
-                        # Emit synthetic complete so persistence succeeds
-                        comp_event = create_event(
-                            "complete",
-                            run_id="unknown",
-                            payload={
-                                "status": "failed",
-                                "errors": [
-                                    f"Event limit reached "
-                                    f"({MAX_STREAM_EVENTS})"
-                                ],
-                            },
-                        )
-                        full_events.append(comp_event)
-                        await websocket.send_json(comp_event)
-                        break
-                    events.append(event)
-                    full_events.append(event)
-                    await websocket.send_json(event)
+            async for event in _exec_svc.stream_goal(
+                goal, request_id, user_str, correlation_id,
+                yield_persisted=True,
+            ):
+                await websocket.send_json(event)
 
-                    # Stream binary visualization data for 3D skills
-                    if event.get("type") == "skill_complete":
+                # Stream binary visualization data for 3D skills
+                if event.get("type") == "skill_complete":
+                    try:
                         await _stream_binary_visualization(
                             websocket, event
                         )
-
-                    # Persist to store on completion
-                    if event.get("type") == "complete":
-                        try:
-                            record = run_record_from_events(
-                                full_events, strategy.ordered_skills, user_str
-                            )
-                            store.append(record)
-                            persisted = True
-                            logger.info(
-                                f"[{request_id}] WebSocket stream completed "
-                                f"and persisted: {record.run_id}"
-                            )
-                        except Exception as persist_error:
-                            logger.error(
-                                f"[{request_id}] Failed to persist WebSocket "
-                                f"stream: {str(persist_error)}"
-                            )
-            except Exception as exec_error:
-                logger.error(
-                    f"[{request_id}] Error during executor.iter_events: "
-                    f"{str(exec_error)}",
-                    exc_info=True,
-                )
-                # Send error event to client
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "error": str(exec_error),
-                        "error_type": type(exec_error).__name__,
-                        "request_id": request_id,
-                    }
-                )
-                raise
-
-            # Ensure persistence even if client disconnects
-            if full_events and not persisted:
-                try:
-                    record = run_record_from_events(
-                        full_events, strategy.ordered_skills, user_str
-                    )
-                    store.append(record)
-                    logger.info(
-                        f"[{request_id}] WebSocket stream persisted in "
-                        f"finally: {record.run_id}"
-                    )
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
 
         except ValidationError as e:
             await websocket.send_json(
@@ -1201,86 +998,68 @@ async def get_skills():
     return {"skills": registry.list()}
 
 
-def _user_recipes_path() -> str:
-    """Path to JSON file storing user-created recipes."""
-    from pathlib import Path
-    import os
-
-    root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
-    p = root / ".uar_data" / "user_recipes.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    return str(p)
-
-
-def _load_user_recipes(
-    user_id: Optional[str] = None,
-) -> dict[str, dict[str, Any]]:
-    """Load user-created recipes from disk."""
-    path = _user_recipes_path()
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, dict):
-            if user_id is None:
-                return data
-            return {
-                k: v
-                for k, v in data.items()
-                if v.get("user_id") == user_id or v.get("user_id") is None
-            }
-    except (json.JSONDecodeError, OSError):
-        pass
-    return {}
+# Service instances (stateless, safe to share across requests)
+_recipe_svc = RecipeService()
+_auth_svc = AuthService()
+_event_svc = EventService()
+_exec_svc = GoalExecutionService(
+    event_service=_event_svc,
+    store=store,
+    max_stream_events=MAX_STREAM_EVENTS,
+    event_buffer_size=EVENT_BUFFER_SIZE,
+)
 
 
-def _save_user_recipes(recipes: dict[str, dict[str, Any]]) -> None:
-    """Persist user-created recipes to disk."""
-    path = _user_recipes_path()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(recipes, f, indent=2)
+def _recipe_http_error(
+    exc: Exception, recipe_id: str, *, creating: bool = False
+) -> HTTPException:
+    """Map RecipeService exceptions to HTTP status codes."""
+    msg = str(exc)
+    if "canonical" in msg.lower():
+        return HTTPException(
+            status_code=(
+                status.HTTP_409_CONFLICT
+                if creating
+                else status.HTTP_403_FORBIDDEN
+            ),
+            detail={
+                "error": "conflict" if creating else "forbidden",
+                "message": msg,
+            },
+        )
+    if "skills must be" in msg.lower():
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "invalid_skills", "message": msg},
+        )
+    if isinstance(exc, KeyError):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "not_found",
+                "message": f"Recipe '{recipe_id}' not found",
+            },
+        )
+    if isinstance(exc, PermissionError):
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "forbidden", "message": "Not owner"},
+        )
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={"error": "internal", "message": msg},
+    )
 
 
 @app.get("/api/uar/recipes")
 async def get_recipes(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
-    """Return canonical + user-created recipe definitions.
-
-    Canonical recipes are sourced from ``DEFAULT_RECIPES``.  User
-    recipes are merged on top so the frontend sees a unified list.
-    Anonymous callers see only canonical recipes.
-    """
-    user_info = auth_middleware(credentials)
-    user_recipes = _load_user_recipes(
+    """Return canonical + user-created recipe definitions."""
+    user_info = _auth_svc.authenticate(credentials)
+    recipes = _recipe_svc.list_all(
         user_id=user_info["user"] if user_info else None
     )
-    recipes = []
-    seen = set()
-    # Canonical recipes first
-    for recipe_id, recipe in DEFAULT_RECIPES.items():
-        recipes.append(
-            {
-                "id": recipe_id,
-                "label": recipe.get("label", recipe_id),
-                "skills": recipe.get("skills", []),
-                "hint": recipe.get("hint", ""),
-            }
-        )
-        seen.add(recipe_id)
-    # User recipes appended (preserved across restarts)
-    if user_info:
-        for recipe_id, recipe in user_recipes.items():
-            if recipe_id not in seen:
-                recipes.append(
-                    {
-                        "id": recipe_id,
-                        "label": recipe.get("label", recipe_id),
-                        "skills": recipe.get("skills", []),
-                        "hint": recipe.get("hint", ""),
-                    }
-                )
     return {"recipes": recipes}
 
 
@@ -1289,55 +1068,21 @@ async def create_recipe(
     recipe: dict[str, Any],
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
-    """Create a new user recipe.
-
-    The recipe body must contain ``id``, ``label``, and ``skills``.
-    User recipes are persisted to ``.uar_data/user_recipes.json``.
-    """
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
+    """Create a new user recipe."""
+    user = _auth_svc.require_user(credentials)
     recipe_id = recipe.get("id")
     if not recipe_id or not isinstance(recipe_id, str):
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "error": "missing_id",
                 "message": "Recipe must have an 'id' string",
             },
         )
-    if recipe_id in DEFAULT_RECIPES:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error": "conflict",
-                "message": (
-                    f"Recipe '{recipe_id}' is a canonical recipe "
-                    f"and cannot be overwritten"
-                ),
-            },
-        )
-    skills = recipe.get("skills")
-    if not isinstance(skills, list) or not all(
-        isinstance(s, str) for s in skills
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_skills",
-                "message": "skills must be a list of strings",
-            },
-        )
-    recipe["user_id"] = user_info["user"]
-    user_recipes = _load_user_recipes()
-    user_recipes[recipe_id] = recipe
-    _save_user_recipes(user_recipes)
+    try:
+        _recipe_svc.create(recipe_id, recipe, user["user"])
+    except (ValueError, KeyError, PermissionError) as exc:
+        raise _recipe_http_error(exc, recipe_id, creating=True) from exc
     return {"created": recipe_id}
 
 
@@ -1348,56 +1093,11 @@ async def update_recipe(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Update an existing user recipe."""
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
-    if recipe_id in DEFAULT_RECIPES:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "forbidden",
-                "message": f"Cannot modify canonical recipe '{recipe_id}'",
-            },
-        )
-    user_recipes = _load_user_recipes()
-    existing = user_recipes.get(recipe_id)
-    owner = existing.get("user_id") if existing else None
-    if owner and owner != user_info["user"]:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "forbidden",
-                "message": "Not owner of this recipe",
-            },
-        )
-    if recipe_id not in user_recipes:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "not_found",
-                "message": f"Recipe '{recipe_id}' not found",
-            },
-        )
-    skills = recipe.get("skills")
-    if not isinstance(skills, list) or not all(
-        isinstance(s, str) for s in skills
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_skills",
-                "message": "skills must be a list of strings",
-            },
-        )
-    recipe["user_id"] = user_info["user"]
-    user_recipes[recipe_id] = recipe
-    _save_user_recipes(user_recipes)
+    user = _auth_svc.require_user(credentials)
+    try:
+        _recipe_svc.update(recipe_id, recipe, user["user"])
+    except (ValueError, KeyError, PermissionError) as exc:
+        raise _recipe_http_error(exc, recipe_id) from exc
     return {"updated": recipe_id}
 
 
@@ -1407,44 +1107,11 @@ async def delete_recipe(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Delete a user recipe."""
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
-    if recipe_id in DEFAULT_RECIPES:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "forbidden",
-                "message": f"Cannot delete canonical recipe '{recipe_id}'",
-            },
-        )
-    user_recipes = _load_user_recipes()
-    existing = user_recipes.get(recipe_id)
-    owner = existing.get("user_id") if existing else None
-    if owner and owner != user_info["user"]:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "forbidden",
-                "message": "Not owner of this recipe",
-            },
-        )
-    if recipe_id not in user_recipes:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "not_found",
-                "message": f"Recipe '{recipe_id}' not found",
-            },
-        )
-    del user_recipes[recipe_id]
-    _save_user_recipes(user_recipes)
+    user = _auth_svc.require_user(credentials)
+    try:
+        _recipe_svc.delete(recipe_id, user["user"])
+    except (ValueError, KeyError, PermissionError) as exc:
+        raise _recipe_http_error(exc, recipe_id) from exc
     return {"deleted": recipe_id}
 
 
@@ -1476,190 +1143,64 @@ async def stream_goal(
 
         try:
             goal = _build_goal(req)
-            strategy = SimplePlanner().plan(goal)
-
-            plan = build_orchestration_plan(strategy)
-
-            from uar.core.executor import Executor
-
-            executor = Executor()
-            timeout = req.timeout_seconds or 5.0
             cid = getattr(request.state, "correlation_id", "")
 
-            def emit(event: dict) -> str:
-                return f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+            def _sse_emit(event: dict) -> str:
+                return (
+                    f"event: {event['type']}\n"
+                    f"data: {json.dumps(event)}\n\n"
+                )
 
-            def create_event(
-                event_type: str,
-                run_id: str,
-                skill=None,
-                payload=None,
-                error=None,
-            ):
-                """Create a properly formatted event following the
-                uar.event.v1 schema.
-                """
-                return {
-                    "schema_version": "uar.event.v1",
-                    "type": event_type,
-                    "run_id": run_id,
-                    "goal_id": strategy.goal_id,
-                    "skill": skill,
-                    "timestamp": time.time(),
-                    "correlation_id": cid,
-                    "payload": payload or {},
-                    "error": error,
-                }
-
-            async def generate():
-                # Bounded ring buffer: old events evicted when full.
-                # This prevents unbounded memory growth for long runs.
-                events: list[dict] = []
-                # Separate full list for persistence so we don't lose
-                # early events when the ring buffer wraps.
-                full_events: list[dict] = []
-                persisted = False
-                last_heartbeat = time.time()
-                heartbeat_interval = 30
-                event_count = 0
-
+            async def _generate():
+                last_hb = time.time()
+                hb_interval = 30
+                stream = _exec_svc.stream_goal(
+                    goal, request_id, user_id, cid
+                )
                 try:
-                    # emit orchestration graph first
-                    yield emit(
-                        create_event(
-                            "orchestration_plan",
-                            run_id="pending",
-                            payload={"graph": plan.to_graph()},
-                        )
-                    )
+                    while True:
+                        elapsed = time.time() - last_hb
+                        timeout = max(0.1, hb_interval - elapsed)
+                        try:
+                            event = await asyncio.wait_for(
+                                stream.__anext__(), timeout=timeout
+                            )
+                        except StopAsyncIteration:
+                            break
+                        except asyncio.TimeoutError:
+                            now = time.time()
+                            if now - last_hb >= hb_interval:
+                                yield _sse_emit(
+                                    _event_svc.heartbeat(
+                                        run_id="pending",
+                                        goal_id="",
+                                        correlation_id=cid,
+                                    )
+                                )
+                                last_hb = now
+                            continue
 
-                    bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
-                    async for event in _async_event_stream(
-                        executor, strategy, goal, timeout, cid
-                    ):
                         if await request.is_disconnected():
                             break
-                        event_count += 1
-                        if event_count >= MAX_STREAM_EVENTS:
-                            # Append triggering event so full_events is
-                            # accurate and persistence can succeed.
-                            full_events.append(event)
-                            err_event = create_event(
-                                "error",
-                                run_id="unknown",
-                                error=(
-                                    "Event limit reached "
-                                    f"({MAX_STREAM_EVENTS})."
-                                ),
-                            )
-                            full_events.append(err_event)
-                            yield emit(err_event)
-                            # Emit synthetic complete so persistence succeeds
-                            comp_event = create_event(
-                                "complete",
-                                run_id="unknown",
-                                payload={
-                                    "status": "failed",
-                                    "errors": [
-                                        f"Event limit reached "
-                                        f"({MAX_STREAM_EVENTS})"
-                                    ],
-                                },
-                            )
-                            full_events.append(comp_event)
-                            yield emit(comp_event)
-                            break
-
-                        # Check if heartbeat needed
-                        current_time = time.time()
-                        if current_time - last_heartbeat > heartbeat_interval:
-                            yield emit(
-                                create_event(
-                                    "heartbeat",
-                                    run_id="pending",
-                                    payload={"timestamp": current_time},
-                                )
-                            )
-                            last_heartbeat = current_time
-
-                        # Ring buffer eviction
-                        if len(events) >= EVENT_BUFFER_SIZE:
-                            events.pop(0)
-                        events.append(event)
-                        full_events.append(event)
-
-                        await bp.apply()
-
-                        yield emit(event)
-
-                    # Persist successful run
-                    try:
-                        record = run_record_from_events(
-                            full_events, strategy.ordered_skills, user_id
-                        )
-                        store.append(record)
-                        persisted = True
-                        logger.info(
-                            f"[{request_id}] Stream completed and "
-                            f"persisted: {record.run_id}"
-                        )
-                    except Exception as persist_error:
-                        logger.error(
-                            f"[{request_id}] Failed to persist stream "
-                            f"results: {str(persist_error)}"
-                        )
-                        # Only mark as persisted for deterministic errors
-                        # (e.g. EventContractError). Transient I/O errors
-                        # should allow retry in finally block.
-                        from uar.core.exceptions import EventContractError
-
-                        if isinstance(persist_error, EventContractError):
-                            persisted = True
-                        # Emit error event to notify client of persistence
-                        # failure but don't re-raise - let stream complete
-                        yield emit(
-                            create_event(
-                                "error",
-                                run_id="unknown",
-                                error=(
-                                    f"Execution completed but "
-                                    f"persistence failed: {str(persist_error)}"
-                                ),
-                            )
-                        )
-                        # Don't re-raise - allow stream to complete
-
+                        yield _sse_emit(event)
+                        last_hb = time.time()
                 except Exception as e:
                     logger.error(
-                        f"[{request_id}] Stream error: {str(e)}",
+                        f"[{request_id}] Stream error: {e}",
                         exc_info=True,
                     )
-                    # Emit error event to client (correlation_id included
-                    # via create_event)
-                    yield emit(
-                        create_event("error", run_id="unknown", error=str(e))
+                    yield _sse_emit(
+                        _event_svc.error(
+                            run_id="unknown",
+                            error_msg=str(e),
+                            request_id=request_id,
+                            goal_id="",
+                            correlation_id=cid,
+                        )
                     )
-                finally:
-                    # Ensure persistence even if client disconnects or
-                    # error occurred
-                    if full_events and not persisted:
-                        try:
-                            record = run_record_from_events(
-                                full_events, strategy.ordered_skills, user_id
-                            )
-                            store.append(record)
-                            logger.info(
-                                f"[{request_id}] Stream persisted "
-                                f"{len(events)} events (fallback)"
-                            )
-                        except Exception as persist_err:
-                            logger.error(
-                                f"[{request_id}] Failed to persist stream "
-                                f"events in finally: {str(persist_err)}"
-                            )
 
             return StreamingResponse(
-                generate(), media_type="text/event-stream"
+                _generate(), media_type="text/event-stream"
             )
 
         except ValidationError as e:
@@ -1776,24 +1317,27 @@ async def websocket_run(websocket: WebSocket):
         payload=None,
         error=None,
     ):
-        return {
-            "schema_version": "uar.event.v1",
-            "type": event_type,
-            "run_id": run_id,
-            "goal_id": _goal_id,
-            "skill": skill,
-            "timestamp": time.time(),
-            "correlation_id": correlation_id,
-            "payload": payload or {},
-            "error": error,
-        }
+        return _event_svc.create(
+            event_type=event_type,
+            run_id=run_id,
+            goal_id=_goal_id,
+            skill=skill,
+            payload=payload,
+            error=error,
+            correlation_id=correlation_id,
+        )
 
     # Enforce global WebSocket connection cap
     if not await _ws_conn_counter.acquire():
         await websocket.close(code=1008, reason="Too many connections")
         return
 
-    await websocket.accept()
+    try:
+        await websocket.accept()
+    except Exception:
+        _ws_conn_counter.release()
+        raise
+
     heartbeat_task = None
     heartbeat_stop = asyncio.Event()
     try:
@@ -1844,8 +1388,6 @@ async def websocket_run(websocket: WebSocket):
             await websocket.close(code=1008)
             return
 
-        from uar.core.executor import Executor
-
         websocket_timeout = int(os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30"))
         try:
             data = await asyncio.wait_for(
@@ -1887,19 +1429,7 @@ async def websocket_run(websocket: WebSocket):
             return
         goal = _build_goal(req)
         strategy = SimplePlanner().plan(goal)
-        plan = build_orchestration_plan(strategy)
-        executor = Executor()
-        timeout = req.timeout_seconds or 5.0
         _goal_id = strategy.goal_id
-
-        # Send orchestration plan first
-        await websocket.send_json(
-            create_event(
-                "orchestration_plan",
-                run_id="pending",
-                payload={"graph": plan.to_graph()},
-            )
-        )
 
         # Heartbeat: keep connection alive and detect stale clients
         heartbeat_stop = asyncio.Event()
@@ -1928,11 +1458,7 @@ async def websocket_run(websocket: WebSocket):
 
         heartbeat_task = asyncio.create_task(_heartbeat())
 
-        # Bounded ring buffer for persistence + batching for throughput
-        events: list[dict] = []
-        full_events: list[dict] = []
         batch: list[dict] = []
-        event_count = 0
         batch_deadline: float | None = None
 
         async def _flush_batch() -> None:
@@ -1954,90 +1480,23 @@ async def websocket_run(websocket: WebSocket):
                 batch = []
                 batch_deadline = None
 
-        bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
-        async for event in _async_event_stream(
-            executor, strategy, goal, timeout, correlation_id
-        ):
-            event_count += 1
-            if event_count >= MAX_STREAM_EVENTS:
-                # Append triggering event so full_events is accurate
-                # and persistence can succeed.
-                events.append(event)
-                full_events.append(event)
-                err_event = create_event(
-                    "error",
-                    run_id="unknown",
-                    error=(f"Event limit reached ({MAX_STREAM_EVENTS})."),
-                )
-                full_events.append(err_event)
-                await websocket.send_json(err_event)
-                # Emit synthetic complete so persistence succeeds
-                comp_event = create_event(
-                    "complete",
-                    run_id="unknown",
-                    payload={
-                        "status": "failed",
-                        "errors": [
-                            f"Event limit reached ({MAX_STREAM_EVENTS})"
-                        ],
-                    },
-                )
-                full_events.append(comp_event)
-                await websocket.send_json(comp_event)
-                await _flush_batch()
-                break
-
-            # Ring buffer: overwrite oldest events once full
-            if len(events) >= EVENT_BUFFER_SIZE:
-                events.pop(0)
-            events.append(event)
-            full_events.append(event)
-
-            await bp.apply()
-
-            # Batching: accumulate events then flush
-            batch.append(event)
-            if batch_deadline is None:
-                batch_deadline = time.time() + WS_BATCH_TIMEOUT
-            if len(batch) >= WS_BATCH_SIZE:
-                await _flush_batch()
-            elif time.time() >= batch_deadline:
-                await _flush_batch()
-            # Terminal events must reach client immediately
-            if event.get("type") in ("complete", "error"):
-                await _flush_batch()
-
-        # Flush any remaining events
-        await _flush_batch()
-
-        # Persist run
-        if not full_events:
-            logger.warning(
-                f"[{request_id}] No events to persist for WebSocket run"
-            )
         try:
-            if full_events:
-                record = run_record_from_events(
-                    full_events, strategy.ordered_skills, user_str
-                )
-                store.append(record)
-                await websocket.send_json(
-                    create_event(
-                        "persisted",
-                        run_id=record.run_id,
-                        payload={"run_id": record.run_id},
-                    )
-                )
-        except Exception as e:
-            await websocket.send_json(
-                create_event(
-                    "error",
-                    run_id="unknown",
-                    error=(
-                        f"Execution completed but persistence failed: {str(e)}"
-                    ),
-                )
-            )
+            async for event in _exec_svc.stream_goal(
+                goal, request_id, user_str, correlation_id,
+                yield_persisted=True,
+            ):
+                batch.append(event)
+                if batch_deadline is None:
+                    batch_deadline = time.time() + WS_BATCH_TIMEOUT
+                if len(batch) >= WS_BATCH_SIZE:
+                    await _flush_batch()
+                elif time.time() >= batch_deadline:
+                    await _flush_batch()
+                # Terminal events must reach client immediately
+                if event.get("type") in ("complete", "error"):
+                    await _flush_batch()
+        finally:
+            await _flush_batch()
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
@@ -2112,6 +1571,22 @@ async def list_runs(
 async def health_check():
     """Health check endpoint (backwards-compatible alias for liveness)."""
     return {"status": "healthy", "version": "1.0.0"}
+
+
+@app.get("/api/status")
+async def status_endpoint(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Operational status with skill inventory and authenticated user."""
+    user_info = auth_middleware(credentials)
+    user = user_info["user"] if user_info else "anonymous"
+    from uar.core.registry import registry
+
+    return {
+        "status": "operational",
+        "available_skills": registry.list(),
+        "user": user,
+    }
 
 
 @app.get("/api/health/live")
@@ -2961,5 +2436,61 @@ async def docs_create_folder(
                 "error": "Folder creation failed",
                 "message": "Internal server error",
                 "request_id": request_id,
+            },
+        )
+
+
+@app.post("/api/uar/query-code")
+async def query_code(
+    body: dict[str, Any],
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Ask a natural-language question about the codebase via Greptile.
+
+    Requires ``GREPTILE_API_KEY`` env var. Falls back to a mock
+    response when not configured so the endpoint is always callable.
+    """
+    user = _auth_svc.require_user(credentials)
+    question = body.get("question", "")
+    if not question or not isinstance(question, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "missing_question",
+                "message": "Provide a 'question' string",
+            },
+        )
+
+    try:
+        from uar.integrations import GreptileClient
+
+        client = GreptileClient()
+        result = await client.query(
+            question,
+            repo=body.get("repo"),
+            branch=body.get("branch", "main"),
+        )
+        return {
+            "answer": result.get("answer", ""),
+            "references": result.get("references", []),
+            "repo": body.get("repo") or client.repo,
+            "user": user["user"],
+        }
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "integration_not_installed",
+                "message": "Greptile integration not installed. "
+                "Run: pip install 'universal-agent-runtime[greptile]'",
+            },
+        )
+    except Exception as e:
+        logger.error(f"Greptile query failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "error": "greptile_error",
+                "message": str(e),
             },
         )
