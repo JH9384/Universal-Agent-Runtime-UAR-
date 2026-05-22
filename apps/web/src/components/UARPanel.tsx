@@ -3008,6 +3008,61 @@ export function UARPanel() {
                         <li><strong>Workflow</strong>: Analyze grammar first, then generate sequences, verify outputs as needed</li>
                       </>
                     )}
+                    {group.name === 'Multi-Agent' && (
+                      <>
+                        <li><strong>agent_workflow</strong>: Multi-agent workflows with Microsoft Agent Framework patterns - orchestrate multiple AI agents with defined roles</li>
+                        <li><strong>crewai_task</strong>: Role-based agent tasks with CrewAI - research, analysis, writing, code review patterns</li>
+                        <li><strong>crewai_workflow</strong>: Standard multi-agent workflows - research-analyze-write, code-review, data-analysis pipelines</li>
+                        <li><strong>Requirements</strong>: autogen for agent_workflow, crewai for crewai tasks</li>
+                        <li><strong>Use cases</strong>: Complex tasks requiring multiple specialized agents, collaborative AI workflows</li>
+                        <li><strong>Workflow</strong>: Define goal, select agent pattern, agents execute in sequence with shared context</li>
+                      </>
+                    )}
+                    {group.name === 'Advanced RAG' && (
+                      <>
+                        <li><strong>llamaindex_rag</strong>: Advanced RAG with LlamaIndex - hierarchical chunking, hybrid search, knowledge graph integration</li>
+                        <li><strong>llamaindex_query</strong>: Query existing LlamaIndex RAG with multiple retrieval strategies - semantic, keyword, hybrid</li>
+                        <li><strong>Requirements</strong>: llama-index package, documents ingested for indexing</li>
+                        <li><strong>Use cases</strong>: Complex document Q&A, knowledge bases, research assistant, technical documentation search</li>
+                        <li><strong>Workflow</strong>: Ingest documents, build index with llamaindex_rag, then query with llamaindex_query</li>
+                        <li><strong>Comparison</strong>: LlamaIndex offers more advanced retrieval than basic GraphRAG - use for sophisticated document search</li>
+                      </>
+                    )}
+                    {group.name === 'Pipeline Orchestration' && (
+                      <>
+                        <li><strong>dagster_pipeline</strong>: Execute Dagster pipelines with asset-based orchestration - data-aware scheduling and dependencies</li>
+                        <li><strong>dagster_status</strong>: Check Dagster pipeline and asset status - monitor runs, materializations, and health</li>
+                        <li><strong>Requirements</strong>: dagster package, Dagster instance running</li>
+                        <li><strong>Use cases</strong>: Data pipeline orchestration, ML pipeline management, ETL workflow scheduling</li>
+                        <li><strong>Workflow</strong>: Define assets and dependencies in Dagster, then trigger and monitor via UAR</li>
+                      </>
+                    )}
+                    {group.name === 'Governance' && (
+                      <>
+                        <li><strong>guardrail_check</strong>: Check guardrails for agent outputs - content safety, rate limits, budget compliance</li>
+                        <li><strong>budget_status</strong>: Check agent budget status - tokens used, API calls, cost, time limits</li>
+                        <li><strong>blackboard_status</strong>: Check shared blackboard status for inter-agent coordination and message passing</li>
+                        <li><strong>Requirements</strong>: guardrails-ai for guardrail_check</li>
+                        <li><strong>Use cases</strong>: Content moderation, cost control, multi-agent coordination, compliance monitoring</li>
+                        <li><strong>Workflow</strong>: Run governance checks before or after agent execution to ensure compliance</li>
+                      </>
+                    )}
+                    {group.name === 'UOR Ecosystem' && (
+                      <>
+                        <li><strong>uor_addr_canonicalize</strong>: Canonicalize data per UOR-ADDR-1 spec and compute SHA-256 digest</li>
+                        <li><strong>uor_addr_resolve</strong>: Resolve a UOR digest from the integrator object cache</li>
+                        <li><strong>hologram_query</strong>: Submit geometric inference to gethologram.ai (requires HOLOGRAM_API_KEY)</li>
+                        <li><strong>hologram_status</strong>: Check gethologram.ai service health</li>
+                        <li><strong>moltbook_list</strong>: List recent topics from moltbook.com/m/uor forum</li>
+                        <li><strong>moltbook_search</strong>: Search moltbook forum posts</li>
+                        <li><strong>moltbook_post</strong>: Post a new topic to moltbook forum (requires MOLTBOOK_API_KEY)</li>
+                        <li><strong>prism_btc_anchor</strong>: Anchor a UOR digest on Bitcoin (placeholder - pending public API)</li>
+                        <li><strong>severance_infer</strong>: Run inference via Severance AI (placeholder - pending public API)</li>
+                        <li><strong>anunix_health</strong>: Check Anunix host health (placeholder - pending public API)</li>
+                        <li><strong>uor_ecosystem_status</strong>: Check status of all UOR ecosystem integrations at once</li>
+                        <li><strong>Use cases</strong>: UOR data canonicalization, holographic inference, community forum integration, Bitcoin anchoring</li>
+                      </>
+                    )}
                     {group.name === 'STEM' && (
                       <>
                         <li><strong>math_compute</strong>: Symbolic math with SymPy - solve equations, differentiate, integrate, simplify expressions</li>
