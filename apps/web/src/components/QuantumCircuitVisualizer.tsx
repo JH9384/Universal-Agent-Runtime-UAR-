@@ -1,6 +1,7 @@
 import { useRef, useMemo, useState, useCallback } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useCanvasRecorder } from '../hooks/useCanvasRecorder'
 import styles from './QuantumCircuitVisualizer.module.css'
 
 interface CircuitGate {
@@ -168,15 +169,17 @@ export function QuantumCircuitVisualizer({
   darkMode = false,
 }: QuantumCircuitVisualizerProps) {
   const [showInfo, setShowInfo] = useState(true)
-  const [exportCanvas, setExportCanvas] = useState<HTMLCanvasElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const { startRecording, stopRecording, state: recState, error: recError } = useCanvasRecorder(canvasRef, 30)
 
   const handleExport = useCallback(() => {
-    if (!exportCanvas) return
+    const canvas = canvasRef.current
+    if (!canvas) return
     const link = document.createElement('a')
     link.download = `quantum-circuit-${Date.now()}.png`
-    link.href = exportCanvas.toDataURL('image/png')
+    link.href = canvas.toDataURL('image/png')
     link.click()
-  }, [exportCanvas])
+  }, [])
 
   const cameraPos = useMemo(
     () => (data ? computeCameraPosition(data.qubits, data.depth) : [8, 4, 8] as [number, number, number]),
@@ -198,6 +201,13 @@ export function QuantumCircuitVisualizer({
       <div className={styles.toolbar}>
         <span className={styles.title}>Quantum Circuit</span>
         <div className={styles.toolbarButtons}>
+          <button
+            className={`${styles.toolbarButton} ${recState.isRecording ? styles.recording : ''}`}
+            onClick={recState.isRecording ? stopRecording : startRecording}
+            title={recState.isRecording ? `Stop recording (${recState.recordedSeconds}s)` : 'Record video'}
+          >
+            {recState.isRecording ? `⏹ ${recState.recordedSeconds}s` : '🎥'}
+          </button>
           <button className={styles.toolbarButton} onClick={handleExport} title="Export PNG frame">
             📷
           </button>
@@ -205,12 +215,13 @@ export function QuantumCircuitVisualizer({
             ℹ️
           </button>
         </div>
+        {recError && <span className={styles.recError}>{recError}</span>}
       </div>
       <div className={styles.canvasWrapper}>
         <Canvas
           camera={{ position: cameraPos, fov: 50 }}
           gl={{ preserveDrawingBuffer: true }}
-          onCreated={({ gl }) => setExportCanvas(gl.domElement as HTMLCanvasElement)}
+          onCreated={({ gl }) => { canvasRef.current = gl.domElement as HTMLCanvasElement }}
         >
           <Scene data={data} />
         </Canvas>
