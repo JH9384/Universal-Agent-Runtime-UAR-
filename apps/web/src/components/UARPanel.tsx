@@ -3425,6 +3425,40 @@ export function UARPanel() {
                       >
                         ✏️
                       </button>
+                      <button
+                        className={styles.deleteButton}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!confirm(`Delete recipe "${r.label}"?`)) return
+                          try {
+                            const res = await fetch(`/api/uar/recipes/${r.id}`, {
+                              method: 'DELETE',
+                              headers: authHeaders(),
+                            })
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}))
+                              setError({ message: err.message || `Failed to delete recipe: ${res.status}`, timestamp: Date.now() })
+                              return
+                            }
+                            setRecipes((prev) => {
+                              const next = prev.filter((rec) => rec.id !== r.id)
+                              setRecipeHistory((history) => {
+                                const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), next]
+                                setRecipeHistoryIndex((idx) => idx + 1)
+                                return newHistory
+                              })
+                              return next
+                            })
+                            setUnifiedOrder((prev) => prev.filter((item) => item.type !== 'recipe' || item.content !== r.id))
+                          } catch (err) {
+                            setError({ message: err instanceof Error ? err.message : 'Delete failed', timestamp: Date.now() })
+                          }
+                        }}
+                        title="Delete recipe"
+                        aria-label={`Delete recipe ${r.label}`}
+                      >
+                        🗑️
+                      </button>
                     </div>
                   ))}
                 </div>
