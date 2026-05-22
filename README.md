@@ -163,6 +163,27 @@ goal = {"goal": "Summarize this document", "input_path": "docs/README.md"}
 - `anunix_health`: Check Anunix host health (placeholder)
 - `uor_ecosystem_status`: Check status of all UOR ecosystem integrations
 
+### Optional Skill Dependencies
+
+Some skills require optional packages that are not included in the base
+installation. If those extras are not installed, you will see harmless
+log warnings on startup such as:
+
+```
+Recipe 'review' references unregistered skill: doc_ingest
+Recipe 'gr_index' references unregistered skill: graphrag_index
+```
+
+These warnings mean the skill module is loaded but its underlying
+libraries are missing. The skill will become available once you install
+the relevant extras:
+
+| Skill(s) | Extra group | Install command |
+|---|---|---|
+| `doc_ingest` | `doc-processing` | `pip install -e ".[doc-processing]"` |
+| `graphrag_index`, `graphrag_query` | `advanced-rag` | `pip install -e ".[advanced-rag]"` |
+| `autonomi_upload`, `autonomi_download` | `autonomi` | `pip install -e ".[autonomi]"` |
+
 ## Development
 
 ```bash

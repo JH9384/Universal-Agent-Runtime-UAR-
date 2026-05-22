@@ -155,6 +155,12 @@ import uar.skills.platformio  # noqa
 import uar.skills.stub_skills  # noqa
 import uar.skills.data_viz_3d  # noqa
 
+# Validate canonical recipe skill references now that all skills are
+# registered in the global registry.
+from uar.core.recipes import validate_recipes  # noqa
+
+validate_recipes()
+
 
 # Lifespan for graceful startup/shutdown
 @asynccontextmanager

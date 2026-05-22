@@ -258,5 +258,6 @@ def validate_recipes() -> None:
         )
 
 
-# Validate recipes at module load time
-validate_recipes()
+# Note: validate_recipes() is called explicitly from server.py after all
+# skills are imported, to avoid false "unregistered skill" warnings during
+# the import-order window when recipes are loaded before skills.
