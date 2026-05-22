@@ -141,6 +141,7 @@ const SKILL_GROUPS = [
       { id: 'mistral_embedding', label: 'mistral_embedding', desc: 'Generate embeddings with Mistral (requires openai package + MISTRAL_API_KEY)' },
       { id: 'groq_chat', label: 'groq_chat', desc: 'Ultra-fast chat with Groq (requires openai package + GROQ_API_KEY)' },
       { id: 'groq_completion', label: 'groq_completion', desc: 'Ultra-fast completion with Groq (requires openai package + GROQ_API_KEY)' },
+      { id: 'groq_embedding', label: 'groq_embedding', desc: 'Generate embeddings with Groq (requires openai package + GROQ_API_KEY)' },
       { id: 'huggingface_chat', label: 'huggingface_chat', desc: 'Chat with HF models (requires openai package + HF_API_KEY)' },
       { id: 'huggingface_completion', label: 'huggingface_completion', desc: 'Text completion with HF (requires openai package + HF_API_KEY)' },
       { id: 'huggingface_embedding', label: 'huggingface_embedding', desc: 'Generate embeddings with HF (requires openai package + HF_API_KEY)' },
@@ -285,7 +286,6 @@ const SKILL_GROUPS = [
     name: 'Blockchain / Web3',
     icon: '🔗',
     skills: [
-      { id: 'web3_eth',        label: 'web3_eth',        desc: 'Ethereum interaction with web3.py - smart contracts, transactions (requires web3)' },
       { id: 'solana_tx',       label: 'solana_tx',       desc: 'Solana transactions - SPL tokens, wallet management (requires solana-py)' },
       { id: 'smart_contract',  label: 'smart_contract',  desc: 'Smart contract deployment and interaction (requires web3, brownie)' },
       { id: 'nft_mint',        label: 'nft_mint',        desc: 'NFT minting and metadata management (requires web3, eth-account)' },
@@ -1306,6 +1306,7 @@ export function UARPanel() {
                 if (json.type === 'orchestration_plan' && json.payload?.graph) setGraph(json.payload.graph)
                 if (json.type === 'metrics' && json.payload) setMetrics(json.payload)
                 if (json.type === 'error' && json.error) setError({ message: json.error, timestamp: Date.now() })
+                if (json.type === 'skill_failed' && json.error) setError({ message: `${json.skill ? `[${json.skill}] ` : ''}${json.error}`, timestamp: Date.now() })
               } catch (parseError) {
                 console.error('Failed to parse WebSocket message:', parseError, msg.data)
               }
@@ -1520,6 +1521,7 @@ export function UARPanel() {
               if (json.type === 'metrics' && json.payload) setMetrics(json.payload)
               if (json.run?.final_context?.dependency_map) setGraph(json.run.final_context.dependency_map)
               if (json.type === 'error' && json.error) setError({ message: json.error, timestamp: Date.now() })
+              if (json.type === 'skill_failed' && json.error) setError({ message: `${json.skill ? `[${json.skill}] ` : ''}${json.error}`, timestamp: Date.now() })
             } catch (parseError) {
               console.error('Failed to parse SSE data:', parseError, 'Data:', line)
               setError({ message: 'Failed to parse server response', timestamp: Date.now() })
@@ -3053,7 +3055,6 @@ export function UARPanel() {
                     )}
                     {group.name === 'Blockchain / Web3' && (
                       <>
-                        <li><strong>web3_eth</strong>: Ethereum interaction with web3.py - smart contracts, transactions, blockchain queries</li>
                         <li><strong>solana_tx</strong>: Solana transactions - SPL tokens, wallet management, high-speed transactions</li>
                         <li><strong>smart_contract</strong>: Smart contract deployment - Solidity contracts, deployment, interaction, testing</li>
                         <li><strong>nft_mint</strong>: NFT minting - ERC-721/1155 tokens, metadata, IPFS integration</li>

@@ -154,6 +154,10 @@ import uar.skills.micropython  # noqa
 import uar.skills.platformio  # noqa
 import uar.skills.stub_skills  # noqa
 import uar.skills.data_viz_3d  # noqa
+import uar.skills.doc_ingest_enhanced  # noqa
+import uar.skills.stem_extended  # noqa
+import uar.skills.cv_skills  # noqa
+import uar.skills.ml_tools  # noqa
 
 # Validate canonical recipe skill references now that all skills are
 # registered in the global registry.

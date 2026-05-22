@@ -23,6 +23,16 @@ const SKILLS: Skill[] = [
     category: 'Core'
   },
   {
+    id: 'doc_ingest_enhanced',
+    label: 'doc_ingest_enhanced',
+    desc: 'Advanced document ingestion with Unstructured & Docling',
+    useCase: 'Parse PDFs, DOCX, images, tables with layout preservation',
+    example: 'Goal: "Extract tables from PDF" → Skills: [doc_ingest_enhanced]',
+    prerequisites: ['unstructured', 'docling'],
+    output: 'Structured document content with tables and images',
+    category: 'Core'
+  },
+  {
     id: 'dependency_map',
     label: 'dependency_map',
     desc: 'Build a dependency graph between artifacts',
@@ -370,84 +380,409 @@ const SKILLS: Skill[] = [
     category: 'Analysis'
   },
   {
-    id: 'openai_skills',
-    label: 'openai_skills',
-    desc: 'OpenAI GPT models for text generation and analysis',
-    useCase: 'Chat, completion, embeddings with GPT-4 and GPT-3.5',
-    example: 'Goal: "Analyze with GPT" → Skills: [doc_ingest, openai_skills]',
+    id: 'openai_chat',
+    label: 'openai_chat',
+    desc: 'Chat with OpenAI GPT models',
+    useCase: 'Conversational AI with GPT-4 and GPT-3.5',
+    example: 'Goal: "Chat about this topic" → Skills: [doc_ingest, openai_chat]',
     prerequisites: ['doc_ingest', 'OPENAI_API_KEY'],
-    output: 'AI-generated response with model info and context stats',
+    output: 'AI chat response with model info',
     category: 'AI'
   },
   {
-    id: 'anthropic_skills',
-    label: 'anthropic_skills',
-    desc: 'Anthropic Claude models for high-quality reasoning',
-    useCase: 'Claude 3 Opus, Sonnet, Haiku for complex reasoning tasks',
-    example: 'Goal: "Reason about code" → Skills: [doc_ingest, anthropic_skills]',
+    id: 'openai_completion',
+    label: 'openai_completion',
+    desc: 'Text completion with OpenAI GPT models',
+    useCase: 'Generate text, code, summaries with GPT',
+    example: 'Goal: "Complete this sentence" → Skills: [openai_completion]',
+    prerequisites: ['OPENAI_API_KEY'],
+    output: 'Generated text completion',
+    category: 'AI'
+  },
+  {
+    id: 'openai_embedding',
+    label: 'openai_embedding',
+    desc: 'Generate embeddings with OpenAI models',
+    useCase: 'Text embeddings for similarity search and clustering',
+    example: 'Goal: "Embed these documents" → Skills: [doc_ingest, openai_embedding]',
+    prerequisites: ['doc_ingest', 'OPENAI_API_KEY'],
+    output: 'Vector embeddings array',
+    category: 'AI'
+  },
+  {
+    id: 'anthropic_chat',
+    label: 'anthropic_chat',
+    desc: 'Chat with Anthropic Claude models',
+    useCase: 'High-quality reasoning with Claude 3 Opus, Sonnet, Haiku',
+    example: 'Goal: "Reason about this code" → Skills: [doc_ingest, anthropic_chat]',
     prerequisites: ['doc_ingest', 'ANTHROPIC_API_KEY'],
-    output: 'AI-generated response with model info and context stats',
+    output: 'Claude chat response',
     category: 'AI'
   },
   {
-    id: 'gemini_skills',
-    label: 'gemini_skills',
-    desc: 'Google Gemini models for multimodal capabilities',
-    useCase: 'Gemini Pro for text, image, and multimodal tasks',
-    example: 'Goal: "Analyze with Gemini" → Skills: [doc_ingest, gemini_skills]',
+    id: 'anthropic_completion',
+    label: 'anthropic_completion',
+    desc: 'Text completion with Anthropic Claude',
+    useCase: 'Generate text with Claude models',
+    example: 'Goal: "Write a summary" → Skills: [anthropic_completion]',
+    prerequisites: ['ANTHROPIC_API_KEY'],
+    output: 'Claude text completion',
+    category: 'AI'
+  },
+  {
+    id: 'anthropic_embedding',
+    label: 'anthropic_embedding',
+    desc: 'Generate embeddings with Claude (not currently supported)',
+    useCase: 'Text embeddings with Anthropic models',
+    example: 'Goal: "Embed with Claude" → Skills: [doc_ingest, anthropic_embedding]',
+    prerequisites: ['doc_ingest', 'ANTHROPIC_API_KEY'],
+    output: 'Claude embeddings array',
+    category: 'AI'
+  },
+  {
+    id: 'gemini_chat',
+    label: 'gemini_chat',
+    desc: 'Chat with Google Gemini models',
+    useCase: 'Multimodal chat with Gemini Pro',
+    example: 'Goal: "Analyze this image" → Skills: [doc_ingest, gemini_chat]',
     prerequisites: ['doc_ingest', 'GEMINI_API_KEY'],
-    output: 'AI-generated response with model info and context stats',
+    output: 'Gemini chat response',
     category: 'AI'
   },
   {
-    id: 'mistral_skills',
-    label: 'mistral_skills',
-    desc: 'Mistral models for efficient inference',
-    useCase: 'Mistral 7B, Mixtral for fast local and cloud inference',
-    example: 'Goal: "Generate with Mistral" → Skills: [doc_ingest, mistral_skills]',
+    id: 'gemini_completion',
+    label: 'gemini_completion',
+    desc: 'Text completion with Google Gemini',
+    useCase: 'Generate text with Gemini models',
+    example: 'Goal: "Generate content" → Skills: [gemini_completion]',
+    prerequisites: ['GEMINI_API_KEY'],
+    output: 'Gemini text completion',
+    category: 'AI'
+  },
+  {
+    id: 'gemini_embedding',
+    label: 'gemini_embedding',
+    desc: 'Generate embeddings with Google Gemini',
+    useCase: 'Text embeddings with Gemini models',
+    example: 'Goal: "Embed text" → Skills: [doc_ingest, gemini_embedding]',
+    prerequisites: ['doc_ingest', 'GEMINI_API_KEY'],
+    output: 'Gemini embeddings array',
+    category: 'AI'
+  },
+  {
+    id: 'mistral_chat',
+    label: 'mistral_chat',
+    desc: 'Chat with Mistral models',
+    useCase: 'Fast inference with Mistral 7B, Mixtral',
+    example: 'Goal: "Chat with Mistral" → Skills: [doc_ingest, mistral_chat]',
     prerequisites: ['doc_ingest', 'MISTRAL_API_KEY'],
-    output: 'AI-generated response with model info and context stats',
+    output: 'Mistral chat response',
     category: 'AI'
   },
   {
-    id: 'groq_skills',
-    label: 'groq_skills',
-    desc: 'Groq ultra-fast inference with LPU acceleration',
-    useCase: 'Real-time responses with LPU-accelerated inference',
-    example: 'Goal: "Fast inference" → Skills: [doc_ingest, groq_skills]',
+    id: 'mistral_completion',
+    label: 'mistral_completion',
+    desc: 'Text completion with Mistral',
+    useCase: 'Generate text with Mistral models',
+    example: 'Goal: "Complete text" → Skills: [mistral_completion]',
+    prerequisites: ['MISTRAL_API_KEY'],
+    output: 'Mistral text completion',
+    category: 'AI'
+  },
+  {
+    id: 'mistral_embedding',
+    label: 'mistral_embedding',
+    desc: 'Generate embeddings with Mistral',
+    useCase: 'Text embeddings with Mistral models',
+    example: 'Goal: "Embed documents" → Skills: [doc_ingest, mistral_embedding]',
+    prerequisites: ['doc_ingest', 'MISTRAL_API_KEY'],
+    output: 'Mistral embeddings array',
+    category: 'AI'
+  },
+  {
+    id: 'groq_chat',
+    label: 'groq_chat',
+    desc: 'Ultra-fast chat with Groq LPU acceleration',
+    useCase: 'Real-time chat with LPU-accelerated inference',
+    example: 'Goal: "Fast chat" → Skills: [doc_ingest, groq_chat]',
     prerequisites: ['doc_ingest', 'GROQ_API_KEY'],
-    output: 'AI-generated response with model info and context stats',
+    output: 'Groq chat response',
     category: 'AI'
   },
   {
-    id: 'huggingface_skills',
-    label: 'huggingface_skills',
-    desc: 'Hugging Face models via Inference API',
-    useCase: 'Access thousands of models via Hugging Face Inference API',
-    example: 'Goal: "Run HF model" → Skills: [doc_ingest, huggingface_skills]',
+    id: 'groq_completion',
+    label: 'groq_completion',
+    desc: 'Ultra-fast completion with Groq',
+    useCase: 'Real-time text completion with LPU acceleration',
+    example: 'Goal: "Fast completion" → Skills: [groq_completion]',
+    prerequisites: ['GROQ_API_KEY'],
+    output: 'Groq text completion',
+    category: 'AI'
+  },
+  {
+    id: 'groq_embedding',
+    label: 'groq_embedding',
+    desc: 'Generate embeddings with Groq',
+    useCase: 'Fast embeddings with LPU acceleration',
+    example: 'Goal: "Fast embeddings" → Skills: [doc_ingest, groq_embedding]',
+    prerequisites: ['doc_ingest', 'GROQ_API_KEY'],
+    output: 'Groq embeddings array',
+    category: 'AI'
+  },
+  {
+    id: 'huggingface_chat',
+    label: 'huggingface_chat',
+    desc: 'Chat with Hugging Face models',
+    useCase: 'Access thousands of models via HF Inference API',
+    example: 'Goal: "Chat with HF model" → Skills: [doc_ingest, huggingface_chat]',
     prerequisites: ['doc_ingest', 'HF_API_KEY'],
-    output: 'AI-generated response with model info and context stats',
+    output: 'HF chat response',
     category: 'AI'
   },
   {
-    id: 'together_skills',
-    label: 'together_skills',
-    desc: 'Together.ai optimized open-source models',
+    id: 'huggingface_completion',
+    label: 'huggingface_completion',
+    desc: 'Text completion with Hugging Face',
+    useCase: 'Generate text with HF models',
+    example: 'Goal: "Complete with HF" → Skills: [huggingface_completion]',
+    prerequisites: ['HF_API_KEY'],
+    output: 'HF text completion',
+    category: 'AI'
+  },
+  {
+    id: 'huggingface_embedding',
+    label: 'huggingface_embedding',
+    desc: 'Generate embeddings with Hugging Face',
+    useCase: 'Text embeddings with HF models',
+    example: 'Goal: "Embed with HF" → Skills: [doc_ingest, huggingface_embedding]',
+    prerequisites: ['doc_ingest', 'HF_API_KEY'],
+    output: 'HF embeddings array',
+    category: 'AI'
+  },
+  {
+    id: 'together_chat',
+    label: 'together_chat',
+    desc: 'Chat with Together.ai models',
     useCase: 'Fast inference with optimized open-source models',
-    example: 'Goal: "Run Together model" → Skills: [doc_ingest, together_skills]',
+    example: 'Goal: "Chat with Together" → Skills: [doc_ingest, together_chat]',
     prerequisites: ['doc_ingest', 'TOGETHER_API_KEY'],
-    output: 'AI-generated response with model info and context stats',
+    output: 'Together chat response',
     category: 'AI'
   },
   {
-    id: 'lm_studio_skills',
-    label: 'lm_studio_skills',
-    desc: 'Local models via LM Studio',
-    useCase: 'Run local LLMs with LM Studio GUI interface',
-    example: 'Goal: "Local inference" → Skills: [doc_ingest, lm_studio_skills]',
-    prerequisites: ['doc_ingest', 'LM Studio running locally'],
-    output: 'AI-generated response with model info and context stats',
+    id: 'together_completion',
+    label: 'together_completion',
+    desc: 'Text completion with Together.ai',
+    useCase: 'Generate text with Together models',
+    example: 'Goal: "Complete with Together" → Skills: [together_completion]',
+    prerequisites: ['TOGETHER_API_KEY'],
+    output: 'Together text completion',
     category: 'AI'
+  },
+  {
+    id: 'together_embedding',
+    label: 'together_embedding',
+    desc: 'Generate embeddings with Together.ai',
+    useCase: 'Text embeddings with Together models',
+    example: 'Goal: "Embed with Together" → Skills: [doc_ingest, together_embedding]',
+    prerequisites: ['doc_ingest', 'TOGETHER_API_KEY'],
+    output: 'Together embeddings array',
+    category: 'AI'
+  },
+  {
+    id: 'lm_studio_chat',
+    label: 'lm_studio_chat',
+    desc: 'Local chat with LM Studio',
+    useCase: 'Run local LLMs with LM Studio GUI',
+    example: 'Goal: "Local chat" → Skills: [doc_ingest, lm_studio_chat]',
+    prerequisites: ['doc_ingest', 'LM Studio running locally'],
+    output: 'LM Studio chat response',
+    category: 'AI'
+  },
+  {
+    id: 'lm_studio_completion',
+    label: 'lm_studio_completion',
+    desc: 'Local completion with LM Studio',
+    useCase: 'Generate text with local LM Studio models',
+    example: 'Goal: "Local completion" → Skills: [lm_studio_completion]',
+    prerequisites: ['LM Studio running locally'],
+    output: 'LM Studio text completion',
+    category: 'AI'
+  },
+  // STEM / Advanced Analysis
+  {
+    id: 'scipy_opt',
+    label: 'scipy_opt',
+    desc: 'SciPy optimization and linear algebra',
+    useCase: 'Minimize functions, solve linear systems, eigenvalue problems',
+    example: 'Goal: "Optimize this function" → Skills: [scipy_opt]',
+    prerequisites: ['scipy'],
+    output: 'Optimization results or eigenvalues/eigenvectors',
+    category: 'Analysis'
+  },
+  {
+    id: 'diff_eq_solve',
+    label: 'diff_eq_solve',
+    desc: 'Solve differential equations with SciPy',
+    useCase: 'ODE and PDE solving for physics and engineering',
+    example: 'Goal: "Solve this ODE" → Skills: [diff_eq_solve]',
+    prerequisites: ['scipy'],
+    output: 'Solution arrays and metadata',
+    category: 'Analysis'
+  },
+  {
+    id: 'quantum_circuit',
+    label: 'quantum_circuit',
+    desc: 'Quantum circuit design and simulation with Qiskit',
+    useCase: 'Build and simulate quantum circuits',
+    example: 'Goal: "Design a Bell state circuit" → Skills: [quantum_circuit]',
+    prerequisites: ['qiskit'],
+    output: 'Circuit metrics and statevector data',
+    category: 'Analysis'
+  },
+  {
+    id: 'chem_analysis',
+    label: 'chem_analysis',
+    desc: 'Chemical analysis with RDKit',
+    useCase: 'Molecular fingerprinting, similarity, descriptors',
+    example: 'Goal: "Analyze this molecule" → Skills: [chem_analysis]',
+    prerequisites: ['rdkit'],
+    output: 'Molecular descriptors and similarity scores',
+    category: 'Analysis'
+  },
+  {
+    id: 'bio_compute',
+    label: 'bio_compute',
+    desc: 'Bioinformatics with Biopython',
+    useCase: 'Sequence analysis, protein structure, BLAST queries',
+    example: 'Goal: "Analyze this DNA sequence" → Skills: [bio_compute]',
+    prerequisites: ['biopython'],
+    output: 'Sequence stats and alignment results',
+    category: 'Analysis'
+  },
+  {
+    id: 'relativity',
+    label: 'relativity',
+    desc: 'Symbolic relativity with SymPy',
+    useCase: 'Metric tensor, Christoffel symbols, geodesic equations',
+    example: 'Goal: "Calculate Christoffel symbols" → Skills: [relativity]',
+    prerequisites: ['sympy'],
+    output: 'Symbolic tensor expressions',
+    category: 'Analysis'
+  },
+  // CV / Image
+  {
+    id: 'opencv_process',
+    label: 'opencv_process',
+    desc: 'OpenCV image processing',
+    useCase: 'Grayscale, blur, edge detection, contours, resize',
+    example: 'Goal: "Detect edges in this image" → Skills: [opencv_process]',
+    prerequisites: ['opencv-python'],
+    output: 'Processed image path and shape info',
+    category: 'Analysis'
+  },
+  {
+    id: 'yolo_detect',
+    label: 'yolo_detect',
+    desc: 'YOLO object detection',
+    useCase: 'Real-time object detection with Ultralytics YOLO',
+    example: 'Goal: "Find objects in this image" → Skills: [yolo_detect]',
+    prerequisites: ['ultralytics'],
+    output: 'Detection results with bounding boxes',
+    category: 'Analysis'
+  },
+  // ML Tools
+  {
+    id: 'optuna_tune',
+    label: 'optuna_tune',
+    desc: 'Hyperparameter optimization with Optuna',
+    useCase: 'Automated ML hyperparameter tuning',
+    example: 'Goal: "Tune these hyperparameters" → Skills: [optuna_tune]',
+    prerequisites: ['optuna'],
+    output: 'Best params and optimization history',
+    category: 'AI'
+  },
+  {
+    id: 'chromadb_store',
+    label: 'chromadb_store',
+    desc: 'Vector store operations with ChromaDB',
+    useCase: 'Add, query, delete vector embeddings',
+    example: 'Goal: "Store these embeddings" → Skills: [chromadb_store]',
+    prerequisites: ['chromadb'],
+    output: 'ChromaDB operation results',
+    category: 'AI'
+  },
+  {
+    id: 'lm_studio_embedding',
+    label: 'lm_studio_embedding',
+    desc: 'Local embeddings with LM Studio',
+    useCase: 'Generate embeddings with local LM Studio models',
+    example: 'Goal: "Local embeddings" → Skills: [doc_ingest, lm_studio_embedding]',
+    prerequisites: ['doc_ingest', 'LM Studio running locally'],
+    output: 'LM Studio embeddings array',
+    category: 'AI'
+  },
+  // GraphRAG
+  {
+    id: 'flexible_graphrag',
+    label: 'flexible_graphrag',
+    desc: 'Flexible GraphRAG with multiple backends',
+    useCase: 'Knowledge graph RAG with Neo4j, Memgraph, RDF',
+    example: 'Goal: "Query knowledge graph" → Skills: [doc_ingest, flexible_graphrag]',
+    prerequisites: ['doc_ingest'],
+    output: 'Graph query results with sources',
+    category: 'GraphRAG'
+  },
+  // Hardware / Embedded
+  {
+    id: 'myhdl_design',
+    label: 'myhdl_design',
+    desc: 'Hardware design with MyHDL',
+    useCase: 'Digital hardware design and simulation in Python',
+    example: 'Goal: "Design a counter" → Skills: [myhdl_design]',
+    prerequisites: ['myhdl'],
+    output: 'Hardware module and simulation results',
+    category: 'Analysis'
+  },
+  {
+    id: 'riscv_cycle',
+    label: 'riscv_cycle',
+    desc: 'RISC-V cycle-accurate simulation',
+    useCase: 'Detailed RISC-V core simulation at cycle level',
+    example: 'Goal: "Simulate RISC-V core" → Skills: [riscv_cycle]',
+    prerequisites: ['riscv-pk'],
+    output: 'Cycle-accurate trace and stats',
+    category: 'Analysis'
+  },
+  {
+    id: 'verilator_sim',
+    label: 'verilator_sim',
+    desc: 'Verilog simulation with Verilator',
+    useCase: 'Fast Verilog/SystemVerilog simulation',
+    example: 'Goal: "Simulate this Verilog" → Skills: [verilator_sim]',
+    prerequisites: ['verilator'],
+    output: 'Simulation waveform and coverage',
+    category: 'Analysis'
+  },
+  {
+    id: 'micropython',
+    label: 'micropython',
+    desc: 'MicroPython for embedded devices',
+    useCase: 'Run MicroPython on supported microcontrollers',
+    example: 'Goal: "Flash MicroPython" → Skills: [micropython]',
+    prerequisites: ['micropython'],
+    output: 'Device output and sensor readings',
+    category: 'Analysis'
+  },
+  {
+    id: 'platformio',
+    label: 'platformio',
+    desc: 'Embedded development with PlatformIO',
+    useCase: 'Build and upload firmware for embedded boards',
+    example: 'Goal: "Build firmware" → Skills: [platformio]',
+    prerequisites: ['platformio'],
+    output: 'Build artifacts and upload status',
+    category: 'Analysis'
   }
 ]
 

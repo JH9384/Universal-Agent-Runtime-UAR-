@@ -11,13 +11,14 @@ This module provides UAR skill wrappers for the integrated frameworks:
 """
 
 import logging
+from pathlib import Path
 from typing import Any, Dict
 from uar.core.registry import register_skill
 
 logger = logging.getLogger(__name__)
 
 
-@register_skill
+@register_skill("agent_workflow")
 def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute multi-agent workflows using Microsoft Agent Framework patterns.
@@ -87,7 +88,7 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("crewai_task")
 def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute role-based agent tasks using CrewAI patterns.
@@ -162,7 +163,7 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("crewai_workflow")
 def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute standard multi-agent workflows using CrewAI patterns.
@@ -211,7 +212,7 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("llamaindex_rag")
 def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute advanced RAG using LlamaIndex capabilities.
@@ -302,7 +303,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("llamaindex_query")
 def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Query an existing LlamaIndex RAG system.
@@ -362,7 +363,7 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("dagster_pipeline")
 def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute Dagster pipelines with asset-based orchestration.
@@ -416,7 +417,7 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("dagster_status")
 def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Check Dagster pipeline and asset status.
@@ -447,7 +448,7 @@ def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("guardrail_check")
 def guardrail_check(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Check guardrails for agent outputs.
@@ -516,7 +517,7 @@ def guardrail_check(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("budget_status")
 def budget_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Check agent budget status.
@@ -562,7 +563,7 @@ def budget_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("blackboard_status")
 def blackboard_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Check shared blackboard status for agent coordination.
@@ -593,7 +594,7 @@ def blackboard_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@register_skill
+@register_skill("flexible_graphrag")
 def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute Flexible GraphRAG with multiple backends and hybrid search.
@@ -648,7 +649,12 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
         if input_path:
             from uar.skills.doc_ingest import _yield_documents
 
-            documents = list(_yield_documents(input_path))
+            documents = list(
+                _yield_documents(
+                    Path(input_path),
+                    allowed_root=Path(input_path),
+                )
+            )
             graphrag.build_graph_from_documents(documents)
 
         # Query the graph
@@ -680,7 +686,7 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@register_skill
+@register_skill("blackboard_message")
 def blackboard_message(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Post or read messages on a shared blackboard for inter-agent comms.
 
