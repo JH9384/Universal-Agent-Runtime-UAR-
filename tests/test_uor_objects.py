@@ -1,13 +1,36 @@
 """Tests for UOR object binary content upload/download endpoints."""
 
 from io import BytesIO
+from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
-from uar.api.server import app
+from uar.api.server import app, require_auth
 from uar.objects import get_default_store
 
+app.dependency_overrides[require_auth] = lambda: {
+    "user": "test",
+    "tier": "authenticated",
+}
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def setup_api_keys():
+    """Set up test API keys and auth override for UOR endpoints."""
+    with patch.dict(
+        "uar.api.middleware.API_KEYS",
+        {"dev-key-12345": {"user": "developer", "tier": "authenticated"}},
+        clear=True,
+    ):
+        # Re-apply dependency override in case another test cleared it
+        app.dependency_overrides[require_auth] = lambda: {
+            "user": "test",
+            "tier": "authenticated",
+        }
+        yield
+        app.dependency_overrides.pop(require_auth, None)
 
 
 def _create_test_object(unique: str = "") -> str:

@@ -7,6 +7,8 @@ end-to-end validation.
 """
 
 from unittest.mock import Mock, patch
+
+import pytest
 from fastapi.testclient import TestClient
 from io import BytesIO
 
@@ -15,33 +17,58 @@ from uar.api.server import app
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def setup_api_keys():
+    """Set up test API keys for authenticated endpoints."""
+    with patch.dict(
+        "uar.api.middleware.API_KEYS",
+        {"dev-key-12345": {"user": "developer", "tier": "authenticated"}},
+        clear=True,
+    ):
+        yield
+
+
+AUTH_HEADERS = {"Authorization": "Bearer dev-key-12345"}
+
+
 class TestDocumentEndpoints:
     """Test document management endpoints"""
 
     def test_browse_files_success(self):
         """Test successful file browsing"""
-        response = client.get("/api/uar/docs/browse?path=/")
+        response = client.get(
+            "/api/uar/docs/browse?path=/", headers=AUTH_HEADERS
+        )
         # Should succeed even if path doesn't exist
         assert response.status_code in [200, 400]
 
     def test_browse_files_with_path(self):
         """Test file browsing with specific path"""
-        response = client.get("/api/uar/docs/browse?path=/tmp")
+        response = client.get(
+            "/api/uar/docs/browse?path=/tmp", headers=AUTH_HEADERS
+        )
         assert response.status_code in [200, 400]
 
     def test_browse_files_with_limit(self):
         """Test file browsing with limit parameter"""
-        response = client.get("/api/uar/docs/browse?path=/tmp&limit=10")
+        response = client.get(
+            "/api/uar/docs/browse?path=/tmp&limit=10",
+            headers=AUTH_HEADERS,
+        )
         assert response.status_code in [200, 400]
 
     def test_library_endpoint(self):
         """Test library endpoint"""
-        response = client.get("/api/uar/docs/library")
+        response = client.get(
+            "/api/uar/docs/library", headers=AUTH_HEADERS
+        )
         assert response.status_code in [200, 404]
 
     def test_presets_endpoint(self):
         """Test presets endpoint"""
-        response = client.get("/api/uar/docs/presets")
+        response = client.get(
+            "/api/uar/docs/presets", headers=AUTH_HEADERS
+        )
         assert response.status_code in [200, 404]
 
 
@@ -52,7 +79,9 @@ class TestFileUpload:
         """Test uploading a single file"""
         file_content = b"test file content"
         files = {"file": ("test.txt", BytesIO(file_content), "text/plain")}
-        response = client.post("/api/uar/docs/upload", files=files)
+        response = client.post(
+            "/api/uar/docs/upload", files=files, headers=AUTH_HEADERS
+        )
         # Should succeed or fail gracefully
         assert response.status_code in [200, 400, 413, 422]
 
@@ -61,13 +90,17 @@ class TestFileUpload:
         # Create a file larger than 50MB limit
         large_content = b"x" * (51 * 1024 * 1024)
         files = {"file": ("large.txt", BytesIO(large_content), "text/plain")}
-        response = client.post("/api/uar/docs/upload", files=files)
+        response = client.post(
+            "/api/uar/docs/upload", files=files, headers=AUTH_HEADERS
+        )
         # Should be rejected
         assert response.status_code in [400, 413, 422]
 
     def test_upload_no_file(self):
         """Test upload with no file provided"""
-        response = client.post("/api/uar/docs/upload", files={})
+        response = client.post(
+            "/api/uar/docs/upload", files={}, headers=AUTH_HEADERS
+        )
         assert response.status_code in [400, 422]
 
 

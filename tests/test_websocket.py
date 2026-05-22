@@ -8,11 +8,24 @@ import json
 import time
 from unittest.mock import patch
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from uar.api.server import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def setup_api_keys():
+    """Set up test API keys for authenticated endpoints."""
+    with patch.dict(
+        "uar.api.middleware.API_KEYS",
+        {"dev-key-12345": {"user": "developer", "tier": "authenticated"}},
+        clear=True,
+    ):
+        yield
 
 
 def _extract_events(messages: list) -> list[dict]:
@@ -169,7 +182,9 @@ def test_ws_event_limit_enforced():
 
     We patch the limit to a tiny value so the test triggers it.
     """
-    with patch("uar.api.server.MAX_STREAM_EVENTS", 3):
+    import uar.api.server as server_mod
+
+    with patch.object(server_mod._exec_svc, "max_stream_events", 3):
         with client.websocket_connect("/ws/run") as ws:
             ws.send_json({"goal": "test limit"})
             messages = []

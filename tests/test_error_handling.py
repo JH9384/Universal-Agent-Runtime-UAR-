@@ -1,5 +1,7 @@
 """Integration tests for error handling and edge cases"""
 
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -17,17 +19,12 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def setup_api_keys():
     """Set up test API keys for authenticated endpoints."""
-    import os
-
-    os.environ["API_KEYS"] = "dev-key-12345:developer:authenticated"
-    # Reload API keys module to pick up new env var
-    import importlib
-    import uar.api.middleware as middleware
-
-    importlib.reload(middleware)
-    yield
-    del os.environ["API_KEYS"]
-    importlib.reload(middleware)
+    with patch.dict(
+        "uar.api.middleware.API_KEYS",
+        {"dev-key-12345": {"user": "developer", "tier": "authenticated"}},
+        clear=True,
+    ):
+        yield
 
 
 class TestInputValidation:

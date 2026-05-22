@@ -1,8 +1,22 @@
+from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 from uar.api.server import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def setup_api_keys():
+    """Set up test API keys for authenticated endpoints."""
+    with patch.dict(
+        "uar.api.middleware.API_KEYS",
+        {"dev-key-12345": {"user": "developer", "tier": "authenticated"}},
+        clear=True,
+    ):
+        yield
 
 
 def test_run_endpoint():
@@ -73,6 +87,9 @@ def test_run_with_unknown_user_recipe_raises():
     assert "unknown_xyz" in str(data)
 
 
+AUTH_HEADERS = {"Authorization": "Bearer dev-key-12345"}
+
+
 def test_recipe_crud_lifecycle():
     """Full CRUD lifecycle for user recipes via API"""
     recipe = {
@@ -83,29 +100,31 @@ def test_recipe_crud_lifecycle():
     }
 
     # Create
-    r = client.post("/api/uar/recipes", json=recipe)
+    r = client.post("/api/uar/recipes", json=recipe, headers=AUTH_HEADERS)
     assert r.status_code == 200
     assert r.json()["created"] == "test_crud"
 
-    # Read (merged list)
-    r = client.get("/api/uar/recipes")
+    # Read (merged list, auth not required but shows user recipes when authed)
+    r = client.get("/api/uar/recipes", headers=AUTH_HEADERS)
     assert r.status_code == 200
     ids = [rec["id"] for rec in r.json()["recipes"]]
     assert "test_crud" in ids
 
     # Update
     updated = {**recipe, "skills": ["sum_review"]}
-    r = client.put("/api/uar/recipes/test_crud", json=updated)
+    r = client.put(
+        "/api/uar/recipes/test_crud", json=updated, headers=AUTH_HEADERS
+    )
     assert r.status_code == 200
     assert r.json()["updated"] == "test_crud"
 
     # Delete
-    r = client.delete("/api/uar/recipes/test_crud")
+    r = client.delete("/api/uar/recipes/test_crud", headers=AUTH_HEADERS)
     assert r.status_code == 200
     assert r.json()["deleted"] == "test_crud"
 
     # Verify gone
-    r = client.get("/api/uar/recipes")
+    r = client.get("/api/uar/recipes", headers=AUTH_HEADERS)
     ids = [rec["id"] for rec in r.json()["recipes"]]
     assert "test_crud" not in ids
 
@@ -114,14 +133,92 @@ def test_cannot_modify_canonical_recipe():
     """Canonical recipes are protected from modification/deletion"""
     recipe = {"id": "review", "label": "X", "skills": ["a"]}
 
-    r = client.post("/api/uar/recipes", json=recipe)
+    r = client.post("/api/uar/recipes", json=recipe, headers=AUTH_HEADERS)
     assert r.status_code == 409
 
-    r = client.put("/api/uar/recipes/review", json=recipe)
+    r = client.put(
+        "/api/uar/recipes/review", json=recipe, headers=AUTH_HEADERS
+    )
     assert r.status_code == 403
 
-    r = client.delete("/api/uar/recipes/review")
+    r = client.delete("/api/uar/recipes/review", headers=AUTH_HEADERS)
     assert r.status_code == 403
+
+
+def test_update_unknown_recipe_returns_404():
+    """Updating a nonexistent recipe returns 404, not 500."""
+    r = client.put(
+        "/api/uar/recipes/does_not_exist",
+        json={"id": "does_not_exist", "label": "X", "skills": ["a"]},
+        headers=AUTH_HEADERS,
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"]["error"] == "not_found"
+
+
+def test_update_recipe_wrong_owner_returns_403():
+    """Updating another user's recipe returns 403."""
+    from unittest.mock import patch
+
+    with patch(
+        "uar.api.server._recipe_svc.update",
+        side_effect=PermissionError("Not owner"),
+    ):
+        r = client.put(
+            "/api/uar/recipes/other_user_recipe",
+            json={
+                "id": "other_user_recipe",
+                "label": "X",
+                "skills": ["a"],
+            },
+            headers=AUTH_HEADERS,
+        )
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"] == "forbidden"
+
+
+def test_delete_unknown_recipe_returns_404():
+    """Deleting a nonexistent recipe returns 404, not 500."""
+    r = client.delete(
+        "/api/uar/recipes/does_not_exist",
+        headers=AUTH_HEADERS,
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"]["error"] == "not_found"
+
+
+def test_delete_recipe_wrong_owner_returns_403():
+    """Deleting another user's recipe returns 403."""
+    from unittest.mock import patch
+
+    with patch(
+        "uar.api.server._recipe_svc.delete",
+        side_effect=PermissionError("Not owner"),
+    ):
+        r = client.delete(
+            "/api/uar/recipes/other_user_recipe",
+            headers=AUTH_HEADERS,
+        )
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"] == "forbidden"
+
+
+def test_unexpected_exception_not_masked_by_recipe_handler():
+    """Programming errors (AttributeError etc.) must NOT be caught by the
+    domain exception handler — they should propagate uncaught so we know
+    something is actually broken."""
+    from unittest.mock import patch
+
+    with patch(
+        "uar.api.server._recipe_svc.update",
+        side_effect=AttributeError("'NoneType' object has no attribute 'x'"),
+    ):
+        with pytest.raises(AttributeError):
+            client.put(
+                "/api/uar/recipes/some_recipe",
+                json={"id": "some_recipe", "label": "X", "skills": ["a"]},
+                headers=AUTH_HEADERS,
+            )
 
 
 class TestHierarchicalExecutionIntegration:
@@ -214,7 +311,9 @@ class TestEcosystemAPI:
 
     def test_ecosystem_status_endpoint(self):
         """GET /ecosystem/status returns all integration statuses."""
-        response = client.get("/ecosystem/status")
+        response = client.get(
+            "/ecosystem/status", headers=AUTH_HEADERS
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
