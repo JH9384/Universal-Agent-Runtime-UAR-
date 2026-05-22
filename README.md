@@ -198,12 +198,48 @@ mypy .
 cd apps/web && npm run build
 ```
 
+## Architecture
+
+```
+Client (React / curl / CLI)
+    │
+    ▼
+FastAPI Layer — /api/uar/run, /api/uar/stream, /api/health, /api/metrics
+    │
+    ▼
+Middleware — CORS → Rate Limit → Auth → Logging → Body Parsing
+    │
+    ▼
+Core Runtime — Planner → Executor → Skill Registry
+    │
+    ▼
+Skills — Sequential / Parallel / Retry / Cache / Guardrails
+    │
+    ▼
+Persistence — JSONL Store + Audit Logger + Redis (optional)
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design, data models, request flows, and deployment diagrams.
+
+## Docker
+
+```bash
+# Production stack with Redis and Nginx
+docker-compose -f docker-compose.prod.yml up --build
+```
+
 ## Documentation
 
-- [System Guide](SYSTEM.md)
-- [Getting Started](docs/GETTING_STARTED.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [API Reference](http://127.0.0.1:8000/docs) (when running)
+| Doc | Purpose |
+|-----|---------|
+| [Getting Started](docs/GETTING_STARTED.md) | API examples, curl commands, environment variables |
+| [Architecture](docs/ARCHITECTURE.md) | Component map, data flow, deployment diagrams |
+| [Onboarding](ONBOARDING.md) | Zero-to-running guide with Ollama + Web UI |
+| [System Guide](SYSTEM.md) | Internal development, versioning, release process |
+| [SLA](docs/SLA.md) | Service objectives, monitoring gaps, SLO targets |
+| [Boot & Shutdown](docs/BOOT_AND_SHUTDOWN.md) | Startup/shutdown sequences per deployment mode |
+| [WebSocket Protocol](docs/WEBSOCKET_PROTOCOL.md) | Event schema, streaming semantics |
+| [API Reference](http://127.0.0.1:8000/docs) | Interactive OpenAPI docs (when running) |
 
 ## License
 
