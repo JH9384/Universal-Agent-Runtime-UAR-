@@ -1382,6 +1382,42 @@ export function UARPanel() {
                 if (json.skill === 'trefoil_simulation' && json.payload?.result) {
                   setTrefoilData(json.payload.result)
                 }
+                if (json.skill === 'molecular_visualization' && json.payload?.result) {
+                  setMolecularData(json.payload.result)
+                }
+                if (json.skill === 'quantum_circuit_visualization' && json.payload?.result) {
+                  setQuantumData(json.payload.result)
+                }
+                if (json.skill === 'physics_compute' && json.payload?.result) {
+                  setPhysicsData(json.payload.result)
+                }
+                if (json.skill === 'math_compute' && json.payload?.result) {
+                  setMathData(json.payload.result)
+                }
+                if (json.skill === 'riscv_sim' && json.payload?.result) {
+                  setRiscvData(json.payload.result)
+                }
+                if (json.skill === 'verilog_parse' && json.payload?.result) {
+                  setVerilogData(json.payload.result)
+                }
+                if (json.skill === 'fpga_verify' && json.payload?.result) {
+                  setFpgaData(json.payload.result)
+                }
+                if (json.skill === 'cipher_ops' && json.payload?.result) {
+                  setCipherData(json.payload.result)
+                }
+                if (json.skill === 'uor_ecosystem_status' && json.payload?.result) {
+                  setEcosystemData(json.payload.result)
+                }
+                if (json.skill === 'doc_ingest' && json.payload?.result) {
+                  setDocIngestData(json.payload.result)
+                }
+                if (json.skill === 'autonomi_status' && json.payload?.result) {
+                  setAutonomiData(json.payload.result)
+                }
+                if (json.skill === 'data_viz_3d' && json.payload?.result) {
+                  setDataViz3D(json.payload.result)
+                }
               }
               if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
               if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
