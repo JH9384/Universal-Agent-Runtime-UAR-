@@ -1,0 +1,277 @@
+"""Goal execution service — unifies SSE and WebSocket streaming.
+
+Eliminates duplicated event limit handling, persistence retry logic,
+and orchestration plan emission across ``stream_goal`` (SSE) and
+both WebSocket handlers.
+"""
+
+import asyncio
+import logging
+import os
+import time
+from typing import Any, AsyncIterator, Optional
+
+from uar.core.contracts import GoalSpec
+from uar.core.executor import Executor
+from uar.core.planner import SimplePlanner
+from uar.core.orchestrator import build_orchestration_plan
+from uar.core.replay import run_record_from_events
+from uar.core.exceptions import EventContractError
+from uar.memory.json_store import JsonRunStore
+from .base import BaseService
+from .events import EventService
+
+logger = logging.getLogger(__name__)
+
+# Streaming bounds (module defaults; overridable per-instance)
+_MAX_STREAM_EVENTS = int(os.getenv("MAX_STREAM_EVENTS", "5000"))
+_EVENT_BUFFER_SIZE = int(os.getenv("EVENT_BUFFER_SIZE", "200"))
+BACKPRESSURE_ENABLED = (
+    os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
+)
+
+
+class AdaptiveBackpressure:
+    """Adjusts event emission delay based on client consumption rate."""
+
+    def __init__(
+        self,
+        enabled: bool = True,
+        max_delay: float = 1.0,
+        min_delay: float = 0.0,
+        slow_threshold: float = 0.5,
+        fast_threshold: float = 0.1,
+        increment: float = 0.05,
+        decrement: float = 0.02,
+    ) -> None:
+        self.enabled = enabled
+        self.max_delay = max_delay
+        self.min_delay = min_delay
+        self.slow_threshold = slow_threshold
+        self.fast_threshold = fast_threshold
+        self.increment = increment
+        self.decrement = decrement
+        self._current_delay = 0.0
+        self._last_emit_time = 0.0
+
+    async def apply(self) -> None:
+        if not self.enabled:
+            return
+        now = time.time()
+        if self._last_emit_time > 0:
+            emit_duration = now - self._last_emit_time
+            if emit_duration > self.slow_threshold:
+                self._current_delay = min(
+                    self._current_delay + self.increment,
+                    self.max_delay,
+                )
+            elif emit_duration < self.fast_threshold:
+                self._current_delay = max(
+                    self._current_delay - self.decrement,
+                    self.min_delay,
+                )
+            if self._current_delay > 0:
+                await asyncio.sleep(self._current_delay)
+        self._last_emit_time = time.time()
+
+
+class GoalExecutionService(BaseService):
+    """Execute goals with unified streaming for SSE and WebSocket."""
+
+    def __init__(
+        self,
+        event_service: Optional[EventService] = None,
+        store: Optional[JsonRunStore] = None,
+        max_stream_events: int = _MAX_STREAM_EVENTS,
+        event_buffer_size: int = _EVENT_BUFFER_SIZE,
+        **deps: Any,
+    ) -> None:
+        super().__init__(**deps)
+        self._event = event_service or EventService()
+        self._store = store or JsonRunStore()
+        self.max_stream_events = max_stream_events
+        self.event_buffer_size = event_buffer_size
+
+    async def stream_goal(
+        self,
+        goal: GoalSpec,
+        request_id: str,
+        user_id: Optional[str],
+        correlation_id: str,
+        yield_persisted: bool = False,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield events for a goal execution ( consumed by SSE / WS ).
+
+        Encapsulates:
+        - Strategy planning
+        - Orchestration graph emission
+        - Executor iteration
+        - Event limit enforcement
+        - Adaptive backpressure
+        - Persistence on completion
+        """
+        strategy = SimplePlanner().plan(goal)
+        plan = build_orchestration_plan(strategy)
+        timeout = goal.metadata.get("timeout_seconds", 5.0)
+        cid = correlation_id
+        gid = strategy.goal_id
+
+        # Emit orchestration plan first
+        yield self._event.orchestration_plan(
+            graph=plan.to_graph(),
+            run_id="pending",
+            goal_id=gid,
+            correlation_id=cid,
+        )
+
+        bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
+        events: list[dict] = []
+        full_events: list[dict] = []
+        persisted = False
+        event_count = 0
+
+        try:
+            async for raw_event in self._iter_events(
+                strategy, goal, timeout, cid
+            ):
+                event_count += 1
+                if event_count >= self.max_stream_events:
+                    full_events.append(raw_event)
+                    err = self._event.error(
+                        run_id="unknown",
+                        error_msg=(
+                            f"Event limit reached ({self.max_stream_events})."
+                        ),
+                        code="EVENT_LIMIT",
+                        request_id=request_id,
+                        goal_id=gid,
+                        correlation_id=cid,
+                    )
+                    full_events.append(err)
+                    yield err
+                    comp = self._event.complete(
+                        run_id="unknown",
+                        status="failed",
+                        errors=[
+                            f"Event limit reached ({self.max_stream_events})"
+                        ],
+                        goal_id=gid,
+                        correlation_id=cid,
+                    )
+                    full_events.append(comp)
+                    yield comp
+                    break
+
+                # Ring buffer eviction
+                if len(events) >= self.event_buffer_size:
+                    events.pop(0)
+                events.append(raw_event)
+                full_events.append(raw_event)
+
+                await bp.apply()
+                yield raw_event
+
+            # Persist successful run
+            record = self._persist(
+                full_events, strategy, user_id, request_id
+            )
+            persisted = True
+            if yield_persisted and record is not None:
+                yield self._event.create(
+                    "persisted",
+                    run_id=record.run_id,
+                    goal_id=gid,
+                    correlation_id=cid,
+                    payload={"run_id": record.run_id},
+                )
+
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as exc:
+            self._log("error", f"Stream error: {exc}", request_id)
+            err = self._event.error(
+                run_id="unknown",
+                error_msg=str(exc),
+                code="EXECUTION_ERROR",
+                request_id=request_id,
+                goal_id=gid,
+                correlation_id=cid,
+            )
+            yield err
+            raise
+        finally:
+            if full_events and not persisted:
+                try:
+                    self._persist(
+                        full_events, strategy, user_id, request_id
+                    )
+                except Exception as persist_err:
+                    self._log(
+                        "error",
+                        f"Fallback persistence failed: {persist_err}",
+                        request_id,
+                    )
+
+    def _persist(
+        self,
+        events: list[dict],
+        strategy: Any,
+        user_id: Optional[str],
+        request_id: str,
+    ) -> Any:
+        """Persist run record from events. Returns the record or None."""
+        try:
+            record = run_record_from_events(
+                events, strategy.ordered_skills, user_id
+            )
+            self._store.append(record)
+            self._log(
+                "info",
+                f"Stream persisted: {record.run_id}",
+                request_id,
+            )
+            return record
+        except EventContractError:
+            # Deterministic errors shouldn't trigger retry
+            self._log(
+                "warning",
+                "Persistence skipped: contract error",
+                request_id,
+            )
+            return None
+        except Exception as persist_error:
+            self._log(
+                "error",
+                f"Failed to persist: {persist_error}",
+                request_id,
+            )
+            return None
+
+    async def _iter_events(
+        self,
+        strategy: Any,
+        goal: GoalSpec,
+        timeout: float,
+        cid: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Bridge sync Executor.iter_events into async stream.
+
+        Owns the Executor lifecycle so callers don't need to manage it.
+        """
+        executor = Executor()
+        it = executor.iter_events(
+            strategy, goal, timeout_seconds=timeout, correlation_id=cid
+        )
+
+        def _next() -> Optional[dict[str, Any]]:
+            try:
+                return next(it)
+            except StopIteration:
+                return None
+
+        loop = asyncio.get_running_loop()
+        while True:
+            event = await loop.run_in_executor(None, _next)
+            if event is None:
+                break
+            yield event
