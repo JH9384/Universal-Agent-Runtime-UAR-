@@ -1,7 +1,8 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useCallback } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
+import { useCanvasRecorder } from '../hooks/useCanvasRecorder'
 import styles from './DataViz3D.module.css'
 
 interface MeshData {
@@ -86,6 +87,18 @@ function Scene({ data }: { data: MeshData }) {
 }
 
 export function DataViz3D({ data, darkMode = false }: DataViz3DProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const { startRecording, stopRecording, state: recState, error: recError } = useCanvasRecorder(canvasRef, 30)
+
+  const handleExport = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const link = document.createElement('a')
+    link.download = `mesh-${data?.mesh_type || 'unknown'}-${Date.now()}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }, [data])
+
   if (!data) {
     return (
       <div className={`${styles.container} ${darkMode ? styles.dark : ''}`}>
@@ -103,9 +116,26 @@ export function DataViz3D({ data, darkMode = false }: DataViz3DProps) {
           🧊 {data.mesh_type} ({data.vertex_count.toLocaleString()} vertices,{' '}
           {data.face_count.toLocaleString()} faces)
         </span>
+        <div className={styles.toolbarButtons}>
+          <button
+            className={`${styles.toolbarButton} ${recState.isRecording ? styles.recording : ''}`}
+            onClick={recState.isRecording ? stopRecording : startRecording}
+            title={recState.isRecording ? `Stop recording (${recState.recordedSeconds}s)` : 'Record video'}
+          >
+            {recState.isRecording ? `⏹ ${recState.recordedSeconds}s` : '🎥'}
+          </button>
+          <button className={styles.toolbarButton} onClick={handleExport} title="Export PNG frame">
+            📷
+          </button>
+        </div>
+        {recError && <span className={styles.recError}>{recError}</span>}
       </div>
       <div className={styles.canvasWrapper}>
-        <Canvas camera={{ position: [2, 2, 2], fov: 50 }}>
+        <Canvas
+          camera={{ position: [2, 2, 2], fov: 50 }}
+          gl={{ preserveDrawingBuffer: true }}
+          onCreated={({ gl }) => { canvasRef.current = gl.domElement as HTMLCanvasElement }}
+        >
           <Scene data={data} />
         </Canvas>
       </div>

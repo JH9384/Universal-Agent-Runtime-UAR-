@@ -4,6 +4,7 @@ import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
 import { SkillGuide } from './SkillGuide'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { usePreload } from '../hooks/usePreload'
 import { generateUniqueId } from '../utils/idGenerator'
 import RecipeTimeline from './RecipeTimeline'
 import styles from './UARPanel.module.css'
@@ -372,6 +373,26 @@ export function UARPanel() {
   const [goal, setGoal] = useState('')
   const [inputPath, setInputPath] = useState('')
   const [darkMode, setDarkMode] = useDarkMode()
+
+  // Preload heavy visualizer chunks after initial paint so they are
+  // already cached when a skill produces 3D data.
+  usePreload([
+    () => import('./GraphVisualizer'),
+    () => import('./DataViz3D'),
+    () => import('./TrefoilKnotVisualizer'),
+    () => import('./MolecularVisualizer'),
+    () => import('./QuantumCircuitVisualizer'),
+    () => import('./PhysicsVisualizer'),
+    () => import('./MathVisualizer'),
+    () => import('./RiscvVisualizer'),
+    () => import('./VerilogVisualizer'),
+    () => import('./FpgaVisualizer'),
+    () => import('./CipherDashboard'),
+    () => import('./EcosystemDashboard'),
+    () => import('./DocIngestDashboard'),
+    () => import('./AutonomiDashboard'),
+  ], 4000)
+
   const [skillLastPositions, setSkillLastPositions] = useState<Record<string, number>>(() => {
     const positions: Record<string, number> = {}
     INITIAL_SKILLS.forEach((skill, idx) => positions[skill] = idx)
