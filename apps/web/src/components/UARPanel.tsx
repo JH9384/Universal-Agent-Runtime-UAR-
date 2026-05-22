@@ -49,7 +49,23 @@ const DataViz3D = lazy(() =>
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
 const RECIPES_KEY = 'uar.recipes'
+const USER_PRESETS_KEY = 'uar.userPresets'
 const RECENT_MAX = 8
+
+interface UserPreset {
+  name: string
+  goal: string
+  inputPath: string
+  unifiedOrder: ExecutionOrderItem[]
+  useWebSocket: boolean
+  useHierarchical: boolean
+  graphragMethod: 'local' | 'global'
+  ollamaModel: string
+  autonomiKey: string
+  autonomiNetwork: 'testnet' | 'mainnet'
+  autonomiPublic: boolean
+  autonomiAddress: string
+}
 
 // TypeScript interfaces for type safety
 interface ExecutionOrderItem {
@@ -478,6 +494,16 @@ export function UARPanel() {
   const [autonomiNetwork, setAutonomiNetwork] = useState<'testnet' | 'mainnet'>('testnet')
   const [autonomiPublic, setAutonomiPublic] = useState<boolean>(false)
   const [autonomiAddress, setAutonomiAddress] = useState<string>('')
+  // User presets (save/load panel configuration)
+  const [userPresets, setUserPresets] = useState<UserPreset[]>(() => {
+    try {
+      const saved = localStorage.getItem(USER_PRESETS_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [userPresetName, setUserPresetName] = useState('')
   // Backend skills for validation consistency
   const [backendSkills, setBackendSkills] = useState<string[]>([])
 
@@ -781,6 +807,73 @@ export function UARPanel() {
       console.warn('Failed to clear recent paths from localStorage:', e)
     }
   }
+
+  const saveUserPreset = useCallback(() => {
+    const name = userPresetName.trim()
+    if (!name) return
+    const preset: UserPreset = {
+      name,
+      goal,
+      inputPath,
+      unifiedOrder,
+      useWebSocket,
+      useHierarchical,
+      graphragMethod,
+      ollamaModel,
+      autonomiKey,
+      autonomiNetwork,
+      autonomiPublic,
+      autonomiAddress,
+    }
+    setUserPresets((prev) => {
+      const next = [...prev.filter((p) => p.name !== name), preset]
+      try {
+        localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore quota errors */
+      }
+      return next
+    })
+    setUserPresetName('')
+  }, [userPresetName, goal, inputPath, unifiedOrder, useWebSocket, useHierarchical, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress])
+
+  const loadUserPreset = useCallback((preset: UserPreset) => {
+    setGoal(preset.goal)
+    setInputPath(preset.inputPath)
+    setUnifiedOrder(preset.unifiedOrder)
+    setUnifiedOrderHistory([preset.unifiedOrder])
+    setUnifiedOrderHistoryIndex(0)
+    setUseWebSocket(preset.useWebSocket)
+    setUseHierarchical(preset.useHierarchical)
+    setGraphragMethod(preset.graphragMethod)
+    setOllamaModel(preset.ollamaModel)
+    setAutonomiKey(preset.autonomiKey)
+    setAutonomiNetwork(preset.autonomiNetwork)
+    setAutonomiPublic(preset.autonomiPublic)
+    setAutonomiAddress(preset.autonomiAddress)
+    const skills = preset.unifiedOrder.filter((i) => i.type === 'skill').map((i) => i.content)
+    setSkillHistory([skills])
+    setSkillHistoryIndex(0)
+    const newPositions: Record<string, number> = {}
+    preset.unifiedOrder.forEach((item, index) => {
+      if (item.type === 'skill') {
+        newPositions[item.content] = index
+      }
+    })
+    setSkillLastPositions(newPositions)
+  }, [])
+
+  const deleteUserPreset = useCallback((name: string) => {
+    setUserPresets((prev) => {
+      const next = prev.filter((p) => p.name !== name)
+      try {
+        localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore quota errors */
+      }
+      return next
+    })
+  }, [])
 
   const addSkill = (id: string) => {
     // Add skill: always add a new instance (use remove button to remove)
@@ -2131,6 +2224,48 @@ export function UARPanel() {
                         </label>
                       )}
                     </>
+                  )}
+                </div>
+              </div>
+
+              {/* User Presets */}
+              <div className={styles.advancedOverrides}>
+                <label className={`${styles.label} ${styles.marginBottom6}`} title="Save and restore complete panel configurations">User Presets</label>
+                <div className={styles.advancedOverridesContainer}>
+                  <div className={styles.advancedOverride}>
+                    <input
+                      value={userPresetName}
+                      onChange={(e) => setUserPresetName(e.target.value)}
+                      placeholder="Preset name…"
+                      className={styles.advancedOverrideInput}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveUserPreset() } }}
+                    />
+                    <button onClick={saveUserPreset} disabled={!userPresetName.trim()} className={styles.smallButton} title="Save current configuration">
+                      💾 Save
+                    </button>
+                  </div>
+                  {userPresets.length > 0 && (
+                    <div className={styles.presetsContainer} style={{ marginTop: 6 }}>
+                      {userPresets.map((p) => (
+                        <div key={p.name} className={styles.presetRow}>
+                          <button
+                            onClick={() => loadUserPreset(p)}
+                            className={styles.chip}
+                            title={`Load: ${p.goal.slice(0, 40)}${p.goal.length > 40 ? '…' : ''} · ${p.unifiedOrder.length} items`}
+                          >
+                            {p.name}
+                          </button>
+                          <button
+                            onClick={() => { if (confirm(`Delete preset "${p.name}"?`)) deleteUserPreset(p.name) }}
+                            className={styles.deleteButton}
+                            title="Delete preset"
+                            aria-label={`Delete preset ${p.name}`}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
