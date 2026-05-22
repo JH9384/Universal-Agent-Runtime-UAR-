@@ -31,7 +31,6 @@ try:
     from autogen import (  # type: ignore
         AssistantAgent,
         UserProxyAgent,
-        ConversableAgent,
     )
 
     AUTOGEN_AVAILABLE = True
@@ -276,7 +275,7 @@ class AutoGenAdapter:
     """Adapter for AutoGen agents to work with UAR agent framework."""
 
     def __init__(self):
-        self.autogen_agents: Dict[str, ConversableAgent] = {}
+        self.autogen_agents: Dict[str, Any] = {}
 
     def create_assistant_agent(
         self,
@@ -284,7 +283,7 @@ class AutoGenAdapter:
         name: str,
         system_message: str,
         llm_config: Optional[Dict[str, Any]] = None,
-    ) -> Optional[ConversableAgent]:
+    ) -> Optional[Any]:
         """Create an AutoGen assistant agent."""
         if not AUTOGEN_AVAILABLE:
             logger.error("AutoGen not available")
@@ -307,7 +306,7 @@ class AutoGenAdapter:
         agent_id: str,
         name: str,
         human_input_mode: str = "NEVER",
-    ) -> Optional[ConversableAgent]:
+    ) -> Optional[Any]:
         """Create an AutoGen user proxy agent."""
         if not AUTOGEN_AVAILABLE:
             logger.error("AutoGen not available")
@@ -324,7 +323,7 @@ class AutoGenAdapter:
             logger.error(f"Failed to create UserProxy agent: {e}")
             return None
 
-    def get_agent(self, agent_id: str) -> Optional[ConversableAgent]:
+    def get_agent(self, agent_id: str) -> Optional[Any]:
         """Get an AutoGen agent by ID."""
         return self.autogen_agents.get(agent_id)
 
