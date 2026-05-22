@@ -579,7 +579,7 @@ export function UARPanel() {
   }, [tipsPopupOpen, tipsTargetSection])
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
-    SKILL_GROUPS.forEach(g => initial[g.name] = false)
+    SKILL_GROUPS.forEach(g => initial[g.name] = true)
     return initial
   })
   const [recent, setRecent] = useState<string[]>(() => {

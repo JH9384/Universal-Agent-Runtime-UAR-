@@ -546,10 +546,16 @@ describe('UARPanel', () => {
         expect(screen.getByText('UOR Ecosystem')).toBeInTheDocument()
       })
 
+      // Expand the collapsed group to reveal skill buttons
+      const groupHeader = screen.getByText('UOR Ecosystem').closest('[role="button"]') || screen.getByText('UOR Ecosystem')
+      fireEvent.click(groupHeader)
+
       // Verify key ecosystem skill buttons are rendered
-      expect(screen.getByText('uor_addr_canonicalize')).toBeInTheDocument()
-      expect(screen.getByText('hologram_query')).toBeInTheDocument()
-      expect(screen.getByText('moltbook_list')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText('uor_addr_canonicalize')).toBeInTheDocument()
+        expect(screen.getByText('hologram_query')).toBeInTheDocument()
+        expect(screen.getByText('moltbook_list')).toBeInTheDocument()
+      })
     })
 
     it('should add ecosystem skill to unified order on click', async () => {
@@ -559,9 +565,15 @@ describe('UARPanel', () => {
         expect(screen.getByText('UOR Ecosystem')).toBeInTheDocument()
       })
 
+      // Expand the collapsed group to reveal skill buttons
+      const groupHeader = screen.getByText('UOR Ecosystem').closest('[role="button"]') || screen.getByText('UOR Ecosystem')
+      fireEvent.click(groupHeader)
+
       // Find and click an ecosystem skill button
-      const skillButton = screen.getByText('uor_ecosystem_status')
-      fireEvent.click(skillButton)
+      await waitFor(() => {
+        const skillButton = screen.getByText('uor_ecosystem_status')
+        fireEvent.click(skillButton)
+      })
 
       // Verify skill appears in selected order
       await waitFor(() => {
