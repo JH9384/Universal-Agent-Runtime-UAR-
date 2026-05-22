@@ -246,10 +246,12 @@ class Config:
                 test_file.unlink()
 
                 log_config["handlers"]["file"] = {
-                    "class": "logging.FileHandler",
+                    "class": "logging.handlers.RotatingFileHandler",
                     "filename": log_file_path,
                     "formatter": "json",
                     "level": self.log_level,
+                    "maxBytes": 10 * 1024 * 1024,  # 10 MB per file
+                    "backupCount": 5,
                 }
                 log_config["root"]["handlers"].append("file")
             except (OSError, PermissionError):

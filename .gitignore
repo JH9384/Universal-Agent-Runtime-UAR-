@@ -4,6 +4,7 @@ __pycache__/
 .env
 .DS_Store
 .pytest_cache/
+.vscode/settings.json
 
 # UAR runtime artifacts
 runs/

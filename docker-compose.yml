@@ -1,0 +1,42 @@
+# Local development Docker Compose for UAR
+# Usage:
+#   docker-compose up --build
+#
+# For production, use docker-compose.prod.yml instead.
+
+version: '3.8'
+
+services:
+  uar-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      - RATE_LIMIT_ENABLED=false
+      - API_KEYS=dev-key-12345:developer:authenticated
+    volumes:
+      - ./runs:/var/lib/uar/runs
+      - ./logs:/var/log/uar
+      - .:/app
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Redis for rate limiting in dev
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    profiles:
+      - redis
