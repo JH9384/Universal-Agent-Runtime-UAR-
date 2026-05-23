@@ -371,6 +371,16 @@ const SKILLS: Skill[] = [
     category: 'Analysis'
   },
   {
+    id: 'math_plot',
+    label: 'math_plot',
+    desc: '2D mathematical plotting with matplotlib',
+    useCase: 'Plot functions, parametric curves, polar curves, and scatter data',
+    example: 'Goal: "Plot sin and cos" → Skills: [math_plot]',
+    prerequisites: ['matplotlib', 'numpy'],
+    output: 'Base64-encoded PNG image and plot metadata',
+    category: 'Analysis'
+  },
+  {
     id: 'cipher_ops',
     label: 'cipher_ops',
     desc: 'Cryptographic operations',

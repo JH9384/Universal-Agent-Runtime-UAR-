@@ -45,6 +45,8 @@ const AutonomiDashboard = lazy(() =>
   import('./AutonomiDashboard').then((m) => ({ default: m.AutonomiDashboard })))
 const DataViz3D = lazy(() =>
   import('./DataViz3D').then((m) => ({ default: m.DataViz3D })))
+const MathPlotVisualizer = lazy(() =>
+  import('./MathPlotVisualizer').then((m) => ({ default: m.MathPlotVisualizer })))
 
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
@@ -242,6 +244,7 @@ const SKILL_GROUPS = [
     icon: '🔬',
     skills: [
       { id: 'math_compute',    label: 'math_compute',    desc: 'Symbolic math with SymPy: solve, differentiate, integrate, simplify (requires sympy)' },
+      { id: 'math_plot',       label: 'math_plot',       desc: '2D mathematical plotting with matplotlib: functions, parametric, polar, scatter (requires matplotlib+numpy)' },
       { id: 'cipher_ops',      label: 'cipher_ops',      desc: 'Cryptographic operations: encrypt, decrypt, hash, sign (requires pycryptodome)' },
       { id: 'physics_compute', label: 'physics_compute', desc: 'Physics & astronomy: unit conversion, coordinate transforms, cosmology (requires astropy)' },
       { id: 'diff_eq_solve',    label: 'diff_eq_solve',    desc: 'Differential equations with diffeqpy: ODE/PDE solvers, symbolic optimization (requires diffeqpy)' },
@@ -407,6 +410,7 @@ export function UARPanel() {
     () => import('./EcosystemDashboard'),
     () => import('./DocIngestDashboard'),
     () => import('./AutonomiDashboard'),
+    () => import('./MathPlotVisualizer'),
   ], 4000)
 
   const [skillLastPositions, setSkillLastPositions] = useState<Record<string, number>>(() => {
@@ -475,6 +479,7 @@ export function UARPanel() {
   const [docIngestData, setDocIngestData] = useState<any>(null)
   const [autonomiData, setAutonomiData] = useState<any>(null)
   const [dataViz3D, setDataViz3D] = useState<any>(null)
+  const [mathPlotData, setMathPlotData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -1299,6 +1304,9 @@ export function UARPanel() {
                   }
                   if (json.skill === 'data_viz_3d' && json.payload?.result) {
                     setDataViz3D(json.payload.result)
+                  }
+                  if (json.skill === 'math_plot' && json.payload?.result) {
+                    setMathPlotData(json.payload.result)
                   }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
@@ -2639,6 +2647,24 @@ export function UARPanel() {
               <div className={styles.graphContainer}>
                 <Suspense fallback={<div className={styles.loadingFallback}>Loading math results...</div>}>
                   <MathVisualizer data={mathData} darkMode={darkMode} />
+                </Suspense>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Math Plot */}
+      {(mathPlotData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>📊 Math Plot</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading plot...</div>}>
+                  <MathPlotVisualizer data={mathPlotData} darkMode={darkMode} />
                 </Suspense>
               </div>
             </div>
