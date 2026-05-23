@@ -1,4 +1,4 @@
-.PHONY: help install test test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate api web up up-full clean release version sync-version
+.PHONY: help install test test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate api web up up-full clean release version sync-version gate
 
 PYTHON ?= python
 API_HOST ?= 127.0.0.1
@@ -14,6 +14,7 @@ help:
 	@echo "  make test-frontend    Run frontend tests (Vitest)"
 	@echo "  make test-alignment   Run skill/feature/tips alignment tests"
 	@echo "  make test-regression  Full regression: backend + frontend + build + lint"
+	@echo "  make gate             Canonical release gate (sync + regression)"
 	@echo "  make lint             Run all linters (Python + TS)"
 	@echo "  make lint-py          Run Python linter (ruff)"
 	@echo "  make lint-ts          Run TypeScript type check"
@@ -49,6 +50,11 @@ test-regression: test-backend test-frontend build-frontend lint
 	@echo "  REGRESSION SUITE COMPLETE"
 	@echo "========================================"
 
+gate: sync-version test-regression
+	@echo "========================================"
+	@echo "  UAR RELEASE GATE PASSED"
+	@echo "========================================"
+
 lint: lint-py lint-ts
 
 lint-py:
@@ -81,7 +87,7 @@ version:
 sync-version:
 	@$(PYTHON) -c "from pathlib import Path; import re; version=Path('VERSION').read_text().strip(); path=Path('pyproject.toml'); text=path.read_text(); text=re.sub(r'^version = \".*\"', f'version = \"{version}\"', text, flags=re.MULTILINE); path.write_text(text); print(f'Synced pyproject.toml to version {version}')"
 
-release: validate sync-version
+release: gate
 	@VERSION=$$(cat $(VERSION_FILE)); \
 	echo "Releasing version $$VERSION"; \
 	git diff --exit-code VERSION pyproject.toml CHANGELOG.md RELEASE.md SYSTEM.md RELEASE_CHECKLIST.md; \
