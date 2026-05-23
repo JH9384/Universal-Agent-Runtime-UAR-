@@ -7,24 +7,8 @@ inspectable, and replayable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
-
+from .config import RuntimeConfig
 from .contracts import GoalSpec, StrategySpec
-
-PlannerMode = Literal["simple", "recipe", "llm"]
-
-
-@dataclass(frozen=True)
-class RuntimeConfig:
-    """Runtime-level planner configuration.
-
-    The default configuration is intentionally conservative: use the
-    deterministic planner and disallow LLM planning unless explicitly enabled.
-    """
-
-    planner_mode: PlannerMode = "simple"
-    allow_llm: bool = False
 
 
 class SimplePlanner:
@@ -67,6 +51,7 @@ class PlannerRouter:
 
     def __init__(self, config: RuntimeConfig | None = None):
         self.config = config or RuntimeConfig()
+        self.config.validate()
 
     def route(self) -> SimplePlanner | RecipePlanner | LLMPlanner:
         mode = self.config.planner_mode
@@ -76,11 +61,6 @@ class PlannerRouter:
         if mode == "recipe":
             return RecipePlanner()
         if mode == "llm":
-            if not self.config.allow_llm:
-                raise ValueError(
-                    "LLM planner requested but allow_llm is false. "
-                    "Set allow_llm=true to opt in explicitly."
-                )
             return LLMPlanner()
 
         # Defensive fail-closed branch for runtime-loaded configs that bypass
