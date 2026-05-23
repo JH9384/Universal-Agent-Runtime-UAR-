@@ -8,10 +8,25 @@ all emitted events remain JSON-serializable and compatible with replay.py.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 from time import time
 from typing import Any
 
 EVENT_SCHEMA_VERSION = "uar.event.v1"
+
+
+class RuntimeEventType(str, Enum):
+    ORCHESTRATION_PLAN = "orchestration_plan"
+    START = "start"
+    SKILL_START = "skill_start"
+    SKILL_COMPLETE = "skill_complete"
+    SKILL_FAILED = "skill_failed"
+    RECIPE_START = "recipe_start"
+    RECIPE_END = "recipe_end"
+    RECIPE_SKIPPED = "recipe_skipped"
+    METRICS = "metrics"
+    ERROR = "error"
+    COMPLETE = "complete"
 
 
 @dataclass(frozen=True)
@@ -30,7 +45,7 @@ class RuntimeEvent:
 
 
 def make_event(
-    event_type: str,
+    event_type: RuntimeEventType | str,
     *,
     run_id: str,
     goal_id: str,
@@ -38,12 +53,17 @@ def make_event(
     payload: dict[str, Any] | None = None,
     error: str | None = None,
     timestamp: float | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a schema-valid RuntimeEvent dictionary."""
+    """Build a schema-valid RuntimeEvent dictionary.
 
-    return RuntimeEvent(
+    ``metadata`` is for additive, optional fields such as correlation IDs.
+    Consumers must not require metadata fields for replay correctness.
+    """
+
+    event = RuntimeEvent(
         schema_version=EVENT_SCHEMA_VERSION,
-        type=event_type,
+        type=event_type.value if isinstance(event_type, RuntimeEventType) else event_type,
         run_id=run_id,
         goal_id=goal_id,
         skill=skill,
@@ -51,6 +71,9 @@ def make_event(
         payload=payload or {},
         error=error,
     ).to_dict()
+    if metadata:
+        event.update(metadata)
+    return event
 
 
 def emit_start(
@@ -59,13 +82,15 @@ def emit_start(
     goal_id: str,
     skills: list[str],
     timestamp: float | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return make_event(
-        "start",
+        RuntimeEventType.START,
         run_id=run_id,
         goal_id=goal_id,
         payload={"skills": skills},
         timestamp=timestamp,
+        metadata=metadata,
     )
 
 
@@ -75,13 +100,15 @@ def emit_skill_start(
     goal_id: str,
     skill: str,
     timestamp: float | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return make_event(
-        "skill_start",
+        RuntimeEventType.SKILL_START,
         run_id=run_id,
         goal_id=goal_id,
         skill=skill,
         timestamp=timestamp,
+        metadata=metadata,
     )
 
 
@@ -92,14 +119,16 @@ def emit_skill_complete(
     skill: str,
     result: Any,
     timestamp: float | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return make_event(
-        "skill_complete",
+        RuntimeEventType.SKILL_COMPLETE,
         run_id=run_id,
         goal_id=goal_id,
         skill=skill,
         payload={"result": result},
         timestamp=timestamp,
+        metadata=metadata,
     )
 
 
@@ -110,15 +139,17 @@ def emit_error(
     error: str,
     skill: str | None = None,
     timestamp: float | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return make_event(
-        "error",
+        RuntimeEventType.ERROR,
         run_id=run_id,
         goal_id=goal_id,
         skill=skill,
         error=error,
         payload={"error": error},
         timestamp=timestamp,
+        metadata=metadata,
     )
 
 
@@ -131,9 +162,10 @@ def emit_complete(
     errors: list[str] | None = None,
     final_context: dict[str, Any] | None = None,
     timestamp: float | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return make_event(
-        "complete",
+        RuntimeEventType.COMPLETE,
         run_id=run_id,
         goal_id=goal_id,
         payload={
@@ -143,4 +175,5 @@ def emit_complete(
             "final_context": final_context or {},
         },
         timestamp=timestamp,
+        metadata=metadata,
     )
