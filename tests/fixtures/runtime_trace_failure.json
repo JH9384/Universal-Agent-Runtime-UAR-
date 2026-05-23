@@ -1,0 +1,58 @@
+[
+  {
+    "schema_version": "uar.event.v1",
+    "type": "start",
+    "run_id": "run-fixture-failure",
+    "goal_id": "goal-fixture-failure",
+    "skill": null,
+    "timestamp": 1.0,
+    "payload": {
+      "goal": "fixture failure run",
+      "skills": ["section_sum"]
+    },
+    "error": null,
+    "correlation_id": "fixture-failure"
+  },
+  {
+    "schema_version": "uar.event.v1",
+    "type": "skill_start",
+    "run_id": "run-fixture-failure",
+    "goal_id": "goal-fixture-failure",
+    "skill": "section_sum",
+    "timestamp": 2.0,
+    "payload": {},
+    "error": null,
+    "correlation_id": "fixture-failure"
+  },
+  {
+    "schema_version": "uar.event.v1",
+    "type": "skill_failed",
+    "run_id": "run-fixture-failure",
+    "goal_id": "goal-fixture-failure",
+    "skill": "section_sum",
+    "timestamp": 3.0,
+    "payload": {
+      "attempt": 1
+    },
+    "error": "Fixture execution failure",
+    "correlation_id": "fixture-failure"
+  },
+  {
+    "schema_version": "uar.event.v1",
+    "type": "complete",
+    "run_id": "run-fixture-failure",
+    "goal_id": "goal-fixture-failure",
+    "skill": null,
+    "timestamp": 4.0,
+    "payload": {
+      "status": "failed",
+      "outputs": [],
+      "errors": [
+        "Fixture execution failure"
+      ],
+      "final_context": {}
+    },
+    "error": null,
+    "correlation_id": "fixture-failure"
+  }
+]
