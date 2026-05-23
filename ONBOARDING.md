@@ -11,13 +11,14 @@ Someone who:
 
 ## What this system is (simple)
 
-UAR = a system that:
-- takes a goal
-- runs steps (skills)
-- produces results
+UAR is **two things at once**:
+
+**Agent Runtime**: Give it a goal → it picks skills → executes → streams results back.
+
+**Scientific Sandbox**: No toolchains to install. Send a JSON goal, get 3D molecular coordinates, quantum circuit layouts, RISC-V emulation traces, or Verilog testbenches back.
 
 Think of it like:
-"I give it a task → it runs tools → I get an answer"
+"I send a JSON goal → it runs computation or AI tools → I get structured, reproducible results."
 
 ---
 
@@ -25,24 +26,24 @@ Think of it like:
 
 Pick the setup that matches your needs:
 
-### 🚀 Quick Start (5 minutes)
-**Best for**: Try it out, minimal features
+### 🚀 Quick Start — STEM Sandbox (5 minutes)
+**Best for**: Try quantum circuits, molecular models, RISC-V emulation
 - Python 3.10+ only
 - No external dependencies
-- Core skills only (no AI, no GraphRAG)
+- 30+ STEM skills work out of the box
 
-### ⚡ Standard Setup (10 minutes)
-**Best for**: Full experience, local AI
+### ⚡ Standard Setup — Agent + AI (10 minutes)
+**Best for**: Document processing, local AI, knowledge graphs
 - Python 3.10+
 - Ollama (for AI features)
-- All core skills + AI generation
+- Core skills + AI generation
 
-### 🎯 Full Setup (15 minutes)
-**Best for**: Complete feature set
+### 🎯 Full Setup — Everything (15 minutes)
+**Best for**: Complete feature set with web UI
 - Python 3.10+
 - Node.js 18+ (for web UI)
 - Ollama (for AI)
-- All 14 skills + web interface
+- All 124 skills + web interface
 
 ---
 
@@ -94,6 +95,19 @@ curl http://localhost:8000/api/uar/run \
 - You gave the system a goal
 - It used skills to read files and summarize
 - It returned a response
+
+### Try a STEM skill (no extra setup)
+
+```bash
+curl http://localhost:8000/api/uar/run \
+  -H "Content-Type: application/json" \
+  -d '{"goal":"Visualize a water molecule","skills":["molecular_visualization"],"metadata":{"molecule":"water"}}'
+```
+
+**What just happened:**
+- You asked for a molecular visualization
+- It returned 3D atomic coordinates, bond topology, and centered positions
+- No RDKit, no PyMOL, no Jupyter — just a JSON request and a structured response
 
 That's it! You're running UAR with minimal setup.
 

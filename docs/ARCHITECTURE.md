@@ -7,7 +7,9 @@
 
 ## 1. System Overview
 
-Universal Agent Runtime (UAR) is a modular, event-driven execution platform for goal-oriented agent workflows. It consists of a Python backend (FastAPI + custom executor) and an optional React frontend, communicating over HTTP and WebSocket.
+Universal Agent Runtime (UAR) is a modular, event-driven execution platform that operates as both an **agent runtime** (goal-oriented, event-streamed, observable workflows) and a **browser-accessible scientific computing sandbox** (quantum circuits, molecular dynamics, RISC-V emulation, Verilog simulation, astrophysics computations).
+
+It consists of a Python backend (FastAPI + custom executor with 124+ registered skills) and an optional React frontend, communicating over HTTP and WebSocket. Skills span AI/LLM integration, document processing, hardware emulation, embedded systems, and pure mathematics — all exposed through a unified JSON goal API.
 
 ## 2. High-Level Architecture
 

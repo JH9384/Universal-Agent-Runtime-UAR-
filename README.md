@@ -1,18 +1,31 @@
 # Universal Agent Runtime (UAR) v1.1.0
 
-UOR-aligned agent execution layer for modular goal-driven agent workflows.
+Modular execution platform for reproducible agent workflows and scientific computing.
+
+UAR is both an **agent runtime** (goal-driven, event-streamed, observable) and a **browser-accessible scientific computing sandbox** (quantum circuits, molecular dynamics, RISC-V emulation, Verilog simulation). You don't install toolchains. You send JSON goals and get structured results.
 
 ## Features
 
-- **Modular Runtime**: Extensible skill-based execution engine
-- **Event Streaming**: Real-time execution monitoring via Server-Sent Events
+### Execution Engine
+- **Modular Runtime**: 124+ skill-based execution engine with circuit breaker protection
+- **Event Streaming**: Real-time execution monitoring via Server-Sent Events and WebSocket
 - **Hierarchical Execution**: Recipes as discrete nested units with snapshot/retry/params scoping
 - **Recipe-Level Caching**: Context mutations cached per recipe ID and parameters
+- **Replay & Persistence**: JSONL-based run storage with event reconstruction for full audit trails
+
+### Scientific Computing
+- **Quantum**: 3D circuit layout with gate geometries, entanglement visualization, Qiskit integration
+- **Molecular**: 3D atomic coordinates (water→caffeine), bond topology, protein backbone generation
+- **Physics**: Astropy cosmology (Planck18), coordinate transforms, unit conversions with circuit breaker
+- **Hardware**: RV32I emulator with assembler, 5-stage RISC-V pipeline, Verilog parser, FPGA testbench generator
+- **Embedded**: MicroPython GPIO simulation, PlatformIO project generation
+- **Math**: Quaternion trefoil knots on Clifford torus, ODE/PDE solvers, optimization, relativity tensors
+
+### AI & Integration
 - **Document Processing**: Multi-format ingestion (PDF, DOCX, XLSX, Jupyter, etc.)
 - **API Server**: Production-ready FastAPI server with security middleware
 - **Web Interface**: React-based control surface for workflow visualization
 - **UOR Ecosystem Integration**: Live API clients for UOR Foundation, Hologram, Moltbook, and more
-- **Replay & Persistence**: JSONL-based run storage with event reconstruction
 - **Security**: Path validation, rate limiting, input sanitization, SSRF prevention
 
 ## Quick Start
@@ -122,16 +135,43 @@ open http://127.0.0.1:8000/docs
 cd apps/web && npm run dev
 ```
 
-### Basic Usage
+### Basic Usage — Agent Workflow
 
 ```python
-from uar.api.server import app
+from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
 
-# Example goal execution
-goal = {"goal": "Summarize this document", "input_path": "docs/README.md"}
-# Use API endpoints or direct execution
+# Document summarization
+goal = GoalSpec(
+    id="doc-1",
+    user_intent="Summarize README",
+    objective="Produce a 3-bullet summary",
+    metadata={"input_path": "docs/README.md"},
+)
+planner = SimplePlanner()
+strategy = planner.plan(goal)
+result = Executor().run(strategy, goal)
+```
+
+### Basic Usage — Scientific Computing
+
+```python
+# Molecular visualization — no RDKit, no Jupyter needed
+from uar.skills.molecular_visualization import molecular_visualization
+from uar.core.contracts import PipelineContext, GoalSpec
+
+ctx = PipelineContext(
+    goal=GoalSpec(
+        id="mol-1",
+        user_intent="Visualize caffeine",
+        objective="Return 3D coordinates",
+        metadata={"molecule": "caffeine"},
+    )
+)
+result = molecular_visualization(ctx)
+# result["result"]["atoms"] → list of {element, x, y, z, radius, color}
+# result["result"]["bonds"] → list of (atom_i, atom_j, distance)
 ```
 
 ## Available Skills
