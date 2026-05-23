@@ -1,6 +1,7 @@
 from uar.core.events import (
     EVENT_SCHEMA_VERSION,
     RuntimeEvent,
+    RuntimeEventType,
     emit_complete,
     emit_error,
     emit_skill_complete,
@@ -43,6 +44,36 @@ def test_make_event_produces_schema_valid_event():
     validate_runtime_event(event)
 
     assert event["type"] == "start"
+
+
+
+def test_make_event_accepts_runtime_event_type_enum():
+    event = make_event(
+        RuntimeEventType.SKILL_START,
+        run_id="run-1",
+        goal_id="goal-1",
+        skill="alpha",
+        timestamp=1.0,
+    )
+
+    validate_runtime_event(event)
+
+    assert event["type"] == "skill_start"
+
+
+
+def test_make_event_preserves_optional_metadata():
+    event = make_event(
+        RuntimeEventType.START,
+        run_id="run-1",
+        goal_id="goal-1",
+        timestamp=1.0,
+        metadata={"correlation_id": "corr-1"},
+    )
+
+    validate_runtime_event(event)
+
+    assert event["correlation_id"] == "corr-1"
 
 
 
