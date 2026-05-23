@@ -650,7 +650,8 @@ def _redact_query_params(url) -> str:
             redacted.append((k, "***"))
         else:
             redacted.append((k, v))
-    return "?" + urlencode(redacted)
+    # safe='*' keeps the redaction placeholder readable in logs
+    return "?" + urlencode(redacted, safe="*")
 
 
 def request_logging_middleware(request: Request, user_info: Optional[Dict]):
