@@ -1,0 +1,99 @@
+{
+  "description": "Canonical success trace: two skills, no errors",
+  "events": [
+    {
+      "schema_version": "uar.event.v1",
+      "type": "start",
+      "run_id": "run-success-001",
+      "goal_id": "goal-001",
+      "skill": null,
+      "timestamp": 1000.0,
+      "correlation_id": "corr-001",
+      "payload": {
+        "goal": "Test goal",
+        "skills": ["math_compute", "section_sum"]
+      },
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "skill_start",
+      "run_id": "run-success-001",
+      "goal_id": "goal-001",
+      "skill": "math_compute",
+      "timestamp": 1000.1,
+      "correlation_id": "corr-001",
+      "payload": {},
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "skill_complete",
+      "run_id": "run-success-001",
+      "goal_id": "goal-001",
+      "skill": "math_compute",
+      "timestamp": 1000.5,
+      "correlation_id": "corr-001",
+      "payload": {
+        "result": {"status": "completed"}
+      },
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "skill_start",
+      "run_id": "run-success-001",
+      "goal_id": "goal-001",
+      "skill": "section_sum",
+      "timestamp": 1000.6,
+      "correlation_id": "corr-001",
+      "payload": {},
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "skill_complete",
+      "run_id": "run-success-001",
+      "goal_id": "goal-001",
+      "skill": "section_sum",
+      "timestamp": 1001.0,
+      "correlation_id": "corr-001",
+      "payload": {
+        "result": {"status": "completed"}
+      },
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "metrics",
+      "run_id": "run-success-001",
+      "goal_id": "goal-001",
+      "skill": null,
+      "timestamp": 1001.1,
+      "correlation_id": "corr-001",
+      "payload": {
+        "total_time_sec": 1.1,
+        "event_count": 6,
+        "cache_hits": 0,
+        "cache_misses": 0
+      },
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "complete",
+      "run_id": "run-success-001",
+      "goal_id": "goal-001",
+      "skill": null,
+      "timestamp": 1001.2,
+      "correlation_id": "corr-001",
+      "payload": {
+        "status": "completed",
+        "outputs": [{"skill": "math_compute", "result": {"status": "completed"}}],
+        "errors": [],
+        "final_context": {}
+      },
+      "error": null
+    }
+  ]
+}

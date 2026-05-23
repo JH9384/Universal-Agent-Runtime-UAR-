@@ -49,6 +49,18 @@ test-regression: test-backend test-frontend build-frontend lint
 	@echo "  REGRESSION SUITE COMPLETE"
 	@echo "========================================"
 
+gate: test-backend lint
+	@echo "========================================"
+	@echo "  BURN-IN GATE"
+	@echo "========================================"
+	@echo "Running substrate validation..."
+	pytest tests/test_runtime_*.py -q --tb=short
+	pytest tests/test_replay_*.py -q --tb=short
+	pytest tests/test_timeline.py -q --tb=short
+	@echo "========================================"
+	@echo "  GATE PASSED"
+	@echo "========================================"
+
 lint: lint-py lint-ts
 
 lint-py:

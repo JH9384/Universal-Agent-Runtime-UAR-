@@ -1,0 +1,84 @@
+{
+  "description": "Canonical failure trace: first skill fails, second skipped",
+  "events": [
+    {
+      "schema_version": "uar.event.v1",
+      "type": "start",
+      "run_id": "run-failure-001",
+      "goal_id": "goal-fail-001",
+      "skill": null,
+      "timestamp": 2000.0,
+      "correlation_id": "corr-fail-001",
+      "payload": {
+        "goal": "Test failure",
+        "skills": ["math_compute", "section_sum"]
+      },
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "skill_start",
+      "run_id": "run-failure-001",
+      "goal_id": "goal-fail-001",
+      "skill": "math_compute",
+      "timestamp": 2000.1,
+      "correlation_id": "corr-fail-001",
+      "payload": {},
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "skill_failed",
+      "run_id": "run-failure-001",
+      "goal_id": "goal-fail-001",
+      "skill": "math_compute",
+      "timestamp": 2000.3,
+      "correlation_id": "corr-fail-001",
+      "payload": {},
+      "error": "Division by zero in expression evaluation"
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "error",
+      "run_id": "run-failure-001",
+      "goal_id": "goal-fail-001",
+      "skill": null,
+      "timestamp": 2000.4,
+      "correlation_id": "corr-fail-001",
+      "payload": {},
+      "error": "Division by zero in expression evaluation"
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "metrics",
+      "run_id": "run-failure-001",
+      "goal_id": "goal-fail-001",
+      "skill": null,
+      "timestamp": 2000.5,
+      "correlation_id": "corr-fail-001",
+      "payload": {
+        "total_time_sec": 0.5,
+        "event_count": 5,
+        "cache_hits": 0,
+        "cache_misses": 0
+      },
+      "error": null
+    },
+    {
+      "schema_version": "uar.event.v1",
+      "type": "complete",
+      "run_id": "run-failure-001",
+      "goal_id": "goal-fail-001",
+      "skill": null,
+      "timestamp": 2000.6,
+      "correlation_id": "corr-fail-001",
+      "payload": {
+        "status": "failed",
+        "outputs": [],
+        "errors": ["Division by zero in expression evaluation"],
+        "final_context": {}
+      },
+      "error": null
+    }
+  ]
+}

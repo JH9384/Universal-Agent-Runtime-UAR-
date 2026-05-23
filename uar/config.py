@@ -36,6 +36,11 @@ class Config:
         # API Configuration
         self.api_host = os.getenv("API_HOST", "127.0.0.1")
         self.api_port = int(os.getenv("API_PORT", str(DEFAULT_API_PORT)))
+        if not (1 <= self.api_port <= MAX_PORT_NUMBER):
+            raise ValueError(
+                f"API_PORT must be between 1 and {MAX_PORT_NUMBER}, "
+                f"got {self.api_port}"
+            )
         self.api_workers = int(
             os.getenv("API_WORKERS", str(DEFAULT_API_WORKERS))
         )

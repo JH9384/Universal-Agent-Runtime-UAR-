@@ -523,6 +523,34 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
         raise
 
 
+def make_executor_event(
+    event_type: str,
+    run_id: str,
+    goal_id: str,
+    skill=None,
+    payload=None,
+    error=None,
+    correlation_id: str = "",
+    timestamp: float | None = None,
+):
+    """Construct a canonical RuntimeEvent dict.
+
+    This is the single source of truth for event construction in the
+    executor.  All event emission flows through here.
+    """
+    return {
+        "schema_version": "uar.event.v1",
+        "type": event_type,
+        "run_id": run_id,
+        "goal_id": goal_id,
+        "skill": skill,
+        "timestamp": timestamp if timestamp is not None else time.time(),
+        "correlation_id": correlation_id,
+        "payload": payload or {},
+        "error": error,
+    }
+
+
 def _event(
     event_type: str,
     run_id: str,
@@ -531,18 +559,23 @@ def _event(
     payload=None,
     error=None,
     correlation_id: str = "",
+    timestamp: float | None = None,
 ):
-    return {
-        "schema_version": "uar.event.v1",
-        "type": event_type,
-        "run_id": run_id,
-        "goal_id": goal_id,
-        "skill": skill,
-        "timestamp": time.time(),
-        "correlation_id": correlation_id,
-        "payload": payload or {},
-        "error": error,
-    }
+    """Legacy alias for :func:`make_executor_event`.
+
+    Preserved for backward compatibility; new code should call
+    ``make_executor_event`` directly.
+    """
+    return make_executor_event(
+        event_type,
+        run_id,
+        goal_id,
+        skill=skill,
+        payload=payload,
+        error=error,
+        correlation_id=correlation_id,
+        timestamp=timestamp,
+    )
 
 
 class Executor:
