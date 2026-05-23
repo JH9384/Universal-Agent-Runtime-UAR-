@@ -1,4 +1,4 @@
-# UAR Conformance v1.0.0
+# UAR Conformance v1.1.0
 
 ## Stabilization Mode
 
@@ -6,6 +6,20 @@ UAR modular runtime (`uar/`) is the single authoritative app. UOR
 object/runtime/agent endpoints are served by `uar/api/routers/uor.py`,
 backed by `uar/objects/` (SQLite-persisted, thread-safe). The previous
 `apps/api-python/` reference implementation has been merged in and removed.
+
+## Deterministic-First Runtime
+
+UAR is deterministic-first.
+
+Adaptive planning must remain:
+
+- optional
+- explicitly enabled
+- observable
+- replayable
+- bounded by runtime contracts
+
+Execution truth is defined by the RuntimeEvent stream.
 
 ## Guarantees
 
@@ -27,6 +41,22 @@ backed by `uar/objects/` (SQLite-persisted, thread-safe). The previous
   - execution record
   - lineage entries
 
+### Event Contract Layer
+- Runtime events use schema `uar.event.v1`
+- Event streams must:
+  - start with `start`
+  - end with `complete`
+  - preserve a single `run_id`
+  - preserve a single `goal_id`
+- Unknown optional event fields must be ignored by consumers
+- Breaking schema changes require a new schema version
+
+### Replay Layer
+- RunRecord reconstruction is deterministic
+- Event ordering is preserved during replay
+- Replay validation rejects malformed streams
+- Replay summaries are stable for equivalent event streams
+
 ### Workflow Layer
 - Steps execute sequentially
 - Outputs feed forward into later steps
@@ -41,10 +71,13 @@ backed by `uar/objects/` (SQLite-persisted, thread-safe). The previous
 - No concurrency safety
 - Sandbox is process/resource constrained, not full OS/container isolation
 - Modular extraction is partial and not canonical yet
+- Event schema migration tooling not yet implemented
 
 ## Pass Criteria
 - `pytest tests/` passes
 - Workflow returns valid output digest
 - Lineage trace contains execution events
 - Runtime registry persists across reload
+- Replay validation passes
+- RuntimeEvent streams reconstruct equivalent RunRecords deterministically
 - Partial modules do not replace canonical `main.py` until parity is proven
