@@ -38,8 +38,8 @@ def test_normalize_event_can_normalize_ids():
 
     normalized = normalize_event(event, normalize_ids=True)
 
-    assert normalized['run_id'] == 'normalized-run'
-    assert normalized['goal_id'] == 'normalized-goal'
+    assert normalized['run_id'] == '<run_id>'
+    assert normalized['goal_id'] == '<goal_id>'
 
 
 def test_normalize_trace_preserves_event_order():
