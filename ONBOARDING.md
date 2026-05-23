@@ -212,9 +212,9 @@ http://localhost:5173
 
 You'll see:
 - File picker for documents
-- Skill selector with 14 skills
-- Pre-configured recipes
-- Real-time event streaming
+- Skill selector with 124 skills across 9 categories
+- 10 pre-configured recipes (drag-and-drop with skills)
+- Real-time event streaming with per-skill timing
 
 ---
 
@@ -227,6 +227,15 @@ Just know:
 - **Goal** → what you want
 - **Skills** → how it does it
 - **Output** → result
+
+And one more thing — every run is **observable**:
+
+- The WebSocket stream tells you exactly when each skill starts and completes
+- Per-skill timing appears in the metrics panel
+- The full event log is saved to disk — you can replay any run later
+- Recipes (bundles of skills) show up as nested blocks with their own timing
+
+This means you can debug a slow run by looking at which skill took time, or replay a failed run by reading its event log. Nothing is a black box.
 
 ---
 

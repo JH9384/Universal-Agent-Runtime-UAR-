@@ -72,7 +72,9 @@ Downtime = any minute where `/api/health/live` returns non-200 or times out > 5s
 | Capability | Status | Evidence |
 |------------|--------|----------|
 | Basic metrics collection | ✅ | `MetricsCollector` in `uar/api/metrics.py` |
+| Histogram / percentile tracking | ✅ | `Histogram` class with p50/p99 buckets |
 | Prometheus exposition format | ✅ | `get_prometheus_format()` |
+| Skill-level latency breakdown | ✅ | `record_skill()` wired into executor |
 | Liveness probe | ✅ | `GET /api/health/live` |
 | Readiness probe | ✅ | `GET /api/health/ready` |
 | Circuit breaker health | ✅ | `GET /api/health/circuit-breakers` |
@@ -84,13 +86,13 @@ Downtime = any minute where `/api/health/live` returns non-200 or times out > 5s
 
 | Gap | Impact on SLA | Priority | Owner |
 |-----|---------------|----------|-------|
-| No histograms / percentile tracking | Cannot measure p99 latency | **Critical** | Backend |
+| ~~No histograms / percentile tracking~~ | ~~Cannot measure p99 latency~~ | ~~**Critical**~~ | ✅ Completed — `Histogram` class with p50/p99 in `uar/api/metrics.py` |
 | No external metrics persistence | Metrics lost on restart | **High** | Backend |
 | No synthetic probing | Availability is self-reported | **High** | SRE |
 | No alert wiring | Cannot enforce MTTD/MTTR | **High** | SRE |
 | Redis rate limiter not default | Breaks multi-worker accuracy | **Medium** | Backend |
 | No request duration logging | Hard to debug latency spikes | **Medium** | Backend |
-| No skill-level latency breakdown | Cannot attribute slowdowns | **Medium** | Backend |
+| ~~No skill-level latency breakdown~~ | ~~Cannot attribute slowdowns~~ | ~~**Medium**~~ | ✅ Completed — `record_skill()` wired into `uar/core/executor.py` |
 
 ---
 
@@ -169,12 +171,12 @@ Before claiming SLA compliance, verify:
 
 ## 7. Gaps & Recommended Actions
 
-### Immediate (This Sprint)
+### Immediate (This Sprint) — Completed ✅
 
-1. **Add histogram support to `MetricsCollector`**
+1. ~~**Add histogram support to `MetricsCollector`**~~ ✅ Completed 2026-05-22
    - File: `uar/api/metrics.py`
-   - Action: Replace `total_duration/count` averages with Prometheus histogram buckets
-   - Acceptance: `uar_request_duration_seconds_bucket` visible in `/api/metrics`
+   - Added `Histogram` class with configurable buckets, `percentile()` method, and Prometheus-format export
+   - `uar_request_duration_seconds_bucket` and `uar_skill_duration_seconds_bucket` visible in `/api/metrics`
 
 2. **Instrument all endpoints with automatic timing**
    - File: `uar/api/server.py`
@@ -188,10 +190,10 @@ Before claiming SLA compliance, verify:
    - Action: `create_rate_limiter()` returns `RedisRateLimiter` when `REDIS_URL` is set in production
    - Acceptance: Load test with 4 workers shows shared rate limit state
 
-4. **Add skill-level execution latency**
+4. ~~**Add skill-level execution latency**~~ ✅ Completed 2026-05-22
    - File: `uar/core/executor.py`
-   - Action: Record `time.time()` before/after each skill invocation, emit to metrics
-   - Acceptance: `uar_skill_duration_seconds` shows per-skill p99
+   - `record_skill()` called at success, retry, and failure paths with duration and error flag
+   - `uar_skill_duration_seconds` shows per-skill p50/p99 in `/api/metrics/json`
 
 ### Medium-term (Next Quarter)
 

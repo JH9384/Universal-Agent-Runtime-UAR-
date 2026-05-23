@@ -354,6 +354,96 @@ startup. The skill will become available once you install the relevant extras:
 | `agent-orchestration` | `agent_workflow`, `crewai_task`, `crewai_workflow` | `pip install -e ".[agent-orchestration]"` |
 | `advanced` | All optional integrations | `pip install -e ".[advanced]"` |
 
+## Recipes
+
+Recipes are **named bundles of skills** that run as a discrete unit with snapshot, retry, and parameter scoping. The frontend supports drag-and-drop reordering of mixed skills and recipes in a unified execution order.
+
+### Canonical Recipes (10 built-in)
+
+| Recipe | Label | Skills |
+|--------|-------|--------|
+| `review` | 🦙 Ollama review | `doc_ingest`, `ollama_generate` |
+| `deps` | 🕸️ Dep map | `doc_ingest`, `dependency_map`, `sum_review` |
+| `gr_index` | 📚 GraphRAG index | `graphrag_index` |
+| `gr_query` | 🔎 GraphRAG query | `graphrag_query` |
+| `gr_full` | ⚡ Full pipeline | `graphrag_index`, `graphrag_query` |
+| `auto_up` | ☁️ Autonomi upload | `autonomi_upload` |
+| `auto_down` | ☁️ Autonomi download | `autonomi_download` |
+| `auto_status` | ☁️ Autonomi status | `autonomi_status` |
+| `eco_status` | 🌐 Ecosystem status | `uor_ecosystem_status` |
+| `eco_canon` | 🌐 Canonicalize | `uor_addr_canonicalize` |
+
+Recipes can be **nested** (a recipe may reference another recipe) and users can create their own recipes via the web UI or API. User recipes are persisted to `.uar_data/user_recipes.json`.
+
+## Metrics & Observability
+
+Every run produces structured telemetry:
+
+- **Per-skill timing**: count, avg duration, p50/p99 percentiles
+- **Per-endpoint histograms**: Prometheus-compatible bucket counts
+- **Event stream**: `recipe_start`, `skill_start`, `skill_complete`, `metrics` events via WebSocket
+- **JSONL audit trail**: Every execution is recorded with full lineage for replay and forensics
+
+### Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/api/metrics` | Prometheus exposition format (histograms, counts, sums) |
+| `/api/metrics/json` | JSON snapshot of all endpoint and skill stats |
+| `/api/uar/stream/ws` | Live WebSocket event stream |
+| `/api/uar/stream` | Server-Sent Events fallback |
+
+### Example Metrics Output
+
+```json
+{
+  "skills": {
+    "molecular_visualization": {
+      "count": 12,
+      "avg_duration_ms": 4.5,
+      "p50_ms": 3.2,
+      "p99_ms": 18.7,
+      "error_rate": 0.0
+    }
+  }
+}
+```
+
+## Examples
+
+Ready-to-run JSON payloads are in `examples/user_payloads/`:
+
+| File | What it does |
+|------|--------------|
+| `codebase_graph.json` | Ingest repo → build dependency graph |
+| `documentation_review.json` | Ingest docs → LLM review → summary |
+| `graphrag_index.json` | Build a knowledge graph from documents |
+| `math_solve.json` | Symbolic math computation |
+| `physics_unit_convert.json` | Astropy unit conversion |
+| `trefoil_simulation.json` | Quaternion trefoil knot on Clifford torus |
+| `nested_recipe_timeline.json` | Mixed skills + recipes with event streaming |
+
+Run any payload:
+
+```bash
+curl http://localhost:8000/api/uar/run \
+  -H "Content-Type: application/json" \
+  -d @examples/user_payloads/trefoil_simulation.json
+```
+
+See [docs/USER_EXAMPLES.md](docs/USER_EXAMPLES.md) for the full walkthrough.
+
+## Security
+
+UAR implements defense-in-depth at multiple layers:
+
+- **Input validation**: Path traversal checks (null bytes, hex encoding, symlink detection, cross-device hard links)
+- **Rate limiting**: Per-key token bucket with thread-safe deques and LRU eviction
+- **Authentication**: API key middleware with tier-based rate limits
+- **SSRF prevention**: URL scheme and host validation on external requests
+- **Resource limits**: 100MB total file size cap, max file count limits in document ingestion
+- **Secret management**: All secrets via environment variables (no hardcoded keys)
+
 ## Development
 
 ```bash

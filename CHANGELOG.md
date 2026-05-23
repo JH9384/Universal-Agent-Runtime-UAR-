@@ -80,6 +80,30 @@ This project uses semantic versioning for release tags.
 - Timeout validation minimum changed from 0 to 0.1s to prevent zero timeout
 - Removed redundant import in config.py
 
+### Security
+- Removed hardcoded API keys; now loaded from `API_KEYS` environment variable
+- Fixed race condition in rate limiter with `threading.Lock()` on per-key deques
+- Comprehensive path traversal protection (null bytes, hex encoding, symlink detection, cross-device hard links)
+- Fixed file descriptor leaks in `doc_ingest` with context managers and generator-based streaming
+- Added `MAX_TOTAL_SIZE` (100MB) and file count limits in directory traversal
+- Added `validate_environment()` and `validate_docker_environment()` runtime checks
+- Created `scripts/docker-entrypoint.sh` for container startup validation
+- Standardized error response formats across all endpoints (`error`, `message`, `request_id`)
+
+### Documentation
+- README: comprehensive 124-skill inventory organized into 9 categories with dependency tables
+- README: new Recipes, Metrics & Observability, Examples, and Security sections
+- ONBOARDING: updated positioning to reflect dual agent runtime + scientific computing sandbox
+- ONBOARDING: added STEM sandbox as primary quick-start path and molecular visualization example
+- ARCHITECTURE: updated system overview to describe both agent runtime and scientific computing roles
+
+### Test Coverage
+- Expanded test suite from 81 → 535 tests
+- Added 28 new unit tests for previously untested STEM skills:
+  `trefoil_simulation`, `quantum_circuit_visualization`, `physics_compute`,
+  `molecular_visualization`, `verilator_sim`, `micropython`, `platformio`,
+  `cv_skills`, `ml_tools`, `stem_extended`
+
 ### Planned / Deferred
 - Parallel executor expansion
 - Replay timeline UI
