@@ -1,17 +1,83 @@
-.timelineContainer {
+/* RecipeTimeline.module.css — scoped styles for RecipeTimeline component */
+
+.timeline {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
   padding: 10px;
 }
 
-.timelineEmpty {
-  color: #6c757d;
-  padding: 20px 0;
-  text-align: center;
+/* ---- Run Header ---------------------------------------------------------- */
+
+.runHeader {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: #f8f9fa;
 }
 
-.timelineRecipe {
+.runHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.runHeaderId {
+  font-weight: 600;
+  font-size: 12px;
+  color: #495057;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.runHeaderStatus {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+
+.runHeaderMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #6c757d;
+  flex-wrap: wrap;
+}
+
+/* ---- Summary Bar --------------------------------------------------------- */
+
+.summaryBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+}
+
+.summaryItem {
+  font-size: 12px;
+  color: #495057;
+}
+
+.summaryItem strong {
+  color: #212529;
+  margin-right: 2px;
+}
+
+/* ---- Recipe Block -------------------------------------------------------- */
+
+.recipeBlock {
   margin: 4px 0;
   border: 1px solid #dee2e6;
   border-radius: 6px;
@@ -19,7 +85,7 @@
   overflow: hidden;
 }
 
-.timelineRecipeHeader {
+.recipeHeader {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -31,26 +97,95 @@
   user-select: none;
 }
 
-.timelineRecipeHeader:hover {
+.recipeHeader:hover {
   background: #e9ecef;
 }
 
-.timelineRecipeIcon {
+.statusIcon {
   font-size: 14px;
+  line-height: 1;
 }
 
-.timelineRecipeLabel {
+.recipeLabel {
   font-weight: 600;
   flex: 1;
 }
 
-.timelineRecipeStatus {
+.retryBadge {
   font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  color: #856404;
+  background: #fff3cd;
+  padding: 1px 6px;
+  border-radius: 10px;
 }
+
+.duration {
+  font-size: 11px;
+  color: #6c757d;
+  font-variant-numeric: tabular-nums;
+}
+
+.expandIcon {
+  font-size: 10px;
+  color: #6c757d;
+}
+
+/* ---- Skills List --------------------------------------------------------- */
+
+.skillsList {
+  padding: 6px 10px 6px 28px;
+}
+
+.noSkills {
+  color: #6c757d;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.skillItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-left: 2px solid #adb5bd;
+  padding-left: 10px;
+  margin: 2px 0;
+  cursor: pointer;
+}
+
+.skillItem:hover {
+  background: #f8f9fa;
+}
+
+.skillName {
+  flex: 1;
+  font-size: 12px;
+}
+
+.skillDuration {
+  font-size: 11px;
+  color: #6c757d;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Standalone Section -------------------------------------------------- */
+
+.standaloneSection {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px dashed #adb5bd;
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+.standaloneHeader {
+  font-weight: 600;
+  font-size: 12px;
+  color: #495057;
+  margin-bottom: 6px;
+}
+
+/* ---- Status Labels ------------------------------------------------------- */
 
 .statusRunning {
   background: #e7f3ff;
@@ -72,42 +207,129 @@
   color: #856404;
 }
 
-.timelineSkills {
-  padding: 6px 10px 6px 28px;
-}
+/* ---- Empty State --------------------------------------------------------- */
 
-.timelineEmptySkill {
+.noEvents {
   color: #6c757d;
-  font-size: 12px;
+  padding: 20px 0;
+  text-align: center;
+  font-size: 13px;
 }
 
-.timelineSkill {
+/* ---- Details Drawer ------------------------------------------------------ */
+
+.detailOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-  border-left: 2px solid #adb5bd;
-  padding-left: 10px;
-  margin: 2px 0;
+  justify-content: center;
 }
 
-.timelineSkillComplete {
-  border-left-color: #198754;
+.detailDrawer {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.timelineSkillFailed {
-  border-left-color: #dc3545;
+.detailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #dee2e6;
 }
 
-.timelineSkillRunning {
-  border-left-color: #0d6efd;
-}
-
-.timelineSkillName {
-  flex: 1;
-}
-
-.timelineSkillStatus {
-  font-size: 11px;
+.detailClose {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
   color: #6c757d;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.detailClose:hover {
+  background: #f1f3f5;
+}
+
+.detailButton {
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  color: #adb5bd;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.detailButton:hover {
+  color: #495057;
+  background: #e9ecef;
+}
+
+.detailBody {
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+
+.detailRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.detailLabel {
+  width: 80px;
+  flex-shrink: 0;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.detailValue {
+  flex: 1;
+  color: #212529;
+  word-break: break-word;
+}
+
+.detailError {
+  color: #dc3545;
+}
+
+.detailPayload {
+  margin-top: 8px;
+}
+
+.detailPre {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin-top: 6px;
 }

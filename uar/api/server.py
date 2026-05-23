@@ -39,6 +39,7 @@ from uar.core.binary_stream import (
 from uar.core.exceptions import UARError, ValidationError, PathSecurityError
 from uar.core.planner import SimplePlanner
 from uar.core.recipes import DEFAULT_RECIPES
+from uar.core.timeline import timeline_from_record
 from uar.api.advanced_endpoints import router as advanced_router
 from uar.core.validation import (
     validate_goal,
@@ -1131,6 +1132,27 @@ async def get_skills():
     from uar.core.registry import registry
 
     return {"skills": registry.list()}
+
+
+@app.get("/api/uar/runs/{run_id}/timeline")
+async def get_run_timeline(
+    run_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Return timeline projection for a specific run."""
+    user_info = auth_middleware(credentials)
+    user_id = user_info["user"] if user_info else None
+    records = store.list_records(user_id=user_id)
+    for rec in records:
+        if rec.get("run_id") == run_id:
+            from uar.core.contracts import RunRecord
+
+            rr = RunRecord(**rec)
+            return timeline_from_record(rr)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"error": "not_found", "message": f"Run '{run_id}' not found"},
+    )
 
 
 # Service instances (stateless, safe to share across requests)
