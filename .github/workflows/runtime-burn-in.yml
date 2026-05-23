@@ -1,0 +1,50 @@
+name: Runtime Burn-In
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'uar/core/**'
+      - 'tests/test_planner_router.py'
+      - 'tests/test_runtime_config.py'
+      - 'tests/test_runtime_events.py'
+      - 'tests/test_replay_integrity.py'
+      - 'tests/test_timeline.py'
+      - 'tests/test_runtime_trace_fixtures.py'
+      - 'tests/test_replay_certification.py'
+      - 'tests/fixtures/**'
+      - 'scripts/burn_in.sh'
+      - 'pyproject.toml'
+      - 'Makefile'
+      - '.github/workflows/runtime-burn-in.yml'
+
+jobs:
+  burn-in:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Run targeted burn-in tests
+        run: |
+          pytest tests/test_planner_router.py -q
+          pytest tests/test_runtime_config.py -q
+          pytest tests/test_runtime_events.py -q
+          pytest tests/test_replay_integrity.py -q
+          pytest tests/test_timeline.py -q
+          pytest tests/test_runtime_trace_fixtures.py -q
+          pytest tests/test_replay_certification.py -q
+
+      - name: Run full gate
+        run: make gate
