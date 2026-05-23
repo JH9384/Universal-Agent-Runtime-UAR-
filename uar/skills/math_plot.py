@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.safe_eval import safe_eval
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +101,8 @@ def _plot_function(
         # Convert common math notation
         expr = expr.replace("^", "**")
         try:
-            y = eval(
+            y = safe_eval(
                 expr,
-                {"__builtins__": {}},
                 {
                     "x": x, "np": np, "sin": np.sin,
                     "cos": np.cos, "tan": np.tan,
@@ -177,8 +177,8 @@ def _plot_parametric(
     }
 
     try:
-        x = eval(x_expr, {"__builtins__": {}}, safe_dict)
-        y = eval(y_expr, {"__builtins__": {}}, safe_dict)
+        x = safe_eval(x_expr, safe_dict)
+        y = safe_eval(y_expr, safe_dict)
         ax.plot(x, y, color="#3b82f6", linewidth=2)
     except Exception as exc:
         logger.warning(f"Parametric plot failed: {exc}")
@@ -234,7 +234,7 @@ def _plot_polar(
     }
 
     try:
-        r = eval(r_expr, {"__builtins__": {}}, safe_dict)
+        r = safe_eval(r_expr, safe_dict)
         ax.plot(theta, r, color="#10b981", linewidth=2)
     except Exception as exc:
         logger.warning(f"Polar plot failed: {exc}")

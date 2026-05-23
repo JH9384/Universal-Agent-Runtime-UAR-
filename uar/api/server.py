@@ -1899,6 +1899,19 @@ async def readiness_probe():
     )
 
 
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus metrics endpoint for scraping.
+
+    Exposes uar_requests_total, uar_errors_total,
+    uar_request_duration_seconds histogram (by endpoint),
+    and uar_skill_duration_seconds histogram (by skill).
+    """
+    collector = get_metrics_collector()
+    body = collector.get_prometheus_format()
+    return Response(content=body, media_type="text/plain")
+
+
 def _docs_root():
     from pathlib import Path
     import os
