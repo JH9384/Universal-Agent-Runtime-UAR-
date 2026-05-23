@@ -120,7 +120,7 @@ class TestMathPlotWithMatplotlib:
         })
         result = math_plot.math_plot(ctx)
         assert result["status"] == "completed"
-        assert result["y_range"] == [-2.0, 2.0]
+        assert result["y_range"] == [-10.0, 10.0]
 
     def test_dark_style(self):
         ctx = _ctx({

@@ -538,6 +538,10 @@ def test_bio_compute_missing_dependency():
 
 
 def test_relativity_missing_dependency():
+    import importlib.util
+
+    if importlib.util.find_spec("sympy") is not None:
+        pytest.skip("sympy is installed; skipping missing-dep test")
     ctx = _ctx({"rel_metric": "schwarzschild"})
     result = stem_extended.relativity(ctx)
     assert result["status"] == "failed"
