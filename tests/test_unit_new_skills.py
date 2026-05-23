@@ -538,14 +538,18 @@ def test_bio_compute_missing_dependency():
 
 
 def test_relativity_missing_dependency():
-    import importlib.util
+    from unittest import mock
 
-    if importlib.util.find_spec("sympy") is not None:
-        pytest.skip("sympy is installed; skipping missing-dep test")
-    ctx = _ctx({"rel_metric": "schwarzschild"})
-    result = stem_extended.relativity(ctx)
-    assert result["status"] == "failed"
-    assert "sympy" in result["error"].lower()
+    def _mock_find_spec(name):
+        if name == "sympy":
+            return None
+        return __import__("importlib.util").find_spec(name)
+
+    with mock.patch("importlib.util.find_spec", _mock_find_spec):
+        ctx = _ctx({"rel_metric": "schwarzschild"})
+        result = stem_extended.relativity(ctx)
+        assert result["status"] == "failed"
+        assert "sympy" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -590,14 +594,18 @@ def test_sum_review_empty():
 # ---------------------------------------------------------------------------
 
 def test_math_compute_missing_sympy():
-    import importlib.util
+    from unittest import mock
 
-    if importlib.util.find_spec("sympy") is not None:
-        pytest.skip("sympy is installed; skipping missing-dep test")
-    ctx = _ctx({"math_operation": "evaluate", "math_expression": "x + 1"})
-    result = math_compute.math_compute(ctx)
-    assert result["status"] == "failed"
-    assert "sympy" in result["error"].lower()
+    def _mock_find_spec(name):
+        if name == "sympy":
+            return None
+        return __import__("importlib.util").find_spec(name)
+
+    with mock.patch("importlib.util.find_spec", _mock_find_spec):
+        ctx = _ctx({"math_operation": "evaluate", "math_expression": "x + 1"})
+        result = math_compute.math_compute(ctx)
+        assert result["status"] == "failed"
+        assert "sympy" in result["error"].lower()
 
 
 def test_math_compute_missing_expression():
@@ -627,14 +635,18 @@ def test_math_compute_evaluate():
 # ---------------------------------------------------------------------------
 
 def test_cipher_ops_missing_pycryptodome():
-    import importlib.util
+    from unittest import mock
 
-    if importlib.util.find_spec("Crypto") is not None:
-        pytest.skip("pycryptodome is installed; skipping missing-dep test")
-    ctx = _ctx({"cipher_operation": "hash", "cipher_data": "dGVzdA=="})
-    result = cipher_ops.cipher_ops(ctx)
-    assert result["status"] == "failed"
-    assert "pycryptodome" in result["error"].lower()
+    def _mock_find_spec(name):
+        if name == "Crypto":
+            return None
+        return __import__("importlib.util").find_spec(name)
+
+    with mock.patch("importlib.util.find_spec", _mock_find_spec):
+        ctx = _ctx({"cipher_operation": "hash", "cipher_data": "dGVzdA=="})
+        result = cipher_ops.cipher_ops(ctx)
+        assert result["status"] == "failed"
+        assert "pycryptodome" in result["error"].lower()
 
 
 def test_cipher_ops_missing_data():

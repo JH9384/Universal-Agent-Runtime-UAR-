@@ -41,6 +41,9 @@ crewai<1.0,>=0.80
 [autonomi]
 autonomi<1.0,>=0.3
 
+[convex]
+convex<1.0,>=0.21
+
 [dev]
 pytest<9.0,>=8.0
 pytest-asyncio<1.0,>=0.23
@@ -57,12 +60,15 @@ docling<3.0,>=2.0
 [graphrag]
 graphrag<2.0,>=1.0
 
+[greptile]
+httpx<1.0,>=0.27
+
 [pipeline-orchestration]
 dagster<2.0,>=1.7
 dagster-webserver<2.0,>=1.7
 
 [uor]
-numpy>=2.3.3
+numpy>=1.24
 dnspython<3.0,>=2.4
 pyshacl<1.0,>=0.20
 rdflib<8.0,>=7.0

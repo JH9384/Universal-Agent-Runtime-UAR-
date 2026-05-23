@@ -25,18 +25,21 @@ def _ctx(metadata: dict) -> PipelineContext:
 
 class TestMathPlotMissingDeps:
     def test_missing_matplotlib(self):
-        try:
-            import matplotlib  # noqa: F401
-            pytest.skip("matplotlib is installed")
-        except ImportError:
-            pass
-        ctx = _ctx({
-            "plot_type": "function",
-            "plot_expressions": ["sin(x)"],
-        })
-        result = math_plot.math_plot(ctx)
-        assert result["status"] == "failed"
-        assert "matplotlib" in result["error"].lower()
+        from unittest import mock
+
+        def _mock_find_spec(name):
+            if name in ("matplotlib", "numpy"):
+                return None
+            return __import__("importlib.util").find_spec(name)
+
+        with mock.patch("importlib.util.find_spec", _mock_find_spec):
+            ctx = _ctx({
+                "plot_type": "function",
+                "plot_expressions": ["sin(x)"],
+            })
+            result = math_plot.math_plot(ctx)
+            assert result["status"] == "failed"
+            assert "matplotlib" in result["error"].lower()
 
 
 class TestMathPlotWithMatplotlib:
@@ -138,6 +141,7 @@ class TestMathPlotWithMatplotlib:
             "plot_type": "function",
             "plot_expressions": ["invalid!!!"],
             "plot_x_range": [-1, 1],
+            "plot_legend": False,
         })
         result = math_plot.math_plot(ctx)
         assert result["status"] == "completed"

@@ -110,6 +110,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = [
     "ignore::DeprecationWarning:pytest_asyncio",
+    "ignore::DeprecationWarning:multiprocessing.popen_fork",
 ]
 
 [tool.mypy]

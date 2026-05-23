@@ -3,6 +3,7 @@ Name: universal-agent-runtime
 Version: 1.0.0
 Summary: Universal Agnostic Runtime for modular goal-driven agent execution.
 Requires-Python: >=3.10
+License-File: LICENSE
 Requires-Dist: fastapi<1.0,>=0.110
 Requires-Dist: uvicorn<1.0,>=0.27
 Requires-Dist: httpx<1.0,>=0.27
@@ -27,7 +28,7 @@ Requires-Dist: mypy<2.0,>=1.0; extra == "dev"
 Requires-Dist: types-requests<3.0,>=2.31; extra == "dev"
 Requires-Dist: requests<3.0,>=2.31; extra == "dev"
 Provides-Extra: uor
-Requires-Dist: numpy>=2.3.3; extra == "uor"
+Requires-Dist: numpy>=1.24; extra == "uor"
 Requires-Dist: dnspython<3.0,>=2.4; extra == "uor"
 Requires-Dist: pyshacl<1.0,>=0.20; extra == "uor"
 Requires-Dist: rdflib<8.0,>=7.0; extra == "uor"
@@ -64,3 +65,8 @@ Provides-Extra: graphrag
 Requires-Dist: graphrag<2.0,>=1.0; extra == "graphrag"
 Provides-Extra: autonomi
 Requires-Dist: autonomi<1.0,>=0.3; extra == "autonomi"
+Provides-Extra: convex
+Requires-Dist: convex<1.0,>=0.21; extra == "convex"
+Provides-Extra: greptile
+Requires-Dist: httpx<1.0,>=0.27; extra == "greptile"
+Dynamic: license-file

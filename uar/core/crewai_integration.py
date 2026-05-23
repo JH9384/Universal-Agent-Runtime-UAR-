@@ -18,7 +18,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from uar.core.agent_framework import Agent
@@ -59,7 +59,9 @@ class AgentTask:
     dependencies: List[str] = field(default_factory=list)
     status: str = "pending"  # pending, in_progress, completed, failed
     result: Optional[Any] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
     completed_at: Optional[datetime] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -124,7 +126,7 @@ class RoleBasedAgent(Agent):
             result = await self._perform_task(task)
             task.result = result
             task.status = "completed"
-            task.completed_at = datetime.utcnow()
+            task.completed_at = datetime.now(timezone.utc)
 
             self.assigned_tasks.remove(task)
             self.completed_tasks.append(task)
