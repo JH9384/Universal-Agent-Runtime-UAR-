@@ -1829,13 +1829,30 @@ export function UARPanel() {
           </label>
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
-              <input
-                value={goal}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGoal(e.target.value)}
-                placeholder="What do you want to accomplish?"
-                disabled={isRunning}
-                className={`${styles.input} ${styles.widthFull}`}
-              />
+              <div className={styles.goalInputRow}>
+                <input
+                  value={goal}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGoal(e.target.value)}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                    if (e.key === 'Enter' && canRun) {
+                      e.preventDefault()
+                      runStream()
+                    }
+                  }}
+                  placeholder="What do you want to accomplish?"
+                  disabled={isRunning}
+                  className={`${styles.input} ${styles.widthFull}`}
+                />
+                <button
+                  onClick={runStream}
+                  disabled={!canRun}
+                  className={styles.goalSubmitButton}
+                  title={isRunning ? 'Currently running' : 'Execute selected skills'}
+                  aria-label="Run"
+                >
+                  {isRunning ? '⏳' : '▶'}
+                </button>
+              </div>
               <datalist id="goal-templates">
                 {GOAL_TEMPLATES.map((g) => <option key={g} value={g} />)}
               </datalist>

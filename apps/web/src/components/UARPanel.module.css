@@ -2003,6 +2003,33 @@ body {
   font-weight: 500;
 }
 
+.goalInputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goalSubmitButton {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.goalSubmitButton:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.goalSubmitButton:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
 @media (max-width: 480px) {
   .headerTitle {
     font-size: 14px;
