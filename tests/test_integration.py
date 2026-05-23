@@ -5,6 +5,7 @@ Tests WebSocket and cache modules in an integrated manner.
 
 import pytest
 import tempfile
+import time
 from pathlib import Path
 from uar.core.cache import ResultCache
 
@@ -72,9 +73,6 @@ class TestCacheIntegration:
         context_b = {"input_path": "B"}
         assert cache.get(skill_name, context_b, goal) is None
 
-    @pytest.mark.skip(
-        reason="Cache eviction requires file-based LRU implementation"
-    )
     def test_cache_eviction(self, cache):
         """Test cache eviction when limits are exceeded."""
         cache_small = ResultCache(
@@ -93,6 +91,7 @@ class TestCacheIntegration:
                 f"goal_{i}",
                 {"output": f"result_{i}"},
             )
+            time.sleep(0.01)
 
         # First entry should be evicted (LRU based on write time)
         assert (

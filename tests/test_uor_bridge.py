@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 from uar.uor import (
     JsonCase,
@@ -7,12 +9,6 @@ from uar.uor import (
     MAX_RECURSION_DEPTH,
     MAX_ARRAY_LENGTH,
     MAX_OBJECT_KEYS,
-)
-
-# Skip UOR bridge tests - they are for a different system (UOR)
-# and have implementation issues unrelated to UAR
-pytestmark = pytest.mark.skip(
-    reason="UOR bridge tests are for a different system"
 )
 
 
@@ -215,17 +211,25 @@ def test_boundary_object_keys_exact_limit():
 
 def test_boundary_recursion_depth_exact_limit():
     """CT-B: Structure at exactly MAX_RECURSION_DEPTH should be accepted."""
-    # Create structure with exactly MAX_RECURSION_DEPTH depth
-    deep_obj = []
-    current = deep_obj
-    for _ in range(MAX_RECURSION_DEPTH):
-        current.append([])
-        current = current[-1]
-    # Add one more element at the deepest level
-    current.append("leaf")
+    # Bump Python recursion limit so JsonValue.from_python doesn't
+    # hit CPython's stack limit before our own depth check.
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(MAX_RECURSION_DEPTH + 100)
+    try:
+        # Create structure with exactly MAX_RECURSION_DEPTH depth
+        # (outer list at depth 0 + MAX_RECURSION_DEPTH - 1 nested lists)
+        deep_obj = []
+        current = deep_obj
+        for _ in range(MAX_RECURSION_DEPTH - 1):
+            current.append([])
+            current = current[-1]
+        # Add one more element at the deepest level (depth MAX_RECURSION_DEPTH)
+        current.append("leaf")
 
-    json_value = JsonValue.from_python(deep_obj)
-    assert json_value.case == JsonCase.ARRAY
+        json_value = JsonValue.from_python(deep_obj)
+        assert json_value.case == JsonCase.ARRAY
+    finally:
+        sys.setrecursionlimit(old_limit)
 
 
 def test_integration_real_world_api_response():

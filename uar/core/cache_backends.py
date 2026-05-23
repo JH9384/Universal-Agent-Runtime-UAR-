@@ -139,7 +139,12 @@ class FileCacheBackend(CacheBackend):
             try:
                 with open(path, "r") as f:
                     return json.load(f).get("result")
-            except (json.JSONDecodeError, KeyError, IOError):
+            except (
+                json.JSONDecodeError,
+                KeyError,
+                IOError,
+                UnicodeDecodeError,
+            ):
                 try:
                     os.remove(path)
                 except OSError:
@@ -161,7 +166,6 @@ class FileCacheBackend(CacheBackend):
         key = _make_cache_key(skill_name, ctx, goal)
         path = self._cache_path(key)
         with self._lock:
-            self._enforce_limits()
             try:
                 data = {
                     "result": result,
@@ -178,6 +182,8 @@ class FileCacheBackend(CacheBackend):
                         os.remove(tmp)
                 except OSError:
                     pass
+                return
+            self._enforce_limits()
 
     def clear(self, skill_name: Optional[str] = None) -> None:
         with self._lock:
@@ -234,10 +240,16 @@ class FileCacheBackend(CacheBackend):
             if fname.endswith(".cache"):
                 path = os.path.join(self.cache_dir, fname)
                 try:
-                    files.append(
-                        (path, os.path.getmtime(path), os.path.getsize(path))
-                    )
-                except OSError:
+                    with open(path, "r") as f:
+                        data = json.load(f)
+                    ts = data.get("timestamp", 0.0)
+                    size = os.path.getsize(path)
+                    files.append((path, ts, size))
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
                     continue
         files.sort(key=lambda x: x[1])
         total_entries = len(files)
@@ -408,6 +420,10 @@ class AutoCacheBackend(CacheBackend):
                     "Redis requested but unavailable, using file backend"
                 )
                 self._redis = None
+
+    @property
+    def cache_dir(self) -> str:
+        return self._file.cache_dir
 
     def _backend(self) -> CacheBackend:
         return self._redis if self._redis is not None else self._file
