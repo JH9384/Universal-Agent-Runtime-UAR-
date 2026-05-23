@@ -497,6 +497,7 @@ docker-compose -f docker-compose.prod.yml up --build
 | [Onboarding](ONBOARDING.md) | Zero-to-running guide with Ollama + Web UI |
 | [System Guide](SYSTEM.md) | Internal development, versioning, release process |
 | [SLA](docs/SLA.md) | Service objectives, monitoring gaps, SLO targets |
+| [Recipe Conditions](docs/RECIPE_CONDITIONS.md) | Conditional recipe execution with `exists`/`equals`/`not_equals` operators |
 | [Boot & Shutdown](docs/BOOT_AND_SHUTDOWN.md) | Startup/shutdown sequences per deployment mode |
 | [WebSocket Protocol](docs/WEBSOCKET_PROTOCOL.md) | Event schema, streaming semantics |
 | [API Reference](http://127.0.0.1:8000/docs) | Interactive OpenAPI docs (when running) |

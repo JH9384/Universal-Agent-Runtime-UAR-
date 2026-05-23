@@ -189,6 +189,32 @@ Use UOR endpoints for object storage, runtime execution, lineage, and workflows.
 **API payload**: `examples/user_payloads/math_solve.json`  
 **API payload**: `examples/user_payloads/physics_unit_convert.json`
 
+### STEM Visualizations & Simulations
+
+**Quantum circuits**:
+
+- `quantum_circuit_visualization` — 3D gate layout with Qiskit integration
+- Metadata: `qubits` (default 4), `depth` (default 8), `custom_gates` array
+
+**Molecular structures**:
+
+- `molecular_visualization` — 3D atomic coordinates and bond topology
+- Built-in molecules: `water`, `benzene`, `caffeine`, `protein` (with `residues`)
+
+**Hardware emulation**:
+
+- `riscv_sim` — RV32I emulator with assembler
+- Metadata: `assembly` string, `memory_size`
+- `verilator_sim` — Verilog lint and simulation readiness check
+- `platformio` — Embedded project scaffolding
+
+**Geometric topology**:
+
+- `trefoil_simulation` — Quaternion trefoil knots on Clifford torus
+- Metadata: `num_points` (default 256), `num_trefoils` (default 3), `rotation_speed`
+
+**API payload**: `examples/user_payloads/trefoil_simulation.json`
+
 ## Example 12: Ecosystem Health Check
 
 **User need**: "Check the status of all configured UOR ecosystem integrations."

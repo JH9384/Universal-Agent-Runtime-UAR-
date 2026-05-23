@@ -1,10 +1,13 @@
-"""Unit tests for skills added in Batch 43-46.
+"""Unit tests for skills added in Batch 43-46 and core skills.
 
 Covers: riscv_sim, verilog_parse, fpga_verify, myhdl_design,
-riscv_cycle, data_viz_3d, stub_skills.
+riscv_cycle, data_viz_3d, stub_skills, section_sum, sum_review,
+math_compute, cipher_ops, dependency_map.
 """
 
 from __future__ import annotations
+
+import pytest
 
 from uar.core.contracts import PipelineContext, GoalSpec
 from uar.skills import (
@@ -25,6 +28,11 @@ from uar.skills import (
     cv_skills,
     ml_tools,
     stem_extended,
+    section_sum,
+    sum_review,
+    math_compute,
+    cipher_ops,
+    dependency_map,
 )
 
 
@@ -534,3 +542,160 @@ def test_relativity_missing_dependency():
     result = stem_extended.relativity(ctx)
     assert result["status"] == "failed"
     assert "sympy" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# section_sum
+# ---------------------------------------------------------------------------
+
+def test_section_sum_returns_summary():
+    ctx = _ctx({})
+    result = section_sum.section_sum(ctx)
+    assert "summary" in result
+    assert "Processed goal: test" in result["summary"]
+
+
+# ---------------------------------------------------------------------------
+# sum_review
+# ---------------------------------------------------------------------------
+
+def test_sum_review_with_data():
+    goal = GoalSpec(
+        id="test-id",
+        user_intent="test",
+        objective="test",
+        metadata={},
+    )
+    ctx = PipelineContext(goal=goal, data={"doc_ingest": {"documents": []}})
+    ctx.emit("skill_complete", {"skill": "doc_ingest"})
+    result = sum_review.sum_review(ctx)
+    assert "skills_executed" in result
+    assert "doc_ingest" in result["skills_executed"]
+    assert result["events_count"] == 1
+
+
+def test_sum_review_empty():
+    ctx = _ctx({})
+    result = sum_review.sum_review(ctx)
+    assert result["skills_executed"] == []
+    assert result["events_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# math_compute
+# ---------------------------------------------------------------------------
+
+def test_math_compute_missing_sympy():
+    import importlib.util
+
+    if importlib.util.find_spec("sympy") is not None:
+        pytest.skip("sympy is installed; skipping missing-dep test")
+    ctx = _ctx({"math_operation": "evaluate", "math_expression": "x + 1"})
+    result = math_compute.math_compute(ctx)
+    assert result["status"] == "failed"
+    assert "sympy" in result["error"].lower()
+
+
+def test_math_compute_missing_expression():
+    import importlib.util
+
+    if importlib.util.find_spec("sympy") is None:
+        pytest.skip("sympy not installed")
+    ctx = _ctx({"math_operation": "evaluate"})
+    result = math_compute.math_compute(ctx)
+    assert result["status"] == "failed"
+    assert "math_expression is required" in result["error"]
+
+
+def test_math_compute_evaluate():
+    import importlib.util
+
+    if importlib.util.find_spec("sympy") is None:
+        pytest.skip("sympy not installed")
+    ctx = _ctx({"math_operation": "evaluate", "math_expression": "2 + 2"})
+    result = math_compute.math_compute(ctx)
+    assert result["status"] == "completed"
+    assert "result" in result
+
+
+# ---------------------------------------------------------------------------
+# cipher_ops
+# ---------------------------------------------------------------------------
+
+def test_cipher_ops_missing_pycryptodome():
+    import importlib.util
+
+    if importlib.util.find_spec("Crypto") is not None:
+        pytest.skip("pycryptodome is installed; skipping missing-dep test")
+    ctx = _ctx({"cipher_operation": "hash", "cipher_data": "dGVzdA=="})
+    result = cipher_ops.cipher_ops(ctx)
+    assert result["status"] == "failed"
+    assert "pycryptodome" in result["error"].lower()
+
+
+def test_cipher_ops_missing_data():
+    import importlib.util
+
+    if importlib.util.find_spec("Crypto") is None:
+        pytest.skip("pycryptodome not installed")
+    ctx = _ctx({"cipher_operation": "hash"})
+    result = cipher_ops.cipher_ops(ctx)
+    assert result["status"] == "failed"
+    assert "cipher_data is required" in result["error"]
+
+
+def test_cipher_ops_hash():
+    import importlib.util
+
+    if importlib.util.find_spec("Crypto") is None:
+        pytest.skip("pycryptodome not installed")
+    ctx = _ctx({
+        "cipher_operation": "hash",
+        "cipher_algorithm": "SHA256",
+        "cipher_data": "dGVzdA==",  # base64("test")
+    })
+    result = cipher_ops.cipher_ops(ctx)
+    assert result["status"] == "completed"
+    assert "hash" in result
+
+
+# ---------------------------------------------------------------------------
+# dependency_map
+# ---------------------------------------------------------------------------
+
+def test_dependency_map_empty():
+    ctx = _ctx({})
+    result = dependency_map.dependency_map(ctx)
+    assert result["node_count"] == 0
+    assert result["edge_count"] == 0
+
+
+def test_dependency_map_with_imports():
+    goal = GoalSpec(
+        id="test-id",
+        user_intent="test",
+        objective="test",
+        metadata={},
+    )
+    ctx = PipelineContext(
+        goal=goal,
+        data={
+            "doc_ingest": {
+                "documents": [
+                    {
+                        "path": "/tmp/a.py",
+                        "text": "import os\nfrom sys import path",
+                    },
+                    {
+                        "path": "/tmp/b.py",
+                        "text": "import json",
+                    },
+                ]
+            }
+        },
+    )
+    result = dependency_map.dependency_map(ctx)
+    assert result["node_count"] == 5  # 2 files + 3 imports
+    assert result["edge_count"] == 3
+    assert any(n["id"] == "/tmp/a.py" for n in result["nodes"])
+    assert any(e["from"] == "/tmp/a.py" for e in result["edges"])
