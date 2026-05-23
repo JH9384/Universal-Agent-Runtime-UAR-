@@ -226,7 +226,7 @@ class CachedObjectAccessor:
             keys: List of object keys to prefetch
         """
         for key in keys:
-            if key not in self.cache:
+            if self.cache.get(key) is None:
                 obj = self.fetch_func(key)
                 if obj is not None:
                     self.cache.set(key, obj)

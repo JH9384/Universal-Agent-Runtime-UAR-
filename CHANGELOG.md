@@ -37,7 +37,7 @@ This project uses semantic versioning for release tags.
 - Path traversal protection
 - Safe file handling with size limits and extension checks
 
-## [Unreleased]
+## [1.1.0] - 2026-05-22
 
 ### Added
 - Hierarchical recipe execution with discrete unit semantics
@@ -96,13 +96,19 @@ This project uses semantic versioning for release tags.
 - ONBOARDING: updated positioning to reflect dual agent runtime + scientific computing sandbox
 - ONBOARDING: added STEM sandbox as primary quick-start path and molecular visualization example
 - ARCHITECTURE: updated system overview to describe both agent runtime and scientific computing roles
+- `.env.example`: documented `UAR_HIERARCHICAL_EXECUTION` env var with inline docs
+- `README.md`: linked `docs/RECIPE_CONDITIONS.md` in documentation table
+- `docs/USER_EXAMPLES.md`: expanded STEM section with quantum circuits, molecular structures,
+  hardware emulation (RISC-V, Verilator, PlatformIO), and geometric topology (trefoil simulation)
 
 ### Test Coverage
-- Expanded test suite from 81 → 535 tests
-- Added 28 new unit tests for previously untested STEM skills:
-  `trefoil_simulation`, `quantum_circuit_visualization`, `physics_compute`,
-  `molecular_visualization`, `verilator_sim`, `micropython`, `platformio`,
-  `cv_skills`, `ml_tools`, `stem_extended`
+- Expanded test suite from 535 → 572 tests
+- Added unit tests for core skills: `section_sum`, `sum_review`, `math_compute`, `cipher_ops`, `dependency_map`
+- Added 30 unit tests for UOR modules: `secure_keys`, `object_cache`, `rate_limiting`, `rdf_formats`
+
+### Fixed
+- `uar/uor/object_cache.py`: `prefetch()` now correctly checks cache via `get()` instead of broken `in` operator
+- `uar/uor/rate_limiting.py`: fixed `min()` on empty list when `max_requests=0` in both `RateLimiter` and `SlidingWindowRateLimiter`
 
 ### Planned / Deferred
 - Parallel executor expansion

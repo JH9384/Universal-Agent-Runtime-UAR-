@@ -82,13 +82,19 @@ class RateLimiter:
                 )
             else:
                 # Find when the oldest request expires
-                oldest = min(self.requests[identifier])
-                retry_after = oldest + self.window_seconds - now
+                request_list = self.requests[identifier]
+                if request_list:
+                    oldest = min(request_list)
+                    retry_after = oldest + self.window_seconds - now
+                    reset_time = oldest + self.window_seconds
+                else:
+                    retry_after = 0.0
+                    reset_time = now + self.window_seconds
 
                 return RateLimitInfo(
                     allowed=False,
                     remaining=0,
-                    reset_time=oldest + self.window_seconds,
+                    reset_time=reset_time,
                     retry_after=retry_after,
                 )
 
@@ -177,13 +183,19 @@ class SlidingWindowRateLimiter:
                 )
             else:
                 # Calculate retry after
-                oldest = min(self.requests[identifier])
-                retry_after = oldest + self.window_seconds - now
+                request_list = self.requests[identifier]
+                if request_list:
+                    oldest = min(request_list)
+                    retry_after = oldest + self.window_seconds - now
+                    reset_time = oldest + self.window_seconds
+                else:
+                    retry_after = 0.0
+                    reset_time = now + self.window_seconds
 
                 return RateLimitInfo(
                     allowed=False,
                     remaining=0,
-                    reset_time=oldest + self.window_seconds,
+                    reset_time=reset_time,
                     retry_after=retry_after,
                 )
 
