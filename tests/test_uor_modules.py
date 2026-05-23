@@ -6,6 +6,7 @@ Covers: secure_keys, object_cache, rate_limiting, rdf_formats.
 from __future__ import annotations
 
 import time
+from unittest import mock
 
 import pytest
 
@@ -61,27 +62,31 @@ class TestSecureKeyStore:
 
 class TestKeyManager:
     def test_generate_key_pair_missing_cryptography(self):
-        try:
-            import cryptography  # noqa: F401
+        orig_import = __builtins__["__import__"]
 
-            pytest.skip("cryptography is installed")
-        except ImportError:
-            pass
-        mgr = KeyManager()
-        with pytest.raises(NotImplementedError) as exc:
-            mgr.generate_key_pair("test_id")
-        assert "cryptography library required" in str(exc.value)
+        def _mock_import(name, *args, **kwargs):
+            if name.startswith("cryptography"):
+                raise ImportError(f"No module named '{name}'")
+            return orig_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", _mock_import):
+            mgr = KeyManager()
+            with pytest.raises(NotImplementedError) as exc:
+                mgr.generate_key_pair("test_id")
+            assert "cryptography library required" in str(exc.value)
 
     def test_sign_and_verify_missing_cryptography(self):
-        try:
-            import cryptography  # noqa: F401
+        orig_import = __builtins__["__import__"]
 
-            pytest.skip("cryptography is installed")
-        except ImportError:
-            pass
-        mgr = KeyManager()
-        assert mgr.sign_data("test", b"hello") is None
-        assert mgr.verify_signature("test", b"hello", "sig") is False
+        def _mock_import(name, *args, **kwargs):
+            if name.startswith("cryptography"):
+                raise ImportError(f"No module named '{name}'")
+            return orig_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", _mock_import):
+            mgr = KeyManager()
+            assert mgr.sign_data("test", b"hello") is None
+            assert mgr.verify_signature("test", b"hello", "sig") is False
 
 
 # ---------------------------------------------------------------------------
@@ -272,12 +277,13 @@ class TestUORAPIClient:
 
 class TestRDFConverter:
     def test_missing_rdflib(self):
-        if rdf_formats.RDFLIB_AVAILABLE:
-            pytest.skip("rdflib is installed")
-        conv = rdf_formats.RDFConverter()
-        result = conv.jsonld_to_rdf('{"@context": {}}')
-        assert result.success is False
-        assert "rdflib not available" in result.error
+        with mock.patch.object(
+            rdf_formats, "RDFLIB_AVAILABLE", False
+        ):
+            conv = rdf_formats.RDFConverter()
+            result = conv.jsonld_to_rdf('{"@context": {}}')
+            assert result.success is False
+            assert "rdflib not available" in result.error
 
     def test_converter_init(self):
         conv = rdf_formats.RDFConverter(base_uri="http://test/")
@@ -286,12 +292,13 @@ class TestRDFConverter:
 
 class TestOWLConverter:
     def test_missing_rdflib(self):
-        if rdf_formats.RDFLIB_AVAILABLE:
-            pytest.skip("rdflib is installed")
-        conv = rdf_formats.OWLConverter()
-        result = conv.schema_to_owl({"title": "Test"})
-        assert result.success is False
-        assert "rdflib not available" in result.error
+        with mock.patch.object(
+            rdf_formats, "RDFLIB_AVAILABLE", False
+        ):
+            conv = rdf_formats.OWLConverter()
+            result = conv.schema_to_owl({"title": "Test"})
+            assert result.success is False
+            assert "rdflib not available" in result.error
 
     def test_converter_init(self):
         conv = rdf_formats.OWLConverter(base_uri="http://test/")

@@ -3,11 +3,17 @@
 Tests WebSocket and cache modules in an integrated manner.
 """
 
+import json
+
 import pytest
 import tempfile
 import time
 from pathlib import Path
+from fastapi.testclient import TestClient
+from uar.api.server import app
 from uar.core.cache import ResultCache
+
+client = TestClient(app)
 
 
 class TestCacheIntegration:
@@ -111,18 +117,30 @@ class TestCacheIntegration:
 class TestWebSocketIntegration:
     """Integration tests for WebSocket functionality."""
 
-    @pytest.mark.asyncio
-    async def test_websocket_connection(self):
+    def test_websocket_connection(self):
         """Test WebSocket connection can be established."""
-        # This is a placeholder for actual WebSocket integration test
-        # Would require running the actual server
-        pytest.skip("Requires running server")
+        with client.websocket_connect("/api/uar/stream/ws") as websocket:
+            websocket.send_json({"goal": "hello"})
+            msg = websocket.receive()
+            assert msg["type"] in ("websocket.send", "websocket.close")
+            if msg["type"] == "websocket.send":
+                data = json.loads(msg["text"])
+                assert "type" in data
 
-    @pytest.mark.asyncio
-    async def test_websocket_message_flow(self):
-        """Test WebSocket message flow."""
-        # This is a placeholder for actual WebSocket message flow test
-        pytest.skip("Requires running server")
+    def test_websocket_message_flow(self):
+        """Test WebSocket message flow for a simple run."""
+        with client.websocket_connect("/api/uar/stream/ws") as websocket:
+            websocket.send_json({"goal": "test"})
+            events = []
+            for _ in range(50):
+                msg = websocket.receive()
+                if msg["type"] == "websocket.close":
+                    break
+                if msg["type"] == "websocket.send":
+                    events.append(json.loads(msg["text"]))
+            assert len(events) >= 2
+            assert events[0]["type"] in ("start", "orchestration_plan")
+            assert events[-1]["type"] in ("complete", "error", "persisted")
 
 
 class TestEndToEnd:
