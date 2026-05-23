@@ -1,0 +1,41 @@
+name: Runtime Burn-In
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'uar/**'
+      - 'tests/**'
+      - 'scripts/burn_in.sh'
+      - 'docs/BURN_IN_CHECKLIST.md'
+      - 'docs/GOLDEN_TRACE_POLICY.md'
+      - 'docs/RUNTIME_BASELINE.md'
+      - 'pyproject.toml'
+      - 'Makefile'
+      - '.github/workflows/runtime-burn-in.yml'
+
+jobs:
+  burn-in:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Run burn-in script
+        run: |
+          chmod +x scripts/burn_in.sh
+          ./scripts/burn_in.sh
+
+      - name: Run full Python test suite
+        run: pytest -q
