@@ -1,0 +1,84 @@
+[
+  {
+    "schema_version": "uar.event.v1",
+    "type": "start",
+    "run_id": "run-fixture-success",
+    "goal_id": "goal-fixture-success",
+    "skill": null,
+    "timestamp": 1.0,
+    "payload": {
+      "goal": "fixture success run",
+      "skills": ["section_sum"]
+    },
+    "error": null,
+    "correlation_id": "fixture-success"
+  },
+  {
+    "schema_version": "uar.event.v1",
+    "type": "skill_start",
+    "run_id": "run-fixture-success",
+    "goal_id": "goal-fixture-success",
+    "skill": "section_sum",
+    "timestamp": 2.0,
+    "payload": {},
+    "error": null,
+    "correlation_id": "fixture-success"
+  },
+  {
+    "schema_version": "uar.event.v1",
+    "type": "skill_complete",
+    "run_id": "run-fixture-success",
+    "goal_id": "goal-fixture-success",
+    "skill": "section_sum",
+    "timestamp": 3.0,
+    "payload": {
+      "result": {
+        "summary": "Fixture completed successfully."
+      },
+      "attempt": 1
+    },
+    "error": null,
+    "correlation_id": "fixture-success"
+  },
+  {
+    "schema_version": "uar.event.v1",
+    "type": "metrics",
+    "run_id": "run-fixture-success",
+    "goal_id": "goal-fixture-success",
+    "skill": null,
+    "timestamp": 4.0,
+    "payload": {
+      "total_time_sec": 1.0,
+      "event_count": 3,
+      "skills_executed": 1
+    },
+    "error": null,
+    "correlation_id": "fixture-success"
+  },
+  {
+    "schema_version": "uar.event.v1",
+    "type": "complete",
+    "run_id": "run-fixture-success",
+    "goal_id": "goal-fixture-success",
+    "skill": null,
+    "timestamp": 5.0,
+    "payload": {
+      "status": "completed",
+      "outputs": [
+        {
+          "section_sum": {
+            "summary": "Fixture completed successfully."
+          }
+        }
+      ],
+      "errors": [],
+      "final_context": {
+        "section_sum": {
+          "summary": "Fixture completed successfully."
+        }
+      }
+    },
+    "error": null,
+    "correlation_id": "fixture-success"
+  }
+]
