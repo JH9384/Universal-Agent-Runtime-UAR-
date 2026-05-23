@@ -301,8 +301,9 @@ class RedisRateLimiter:
 def create_rate_limiter() -> RateLimiter:
     """Factory: return RedisRateLimiter if REDIS_URL is set, else in-memory.
 
-    In production, Redis is strongly recommended (and will be required
-    in a future release) so that rate limits are shared across workers.
+    In production (ENVIRONMENT=production), Redis is **required**.
+    Startup will fail with a clear error if REDIS_URL is missing or
+    the Redis server is unreachable.
     """
     redis_url = os.getenv("REDIS_URL", "").strip()
     is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
@@ -311,23 +312,25 @@ def create_rate_limiter() -> RateLimiter:
         try:
             return RedisRateLimiter(redis_url)  # type: ignore[return-value]
         except ImportError:
-            logger.warning(
-                "REDIS_URL set but redis package not installed; "
-                "falling back to in-memory rate limiter"
+            msg = (
+                "REDIS_URL is set but the 'redis' package is not installed. "
+                "Install it with: pip install redis"
             )
+            if is_production:
+                raise RuntimeError(msg) from None
+            logger.warning(msg + "; falling back to in-memory rate limiter")
         except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "Failed to connect to Redis at %s: %s. "
-                "Falling back to in-memory rate limiter.",
-                redis_url,
-                exc,
-            )
+            msg = f"Failed to connect to Redis at {redis_url}: {exc}"
+            if is_production:
+                raise RuntimeError(msg) from exc
+            logger.error(msg + "; falling back to in-memory rate limiter")
 
     if is_production:
-        logger.warning(
-            "Running in production without REDIS_URL. "
-            "Rate limits will be per-process and inconsistent "
-            "under multi-worker or multi-replica deployments."
+        raise RuntimeError(
+            "ENVIRONMENT=production requires REDIS_URL to be set "
+            "for shared rate limiting across workers. "
+            "Add Redis to your deployment and set REDIS_URL, e.g. "
+            "REDIS_URL=redis://localhost:6379/0"
         )
 
     return RateLimiter()
