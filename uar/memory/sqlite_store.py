@@ -10,6 +10,7 @@ Environment:
 
 import json
 import os
+import queue
 import sqlite3
 import threading
 from pathlib import Path
@@ -34,7 +35,17 @@ class SqliteRunStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn: Optional[sqlite3.Connection] = None
+        # Reader pool for concurrent reads under WAL
+        self._read_pool_size = int(os.getenv("UAR_SQLITE_READ_POOL", "4"))
+        self._read_pool: queue.Queue = queue.Queue()
+        self._read_pool_lock = threading.Lock()
         self._ensure_table()
+        self._init_read_pool()
+
+    def _init_read_pool(self) -> None:
+        """Pre-create reader connections for WAL-mode concurrent reads."""
+        for _ in range(self._read_pool_size):
+            self._read_pool.put(self._connect())
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(
@@ -128,11 +139,25 @@ class SqliteRunStore:
             conn.execute("BEGIN IMMEDIATE")
             conn.executemany(sql, rows)
 
+    def _get_read_conn(self) -> sqlite3.Connection:
+        """Borrow a reader connection from the pool."""
+        try:
+            return self._read_pool.get(block=False)
+        except queue.Empty:
+            return self._connect()
+
+    def _release_read_conn(self, conn: sqlite3.Connection) -> None:
+        """Return a reader connection to the pool."""
+        try:
+            self._read_pool.put(conn, block=False)
+        except queue.Full:
+            conn.close()
+
     def list_records(
         self, user_id: Optional[str] = None, limit: int = 1000
     ) -> List[Dict[str, Any]]:
-        with self._lock:
-            conn = self._get_conn()
+        conn = self._get_read_conn()
+        try:
             if user_id is not None:
                 cur = conn.execute(
                     "SELECT * FROM uar_runs WHERE user_id = ?"
@@ -146,18 +171,22 @@ class SqliteRunStore:
                     (limit,),
                 )
             rows = cur.fetchall()
+        finally:
+            self._release_read_conn(conn)
 
         return [_decode_row(dict(r)) for r in rows]
 
     def get_by_run_id(self, run_id: str) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            conn = self._get_conn()
+        conn = self._get_read_conn()
+        try:
             cur = conn.execute(
                 "SELECT * FROM uar_runs WHERE run_id = ?"
                 " ORDER BY created_at DESC LIMIT 1",
                 (run_id,),
             )
             row = cur.fetchone()
+        finally:
+            self._release_read_conn(conn)
         if row is None:
             return None
         return _decode_row(dict(row))

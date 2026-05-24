@@ -181,6 +181,9 @@ class GoalExecutionService(BaseService):
         # Buffered write: accumulate lines to amortize syscalls
         _write_buf: list[str] = []
         _write_buf_size = int(os.getenv("UAR_WRITE_BUF_SIZE", "50"))
+        # Yield frequency tuning: batch yields to reduce event loop overhead
+        _yield_batch = int(os.getenv("UAR_YIELD_BATCH", "1"))
+        _yield_counter = 0
 
         def _flush_write_buf() -> None:
             if _write_buf:
@@ -231,6 +234,9 @@ class GoalExecutionService(BaseService):
                     _flush_write_buf()
 
                 await bp.apply()
+                _yield_counter += 1
+                if _yield_counter >= _yield_batch:
+                    _yield_counter = 0
                 yield raw_event
 
             _flush_write_buf()

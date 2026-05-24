@@ -21,8 +21,15 @@ import logging
 import os
 import threading
 import time
-import zlib
 from typing import Any, Callable, Dict, List, Optional
+
+# Compression: prefer zstd (faster), fallback to zlib
+try:
+    import zstandard as zstd
+    _HAS_ZSTD = True
+except ImportError:
+    import zlib
+    _HAS_ZSTD = False
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +182,15 @@ class RedisSkillCache:
     ) -> Optional[Any]:
         """Return cached result from Redis or ``None``."""
         key = self._make_key(skill_name, metadata)
+        # Bloom filter: skip Redis lookup if key definitely absent
+        if _bloom_filter and not _bloom_filter.might_contain(key):
+            return None
         try:
-            # Try compressed key first
+            # Try zstd compressed key first
             raw = self._r.get(self._redis_key(key) + ":z")
             if raw is not None:
+                if _HAS_ZSTD:
+                    return json.loads(zstd.ZstdDecompressor().decompress(raw))
                 return json.loads(zlib.decompress(raw))
             raw = self._r.get(self._redis_key(key))
             if raw is None:
@@ -198,16 +210,21 @@ class RedisSkillCache:
     ) -> None:
         """Store a serialized result in Redis with TTL.
 
-        Optional zlib compression (UAR_CACHE_COMPRESS=true)
-        for large skill results.
+        Optional zstd compression (UAR_CACHE_COMPRESS=true)
+        for large skill results. Updates bloom filter on set.
         """
         key = self._redis_key(self._make_key(skill_name, metadata))
         try:
             payload = json.dumps(value, default=str).encode("utf-8")
             if os.getenv("UAR_CACHE_COMPRESS", "true").lower() == "true":
-                payload = zlib.compress(payload, level=3)
+                if _HAS_ZSTD:
+                    payload = zstd.ZstdCompressor(level=3).compress(payload)
+                else:
+                    payload = zlib.compress(payload, level=3)
                 key += ":z"
             self._r.setex(key, int(ttl_seconds), payload)
+            if _bloom_filter:
+                _bloom_filter.add(self._make_key(skill_name, metadata))
             logger.debug(f"Redis cache set: {skill_name}")
         except Exception as exc:
             logger.warning(f"Redis cache set failed: {exc}")
@@ -264,6 +281,40 @@ class RedisSkillCache:
 # Global shared cache instance
 _global_skill_cache: Optional[Any] = None
 _global_cache_lock = threading.Lock()
+
+
+class _BloomFilter:
+    """Simple bit-array bloom filter for cache key presence.
+
+    Uses a single 64KB bit array (~500K entries at 1% false positive).
+    """
+
+    def __init__(self, size: int = 524_288, hash_count: int = 4) -> None:
+        self.size = size
+        self.hash_count = hash_count
+        self.bits = bytearray(size // 8)
+
+    def add(self, item: str) -> None:
+        for i in range(self.hash_count):
+            idx = hash((item, i)) % self.size
+            byte_idx = idx // 8
+            bit_idx = idx % 8
+            self.bits[byte_idx] |= 1 << bit_idx
+
+    def might_contain(self, item: str) -> bool:
+        for i in range(self.hash_count):
+            idx = hash((item, i)) % self.size
+            byte_idx = idx // 8
+            bit_idx = idx % 8
+            if not (self.bits[byte_idx] & (1 << bit_idx)):
+                return False
+        return True
+
+
+# Optional bloom filter to skip Redis lookups for known-absent keys
+_bloom_filter: Optional[_BloomFilter] = None
+if os.getenv("UAR_CACHE_BLOOM", "true").lower() == "true":
+    _bloom_filter = _BloomFilter()
 
 
 def get_skill_cache(maxsize: int = 1024) -> Any:

@@ -56,7 +56,7 @@ class PipelineContext:
             self._overflow_file = None
 
 
-@dataclass
+@dataclass(slots=True)
 class RunRecord:
     run_id: str
     goal_id: str

@@ -40,6 +40,7 @@ async def _get_session(url: str):
             limit=int(os.getenv("UAR_HTTP_POOL_LIMIT", "10")),
             limit_per_host=int(os.getenv("UAR_HTTP_POOL_PER_HOST", "5")),
             ttl_dns_cache=300,
+            enable_cleanup_closed=True,
         )
         sess = aiohttp.ClientSession(connector=conn, timeout=timeout)
         _sessions[domain] = sess
@@ -55,7 +56,7 @@ async def http_get(
     session = await _get_session(url)
     if session is None:
         raise RuntimeError("aiohttp is required for async HTTP")
-    last_exc = None
+    last_exc: BaseException = RuntimeError("No attempts made")
     for attempt in range(_MAX_RETRIES):
         try:
             async with session.get(url, headers=headers, **kwargs) as resp:
@@ -86,7 +87,7 @@ async def http_post(
     session = await _get_session(url)
     if session is None:
         raise RuntimeError("aiohttp is required for async HTTP")
-    last_exc = None
+    last_exc: BaseException = RuntimeError("No attempts made")
     for attempt in range(_MAX_RETRIES):
         try:
             async with session.post(

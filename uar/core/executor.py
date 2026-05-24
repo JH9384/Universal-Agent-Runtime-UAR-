@@ -7,6 +7,7 @@ import logging
 import os
 import pickle
 import random
+import sys
 import threading
 import time
 import uuid
@@ -268,6 +269,24 @@ def _validate_output_guardrails(result: Any, skill_name: str) -> List[str]:
 
 
 logger = logging.getLogger(__name__)
+
+# Sampled logging: log only 1/N debug messages on hot paths
+# to reduce I/O overhead.  UAR_LOG_SAMPLE_RATE=0 disables sampling.
+_LOG_SAMPLE_RATE = int(os.getenv("UAR_LOG_SAMPLE_RATE", "1"))
+_log_counter = 0
+_log_counter_lock = threading.Lock()
+
+
+def _sampled_log(level: str, msg: str, *args: Any, **kwargs: Any) -> None:
+    """Log only 1/N messages to reduce hot-path I/O."""
+    global _log_counter
+    if _LOG_SAMPLE_RATE <= 1:
+        getattr(logger, level)(msg, *args, **kwargs)
+        return
+    with _log_counter_lock:
+        _log_counter += 1
+        if _log_counter % _LOG_SAMPLE_RATE == 0:
+            getattr(logger, level)(msg, *args, **kwargs)
 
 
 # Retry configuration per skill (max retries)
@@ -599,11 +618,12 @@ def make_executor_event(
 
     This is the single source of truth for event construction in the
     executor.  All event emission flows through here.
+    Interns frequently repeated strings to reduce memory overhead.
     """
     return {
         "schema_version": "uar.event.v1",
-        "type": event_type,
-        "run_id": run_id,
+        "type": sys.intern(event_type),
+        "run_id": sys.intern(run_id),
         "goal_id": goal_id,
         "skill": skill,
         "timestamp": timestamp if timestamp is not None else time.time(),
