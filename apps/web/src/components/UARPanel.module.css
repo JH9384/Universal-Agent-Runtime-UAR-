@@ -499,6 +499,10 @@ body {
   margin-top: 20px;
 }
 
+.presetsContainerCompact {
+  margin-top: 6px;
+}
+
 .recentContainer {
   margin-bottom: 8px;
 }

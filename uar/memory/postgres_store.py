@@ -52,7 +52,7 @@ class PostgresRunStore:
     def _connect_sync(self):
         """Return a synchronous DBAPI connection."""
         try:
-            import psycopg  # psycopg 3
+            import psycopg  # type: ignore[import-untyped]  # psycopg 3
             return psycopg.connect(self._db_url)
         except ImportError:
             import psycopg2  # type: ignore[import-untyped]

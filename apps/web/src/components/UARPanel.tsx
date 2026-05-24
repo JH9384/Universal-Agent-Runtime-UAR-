@@ -1630,7 +1630,7 @@ export function UARPanel() {
           className={styles.skillGuideButton}
           title="Toggle quick start tips"
           aria-label="Toggle quick start tips"
-          aria-pressed={showHelp}
+          aria-pressed={String(showHelp)}
         >
           💡
         </button>
@@ -1948,7 +1948,7 @@ export function UARPanel() {
                     const isCollapsed = collapsedGroups[group.name]
                     return (
                       <div key={group.name} className={styles.skillGroup}>
-                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
+                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={String(!isCollapsed)} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
                           <span className={styles.skillGroupIcon}>{group.icon}</span>
                           <span className={styles.skillGroupName}>{group.name}</span>
                           <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
@@ -2306,7 +2306,7 @@ export function UARPanel() {
                     </button>
                   </div>
                   {userPresets.length > 0 && (
-                    <div className={styles.presetsContainer} style={{ marginTop: 6 }}>
+                    <div className={styles.presetsContainerCompact}>
                       {userPresets.map((p) => (
                         <div key={p.name} className={styles.presetRow}>
                           <button
@@ -2358,7 +2358,7 @@ export function UARPanel() {
             className={`${styles.runButton} ${styles.smallButton}`}
             title={useWebSocket ? 'Using WebSocket transport' : 'Using SSE transport (click to switch)'}
             aria-label={useWebSocket ? 'Switch to SSE transport' : 'Switch to WebSocket transport'}
-            aria-pressed={useWebSocket}
+            aria-pressed={String(useWebSocket)}
           >
             {useWebSocket ? '⚡ WS' : '⬡ SSE'}
           </button>
@@ -2372,7 +2372,7 @@ export function UARPanel() {
                 : 'Flat execution: recipes expand into a single skill list (click to switch)'
             }
             aria-label={useHierarchical ? 'Switch to flat execution' : 'Switch to hierarchical execution'}
-            aria-pressed={useHierarchical}
+            aria-pressed={String(useHierarchical)}
           >
             {useHierarchical ? '🔀 Nested' : '➡ Flat'}
           </button>
@@ -2930,7 +2930,7 @@ export function UARPanel() {
               data-section="Documents"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Documents']}
+              aria-expanded={String(expandedTipSections['Documents'])}
             >
               <span className={styles.tipsPopupSectionTitle}>Documents</span>
               <span>{expandedTipSections['Documents'] ? '▼' : '▶'}</span>
@@ -2962,7 +2962,7 @@ export function UARPanel() {
               data-section="Goal"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Goal']}
+              aria-expanded={String(expandedTipSections['Goal'])}
             >
               <span className={styles.tipsPopupSectionTitle}>Goal</span>
               <span>{expandedTipSections['Goal'] ? '▼' : '▶'}</span>
@@ -2992,7 +2992,7 @@ export function UARPanel() {
               data-section="Skills"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Skills']}
+              aria-expanded={String(expandedTipSections['Skills'])}
             >
               <span className={styles.tipsPopupSectionTitle}>Skills</span>
               <span>{expandedTipSections['Skills'] ? '▼' : '▶'}</span>
@@ -3027,7 +3027,7 @@ export function UARPanel() {
                 data-section={group.name}
                 tabIndex={0}
                 role="button"
-                aria-expanded={expandedTipSections[group.name]}
+                aria-expanded={String(expandedTipSections[group.name])}
               >
                 <span className={styles.tipsPopupSectionTitle}>{group.name}</span>
                 <span>{expandedTipSections[group.name] ? '▼' : '▶'}</span>
@@ -3254,7 +3254,7 @@ export function UARPanel() {
               data-section="Run"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Run']}
+              aria-expanded={String(expandedTipSections['Run'])}
             >
               <span className={styles.tipsPopupSectionTitle}>Run</span>
               <span>{expandedTipSections['Run'] ? '▼' : '▶'}</span>
@@ -3289,7 +3289,7 @@ export function UARPanel() {
               data-section="Events"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Events']}
+              aria-expanded={String(expandedTipSections['Events'])}
             >
               <span className={styles.tipsPopupSectionTitle}>Events</span>
               <span>{expandedTipSections['Events'] ? '▼' : '▶'}</span>
@@ -3325,7 +3325,7 @@ export function UARPanel() {
               data-section="Graph"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Graph']}
+              aria-expanded={String(expandedTipSections['Graph'])}
             >
               <span className={styles.tipsPopupSectionTitle}>Dependency Graph</span>
               <span>{expandedTipSections['Graph'] ? '▼' : '▶'}</span>
