@@ -251,7 +251,9 @@ export default function RecipeTimeline({
     }
   }
 
-  const depthIndent = (depth: number) => ({ paddingLeft: `${depth * 16 + 8}px` })
+  const depthStyle = (depth: number): React.CSSProperties => ({
+    '--depth': String(depth),
+  } as React.CSSProperties)
 
   const durationText = (start?: number, end?: number) => {
     if (!start || !end) return ''
@@ -344,7 +346,7 @@ export default function RecipeTimeline({
         <div
           key={item.instanceId}
           className={styles.recipeBlock}
-          style={depthIndent(item.depth)}
+          style={depthStyle(item.depth)}
         >
           <div
             className={styles.recipeHeader}
@@ -382,7 +384,7 @@ export default function RecipeTimeline({
                 <div
                   key={`${skill.name}-${idx}`}
                   className={styles.skillItem}
-                  style={depthIndent(item.depth + 1)}
+                  style={depthStyle(item.depth + 1)}
                   onClick={() => showSkillDetail(skill.name, skill.status, skill.startTs, skill.endTs)}
                 >
                   <span className={styles.statusIcon}>

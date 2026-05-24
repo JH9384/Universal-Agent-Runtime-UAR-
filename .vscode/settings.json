@@ -11,7 +11,11 @@
         "true": true
     },
     "local.model.provider.serverUrl": "http://127.0.0.1:1234",
+    "yaml.schemaStore.enable": true,
     "yaml.schemas": {
-        "https://json.schemastore.org/github-action.json": ".github/actions/**/*.yml"
+        "https://json.schemastore.org/github-action.json": [
+            ".github/actions/**/*.yml",
+            ".github/actions/**/*.yaml"
+        ]
     }
 }

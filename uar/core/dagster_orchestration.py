@@ -112,7 +112,7 @@ class PipelineExecution:
 class UARPipelineOrchestrator:
     """Orchestrator for UAR pipelines using Dagster patterns."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.assets: Dict[str, AssetDefinition] = {}
         self.pipelines: Dict[str, Callable] = {}
         self.executions: Dict[str, PipelineExecution] = {}
