@@ -270,6 +270,14 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # noqa: BLE001 - non-fatal at startup
         logger.warning("UOR runtime seeding skipped: %s", exc)
 
+    # Load external skill plugins (~/.uar/skills/ and PyPI entry points)
+    try:
+        from uar.skills.plugin import load_plugins
+
+        load_plugins()
+    except Exception as exc:  # noqa: BLE001 - non-fatal at startup
+        logger.warning("Plugin loading skipped: %s", exc)
+
     # Initialize optional OpenTelemetry tracing
     _setup_tracing(app)
 
@@ -376,7 +384,12 @@ from uar.api.routers import uor_router  # noqa: E402
 
 app.include_router(uor_router, dependencies=[Depends(require_auth)])
 
-store = JsonRunStore()
+# Auto-select run store backend
+if os.getenv("UAR_DATABASE_URL"):
+    from uar.memory.postgres_store import PostgresRunStore
+    store = PostgresRunStore()
+else:
+    store = JsonRunStore()
 
 
 # Custom exception handlers for UAR exceptions
@@ -1890,6 +1903,60 @@ async def health_dashboard():
         "server_version": "1.1.0",
         "uptime_seconds": 0,
     }
+
+
+@app.get("/api/cache/stats")
+async def cache_stats_endpoint(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Return skill cache statistics."""
+    from uar.core.skill_cache import get_skill_cache
+
+    cache = get_skill_cache()
+    return cache.stats()
+
+
+@app.post("/api/cache/invalidate")
+async def cache_invalidate_endpoint(
+    body: dict[str, Any],
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Invalidate cache entries.  Omit 'skill' to clear all."""
+    from uar.core.skill_cache import get_skill_cache
+
+    cache = get_skill_cache()
+    skill = body.get("skill")
+    count = cache.invalidate(skill)
+    return {"invalidated": count, "skill": skill}
+
+
+@app.get("/api/sandbox/health")
+async def sandbox_health_endpoint(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Return WASM sandbox health."""
+    from uar.core.sandbox import WASMSandbox
+
+    return WASMSandbox().health()
+
+
+@app.post("/api/sandbox/eval")
+async def sandbox_eval_endpoint(
+    body: dict[str, Any],
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Safely evaluate an arithmetic expression in the WASM sandbox."""
+    from uar.core.sandbox import sandbox_eval
+
+    expression = body.get("expression", "")
+    try:
+        result = sandbox_eval(expression)
+        return {"status": "completed", "result": result}
+    except Exception as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"status": "failed", "error": str(exc)},
+        )
 
 
 @app.get("/api/health/ready")
