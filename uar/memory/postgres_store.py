@@ -165,6 +165,44 @@ class PostgresRunStore:
         finally:
             self._release_conn(conn)
 
+    def append_many(self, records: List[RunRecord]) -> None:
+        """Bulk insert using COPY FROM for 10-100x faster ingestion."""
+        if not records:
+            return
+        import io
+
+        buf = io.StringIO()
+        for record in records:
+            fields = [
+                getattr(record, "id", ""),
+                getattr(record, "goal", {}).get("id", ""),
+                getattr(record, "user_id", None) or "",
+                getattr(record, "status", "unknown"),
+                json.dumps(getattr(record, "skills", [])),
+                json.dumps(getattr(record, "events", [])),
+                json.dumps(getattr(record, "outputs", {})),
+                json.dumps(getattr(record, "metadata", {})),
+            ]
+            # Tab-delimited, NULL for empty user_id handled above
+            buf.write("\t".join(fields) + "\n")
+        buf.seek(0)
+
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.copy_from(
+                    buf,
+                    "uar_runs",
+                    columns=(
+                        "run_id", "goal_id", "user_id", "status",
+                        "skills", "events", "outputs", "metadata",
+                    ),
+                    sep="\t",
+                )
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+
     def list_records(
         self,
         user_id: Optional[str] = None,

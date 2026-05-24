@@ -178,13 +178,23 @@ class GoalExecutionService(BaseService):
         else:
             tmp_file = open(tmp_path.name, "a")
 
+        # Buffered write: accumulate lines to amortize syscalls
+        _write_buf: list[str] = []
+        _write_buf_size = int(os.getenv("UAR_WRITE_BUF_SIZE", "50"))
+
+        def _flush_write_buf() -> None:
+            if _write_buf:
+                tmp_file.writelines(_write_buf)
+                _write_buf.clear()
+
         try:
             async for raw_event in self._iter_events(
                 strategy, goal, timeout, cid
             ):
                 event_count += 1
                 if event_count >= self.max_stream_events:
-                    tmp_file.write(_fast_dumps(raw_event) + "\n")
+                    _write_buf.append(_fast_dumps(raw_event) + "\n")
+                    _flush_write_buf()
                     err = self._event.error(
                         run_id="unknown",
                         error_msg=(
@@ -195,7 +205,8 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    tmp_file.write(_fast_dumps(err) + "\n")
+                    _write_buf.append(_fast_dumps(err) + "\n")
+                    _flush_write_buf()
                     yield err
                     comp = self._event.complete(
                         run_id="unknown",
@@ -206,7 +217,8 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    tmp_file.write(_fast_dumps(comp) + "\n")
+                    _write_buf.append(_fast_dumps(comp) + "\n")
+                    _flush_write_buf()
                     yield comp
                     break
 
@@ -214,11 +226,14 @@ class GoalExecutionService(BaseService):
                 if len(events) >= self.event_buffer_size:
                     events.pop(0)
                 events.append(raw_event)
-                tmp_file.write(_fast_dumps(raw_event) + "\n")
+                _write_buf.append(_fast_dumps(raw_event) + "\n")
+                if len(_write_buf) >= _write_buf_size:
+                    _flush_write_buf()
 
                 await bp.apply()
                 yield raw_event
 
+            _flush_write_buf()
             tmp_file.flush()
 
             # Persist successful run from temp file
@@ -313,6 +328,7 @@ class GoalExecutionService(BaseService):
 
         Optional deduplication (UAR_DEDUP_EVENTS=true) removes exact
         duplicate events that can occur during retries.
+        Uses mmap for large files (>1MB) to reduce read syscalls.
         """
         events: list[dict] = []
         _dedup = os.getenv("UAR_DEDUP_EVENTS", "false").lower() == "true"
@@ -322,21 +338,59 @@ class GoalExecutionService(BaseService):
                 import gzip
 
                 f = gzip.open(file_path, "rt")
+                with f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            event = json.loads(line)
+                            if _dedup:
+                                ev_hash = json.dumps(
+                                    event, sort_keys=True, default=str
+                                )
+                                if ev_hash in seen:
+                                    continue
+                                seen.add(ev_hash)
+                            events.append(event)
             else:
-                f = open(file_path, "r")
-            with f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        event = json.loads(line)
-                        if _dedup:
-                            ev_hash = json.dumps(
-                                event, sort_keys=True, default=str
-                            )
-                            if ev_hash in seen:
-                                continue
-                            seen.add(ev_hash)
-                        events.append(event)
+                # Optional mmap read for large temp files
+                _use_mmap = (
+                    os.getenv("UAR_MMAP_READ", "true").lower() == "true"
+                )
+                file_size = os.path.getsize(file_path)
+                if _use_mmap and file_size > 1_048_576:  # 1 MB threshold
+                    import mmap
+
+                    with open(file_path, "r") as fh:
+                        with mmap.mmap(
+                            fh.fileno(), 0, access=mmap.ACCESS_READ
+                        ) as mm:
+                            for line in iter(mm.readline, b""):
+                                line_s = line.decode("utf-8").strip()
+                                if line_s:
+                                    event = json.loads(line_s)
+                                    if _dedup:
+                                        ev_hash = json.dumps(
+                                            event, sort_keys=True,
+                                            default=str,
+                                        )
+                                        if ev_hash in seen:
+                                            continue
+                                        seen.add(ev_hash)
+                                    events.append(event)
+                else:
+                    with open(file_path, "r") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:
+                                event = json.loads(line)
+                                if _dedup:
+                                    ev_hash = json.dumps(
+                                        event, sort_keys=True, default=str
+                                    )
+                                    if ev_hash in seen:
+                                        continue
+                                    seen.add(ev_hash)
+                                events.append(event)
         except Exception as read_err:
             self._log(
                 "error",
