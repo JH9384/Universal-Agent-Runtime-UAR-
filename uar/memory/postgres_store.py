@@ -31,6 +31,11 @@ def _get_db_url() -> str:
     )
 
 
+def _get_read_db_url() -> Optional[str]:
+    """Read replica URL if configured, otherwise None."""
+    return os.getenv("UAR_DATABASE_READ_URL", "").strip() or None
+
+
 def _get_sync_pool(db_url: str):
     """Lazy singleton threaded connection pool for sync operations."""
     global _db_pool
@@ -82,6 +87,12 @@ class PostgresRunStore:
     def __init__(self, db_url: Optional[str] = None) -> None:
         self._db_url = db_url or _get_db_url()
         self._pool = _get_sync_pool(self._db_url)
+        # Optional read replica for offloading SELECT queries
+        self._read_url = _get_read_db_url()
+        self._read_pool = (
+            _get_sync_pool(self._read_url)
+            if self._read_url else None
+        )
         self._ensure_table()
 
     def _connect_sync(self):
@@ -95,12 +106,25 @@ class PostgresRunStore:
             import psycopg2  # type: ignore[import-untyped]
             return psycopg2.connect(self._db_url)
 
+    def _connect_read(self):
+        """Return read-only connection (replica if configured)."""
+        if self._read_pool is not None:
+            return self._read_pool.getconn()
+        return self._connect_sync()
+
     def _release_conn(self, conn) -> None:
         """Return connection to pool or close if pool-less."""
         if self._pool is not None:
             self._pool.putconn(conn)
         else:
             conn.close()
+
+    def _release_read_conn(self, conn) -> None:
+        """Return read connection to its pool or close."""
+        if self._read_pool is not None:
+            self._read_pool.putconn(conn)
+        else:
+            self._release_conn(conn)
 
     async def _connect_async(self):
         """Return an asyncpg connection (optional dependency)."""
@@ -221,13 +245,13 @@ class PostgresRunStore:
         sql += " ORDER BY created_at DESC LIMIT %(limit)s"
         params["limit"] = limit
 
-        conn = self._connect_sync()
+        conn = self._connect_read()
         try:
             with conn.cursor() as cur:
                 cur.execute(sql, params)
                 rows = cur.fetchall()
         finally:
-            self._release_conn(conn)
+            self._release_read_conn(conn)
 
         cols = [
             "run_id", "goal_id", "user_id", "status",
@@ -252,13 +276,13 @@ class PostgresRunStore:
         ORDER BY created_at DESC
         LIMIT 1
         """
-        conn = self._connect_sync()
+        conn = self._connect_read()
         try:
             with conn.cursor() as cur:
                 cur.execute(sql, {"run_id": run_id})
                 row = cur.fetchone()
         finally:
-            self._release_conn(conn)
+            self._release_read_conn(conn)
 
         if row is None:
             return None

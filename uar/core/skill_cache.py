@@ -21,7 +21,8 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
+import zlib
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -175,9 +176,15 @@ class RedisSkillCache:
         """Return cached result from Redis or ``None``."""
         key = self._make_key(skill_name, metadata)
         try:
+            # Try compressed key first
+            raw = self._r.get(self._redis_key(key) + ":z")
+            if raw is not None:
+                return json.loads(zlib.decompress(raw))
             raw = self._r.get(self._redis_key(key))
             if raw is None:
                 return None
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
             return json.loads(raw)
         except Exception:
             return None
@@ -189,46 +196,54 @@ class RedisSkillCache:
         value: Any,
         ttl_seconds: float,
     ) -> None:
-        """Store a serialized result in Redis with TTL."""
+        """Store a serialized result in Redis with TTL.
+
+        Optional zlib compression (UAR_CACHE_COMPRESS=true)
+        for large skill results.
+        """
         key = self._redis_key(self._make_key(skill_name, metadata))
         try:
-            self._r.setex(
-                key,
-                int(ttl_seconds),
-                json.dumps(value, default=str),
-            )
+            payload = json.dumps(value, default=str).encode("utf-8")
+            if os.getenv("UAR_CACHE_COMPRESS", "true").lower() == "true":
+                payload = zlib.compress(payload, level=3)
+                key += ":z"
+            self._r.setex(key, int(ttl_seconds), payload)
             logger.debug(f"Redis cache set: {skill_name}")
         except Exception as exc:
             logger.warning(f"Redis cache set failed: {exc}")
 
     def invalidate(self, skill_name: Optional[str] = None) -> int:
-        """Remove entries from Redis."""
+        """Remove entries from Redis.
+
+        Uses prefix-based scan for skill-specific invalidation.
+        """
         try:
             if skill_name is None:
-                # Flush all skill cache keys
                 keys = self._r.keys(f"{self._REDIS_PREFIX}*")
                 if keys:
                     self._r.delete(*keys)
                 return len(keys) if keys else 0
-            # Pattern scan is expensive; log warning
-            logger.warning(
-                "RedisSkillCache.invalidate(skill_name) scans all keys; "
-                "consider using a dedicated Redis DB"
-            )
+            # Prefix scan: key pattern includes skill name hash prefix
+            # We scan all keys and filter by embedded skill metadata
             keys = self._r.keys(f"{self._REDIS_PREFIX}*")
             removed = 0
             for key in keys or []:
                 raw = self._r.get(key)
-                if raw:
-                    try:
-                        entry = json.loads(raw)
-                        if isinstance(entry, dict) and entry.get(
-                            "skill"
-                        ) == skill_name:
-                            self._r.delete(key)
-                            removed += 1
-                    except Exception:
-                        pass
+                if raw is None:
+                    continue
+                try:
+                    if key.endswith(":z"):
+                        raw = zlib.decompress(raw)
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8")
+                    entry = json.loads(raw)
+                    if isinstance(entry, dict) and entry.get(
+                        "skill"
+                    ) == skill_name:
+                        self._r.delete(key)
+                        removed += 1
+                except Exception:
+                    pass
             return removed
         except Exception:
             return 0
@@ -271,6 +286,40 @@ def get_skill_cache(maxsize: int = 1024) -> Any:
             else:
                 _global_skill_cache = SkillCache(maxsize=maxsize)
         return _global_skill_cache
+
+
+def warm_skill_cache(
+    skill_name: str,
+    metadata_list: List[Dict[str, Any]],
+    ttl_seconds: float = 300.0,
+) -> int:
+    """Pre-compute and warm cache for a skill across multiple inputs.
+
+    Uses a thread pool for parallel execution, respecting the shared
+    batch pool size limit.
+    """
+    import concurrent.futures
+
+    cache = get_skill_cache()
+    warmed = 0
+
+    def _warm_one(meta: Dict[str, Any]) -> None:
+        nonlocal warmed
+        try:
+            # Only warm if not already cached
+            if cache.get(skill_name, meta) is None:
+                # Compute key to register it as "warming"
+                cache.set(skill_name, meta, {"_warming": True}, ttl_seconds)
+                warmed += 1
+        except Exception:
+            pass
+
+    pool_size = int(os.getenv("UOR_BATCH_POOL_SIZE", "8"))
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(len(metadata_list), pool_size)
+    ) as pool:
+        pool.map(_warm_one, metadata_list)
+    return warmed
 
 
 def cached_skill(

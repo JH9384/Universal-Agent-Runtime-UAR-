@@ -110,10 +110,17 @@ class SkillMetrics:
 
 
 class MetricsCollector:
-    """Collects and aggregates request and skill metrics."""
+    """Collects and aggregates request and skill metrics.
+
+    Uses 1-second aggregation windows to amortize lock contention
+    on the hot path (UAR_METRICS_WINDOW=true).
+    """
 
     _REDIS_KEY = "uar:metrics:totals"
     _FLUSH_INTERVAL = float(os.getenv("UAR_METRICS_FLUSH_SEC", "5.0"))
+    _WINDOW_ENABLED = (
+        os.getenv("UAR_METRICS_WINDOW", "true").lower() == "true"
+    )
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -130,6 +137,10 @@ class MetricsCollector:
         self._dirty = False
         self._flush_thread: Optional[threading.Thread] = None
         self._shutdown = False
+        # Aggregation window: batched increments per second
+        self._window: Dict[str, Any] = defaultdict(int)
+        self._window_time = 0.0
+        self._window_lock = threading.Lock()
         self._load_from_redis()
         self._start_flush_thread()
 
@@ -158,30 +169,108 @@ class MetricsCollector:
     def record_request(
         self, endpoint: str, duration: float, error: bool = False
     ) -> None:
-        """Record a request metric."""
-        with self._lock:
-            self._total_requests += 1
-            metrics = self._endpoint_metrics[endpoint]
-            metrics.count += 1
-            metrics.total_duration += duration
-            metrics.histogram.observe(duration)
-            if error:
-                metrics.errors += 1
-                self._total_errors += 1
-            self._dirty = True
+        """Record a request metric.
+
+        Window mode batches increments into 1-second windows to reduce
+        lock contention on the hot path.
+        """
+        if self._WINDOW_ENABLED:
+            now = time.time()
+            key = f"req:{endpoint}"
+            with self._window_lock:
+                if now - self._window_time >= 1.0:
+                    self._flush_window()
+                    self._window_time = now
+                self._window[key] += 1
+                self._window[f"{key}:dur"] = self._window.get(
+                    f"{key}:dur", 0.0
+                ) + duration
+                if error:
+                    self._window[f"{key}:err"] = self._window.get(
+                        f"{key}:err", 0
+                    ) + 1
+                    self._window["_total_errors"] = self._window.get(
+                        "_total_errors", 0
+                    ) + 1
+            with self._lock:
+                self._total_requests += 1
+                self._dirty = True
+                metrics = self._endpoint_metrics[endpoint]
+                metrics.histogram.observe(duration)
+        else:
+            with self._lock:
+                self._total_requests += 1
+                metrics = self._endpoint_metrics[endpoint]
+                metrics.count += 1
+                metrics.total_duration += duration
+                metrics.histogram.observe(duration)
+                if error:
+                    metrics.errors += 1
+                    self._total_errors += 1
+                self._dirty = True
 
     def record_skill(
         self, skill_name: str, duration: float, error: bool = False
     ) -> None:
         """Record a skill execution metric."""
+        if self._WINDOW_ENABLED:
+            now = time.time()
+            key = f"skill:{skill_name}"
+            with self._window_lock:
+                if now - self._window_time >= 1.0:
+                    self._flush_window()
+                    self._window_time = now
+                self._window[key] += 1
+                self._window[f"{key}:dur"] = self._window.get(
+                    f"{key}:dur", 0.0
+                ) + duration
+                if error:
+                    self._window[f"{key}:err"] = self._window.get(
+                        f"{key}:err", 0
+                    ) + 1
+            with self._lock:
+                self._dirty = True
+                metrics = self._skill_metrics[skill_name]
+                metrics.histogram.observe(duration)
+        else:
+            with self._lock:
+                metrics = self._skill_metrics[skill_name]
+                metrics.count += 1
+                metrics.total_duration += duration
+                metrics.histogram.observe(duration)
+                if error:
+                    metrics.errors += 1
+                self._dirty = True
+
+    def _flush_window(self) -> None:
+        """Drain aggregation window into main metrics under main lock."""
+        if not self._window:
+            return
         with self._lock:
-            metrics = self._skill_metrics[skill_name]
-            metrics.count += 1
-            metrics.total_duration += duration
-            metrics.histogram.observe(duration)
-            if error:
-                metrics.errors += 1
-            self._dirty = True
+            for key, val in list(self._window.items()):
+                if key.startswith("req:") and ":" not in key[4:]:
+                    endpoint = key[4:]
+                    metrics = self._endpoint_metrics[endpoint]
+                    metrics.count += val
+                    metrics.total_duration += self._window.pop(
+                        f"{key}:dur", 0.0
+                    )
+                    metrics.errors += self._window.pop(
+                        f"{key}:err", 0
+                    )
+                elif key.startswith("skill:") and ":" not in key[6:]:
+                    skill_name = key[6:]
+                    metrics = self._skill_metrics[skill_name]
+                    metrics.count += val
+                    metrics.total_duration += self._window.pop(
+                        f"{key}:dur", 0.0
+                    )
+                    metrics.errors += self._window.pop(
+                        f"{key}:err", 0
+                    )
+                elif key == "_total_errors":
+                    self._total_errors += val
+            self._window.clear()
 
     def record_connection(self, delta: int = 1) -> None:
         """Adjust the active WebSocket connection gauge."""
