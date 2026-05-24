@@ -25,3 +25,6 @@ build/
 # Auto-generated analysis artifacts
 overview.json
 overview_architecture.puml
+
+# Python build artifacts
+*.egg-info/

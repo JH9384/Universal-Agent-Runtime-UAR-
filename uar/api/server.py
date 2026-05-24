@@ -81,7 +81,7 @@ try:
 except ImportError:
     _tracing_available = False
 
-    class _NoOpTracer:  # type: ignore[no-redef]
+    class _NoOpTracer:
         """Fallback tracer when OpenTelemetry is not installed."""
 
         def start_as_current_span(self, name, **_kwargs):
@@ -94,7 +94,7 @@ except ImportError:
 
             return _NoOpContextManager()
 
-    trace = _NoOpTracer()  # type: ignore[misc]
+    trace = _NoOpTracer()
 
 
 def _setup_tracing(app: FastAPI) -> None:
