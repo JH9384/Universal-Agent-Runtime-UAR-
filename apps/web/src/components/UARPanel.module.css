@@ -2083,3 +2083,173 @@ body {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
 }
+
+/* ── Skill Search ─────────────────────────────────────────────── */
+
+.skillSearchWrap {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.skillSearchInput {
+  width: 100%;
+  padding: 8px 28px 8px 10px;
+  border: 1px solid #b2dfdb;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.skillSearchInput:focus {
+  border-color: #00897b;
+}
+
+.skillSearchClear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.skillSearchClear:hover {
+  color: #333;
+}
+
+/* ── Health Dashboard ─────────────────────────────────────────── */
+
+.healthDashboard {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #b2dfdb;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.healthTitle {
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: #00695c;
+}
+
+.healthSummary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.healthCard {
+  flex: 1 1 100px;
+  padding: 10px;
+  background: #e0f2f1;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.healthValue {
+  display: block;
+  font-size: 24px;
+  font-weight: bold;
+  color: #00695c;
+}
+
+.healthWarning {
+  color: #e65100;
+}
+
+.healthLabel {
+  font-size: 11px;
+  color: #555;
+}
+
+.healthAlert {
+  background: #fff3e0;
+  border: 1px solid #ffcc80;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.healthAlert ul {
+  margin: 6px 0 0 18px;
+  padding: 0;
+}
+
+.healthSubtitle {
+  margin: 12px 0 8px;
+  font-size: 14px;
+  color: #444;
+}
+
+.healthGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+}
+
+.healthItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.healthOk {
+  background: #e8f5e9;
+}
+
+.healthFail {
+  background: #ffebee;
+}
+
+.healthDot {
+  font-size: 10px;
+}
+
+.healthOk .healthDot {
+  color: #2e7d32;
+}
+
+.healthFail .healthDot {
+  color: #c62828;
+}
+
+.healthName {
+  font-weight: 500;
+}
+
+.healthDetail {
+  margin-left: auto;
+  color: #888;
+  font-size: 10px;
+}
+
+.healthErrors {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #555;
+}
+
+.healthErrorItem {
+  margin-bottom: 4px;
+}
+
+.healthLoading,
+.healthError {
+  padding: 12px;
+  font-size: 13px;
+  color: #555;
+}

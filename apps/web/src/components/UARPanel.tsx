@@ -7,6 +7,7 @@ import { useDarkMode } from '../hooks/useDarkMode'
 import { usePreload } from '../hooks/usePreload'
 import { generateUniqueId } from '../utils/idGenerator'
 import RecipeTimeline from './RecipeTimeline'
+import { HealthDashboard } from './HealthDashboard'
 import styles from './UARPanel.module.css'
 
 // Helper to build Authorization header when API key is present
@@ -536,7 +537,9 @@ export function UARPanel() {
   const [builderDragIndex, setBuilderDragIndex] = useState<number | null>(null)
   const [runsHistory, setRunsHistory] = useState<any[]>([])
   const [showRunsPanel, setShowRunsPanel] = useState(false)
+  const [showHealthDashboard, setShowHealthDashboard] = useState(false)
   const [eventFilter, setEventFilter] = useState<string>('all')
+  const [skillSearch, setSkillSearch] = useState<string>('')
   const [expandedTipSections, setExpandedTipSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
@@ -1910,31 +1913,62 @@ export function UARPanel() {
           </label>
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
+              <div className={styles.skillSearchWrap}>
+                <input
+                  type="text"
+                  value={skillSearch}
+                  onChange={(e) => setSkillSearch(e.target.value)}
+                  placeholder="Search skills…"
+                  className={styles.skillSearchInput}
+                  aria-label="Search skills"
+                />
+                {skillSearch && (
+                  <button
+                    onClick={() => setSkillSearch('')}
+                    className={styles.skillSearchClear}
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               <div className={styles.skillsContainer}>
-                {SKILL_GROUPS.map((group) => {
-                  const isCollapsed = collapsedGroups[group.name]
-                  return (
-                    <div key={group.name} className={styles.skillGroup}>
-                      <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
-                        <span className={styles.skillGroupIcon}>{group.icon}</span>
-                        <span className={styles.skillGroupName}>{group.name}</span>
-                        <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
-                      </div>
-                      {!isCollapsed && (
-                        <div className={styles.skillGroupSkills}>
-                          {group.skills.map((s) => {
-                            const count = unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length
-                            return (
-                              <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(count > 0, isRunning)}>
-                                {count > 0 ? `✓ (${count}) ` : ''}{s.label}
-                              </button>
-                            )
-                          })}
+                {(() => {
+                  const query = skillSearch.trim().toLowerCase()
+                  const groups = query
+                    ? SKILL_GROUPS.map(g => ({
+                        ...g,
+                        skills: g.skills.filter(s =>
+                          s.label.toLowerCase().includes(query) ||
+                          s.desc.toLowerCase().includes(query)
+                        )
+                      })).filter(g => g.skills.length > 0)
+                    : SKILL_GROUPS
+                  return groups.map((group) => {
+                    const isCollapsed = collapsedGroups[group.name]
+                    return (
+                      <div key={group.name} className={styles.skillGroup}>
+                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
+                          <span className={styles.skillGroupIcon}>{group.icon}</span>
+                          <span className={styles.skillGroupName}>{group.name}</span>
+                          <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
                         </div>
-                      )}
-                    </div>
-                  )
-                })}
+                        {!isCollapsed && (
+                          <div className={styles.skillGroupSkills}>
+                            {group.skills.map((s) => {
+                              const count = unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length
+                              return (
+                                <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(count > 0, isRunning)}>
+                                  {count > 0 ? `✓ (${count}) ` : ''}{s.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                })()}
               </div>
               <div className={styles.orderText} title="Skills execute in this order">
                 <strong>Order of Operation:</strong>
@@ -2389,6 +2423,13 @@ export function UARPanel() {
           >
             Runs
           </button>
+          <button
+            onClick={() => setShowHealthDashboard(v => !v)}
+            className={styles.clearEventsButton}
+            title="Toggle health dashboard"
+          >
+            {showHealthDashboard ? 'Hide Health' : 'Health'}
+          </button>
           <button onClick={clearEvents} className={styles.clearEventsButton} title="Clear event history from display">
             Clear Events
           </button>
@@ -2397,6 +2438,9 @@ export function UARPanel() {
           <div className={styles.metricsPanel} title="Execution metrics from last run">
             <MetricsDashboard metrics={metrics} darkMode={darkMode} />
           </div>
+        )}
+        {showHealthDashboard && (
+          <HealthDashboard />
         )}
         <div className={styles.statusText} title="Current system status">
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}

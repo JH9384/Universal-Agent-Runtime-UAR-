@@ -1850,6 +1850,48 @@ async def health_circuit_breakers(
     )
 
 
+@app.get("/api/health/dashboard")
+async def health_dashboard():
+    """Comprehensive health dashboard data for the web UI."""
+    from uar.core.registry import registry
+    from uar.core.circuit_breaker_decorator import (
+        get_circuit_breaker_states,
+        _circuit_breakers,
+    )
+
+    # Skill availability
+    skill_health = []
+    for name in registry.list():
+        try:
+            registry.get(name)
+            skill_health.append({"name": name, "available": True})
+        except Exception as exc:
+            skill_health.append({
+                "name": name,
+                "available": False,
+                "last_error": str(exc)[:100],
+            })
+
+    # Circuit breaker states
+    cb_states = get_circuit_breaker_states()
+    circuit_breakers = []
+    for name, cb in _circuit_breakers.items():
+        circuit_breakers.append({
+            "name": name,
+            "state": cb_states.get(name, "unknown"),
+            "failures": cb._failures,
+            "threshold": cb.failure_threshold,
+        })
+
+    return {
+        "skills": skill_health,
+        "circuit_breakers": circuit_breakers,
+        "recent_errors": [],
+        "server_version": "1.1.0",
+        "uptime_seconds": 0,
+    }
+
+
 @app.get("/api/health/ready")
 async def readiness_probe():
     """Kubernetes readiness probe — service is ready to accept traffic."""

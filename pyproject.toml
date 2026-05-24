@@ -98,6 +98,9 @@ greptile = [
   "httpx>=0.27,<1.0",
 ]
 
+[project.scripts]
+uar = "uar.cli.main:app"
+
 [tool.setuptools.packages.find]
 include = ["uar*"]
 exclude = ["apps*", "tests*", "docs*", "specs*"]
