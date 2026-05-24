@@ -8,9 +8,11 @@ Environment:
         (default: ``postgresql://localhost/uar``)
 """
 
+import importlib.util
 import json
 import logging
 import os
+import threading
 from typing import Any, Dict, List, Optional
 
 from uar.core.contracts import RunRecord
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 _PG_AVAILABLE = False
 _db_pool: Any = None
+_pool_lock = threading.Lock()
 
 
 def _get_db_url() -> str:
@@ -26,6 +29,37 @@ def _get_db_url() -> str:
         "UAR_DATABASE_URL",
         "postgresql://localhost/uar",
     )
+
+
+def _get_sync_pool(db_url: str):
+    """Lazy singleton threaded connection pool for sync operations."""
+    global _db_pool
+    if _db_pool is not None:
+        return _db_pool
+    with _pool_lock:
+        if _db_pool is not None:
+            return _db_pool
+        if importlib.util.find_spec("psycopg") is not None:
+            from psycopg_pool import ConnectionPool  # type: ignore
+
+            _db_pool = ConnectionPool(
+                db_url,
+                min_size=1,
+                max_size=int(os.getenv("UAR_PG_POOL_SIZE", "10")),
+                open=False,
+            )
+            _db_pool.open()
+        elif importlib.util.find_spec("psycopg2") is not None:
+            from psycopg2 import pool  # type: ignore
+
+            _db_pool = pool.ThreadedConnectionPool(
+                1,
+                int(os.getenv("UAR_PG_POOL_SIZE", "10")),
+                db_url,
+            )
+        else:
+            _db_pool = None
+        return _db_pool
 
 
 class PostgresRunStore:
@@ -47,16 +81,26 @@ class PostgresRunStore:
 
     def __init__(self, db_url: Optional[str] = None) -> None:
         self._db_url = db_url or _get_db_url()
+        self._pool = _get_sync_pool(self._db_url)
         self._ensure_table()
 
     def _connect_sync(self):
-        """Return a synchronous DBAPI connection."""
+        """Return a synchronous DBAPI connection from pool."""
+        if self._pool is not None:
+            return self._pool.getconn()
         try:
             import psycopg
             return psycopg.connect(self._db_url)
         except ImportError:
             import psycopg2  # type: ignore[import-untyped]
             return psycopg2.connect(self._db_url)
+
+    def _release_conn(self, conn) -> None:
+        """Return connection to pool or close if pool-less."""
+        if self._pool is not None:
+            self._pool.putconn(conn)
+        else:
+            conn.close()
 
     async def _connect_async(self):
         """Return an asyncpg connection (optional dependency)."""
@@ -89,7 +133,7 @@ class PostgresRunStore:
                 cur.execute(ddl)
             conn.commit()
         finally:
-            conn.close()
+            self._release_conn(conn)
 
     def append(self, record: RunRecord) -> None:
         """Insert a run record."""
@@ -119,7 +163,7 @@ class PostgresRunStore:
                 cur.execute(sql, data)
             conn.commit()
         finally:
-            conn.close()
+            self._release_conn(conn)
 
     def list_records(
         self,
@@ -145,7 +189,7 @@ class PostgresRunStore:
                 cur.execute(sql, params)
                 rows = cur.fetchall()
         finally:
-            conn.close()
+            self._release_conn(conn)
 
         cols = [
             "run_id", "goal_id", "user_id", "status",
@@ -176,7 +220,7 @@ class PostgresRunStore:
                 cur.execute(sql, {"run_id": run_id})
                 row = cur.fetchone()
         finally:
-            conn.close()
+            self._release_conn(conn)
 
         if row is None:
             return None

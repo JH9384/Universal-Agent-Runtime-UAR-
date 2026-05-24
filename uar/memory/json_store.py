@@ -19,6 +19,8 @@ class JsonRunStore:
     Uses file locking for basic concurrency safety.
     """
 
+    _BATCH_SIZE = int(os.getenv("UAR_JSON_BATCH_SIZE", "1"))
+
     def __init__(self, path: Optional[str] = None):
         # Use absolute path from environment or default to runs/ in project root  # noqa: E501
         if path is None:
@@ -29,6 +31,7 @@ class JsonRunStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock_file = self.path.parent / ".uar_lock"
         self._thread_lock = threading.Lock()
+        self._buffer: List[str] = []
 
     @contextmanager
     def _acquire_lock(self, shared: bool = False):
@@ -45,13 +48,35 @@ class JsonRunStore:
             lock_fd.close()
 
     def append(self, record: RunRecord) -> None:
-        """Append record to JSONL file with exclusive lock."""
+        """Buffer record; flush to JSONL file when batch size reached."""
+        line = json.dumps(asdict(record), sort_keys=True) + "\n"
         with self._thread_lock:
-            with self._acquire_lock():
-                with self.path.open("a", encoding="utf-8") as f:
-                    f.write(json.dumps(asdict(record), sort_keys=True) + "\n")
-                    f.flush()
-                    os.fsync(f.fileno())
+            self._buffer.append(line)
+            if len(self._buffer) >= self._BATCH_SIZE:
+                self._flush()
+
+    def _flush(self) -> None:
+        """Write buffered records to disk with exclusive lock."""
+        if not self._buffer:
+            return
+        with self._acquire_lock():
+            with self.path.open("a", encoding="utf-8") as f:
+                f.writelines(self._buffer)
+                f.flush()
+                os.fsync(f.fileno())
+        self._buffer.clear()
+
+    def flush(self) -> None:
+        """Public flush for explicit buffer draining."""
+        with self._thread_lock:
+            self._flush()
+
+    def __del__(self):
+        """Ensure buffered records are written before GC."""
+        try:
+            self.flush()
+        except Exception:
+            pass
 
     def list_records(self, user_id: Optional[str] = None) -> List[dict]:
         """List records with shared lock for consistency.

@@ -137,11 +137,20 @@ class GoalExecutionService(BaseService):
 
         # Stream events to a temp file instead of buffering in memory.
         # This prevents unbounded memory growth for long executions.
+        _gzip_events = os.getenv("UAR_GZIP_EVENTS", "false").lower() == "true"
+        suffix = ".jsonl.gz" if _gzip_events else ".jsonl"
         tmp_path = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".jsonl", delete=False
+            mode="wb" if _gzip_events else "w",
+            suffix=suffix,
+            delete=False,
         )
         tmp_path.close()
-        tmp_file = open(tmp_path.name, "a")
+        if _gzip_events:
+            import gzip
+
+            tmp_file = gzip.open(tmp_path.name, "at")
+        else:
+            tmp_file = open(tmp_path.name, "a")
 
         try:
             async for raw_event in self._iter_events(
@@ -274,10 +283,16 @@ class GoalExecutionService(BaseService):
         user_id: Optional[str],
         request_id: str,
     ) -> Any:
-        """Read events from JSONL file and persist."""
+        """Read events from JSONL file (optionally gzip) and persist."""
         events: list[dict] = []
         try:
-            with open(file_path, "r") as f:
+            if file_path.endswith(".gz"):
+                import gzip
+
+                f = gzip.open(file_path, "rt")
+            else:
+                f = open(file_path, "r")
+            with f:
                 for line in f:
                     line = line.strip()
                     if line:

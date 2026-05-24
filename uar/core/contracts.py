@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
@@ -26,12 +27,33 @@ class PipelineContext:
     data: Dict[str, Any] = field(default_factory=dict)
     events: List[Dict[str, Any]] = field(default_factory=list)
     _max_events: int = 10000  # Prevent unbounded memory growth
+    _overflow_file: Any = field(default=None, repr=False)
+
+    def __post_init__(self):
+        if os.getenv("UAR_CONTEXT_DISK_OVERFLOW", "").lower() == "true":
+            import tempfile
+
+            fd, path = tempfile.mkstemp(suffix=".jsonl")
+            os.close(fd)
+            self._overflow_file = open(path, "a")
 
     def emit(self, event_type: str, payload: Dict[str, Any]) -> None:
+        event = {"type": event_type, "payload": payload}
         # Circular buffer: drop oldest events when limit reached
         if len(self.events) >= self._max_events:
-            self.events.pop(0)  # Remove oldest
-        self.events.append({"type": event_type, "payload": payload})
+            if self._overflow_file is not None:
+                import json
+
+                self._overflow_file.write(json.dumps(event, default=str))
+                self._overflow_file.write("\n")
+            else:
+                self.events.pop(0)  # Remove oldest
+        self.events.append(event)
+
+    def close(self) -> None:
+        if self._overflow_file is not None:
+            self._overflow_file.close()
+            self._overflow_file = None
 
 
 @dataclass

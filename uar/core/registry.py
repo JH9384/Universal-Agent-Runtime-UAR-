@@ -21,6 +21,8 @@ class SkillRegistry:
     def __init__(self) -> None:
         self._skills: Dict[str, Callable] = {}
         self._lock = threading.RLock()
+        self._session: Any = None
+        self._plugins_loaded = False
 
     def register(self, name: str, fn: Callable) -> None:
         """Register a skill with validation."""
@@ -41,10 +43,44 @@ class SkillRegistry:
                 )
             self._skills[name] = fn
 
+    def _lazy_load_plugins(self) -> None:
+        """Load external plugins on first skill miss."""
+        if self._plugins_loaded:
+            return
+        with self._lock:
+            if self._plugins_loaded:
+                return
+            self._plugins_loaded = True
+        try:
+            from uar.skills.plugin import load_plugins
+
+            load_plugins()
+        except Exception:
+            pass
+
+    def _get_session(self) -> Any:
+        """Lazy shared HTTP session with connection pooling."""
+        if self._session is not None:
+            return self._session
+        with self._lock:
+            if self._session is not None:
+                return self._session
+            try:
+                import requests
+
+                self._session = requests.Session()
+            except Exception:
+                self._session = None
+            return self._session
+
     def get(self, name: str) -> Callable:
         """Look up a registered skill by name."""
         with self._lock:
             fn = self._skills.get(name)
+        if fn is None:
+            self._lazy_load_plugins()
+            with self._lock:
+                fn = self._skills.get(name)
         if fn is None:
             raise SkillNotFoundError(name)
         return fn

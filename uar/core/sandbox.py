@@ -14,7 +14,7 @@ import logging
 import os
 import subprocess
 import tempfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -266,15 +266,28 @@ def _restricted_eval_in_subprocess(expression: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# Convenience function
+# Warm pool — pre-initialize sandbox at import time when wasmtime is available
 # ---------------------------------------------------------------------------
 
-_sandbox_instance: Optional[WASMSandbox] = None
+_sandbox_pool: List[WASMSandbox] = []
+_pool_size = int(os.getenv("UAR_WASM_POOL_SIZE", "2"))
+
+if _WASMTIME_AVAILABLE:
+    try:
+        for _ in range(_pool_size):
+            _sandbox_pool.append(WASMSandbox())
+    except Exception:
+        pass
+
+_pool_idx = 0
 
 
 def sandbox_eval(expression: str) -> Any:
-    """Evaluate *expression* safely in the global sandbox."""
-    global _sandbox_instance
-    if _sandbox_instance is None:
-        _sandbox_instance = WASMSandbox()
-    return _sandbox_instance.eval(expression)
+    """Evaluate *expression* safely in a warm sandbox instance."""
+    global _pool_idx
+    if _sandbox_pool:
+        inst = _sandbox_pool[_pool_idx % len(_sandbox_pool)]
+        _pool_idx += 1
+        return inst.eval(expression)
+    # Fallback: cold-start a sandbox (no wasmtime or pool init failed)
+    return WASMSandbox().eval(expression)

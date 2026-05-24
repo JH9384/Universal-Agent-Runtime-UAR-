@@ -100,6 +100,20 @@ def _validate_input_guardrails(
     Returns:
         List of violation messages (empty if no violations)
     """
+    # Per-context cache: all skills in a parallel wave share ctx.data
+    cache_key = "_guardrail_cache"
+    cached = ctx.data.get(cache_key)
+    if cached is not None:
+        return cached
+    violations = _validate_input_guardrails_core(ctx)
+    ctx.data[cache_key] = violations
+    return violations
+
+
+def _validate_input_guardrails_core(
+    ctx: PipelineContext,
+) -> List[str]:
+    """Core guardrail logic (context-scoped, not skill-scoped)."""
     violations = []
 
     # Check for suspiciously large inputs
