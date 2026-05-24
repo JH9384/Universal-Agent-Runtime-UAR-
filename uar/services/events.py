@@ -9,11 +9,26 @@ All event creation goes through this service so schema changes happen
 in one place.
 """
 
+import importlib.util
+import json
 import time
 import uuid
 from typing import Any, Optional
 
 from .base import BaseService
+
+# Use orjson when available (10-100x faster than stdlib json)
+_has_orjson = importlib.util.find_spec("orjson") is not None
+if _has_orjson:
+    import orjson  # type: ignore[import-untyped]
+
+    def _dumps(obj: Any) -> str:
+        return orjson.dumps(obj).decode("utf-8")
+else:
+    _dumps = json.dumps
+
+# Optional msgpack for binary event encoding
+_has_msgpack = importlib.util.find_spec("msgpack") is not None
 
 
 class EventService(BaseService):
@@ -69,13 +84,12 @@ class EventService(BaseService):
     def emit_sse(self, event: dict[str, Any]) -> str:
         """Format an event for Server-Sent Events (SSE).
 
+        Uses orjson when available for fast serialization.
         Falls back to a safe JSON representation if the event contains
         unserializable values, ensuring the SSE stream never breaks.
         """
-        import json
-
         try:
-            payload = json.dumps(event)
+            payload = _dumps(event)
         except (TypeError, ValueError) as exc:
             self._log(
                 "warning",
@@ -84,6 +98,16 @@ class EventService(BaseService):
             )
             payload = json.dumps(event, default=str)
         return f"event: {event.get('type', 'unknown')}\ndata: {payload}\n\n"
+
+    def pack(self, event: dict[str, Any]) -> bytes:
+        """Serialize event to compact binary (msgpack or json bytes)."""
+        if _has_msgpack:
+            import msgpack  # type: ignore[import-untyped]
+
+            return msgpack.packb(event, use_bin_type=True)
+        return orjson.dumps(event) if _has_orjson else json.dumps(
+            event, default=str
+        ).encode("utf-8")
 
     def error(
         self,

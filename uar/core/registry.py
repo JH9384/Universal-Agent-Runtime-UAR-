@@ -8,6 +8,54 @@ from functools import wraps
 from .exceptions import SkillNotFoundError, ValidationError
 
 
+class _SkillTrie:
+    """Simple prefix trie for fast skill name prefix matching."""
+
+    def __init__(self) -> None:
+        self._root: Dict[str, Any] = {}
+        self._lock = threading.Lock()
+
+    def add(self, name: str) -> None:
+        with self._lock:
+            node = self._root
+            for ch in name:
+                if ch not in node:
+                    node[ch] = {}
+                node = node[ch]
+            node["__end__"] = True
+
+    def remove(self, name: str) -> None:
+        with self._lock:
+            # Simple removal — not fully cleaning empty branches
+            node = self._root
+            for ch in name:
+                if ch not in node:
+                    return
+                node = node[ch]
+            node.pop("__end__", None)
+
+    def prefix_matches(self, prefix: str) -> List[str]:
+        """Return all skill names that start with *prefix*."""
+        with self._lock:
+            node = self._root
+            for ch in prefix:
+                if ch not in node:
+                    return []
+                node = node[ch]
+            results: List[str] = []
+            self._collect(node, prefix, results)
+            return results
+
+    def _collect(
+        self, node: Dict[str, Any], prefix: str, out: List[str]
+    ) -> None:
+        if "__end__" in node:
+            out.append(prefix)
+        for ch, child in node.items():
+            if ch != "__end__":
+                self._collect(child, prefix + ch, out)
+
+
 class SkillRegistry:
     """Thread-safe registry of named pipeline skills.
 
@@ -23,6 +71,7 @@ class SkillRegistry:
         self._lock = threading.RLock()
         self._session: Any = None
         self._plugins_loaded = False
+        self._trie = _SkillTrie()
 
     def register(self, name: str, fn: Callable) -> None:
         """Register a skill with validation."""
@@ -42,6 +91,7 @@ class SkillRegistry:
                     f"Skill '{name}' is already registered", field="name"
                 )
             self._skills[name] = fn
+            self._trie.add(name)
 
     def _lazy_load_plugins(self) -> None:
         """Load external plugins on first skill miss."""
@@ -94,6 +144,10 @@ class SkillRegistry:
         """Return whether ``name`` is registered."""
         with self._lock:
             return name in self._skills
+
+    def search_by_prefix(self, prefix: str) -> List[str]:
+        """Return skill names starting with *prefix* (trie-backed)."""
+        return self._trie.prefix_matches(prefix)
 
 
 registry = SkillRegistry()

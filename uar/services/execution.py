@@ -6,6 +6,7 @@ both WebSocket handlers.
 """
 
 import asyncio
+import importlib.util
 import json
 import logging
 import os
@@ -22,6 +23,15 @@ from uar.core.exceptions import EventContractError
 from uar.memory.json_store import JsonRunStore
 from .base import BaseService
 from .events import EventService
+
+# Fast serialization: orjson when available
+if importlib.util.find_spec("orjson") is not None:
+    import orjson  # type: ignore[import-untyped]
+
+    def _fast_dumps(obj: Any) -> str:
+        return orjson.dumps(obj).decode("utf-8")
+else:
+    _fast_dumps = json.dumps
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +132,22 @@ class GoalExecutionService(BaseService):
         cid = correlation_id
         gid = strategy.goal_id
 
+        # Predictive pre-warming: touch skill cache for upcoming skills
+        if os.getenv("UAR_PREDICTIVE_WARM", "true").lower() == "true":
+            try:
+                from uar.core.skill_cache import get_skill_cache
+
+                cache = get_skill_cache()
+                for wave in plan.waves or []:
+                    for skill_name in wave:
+                        # Pre-warm: compute cache key without running
+                        cache_key = cache._make_key(skill_name, "", {})
+                        # Touch Redis if backed
+                        if hasattr(cache, "_redis"):
+                            cache._redis.exists(cache_key)
+            except Exception:
+                pass
+
         # Emit orchestration plan first
         yield self._event.orchestration_plan(
             graph=plan.to_graph(),
@@ -158,7 +184,7 @@ class GoalExecutionService(BaseService):
             ):
                 event_count += 1
                 if event_count >= self.max_stream_events:
-                    tmp_file.write(json.dumps(raw_event, default=str) + "\n")
+                    tmp_file.write(_fast_dumps(raw_event) + "\n")
                     err = self._event.error(
                         run_id="unknown",
                         error_msg=(
@@ -169,7 +195,7 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    tmp_file.write(json.dumps(err, default=str) + "\n")
+                    tmp_file.write(_fast_dumps(err) + "\n")
                     yield err
                     comp = self._event.complete(
                         run_id="unknown",
@@ -180,7 +206,7 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    tmp_file.write(json.dumps(comp, default=str) + "\n")
+                    tmp_file.write(_fast_dumps(comp) + "\n")
                     yield comp
                     break
 
@@ -188,7 +214,7 @@ class GoalExecutionService(BaseService):
                 if len(events) >= self.event_buffer_size:
                     events.pop(0)
                 events.append(raw_event)
-                tmp_file.write(json.dumps(raw_event, default=str) + "\n")
+                tmp_file.write(_fast_dumps(raw_event) + "\n")
 
                 await bp.apply()
                 yield raw_event

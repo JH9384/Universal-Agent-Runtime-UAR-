@@ -3,6 +3,7 @@ Metrics middleware and collection for UAR API.
 Provides Prometheus-compatible metrics and basic runtime statistics.
 """
 
+import math
 import os
 import time
 import threading
@@ -32,49 +33,64 @@ def _get_redis():
         return None
 
 
-# Prometheus histogram buckets (seconds)
-DEFAULT_BUCKETS = [
-    0.005, 0.01, 0.025, 0.05, 0.075,
-    0.1, 0.25, 0.5, 0.75, 1.0,
-    2.5, 5.0, 7.5, 10.0, float("inf"),
-]
+# DDSketch-style histogram: logarithmic buckets for sub-linear memory growth.
+# Relative accuracy ~1% by default (alpha=0.01).
+_LOG_ALPHA = float(os.getenv("UAR_METRIC_HISTOGRAM_ALPHA", "0.01"))
+
+
+def _log_bucket(value: float, alpha: float = _LOG_ALPHA) -> int:
+    """Map a positive value to a DDSketch-style log bucket index."""
+    if value <= 0:
+        return 0
+    gamma = (1 + alpha) / (1 - alpha)
+    return int(round(math.log(value, gamma)))
+
+
+def _bucket_ceiling(index: int, alpha: float = _LOG_ALPHA) -> float:
+    """Upper bound of the DDSketch bucket at *index*."""
+    gamma = (1 + alpha) / (1 - alpha)
+    return gamma ** index
 
 
 @dataclass
 class Histogram:
-    """Prometheus-style histogram with fixed buckets."""
-    buckets: list = field(default_factory=lambda: DEFAULT_BUCKETS.copy())
-    counts: Dict[float, int] = field(default_factory=lambda: defaultdict(int))
+    """DDSketch-style histogram with logarithmic buckets.
+
+    Memory grows sub-linearly with the number of observations
+    (~O(log(max_value))) instead of O(n) for exact storage.
+    """
+    alpha: float = field(default=_LOG_ALPHA)
+    counts: Dict[int, int] = field(
+        default_factory=lambda: defaultdict(int)
+    )
     total_sum: float = 0.0
     total_count: int = 0
+    _min: float = float("inf")
+    _max: float = 0.0
 
     def observe(self, value: float) -> None:
         self.total_sum += value
         self.total_count += 1
-        for b in self.buckets:
-            if value <= b:
-                self.counts[b] += 1
-                break
+        if value < self._min:
+            self._min = value
+        if value > self._max:
+            self._max = value
+        idx = _log_bucket(value, self.alpha)
+        self.counts[idx] += 1
 
     def percentile(self, p: float) -> float:
-        """Return approximate percentile from histogram."""
+        """Return approximate percentile from DDSketch histogram."""
         if self.total_count == 0:
             return 0.0
         target = int(self.total_count * p)
+        if target == 0:
+            return self._min
         cumulative = 0
-        prev_bucket = 0.0
-        for b in sorted(self.buckets):
-            cumulative += self.counts.get(b, 0)
+        for idx in sorted(self.counts):
+            cumulative += self.counts[idx]
             if cumulative >= target:
-                # Linear interpolation within bucket
-                bucket_width = b - prev_bucket
-                if bucket_width == 0 or b == float("inf"):
-                    return prev_bucket
-                overshoot = cumulative - target
-                fraction = overshoot / max(self.counts.get(b, 1), 1)
-                return prev_bucket + bucket_width * (1 - fraction)
-            prev_bucket = b
-        return prev_bucket
+                return _bucket_ceiling(idx, self.alpha)
+        return self._max
 
 
 @dataclass
@@ -278,19 +294,24 @@ class MetricsCollector:
                 f"{self._active_ws_connections}"
             )
 
-            # Request duration histogram
+            # Request duration histogram (DDSketch buckets)
             lines.append(
                 "# HELP uar_request_duration_seconds Request duration"
             )
             lines.append("# TYPE uar_request_duration_seconds histogram")
             for endpoint, m in self._endpoint_metrics.items():
-                for b in sorted(m.histogram.buckets):
-                    le = "+Inf" if b == float("inf") else f"{b}"
-                    count = m.histogram.counts.get(b, 0)
+                cumulative = 0
+                for idx in sorted(m.histogram.counts):
+                    cumulative += m.histogram.counts[idx]
+                    le = f"{_bucket_ceiling(idx, m.histogram.alpha):.6f}"
                     lines.append(
                         f'uar_request_duration_seconds_bucket'
-                        f'{{endpoint="{endpoint}",le="{le}"}} {count}'
+                        f'{{endpoint="{endpoint}",le="{le}"}} {cumulative}'
                     )
+                lines.append(
+                    f'uar_request_duration_seconds_bucket'
+                    f'{{endpoint="{endpoint}",le="+Inf"}} {m.count}'
+                )
                 lines.append(
                     f'uar_request_duration_seconds_count'
                     f'{{endpoint="{endpoint}"}} {m.count}'
@@ -305,19 +326,24 @@ class MetricsCollector:
                     f'{{endpoint="{endpoint}"}} {m.errors}'
                 )
 
-            # Skill duration histogram
+            # Skill duration histogram (DDSketch buckets)
             lines.append(
                 "# HELP uar_skill_duration_seconds Skill execution duration"
             )
             lines.append("# TYPE uar_skill_duration_seconds histogram")
             for skill, sm in self._skill_metrics.items():
-                for b in sorted(sm.histogram.buckets):
-                    le = "+Inf" if b == float("inf") else f"{b}"
-                    count = sm.histogram.counts.get(b, 0)
+                cumulative = 0
+                for idx in sorted(sm.histogram.counts):
+                    cumulative += sm.histogram.counts[idx]
+                    le = f"{_bucket_ceiling(idx, sm.histogram.alpha):.6f}"
                     lines.append(
                         f'uar_skill_duration_seconds_bucket'
-                        f'{{skill="{skill}",le="{le}"}} {count}'
+                        f'{{skill="{skill}",le="{le}"}} {cumulative}'
                     )
+                lines.append(
+                    f'uar_skill_duration_seconds_bucket'
+                    f'{{skill="{skill}",le="+Inf"}} {sm.count}'
+                )
                 lines.append(
                     f'uar_skill_duration_seconds_count'
                     f'{{skill="{skill}"}} {sm.count}'
