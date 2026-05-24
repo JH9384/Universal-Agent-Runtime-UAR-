@@ -1,0 +1,56 @@
+groups:
+  - name: uar_sla
+    rules:
+      - alert: UARHighErrorRate
+        expr: rate(uar_errors_total[5m]) / rate(uar_requests_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'UAR error rate is above 1%'
+          description: 'Error rate is {{ $value | humanizePercentage }} over the last 5 minutes.'
+
+      - alert: UARHighLatencyP99
+        expr: histogram_quantile(0.99, rate(uar_request_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'UAR p99 latency is above 5 seconds'
+          description: 'p99 latency for {{ $labels.endpoint }} is {{ $value }}s.'
+
+      - alert: UARDown
+        expr: up{job="uar-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'UAR API is down'
+          description: 'UAR API has been down for more than 1 minute.'
+
+      - alert: UARHealthProbeFailing
+        expr: probe_success{job="blackbox-http"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: 'UAR health probe is failing'
+          description: 'External Blackbox probe has failed for 30 seconds.'
+
+      - alert: UARTooManyWebSocketConnections
+        expr: uar_websocket_connections > 900
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'UAR WebSocket connections approaching limit'
+          description: '{{ $value }} active WebSocket connections (limit: 1000).'
+
+      - alert: UARRedisDisconnected
+        expr: redis_connected_clients == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Redis appears disconnected'
+          description: 'No Redis connected clients detected.'

@@ -3,12 +3,33 @@ Metrics middleware and collection for UAR API.
 Provides Prometheus-compatible metrics and basic runtime statistics.
 """
 
+import os
 import time
 import threading
 import functools
 from collections import defaultdict
 from typing import Dict, Any, Callable, Optional
 from dataclasses import dataclass, field
+
+# Optional Redis persistence for cross-process metrics
+_redis_client: Any = None  # type: ignore[name-defined]
+
+
+def _get_redis():
+    """Lazy Redis connection for metrics persistence."""
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if not redis_url:
+        return None
+    try:
+        import redis
+
+        _redis_client = redis.from_url(redis_url, decode_responses=True)
+        return _redis_client
+    except Exception:  # noqa: BLE001
+        return None
 
 
 # Prometheus histogram buckets (seconds)
@@ -75,6 +96,8 @@ class SkillMetrics:
 class MetricsCollector:
     """Collects and aggregates request and skill metrics."""
 
+    _REDIS_KEY = "uar:metrics:totals"
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._endpoint_metrics: Dict[str, RequestMetrics] = defaultdict(
@@ -87,6 +110,7 @@ class MetricsCollector:
         self._total_errors = 0
         self._active_ws_connections = 0
         self._start_time = time.time()
+        self._load_from_redis()
 
     def record_request(
         self, endpoint: str, duration: float, error: bool = False
@@ -101,6 +125,7 @@ class MetricsCollector:
             if error:
                 metrics.errors += 1
                 self._total_errors += 1
+        self._persist_to_redis()
 
     def record_skill(
         self, skill_name: str, duration: float, error: bool = False
@@ -113,6 +138,7 @@ class MetricsCollector:
             metrics.histogram.observe(duration)
             if error:
                 metrics.errors += 1
+        self._persist_to_redis()
 
     def record_connection(self, delta: int = 1) -> None:
         """Adjust the active WebSocket connection gauge."""
@@ -120,6 +146,41 @@ class MetricsCollector:
             self._active_ws_connections = max(
                 0, self._active_ws_connections + delta
             )
+        self._persist_to_redis()
+
+    def _load_from_redis(self) -> None:
+        """Hydrate simple counters from Redis on startup."""
+        r = _get_redis()
+        if r is None:
+            return
+        try:
+            data = r.hgetall(self._REDIS_KEY)
+            if data:
+                self._total_requests = int(data.get("total_requests", 0))
+                self._total_errors = int(data.get("total_errors", 0))
+                self._active_ws_connections = int(
+                    data.get("active_ws_connections", 0)
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _persist_to_redis(self) -> None:
+        """Write simple counters to Redis for cross-process recovery."""
+        r = _get_redis()
+        if r is None:
+            return
+        try:
+            r.hset(
+                self._REDIS_KEY,
+                mapping={
+                    "total_requests": self._total_requests,
+                    "total_errors": self._total_errors,
+                    "active_ws_connections": self._active_ws_connections,
+                },
+            )
+            r.expire(self._REDIS_KEY, 86400)  # 24 h TTL
+        except Exception:  # noqa: BLE001
+            pass
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get current metrics snapshot."""

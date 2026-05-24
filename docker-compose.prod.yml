@@ -66,8 +66,66 @@ services:
       timeout: 3s
       retries: 3
 
+  # Observability stack
+  prometheus:
+    image: prom/prometheus:v2.51
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - uar-api
+    networks:
+      - uar-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - uar-network
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    networks:
+      - uar-network
+    restart: unless-stopped
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24
+    volumes:
+      - ./observability/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    ports:
+      - "9115:9115"
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    networks:
+      - uar-network
+    restart: unless-stopped
+
 volumes:
   redis-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   uar-network:

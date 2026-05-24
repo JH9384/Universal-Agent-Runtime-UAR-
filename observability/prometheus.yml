@@ -1,0 +1,38 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: 'uar-api'
+    static_configs:
+      - targets: ['uar-api:8000']
+    metrics_path: /metrics
+    scheme: http
+
+  - job_name: 'blackbox'
+    static_configs:
+      - targets: ['blackbox-exporter:9115']
+    metrics_path: /metrics
+
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_health_live]
+    static_configs:
+      - targets:
+          - http://uar-api:8000/api/health/live
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

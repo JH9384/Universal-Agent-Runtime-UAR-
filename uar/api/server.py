@@ -390,6 +390,17 @@ async def metrics_middleware(request: Request, call_next):
         duration,
         error=response.status_code >= 500,
     )
+    # Log slow requests (> 5 s = p99 threshold for POST /api/uar/run)
+    SLOW_REQUEST_THRESHOLD = 5.0  # seconds
+    if duration > SLOW_REQUEST_THRESHOLD:
+        logger.warning(
+            "slow_request path=%s duration=%.3fs status=%s "
+            "correlation_id=%s",
+            request.url.path,
+            duration,
+            getattr(response, "status_code", "unknown"),
+            request.headers.get("x-correlation-id", "none"),
+        )
     return response
 
 # Security scheme for API key authentication
