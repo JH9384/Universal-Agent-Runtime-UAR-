@@ -117,8 +117,7 @@ class WASMSandbox:
             ValueError: If the expression contains unsafe tokens.
             RuntimeError: If WASM or fallback evaluation fails.
         """
-        expression = expression.strip()
-        if not expression:
+        if not expression.strip():
             raise ValueError("Empty expression")
 
         # Security: reject suspicious tokens before any eval
@@ -173,6 +172,8 @@ _SAFE_CHARS |= set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 def _validate_expression(expression: str) -> None:
     """Reject expressions containing unsafe tokens or characters."""
+    if not expression.strip():
+        raise ValueError("Empty expression")
     lower = expression.lower()
     for token in _UNSAFE_TOKENS:
         if token in lower:
@@ -224,7 +225,7 @@ def safe_eval(node):
             return +val
     raise ValueError(f"Unsupported AST node: {type(node).__name__}")
 
-expr = sys.argv[1]
+expr = sys.argv[1].strip()
 try:
     tree = ast.parse(expr, mode='eval')
     result = safe_eval(tree)
@@ -237,6 +238,7 @@ except Exception as e:
 
 def _restricted_eval_in_subprocess(expression: str) -> Any:
     """Evaluate in a fresh, restricted Python subprocess."""
+    expr = expression.strip()
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", delete=False
     ) as f:
@@ -244,7 +246,7 @@ def _restricted_eval_in_subprocess(expression: str) -> Any:
         script_path = f.name
     try:
         proc = subprocess.run(
-            ["python", script_path, expression],
+            ["python", script_path, expr],
             capture_output=True,
             text=True,
             timeout=5,
