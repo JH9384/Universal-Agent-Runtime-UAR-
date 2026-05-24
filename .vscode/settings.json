@@ -10,5 +10,8 @@
     "chat.tools.terminal.autoApprove": {
         "true": true
     },
-    "local.model.provider.serverUrl": "http://127.0.0.1:1234"
+    "local.model.provider.serverUrl": "http://127.0.0.1:1234",
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-action.json": ".github/actions/**/*.yml"
+    }
 }

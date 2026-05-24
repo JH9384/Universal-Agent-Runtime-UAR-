@@ -120,5 +120,23 @@ filterwarnings = [
 python_version = "3.11"
 files = ["uar", "tests"]
 
+[[tool.mypy.overrides]]
+module = [
+    "psycopg",
+    "psycopg2",
+    "redis",
+    "dagster",
+    "dagster_webserver",
+    "llama_index",
+    "llama_index.node_parser",
+    "llama_index.retrievers",
+    "llama_index.query_engine",
+    "llama_index.response_synthesizers",
+    "llama_index.indices.knowledge_graph",
+    "wasmtime",
+    "asyncpg",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 79

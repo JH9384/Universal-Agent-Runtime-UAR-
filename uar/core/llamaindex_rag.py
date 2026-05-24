@@ -40,7 +40,6 @@ try:
     from llama_index.query_engine import RetrieverQueryEngine
     from llama_index.response_synthesizers import (
         get_response_synthesizer,
-        ResponseMode,
     )
     from llama_index.indices.knowledge_graph import KGIndex
 

@@ -391,6 +391,8 @@ if os.getenv("UAR_DATABASE_URL"):
 else:
     store = JsonRunStore()
 
+_uar_start_time = time.time()
+
 
 # Custom exception handlers for UAR exceptions
 @app.exception_handler(ValidationError)
@@ -1901,7 +1903,7 @@ async def health_dashboard():
         "circuit_breakers": circuit_breakers,
         "recent_errors": [],
         "server_version": "1.1.0",
-        "uptime_seconds": 0,
+        "uptime_seconds": int(time.time() - _uar_start_time),
     }
 
 
@@ -1913,6 +1915,13 @@ async def cache_stats_endpoint(
     from uar.core.skill_cache import get_skill_cache
 
     cache = get_skill_cache()
+    if cache is None:
+        return {
+            "hits": 0,
+            "misses": 0,
+            "size": 0,
+            "capacity": 0,
+        }
     return cache.stats()
 
 

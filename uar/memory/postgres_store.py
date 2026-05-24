@@ -52,11 +52,16 @@ class PostgresRunStore:
     def _connect_sync(self):
         """Return a synchronous DBAPI connection."""
         try:
-            import psycopg  # type: ignore[import-untyped]  # psycopg 3
+            import psycopg
             return psycopg.connect(self._db_url)
         except ImportError:
             import psycopg2  # type: ignore[import-untyped]
             return psycopg2.connect(self._db_url)
+
+    async def _connect_async(self):
+        """Return an asyncpg connection (optional dependency)."""
+        import asyncpg  # type: ignore[import-untyped]
+        return await asyncpg.connect(self._db_url)
 
     def _ensure_table(self) -> None:
         """Create the runs table if it doesn't exist."""
@@ -172,6 +177,117 @@ class PostgresRunStore:
                 row = cur.fetchone()
         finally:
             conn.close()
+
+        if row is None:
+            return None
+
+        cols = [
+            "run_id", "goal_id", "user_id", "status",
+            "skills", "events", "outputs", "metadata", "created_at",
+        ]
+        record = dict(zip(cols, row))
+        for key in ("skills", "events", "outputs", "metadata"):
+            if isinstance(record[key], str):
+                record[key] = json.loads(record[key])
+        return record
+
+    # ------------------------------------------------------------------
+    # Async variants (for use in FastAPI / async contexts)
+    # ------------------------------------------------------------------
+
+    async def append_async(self, record: RunRecord) -> None:
+        """Async insert a run record."""
+        data = {
+            "run_id": getattr(record, "id", ""),
+            "goal_id": getattr(record, "goal", {}).get("id", ""),
+            "user_id": getattr(record, "user_id", None),
+            "status": getattr(record, "status", "unknown"),
+            "skills": json.dumps(getattr(record, "skills", [])),
+            "events": json.dumps(getattr(record, "events", [])),
+            "outputs": json.dumps(getattr(record, "outputs", {})),
+            "metadata": json.dumps(getattr(record, "metadata", {})),
+        }
+        sql = """
+        INSERT INTO uar_runs (
+            run_id, goal_id, user_id, status,
+            skills, events, outputs, metadata
+        )
+        VALUES
+            ($1, $2, $3, $4, $5::jsonb, $6::jsonb,
+             $7::jsonb, $8::jsonb)
+        """
+        conn = await self._connect_async()
+        try:
+            await conn.execute(
+                sql,
+                data["run_id"],
+                data["goal_id"],
+                data["user_id"],
+                data["status"],
+                data["skills"],
+                data["events"],
+                data["outputs"],
+                data["metadata"],
+            )
+        finally:
+            await conn.close()
+
+    async def list_records_async(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Async list recent run records."""
+        sql = """
+        SELECT run_id, goal_id, user_id, status,
+               skills, events, outputs, metadata, created_at
+        FROM uar_runs
+        """
+        params: List[Any] = []
+        if user_id:
+            sql += " WHERE user_id = $1"
+            params.append(user_id)
+        sql += " ORDER BY created_at DESC LIMIT ${}".format(
+            len(params) + 1
+        )
+        params.append(limit)
+
+        conn = await self._connect_async()
+        try:
+            rows = await conn.fetch(sql, *params)
+        finally:
+            await conn.close()
+
+        cols = [
+            "run_id", "goal_id", "user_id", "status",
+            "skills", "events", "outputs", "metadata", "created_at",
+        ]
+        results = []
+        for row in rows:
+            record = dict(zip(cols, row))
+            for key in ("skills", "events", "outputs", "metadata"):
+                if isinstance(record[key], str):
+                    record[key] = json.loads(record[key])
+            results.append(record)
+        return results
+
+    async def get_by_run_id_async(
+        self, run_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Async fetch a single record by run ID."""
+        sql = """
+        SELECT run_id, goal_id, user_id, status,
+               skills, events, outputs, metadata, created_at
+        FROM uar_runs
+        WHERE run_id = $1
+        ORDER BY created_at DESC
+        LIMIT 1
+        """
+        conn = await self._connect_async()
+        try:
+            row = await conn.fetchrow(sql, run_id)
+        finally:
+            await conn.close()
 
         if row is None:
             return None
