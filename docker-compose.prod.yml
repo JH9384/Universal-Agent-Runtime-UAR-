@@ -76,6 +76,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=90d'
     ports:
       - "9090:9090"
     depends_on:
@@ -90,10 +91,14 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+      - loki
     networks:
       - uar-network
     restart: unless-stopped
@@ -122,10 +127,24 @@ services:
       - uar-network
     restart: unless-stopped
 
+  # Structured log aggregation
+  loki:
+    image: grafana/loki:2.9
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ./observability/loki.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - uar-network
+    restart: unless-stopped
+
 volumes:
   redis-data:
   prometheus-data:
   grafana-data:
+  loki-data:
 
 networks:
   uar-network:
