@@ -1,0 +1,43 @@
+{
+  "name": "n8n-nodes-uar",
+  "version": "1.0.0",
+  "description": "n8n node for Universal Agent Runtime (UAR)",
+  "keywords": ["n8n-community-node-package"],
+  "license": "MIT",
+  "homepage": "https://github.com/universalagent/uar",
+  "author": {
+    "name": "UAR Team",
+    "email": "team@universalagent.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/universalagent/uar.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint nodes credentials package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "credentials": [
+      "dist/credentials/UarApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Uar/Uar.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint-plugin-n8n-nodes-base": "^1.0.0",
+    "n8n-workflow": "^1.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
