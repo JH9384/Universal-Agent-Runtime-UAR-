@@ -129,7 +129,11 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
 
 
 class _WebSocketConnectionCounter:
-    """Global WebSocket connection cap with async-safe acquire/release."""
+    """Global WebSocket connection cap with async-safe acquire/release.
+
+    Also updates the metrics collector so active connections are visible
+    in Prometheus / JSON metrics.
+    """
 
     def __init__(self, max_connections: int = 0):
         self.max_connections = max_connections
@@ -138,16 +142,26 @@ class _WebSocketConnectionCounter:
 
     async def acquire(self) -> bool:
         if self.max_connections <= 0:
+            from uar.api.metrics import get_metrics_collector
+
+            get_metrics_collector().record_connection(+1)
+            self.count += 1
             return True
         async with self.lock:
             if self.count >= self.max_connections:
                 return False
             self.count += 1
+            from uar.api.metrics import get_metrics_collector
+
+            get_metrics_collector().record_connection(+1)
             return True
 
     def release(self) -> None:
-        if self.max_connections > 0:
+        if self.count > 0:
             self.count = max(0, self.count - 1)
+            from uar.api.metrics import get_metrics_collector
+
+            get_metrics_collector().record_connection(-1)
 
 
 _ws_conn_counter = _WebSocketConnectionCounter(
@@ -353,6 +367,30 @@ app.add_middleware(
 
 # Apply request logging, body parsing, and size-limit middleware
 apply_middleware(app)
+
+# Universal request-timing middleware (records every HTTP endpoint)
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    from uar.api.metrics import get_metrics_collector
+
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration = time.perf_counter() - start
+        get_metrics_collector().record_request(
+            request.url.path, duration, error=True
+        )
+        raise
+    duration = time.perf_counter() - start
+    get_metrics_collector().record_request(
+        request.url.path,
+        duration,
+        error=response.status_code >= 500,
+    )
+    return response
 
 # Security scheme for API key authentication
 security = HTTPBearer(auto_error=False)

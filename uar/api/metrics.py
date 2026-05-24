@@ -85,6 +85,7 @@ class MetricsCollector:
         )
         self._total_requests = 0
         self._total_errors = 0
+        self._active_ws_connections = 0
         self._start_time = time.time()
 
     def record_request(
@@ -112,6 +113,13 @@ class MetricsCollector:
             metrics.histogram.observe(duration)
             if error:
                 metrics.errors += 1
+
+    def record_connection(self, delta: int = 1) -> None:
+        """Adjust the active WebSocket connection gauge."""
+        with self._lock:
+            self._active_ws_connections = max(
+                0, self._active_ws_connections + delta
+            )
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get current metrics snapshot."""
@@ -169,6 +177,16 @@ class MetricsCollector:
             lines.append("# HELP uar_errors_total Total errors")
             lines.append("# TYPE uar_errors_total counter")
             lines.append(f"uar_errors_total {self._total_errors}")
+
+            lines.append(
+                "# HELP uar_websocket_connections Active WebSocket "
+                "connections"
+            )
+            lines.append("# TYPE uar_websocket_connections gauge")
+            lines.append(
+                f"uar_websocket_connections "
+                f"{self._active_ws_connections}"
+            )
 
             # Request duration histogram
             lines.append(
@@ -254,15 +272,18 @@ def timed(
         def wrapper(*args, **kwargs):
             collector = get_metrics_collector()
             start = time.perf_counter()
+            error = False
             try:
                 return func(*args, **kwargs)
             except Exception:
+                error = True
                 if record_error:
                     duration = time.perf_counter() - start
                     collector.record_request(name, duration, error=True)
                 raise
             finally:
-                duration = time.perf_counter() - start
-                collector.record_request(name, duration, error=False)
+                if not error:
+                    duration = time.perf_counter() - start
+                    collector.record_request(name, duration, error=False)
         return wrapper
     return decorator

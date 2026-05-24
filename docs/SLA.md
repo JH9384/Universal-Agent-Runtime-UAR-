@@ -1,7 +1,7 @@
 # UAR Service Level Agreement (SLA)
 
-**Version:** 1.0.0  
-**Effective Date:** 2026-05-22  
+**Version:** 1.1.0  
+**Effective Date:** 2026-05-24  
 **Review Cycle:** Quarterly  
 
 ---
@@ -90,9 +90,10 @@ Downtime = any minute where `/api/health/live` returns non-200 or times out > 5s
 | No external metrics persistence | Metrics lost on restart | **High** | Backend |
 | No synthetic probing | Availability is self-reported | **High** | SRE |
 | No alert wiring | Cannot enforce MTTD/MTTR | **High** | SRE |
-| Redis rate limiter not default | Breaks multi-worker accuracy | **Medium** | Backend |
-| No request duration logging | Hard to debug latency spikes | **Medium** | Backend |
+| ~~Redis rate limiter not default~~ | ~~Breaks multi-worker accuracy~~ | ~~**Medium**~~ | ✅ Completed — `create_rate_limiter()` auto-selects `RedisRateLimiter` when `REDIS_URL` is set |
+| ~~No request duration logging~~ | ~~Hard to debug latency spikes~~ | ~~**Medium**~~ | ✅ Completed — HTTP middleware `metrics_middleware` records every endpoint in `uar/api/server.py` |
 | ~~No skill-level latency breakdown~~ | ~~Cannot attribute slowdowns~~ | ~~**Medium**~~ | ✅ Completed — `record_skill()` wired into `uar/core/executor.py` |
+| ~~No WebSocket connection tracking~~ | ~~Cannot validate 1,000 conn target~~ | ~~**Medium**~~ | ✅ Completed — `uar_websocket_connections` gauge exposed via `_WebSocketConnectionCounter` |
 
 ---
 
@@ -178,16 +179,16 @@ Before claiming SLA compliance, verify:
    - Added `Histogram` class with configurable buckets, `percentile()` method, and Prometheus-format export
    - `uar_request_duration_seconds_bucket` and `uar_skill_duration_seconds_bucket` visible in `/api/metrics`
 
-2. **Instrument all endpoints with automatic timing**
+2. ~~**Instrument all endpoints with automatic timing**~~ ✅ Completed 2026-05-24
    - File: `uar/api/server.py`
-   - Action: Wrap every endpoint in a `record_request()` call with duration
+   - Added `metrics_middleware` HTTP middleware that records every request path + duration
    - Acceptance: Every endpoint appears in metrics with count + duration
 
 ### Short-term (Next 2 Sprints)
 
-3. **Add Redis rate limiter as production default**
-   - File: `uar/api/middleware.py`, `docker-compose.prod.yml`
-   - Action: `create_rate_limiter()` returns `RedisRateLimiter` when `REDIS_URL` is set in production
+3. ~~**Add Redis rate limiter as production default**~~ ✅ Completed 2026-05-22
+   - File: `uar/api/middleware.py`
+   - `create_rate_limiter()` returns `RedisRateLimiter` when `REDIS_URL` is set; raises in production if missing
    - Acceptance: Load test with 4 workers shows shared rate limit state
 
 4. ~~**Add skill-level execution latency**~~ ✅ Completed 2026-05-22
@@ -195,14 +196,19 @@ Before claiming SLA compliance, verify:
    - `record_skill()` called at success, retry, and failure paths with duration and error flag
    - `uar_skill_duration_seconds` shows per-skill p50/p99 in `/api/metrics/json`
 
+5. **Add request duration logging**
+   - File: `uar/api/server.py`
+   - Action: Log slow requests (> p99 threshold) with path, duration, and correlation ID
+   - Acceptance: Latency spikes are identifiable from logs without metrics
+
 ### Medium-term (Next Quarter)
 
-5. **Deploy Prometheus + Grafana stack**
+6. **Deploy Prometheus + Grafana stack**
    - File: `docker-compose.prod.yml`, new `observability/` directory
    - Action: Add Prometheus, Grafana, and Alertmanager to production compose
    - Acceptance: Dashboards load with real data within 5 minutes of startup
 
-6. **Add synthetic health probing**
+7. **Add synthetic health probing**
    - File: New `observability/blackbox.yml`
    - Action: Blackbox Exporter probes `/api/health/live` every 10s
    - Acceptance: Alert fires when probe fails 3 times in a row
