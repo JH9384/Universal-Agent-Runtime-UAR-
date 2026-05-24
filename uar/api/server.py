@@ -1122,11 +1122,17 @@ async def stream_goal_ws(
             strategy = SimplePlanner().plan(goal)
             _goal_id = strategy.goal_id
 
+            # WebSocket heartbeat with coalescing
+            last_hb = time.time()
+            hb_interval = float(
+                os.getenv("UAR_WS_HEARTBEAT_INTERVAL", "30")
+            )
             async for event in _exec_svc.stream_goal(
                 goal, request_id, user_str, correlation_id,
                 yield_persisted=True,
             ):
                 await websocket.send_json(event)
+                last_hb = time.time()
 
                 # Stream binary visualization data for 3D skills
                 if event.get("type") == "skill_complete":
@@ -1136,6 +1142,18 @@ async def stream_goal_ws(
                         )
                     except Exception:
                         pass
+
+                # Coalesced heartbeat: only emit if idle > interval
+                now = time.time()
+                if now - last_hb >= hb_interval:
+                    await websocket.send_json(
+                        _event_svc.heartbeat(
+                            run_id="pending",
+                            goal_id=_goal_id,
+                            correlation_id=correlation_id,
+                        )
+                    )
+                    last_hb = now
 
         except ValidationError as e:
             await websocket.send_json(
@@ -1369,11 +1387,7 @@ async def stream_goal(
             goal = _build_goal(req)
             cid = getattr(request.state, "correlation_id", "")
 
-            def _sse_emit(event: dict) -> str:
-                return (
-                    f"event: {event['type']}\n"
-                    f"data: {json.dumps(event)}\n\n"
-                )
+            _sse_emit = _event_svc.emit_sse
 
             async def _generate():
                 last_hb = time.time()

@@ -57,15 +57,16 @@ class SkillCache:
         self._store: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
         self._maxsize = maxsize
+        self._order: Dict[str, None] = {}  # OrderedDict for O(1) LRU
 
     def _make_key(self, skill_name: str, metadata: Dict[str, Any]) -> str:
-        """Deterministic SHA-256 key from skill + metadata."""
+        """Deterministic fast key from skill + metadata (blake2b)."""
         payload = json.dumps(
             {"skill": skill_name, "metadata": metadata},
             sort_keys=True,
             default=str,
         )
-        return hashlib.sha256(payload.encode()).hexdigest()
+        return hashlib.blake2b(payload.encode(), digest_size=16).hexdigest()
 
     def get(
         self, skill_name: str, metadata: Dict[str, Any]
@@ -77,8 +78,12 @@ class SkillCache:
             if entry is None:
                 return None
             if entry["expires"] < time.time():
-                del self._store[key]
+                self._store.pop(key, None)
+                self._order.pop(key, None)
                 return None
+            # Touch for LRU
+            self._order.pop(key, None)
+            self._order[key] = None
             logger.debug(f"Cache hit: {skill_name} ({key[:8]}...)")
             return entry["value"]
 
@@ -92,20 +97,19 @@ class SkillCache:
         """Store a result with the given TTL."""
         key = self._make_key(skill_name, metadata)
         with self._lock:
-            # Simple eviction: if over maxsize, drop oldest half
-            if len(self._store) >= self._maxsize:
-                sorted_keys = sorted(
-                    self._store,
-                    key=lambda k: self._store[k]["expires"],
-                )
-                for old in sorted_keys[: len(sorted_keys) // 2]:
-                    del self._store[old]
+            # O(1) LRU eviction: drop oldest entries when over maxsize
+            while len(self._store) >= self._maxsize:
+                oldest = next(iter(self._order))
+                self._order.pop(oldest, None)
+                self._store.pop(oldest, None)
 
             self._store[key] = {
                 "value": value,
                 "expires": time.time() + ttl_seconds,
                 "skill": skill_name,
             }
+            self._order.pop(key, None)
+            self._order[key] = None
             logger.debug(f"Cache set: {skill_name} ({key[:8]}...)")
 
     def invalidate(
@@ -116,12 +120,14 @@ class SkillCache:
             if skill_name is None:
                 count = len(self._store)
                 self._store.clear()
+                self._order.clear()
                 return count
             to_remove = [
                 k for k, v in self._store.items() if v["skill"] == skill_name
             ]
             for k in to_remove:
-                del self._store[k]
+                self._store.pop(k, None)
+                self._order.pop(k, None)
             return len(to_remove)
 
     def stats(self) -> Dict[str, Any]:

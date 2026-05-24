@@ -5,6 +5,7 @@ including validation, digest computation, and transformation.
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional, Callable, Tuple
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,6 +13,20 @@ from .bounded_json import compute_uor_digest, canonicalize_json
 from .schema_validation import UORSchemaValidator
 
 logger = logging.getLogger(__name__)
+
+# Module-level shared pool to avoid per-batch thread churn
+_BATCH_POOL_MAX = int(os.getenv("UOR_BATCH_POOL_SIZE", "8"))
+_batch_pool: Optional[ThreadPoolExecutor] = None
+
+
+def _get_batch_pool() -> ThreadPoolExecutor:
+    global _batch_pool
+    if _batch_pool is None or _batch_pool._shutdown:
+        _batch_pool = ThreadPoolExecutor(
+            max_workers=_BATCH_POOL_MAX,
+            thread_name_prefix="uar-batch",
+        )
+    return _batch_pool
 
 
 @dataclass
@@ -42,9 +57,11 @@ class BatchProcessor:
         """Initialize batch processor.
 
         Args:
-            max_workers: Maximum number of parallel workers
+            max_workers: Maximum number of parallel workers.
+                Uses shared pool if max_workers <= _BATCH_POOL_MAX.
         """
         self.max_workers = max_workers
+        self._pool = _get_batch_pool()
 
     def batch_compute_digests(
         self, objects: List[Dict[str, Any]], algorithm: str = "sha256"
@@ -60,28 +77,28 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(objects))
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._compute_single_digest,
-                    obj,
-                    algorithm,
-                    i,
-                ): i
-                for i, obj in enumerate(objects)
-            }
+        executor = _get_batch_pool()
+        futures = {
+            executor.submit(
+                self._compute_single_digest,
+                obj,
+                algorithm,
+                i,
+            ): i
+            for i, obj in enumerate(objects)
+        }
 
-            for future in as_completed(futures):
-                idx = futures[future]
-                try:
-                    digest = future.result()
-                    result.results.append({"index": idx, "digest": digest})
-                    result.successful += 1
-                except Exception as e:
-                    result.failed += 1
-                    result.errors.append((idx, str(e)))
-                    err_msg = f"Failed to compute digest for object {idx}: {e}"
-                    logger.error(err_msg)
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                digest = future.result()
+                result.results.append({"index": idx, "digest": digest})
+                result.successful += 1
+            except Exception as e:
+                result.failed += 1
+                result.errors.append((idx, str(e)))
+                err_msg = f"Failed to compute digest for object {idx}: {e}"
+                logger.error(err_msg)
 
         return result
 
@@ -119,36 +136,36 @@ class BatchProcessor:
         if validator is None:
             validator = UORSchemaValidator()
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._validate_single,
-                    obj,
-                    validator,
-                    i,
-                ): i
-                for i, obj in enumerate(objects)
-            }
+        executor = _get_batch_pool()
+        futures = {
+            executor.submit(
+                self._validate_single,
+                obj,
+                validator,
+                i,
+            ): i
+            for i, obj in enumerate(objects)
+        }
 
-            for future in as_completed(futures):
-                idx = futures[future]
-                try:
-                    is_valid, errors = future.result()
-                    result.results.append(
-                        {
-                            "index": idx,
-                            "valid": is_valid,
-                            "errors": errors,
-                        }
-                    )
-                    if is_valid:
-                        result.successful += 1
-                    else:
-                        result.failed += 1
-                except Exception as e:
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                is_valid, errors = future.result()
+                result.results.append(
+                    {
+                        "index": idx,
+                        "valid": is_valid,
+                        "errors": errors,
+                    }
+                )
+                if is_valid:
+                    result.successful += 1
+                else:
                     result.failed += 1
-                    result.errors.append((idx, str(e)))
-                    logger.error(f"Failed to validate object {idx}: {e}")
+            except Exception as e:
+                result.failed += 1
+                result.errors.append((idx, str(e)))
+                logger.error(f"Failed to validate object {idx}: {e}")
 
         return result
 
@@ -187,30 +204,30 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(objects))
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._transform_single,
-                    obj,
-                    transform_func,
-                    i,
-                ): i
-                for i, obj in enumerate(objects)
-            }
+        executor = _get_batch_pool()
+        futures = {
+            executor.submit(
+                self._transform_single,
+                obj,
+                transform_func,
+                i,
+            ): i
+            for i, obj in enumerate(objects)
+        }
 
-            for future in as_completed(futures):
-                idx = futures[future]
-                try:
-                    transformed = future.result()
-                    result.results.append(
-                        {"index": idx, "object": transformed}
-                    )
-                    result.successful += 1
-                except Exception as e:
-                    result.failed += 1
-                    result.errors.append((idx, str(e)))
-                    err_msg = f"Failed to transform object {idx}: {e}"
-                    logger.error(err_msg)
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                transformed = future.result()
+                result.results.append(
+                    {"index": idx, "object": transformed}
+                )
+                result.successful += 1
+            except Exception as e:
+                result.failed += 1
+                result.errors.append((idx, str(e)))
+                err_msg = f"Failed to transform object {idx}: {e}"
+                logger.error(err_msg)
 
         return result
 
@@ -243,29 +260,29 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(objects))
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._canonicalize_single,
-                    obj,
-                    i,
-                ): i
-                for i, obj in enumerate(objects)
-            }
+        executor = _get_batch_pool()
+        futures = {
+            executor.submit(
+                self._canonicalize_single,
+                obj,
+                i,
+            ): i
+            for i, obj in enumerate(objects)
+        }
 
-            for future in as_completed(futures):
-                idx = futures[future]
-                try:
-                    canonical = future.result()
-                    result.results.append(
-                        {"index": idx, "canonical": canonical}
-                    )
-                    result.successful += 1
-                except Exception as e:
-                    result.failed += 1
-                    result.errors.append((idx, str(e)))
-                    err_msg = f"Failed to canonicalize object {idx}: {e}"
-                    logger.error(err_msg)
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                canonical = future.result()
+                result.results.append(
+                    {"index": idx, "canonical": canonical}
+                )
+                result.successful += 1
+            except Exception as e:
+                result.failed += 1
+                result.errors.append((idx, str(e)))
+                err_msg = f"Failed to canonicalize object {idx}: {e}"
+                logger.error(err_msg)
 
         return result
 

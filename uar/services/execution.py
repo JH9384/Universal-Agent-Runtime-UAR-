@@ -12,7 +12,7 @@ import logging
 import os
 import tempfile
 import time
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, List, Optional
 
 from uar.core.contracts import GoalSpec
 from uar.core.executor import Executor
@@ -309,8 +309,14 @@ class GoalExecutionService(BaseService):
         user_id: Optional[str],
         request_id: str,
     ) -> Any:
-        """Read events from JSONL file (optionally gzip) and persist."""
+        """Read events from JSONL file (optionally gzip) and persist.
+
+        Optional deduplication (UAR_DEDUP_EVENTS=true) removes exact
+        duplicate events that can occur during retries.
+        """
         events: list[dict] = []
+        _dedup = os.getenv("UAR_DEDUP_EVENTS", "false").lower() == "true"
+        seen: set[str] = set()
         try:
             if file_path.endswith(".gz"):
                 import gzip
@@ -322,7 +328,15 @@ class GoalExecutionService(BaseService):
                 for line in f:
                     line = line.strip()
                     if line:
-                        events.append(json.loads(line))
+                        event = json.loads(line)
+                        if _dedup:
+                            ev_hash = json.dumps(
+                                event, sort_keys=True, default=str
+                            )
+                            if ev_hash in seen:
+                                continue
+                            seen.add(ev_hash)
+                        events.append(event)
         except Exception as read_err:
             self._log(
                 "error",
@@ -342,21 +356,29 @@ class GoalExecutionService(BaseService):
         """Bridge sync Executor.iter_events into async stream.
 
         Owns the Executor lifecycle so callers don't need to manage it.
+        Buffers events to amortize thread-switch overhead.
         """
         executor = Executor()
         it = executor.iter_events(
             strategy, goal, timeout_seconds=timeout, correlation_id=cid
         )
 
-        def _next() -> Optional[dict[str, Any]]:
-            try:
-                return next(it)
-            except StopIteration:
-                return None
+        _buf_size = int(os.getenv("UAR_EVENT_BUFFER", "10"))
+
+        def _next_batch() -> List[Optional[dict[str, Any]]]:
+            batch: List[Optional[dict[str, Any]]] = []
+            for _ in range(_buf_size):
+                try:
+                    batch.append(next(it))
+                except StopIteration:
+                    batch.append(None)
+                    break
+            return batch
 
         loop = asyncio.get_running_loop()
         while True:
-            event = await loop.run_in_executor(None, _next)
-            if event is None:
-                break
-            yield event
+            batch = await loop.run_in_executor(None, _next_batch)
+            for event in batch:
+                if event is None:
+                    return
+                yield event

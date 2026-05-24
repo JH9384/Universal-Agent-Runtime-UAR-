@@ -5,7 +5,7 @@ import time
 
 from uar.services.execution import AdaptiveBackpressure
 from uar.core.executor import (
-    _RECIPE_EXPANSION_CACHE,
+    _cached_expand_execution_order,
     _expand_execution_order_with_markers,
     GC_EVENT_THRESHOLD,
 )
@@ -81,13 +81,14 @@ class TestAdaptiveBackpressure:
 
 class TestRecipeExpansionCache:
     def setup_method(self):
-        _RECIPE_EXPANSION_CACHE.clear()
+        _cached_expand_execution_order.cache_clear()
 
     def teardown_method(self):
-        _RECIPE_EXPANSION_CACHE.clear()
+        _cached_expand_execution_order.cache_clear()
 
     def test_cache_populated_after_expansion(self):
-        assert len(_RECIPE_EXPANSION_CACHE) == 0
+        info = _cached_expand_execution_order.cache_info()
+        assert info.hits == 0 and info.misses == 0
         execution_order = [
             {"type": "skill", "content": "doc_ingest", "id": "s1"},
         ]
@@ -95,7 +96,8 @@ class TestRecipeExpansionCache:
         # Cache is only populated when recipe_map is not None
         # (which happens inside iter_events when execution_order is present)
         # Direct call doesn't use cache, so verify cache is still empty
-        assert len(_RECIPE_EXPANSION_CACHE) == 0
+        info = _cached_expand_execution_order.cache_info()
+        assert info.misses == 0
 
     def test_gc_threshold_is_positive(self):
         assert GC_EVENT_THRESHOLD > 0

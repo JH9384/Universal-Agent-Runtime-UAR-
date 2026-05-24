@@ -1,7 +1,7 @@
 import concurrent.futures
 import copy
+import functools
 import gc
-import hashlib
 import json
 import logging
 import os
@@ -24,11 +24,27 @@ from ..api.metrics import get_metrics_collector
 # to reduce memory pressure from accumulated intermediate objects.
 GC_EVENT_THRESHOLD = int(os.getenv("UAR_GC_THRESHOLD", "50"))
 
-# Module-level cache for recipe expansion results.
-# Caches (ordered_skills, recipe_markers) keyed by execution_order hash.
-# This avoids repeated expansion of the same recipes across runs.
-_RECIPE_EXPANSION_CACHE: Dict[str, Tuple[List[str], List[Dict[str, Any]]]] = {}
-_MAX_EXPANSION_CACHE_SIZE = 100
+
+@functools.lru_cache(maxsize=100)
+def _cached_expand_execution_order(
+    execution_order_tuple: tuple,
+    recipe_map_tuple: tuple,
+) -> Tuple[List[str], List[Dict[str, Any]]]:
+    """LRU-cached wrapper for recipe expansion with hashable keys."""
+    execution_order = [
+        json.loads(item) for item in execution_order_tuple
+    ]
+    if recipe_map_tuple:
+        recipe_map = {
+            k: {"skills": list(v)}
+            for k, v in recipe_map_tuple
+        }
+    else:
+        recipe_map = None
+    return _expand_execution_order_with_markers(
+        execution_order, _recipe_map=recipe_map
+    )
+
 
 # Recipe-level context-mutation cache limits.
 _MAX_RECIPE_CACHE_SIZE = 50
@@ -531,19 +547,29 @@ def _get_parallel_groups(skills: List[str]) -> List[List[str]]:
 def _run_with_timeout(fn, ctx, timeout_seconds):
     """Run a function with timeout using thread pool with proper cleanup.
 
+    Automatically detects async (coroutine) skills and runs them in an
+    event loop instead of blocking a thread. This eliminates thread
+    overhead for I/O-bound async skills.
+
     Note: Thread cancellation in Python is cooperative - future.cancel()
     signals the thread to cancel but doesn't guarantee immediate
     termination. Skills should periodically check for cancellation if
     they support it.
-
-    IMPORTANT: Due to Python's threading model, cancelled threads may
-    continue running in the background for a short time. The brief
-    wait after cancel() allows the thread to clean up, but doesn't
-    guarantee immediate termination. For true isolation, consider
-    using multiprocessing instead of threading for long-running skills.
     """
+    import asyncio
+    import inspect
+
     # Validate timeout to prevent negative or zero values
     timeout_seconds = max(0.1, timeout_seconds)
+
+    # Async skill: run in event loop, not a thread pool
+    if inspect.iscoroutinefunction(fn):
+        try:
+            return asyncio.run(
+                asyncio.wait_for(fn(ctx), timeout=timeout_seconds)
+            )
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(timeout_seconds) from exc
 
     # Shared pool avoids per-skill churn.
     with _TIMEOUT_POOL_LOCK:
@@ -663,45 +689,26 @@ class Executor:
             # recipe-boundary markers so the runtime can emit
             # ``recipe_start``/``recipe_end`` events while still
             # executing the flattened sequence.
-            # Use a cache keyed by execution_order + recipe_map to avoid
-            # repeated expansion of the same recipes across runs.
-            cache_key = None
             if recipe_map is not None:
-                cache_key = hashlib.md5(
-                    json.dumps(
-                        [
-                            execution_order,
-                            sorted(
-                                (k, v.get("skills", []))
-                                for k, v in recipe_map.items()
-                            ),
-                        ],
-                        sort_keys=True,
-                        default=str,
-                    ).encode()
-                ).hexdigest()
-            if cache_key and cache_key in _RECIPE_EXPANSION_CACHE:
-                ordered_skills, recipe_markers = _RECIPE_EXPANSION_CACHE[
-                    cache_key
-                ]
+                eo_tuple = tuple(
+                    json.dumps(item, sort_keys=True, default=str)
+                    for item in execution_order
+                )
+                rm_tuple = tuple(
+                    sorted(
+                        (k, tuple(v.get("skills", [])))
+                        for k, v in recipe_map.items()
+                    )
+                )
+                ordered_skills, recipe_markers = (
+                    _cached_expand_execution_order(eo_tuple, rm_tuple)
+                )
             else:
                 ordered_skills, recipe_markers = (
                     _expand_execution_order_with_markers(
                         execution_order, _recipe_map=recipe_map
                     )
                 )
-                if cache_key:
-                    if (
-                        len(_RECIPE_EXPANSION_CACHE)
-                        >= _MAX_EXPANSION_CACHE_SIZE
-                    ):
-                        _RECIPE_EXPANSION_CACHE.pop(
-                            next(iter(_RECIPE_EXPANSION_CACHE))
-                        )
-                    _RECIPE_EXPANSION_CACHE[cache_key] = (
-                        ordered_skills,
-                        recipe_markers,
-                    )
             if ordered_skills:
                 strategy = StrategySpec(
                     goal_id=strategy.goal_id, ordered_skills=ordered_skills

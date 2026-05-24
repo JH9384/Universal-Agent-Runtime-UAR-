@@ -21,7 +21,7 @@ class StrategySpec:
     waves: Optional[List[List[str]]] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class PipelineContext:
     goal: GoalSpec
     data: Dict[str, Any] = field(default_factory=dict)
@@ -35,7 +35,7 @@ class PipelineContext:
 
             fd, path = tempfile.mkstemp(suffix=".jsonl")
             os.close(fd)
-            self._overflow_file = open(path, "a")
+            object.__setattr__(self, "_overflow_file", open(path, "a"))
 
     def emit(self, event_type: str, payload: Dict[str, Any]) -> None:
         event = {"type": event_type, "payload": payload}

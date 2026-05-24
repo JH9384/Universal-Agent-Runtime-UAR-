@@ -15,6 +15,20 @@ DEFAULT_TIMEOUT_SECONDS = 5.0
 MIN_TIMEOUT_SECONDS = 0.1  # Minimum 100ms to prevent zero timeout
 MAX_TIMEOUT_SECONDS = 300  # 5 minutes
 
+# Compiled regex cache for frequently-used patterns
+_DANGEROUS_PATTERNS = [
+    re.compile(r"<script[^>]*>.*?</script>", re.IGNORECASE),
+    re.compile(r"javascript:", re.IGNORECASE),
+    re.compile(r"data:text/html", re.IGNORECASE),
+    re.compile(r"<[^>]+on\w+\s*=", re.IGNORECASE),
+    re.compile(r"alert\s*\(", re.IGNORECASE),
+    re.compile(r"eval\s*\(", re.IGNORECASE),
+]
+_SKILL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_PATH_DANGEROUS_RE = [re.compile(p) for p in [
+    r"~/", r"^/", r"\|", r";", r"&",
+]]
+
 
 def validate_goal(goal: str) -> str:
     """Validate goal input"""
@@ -39,18 +53,9 @@ def validate_goal(goal: str) -> str:
             f"Goal cannot exceed {MAX_GOAL_LENGTH:,} characters", field="goal"
         )
 
-    # Check for potentially dangerous content
-    dangerous_patterns = [
-        r"<script[^>]*>.*?</script>",  # Script tags
-        r"javascript:",  # JavaScript URLs
-        r"data:text/html",  # Data URLs
-        r"<[^>]+on\w+\s*=",  # HTML event handlers (onerror, onclick, etc.)
-        r"alert\s*\(",  # alert() function calls
-        r"eval\s*\(",  # eval() function calls
-    ]
-
-    for pattern in dangerous_patterns:
-        if re.search(pattern, goal, re.IGNORECASE):
+    # Check for potentially dangerous content (compiled regex cache)
+    for pattern in _DANGEROUS_PATTERNS:
+        if pattern.search(goal):
             raise ValidationError(
                 "Goal contains potentially dangerous content", field="goal"
             )
@@ -91,7 +96,7 @@ def validate_skills(skills: Optional[List[str]]) -> List[str]:
             )
 
         # Validate skill name format (alphanumeric, underscores, hyphens)
-        if not re.match(r"^[a-zA-Z0-9_-]+$", skill):
+        if not _SKILL_NAME_RE.match(skill):
             raise ValidationError(
                 f"Skill name '{skill}' contains invalid characters. "
                 "Only letters, numbers, underscores, and hyphens are allowed.",
@@ -195,7 +200,7 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
         # Check for symlinks at any point in the path chain
         # Check every component from root to target
         current = resolved_root
-        for part in resolved_path.parts[len(resolved_root.parts) :]:
+        for part in resolved_path.parts[len(resolved_root.parts):]:
             current = current / part
             if current.is_symlink():
                 raise PathSecurityError(
