@@ -18,11 +18,32 @@ import functools
 import hashlib
 import json
 import logging
+import os
 import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+# Optional Redis connection for cross-worker skill caching
+_redis_client: Any = None  # type: ignore[name-defined]
+
+
+def _get_redis():
+    """Lazy Redis connection for skill cache."""
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if not redis_url:
+        return None
+    try:
+        import redis
+
+        _redis_client = redis.from_url(redis_url, decode_responses=True)
+        return _redis_client
+    except Exception:  # noqa: BLE001
+        return None
 
 
 class SkillCache:
@@ -113,17 +134,136 @@ class SkillCache:
             }
 
 
+class RedisSkillCache:
+    """Redis-backed skill cache for cross-worker result sharing.
+
+    Uses the same SHA-256 key scheme as :class:`SkillCache` so that
+    hits are valid regardless of which worker stored the entry.
+    """
+
+    _REDIS_PREFIX = "uar:skill_cache:"
+
+    def __init__(self, maxsize: int = 1024) -> None:
+        self._maxsize = maxsize
+        self._r = _get_redis()
+        if self._r is None:
+            raise RuntimeError(
+                "RedisSkillCache requires REDIS_URL to be set"
+            )
+
+    def _make_key(self, skill_name: str, metadata: Dict[str, Any]) -> str:
+        """Deterministic SHA-256 key from skill + metadata."""
+        payload = json.dumps(
+            {"skill": skill_name, "metadata": metadata},
+            sort_keys=True,
+            default=str,
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+    def _redis_key(self, key: str) -> str:
+        return f"{self._REDIS_PREFIX}{key}"
+
+    def get(
+        self, skill_name: str, metadata: Dict[str, Any]
+    ) -> Optional[Any]:
+        """Return cached result from Redis or ``None``."""
+        key = self._make_key(skill_name, metadata)
+        try:
+            raw = self._r.get(self._redis_key(key))
+            if raw is None:
+                return None
+            return json.loads(raw)
+        except Exception:
+            return None
+
+    def set(
+        self,
+        skill_name: str,
+        metadata: Dict[str, Any],
+        value: Any,
+        ttl_seconds: float,
+    ) -> None:
+        """Store a serialized result in Redis with TTL."""
+        key = self._redis_key(self._make_key(skill_name, metadata))
+        try:
+            self._r.setex(
+                key,
+                int(ttl_seconds),
+                json.dumps(value, default=str),
+            )
+            logger.debug(f"Redis cache set: {skill_name}")
+        except Exception as exc:
+            logger.warning(f"Redis cache set failed: {exc}")
+
+    def invalidate(self, skill_name: Optional[str] = None) -> int:
+        """Remove entries from Redis."""
+        try:
+            if skill_name is None:
+                # Flush all skill cache keys
+                keys = self._r.keys(f"{self._REDIS_PREFIX}*")
+                if keys:
+                    self._r.delete(*keys)
+                return len(keys) if keys else 0
+            # Pattern scan is expensive; log warning
+            logger.warning(
+                "RedisSkillCache.invalidate(skill_name) scans all keys; "
+                "consider using a dedicated Redis DB"
+            )
+            keys = self._r.keys(f"{self._REDIS_PREFIX}*")
+            removed = 0
+            for key in keys or []:
+                raw = self._r.get(key)
+                if raw:
+                    try:
+                        entry = json.loads(raw)
+                        if isinstance(entry, dict) and entry.get(
+                            "skill"
+                        ) == skill_name:
+                            self._r.delete(key)
+                            removed += 1
+                    except Exception:
+                        pass
+            return removed
+        except Exception:
+            return 0
+
+    def stats(self) -> Dict[str, Any]:
+        """Return approximate cache statistics from Redis."""
+        try:
+            keys = self._r.keys(f"{self._REDIS_PREFIX}*")
+            return {
+                "size": len(keys) if keys else 0,
+                "maxsize": self._maxsize,
+                "skills": "unknown (Redis scan)",
+            }
+        except Exception:
+            return {"size": 0, "maxsize": self._maxsize, "skills": []}
+
+
 # Global shared cache instance
-_global_skill_cache: Optional[SkillCache] = None
+_global_skill_cache: Optional[Any] = None
 _global_cache_lock = threading.Lock()
 
 
-def get_skill_cache(maxsize: int = 1024) -> SkillCache:
-    """Get or create the global skill cache."""
+def get_skill_cache(maxsize: int = 1024) -> Any:
+    """Get or create the global skill cache.
+
+    Returns :class:`RedisSkillCache` if ``REDIS_URL`` is set,
+    otherwise falls back to in-memory :class:`SkillCache`.
+    """
     global _global_skill_cache
     with _global_cache_lock:
         if _global_skill_cache is None:
-            _global_skill_cache = SkillCache(maxsize=maxsize)
+            if _get_redis() is not None:
+                try:
+                    _global_skill_cache = RedisSkillCache(maxsize=maxsize)
+                    logger.info(
+                        "Using RedisSkillCache for cross-worker caching"
+                    )
+                except Exception:
+                    _global_skill_cache = SkillCache(maxsize=maxsize)
+            else:
+                _global_skill_cache = SkillCache(maxsize=maxsize)
         return _global_skill_cache
 
 

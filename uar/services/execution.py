@@ -6,8 +6,10 @@ both WebSocket handlers.
 """
 
 import asyncio
+import json
 import logging
 import os
+import tempfile
 import time
 from typing import Any, AsyncIterator, Optional
 
@@ -111,7 +113,11 @@ class GoalExecutionService(BaseService):
         - Persistence on completion
         """
         strategy = SimplePlanner().plan(goal)
-        plan = build_orchestration_plan(strategy)
+        # Check for explicit skill dependencies in goal metadata
+        dependency_map = goal.metadata.get("skill_dependencies")
+        plan = build_orchestration_plan(strategy, dependency_map)
+        # Inject waves into strategy so executor can use them
+        strategy.waves = plan.waves
         timeout = goal.metadata.get("timeout_seconds", 5.0)
         cid = correlation_id
         gid = strategy.goal_id
@@ -126,9 +132,16 @@ class GoalExecutionService(BaseService):
 
         bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
         events: list[dict] = []
-        full_events: list[dict] = []
         persisted = False
         event_count = 0
+
+        # Stream events to a temp file instead of buffering in memory.
+        # This prevents unbounded memory growth for long executions.
+        tmp_path = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False
+        )
+        tmp_path.close()
+        tmp_file = open(tmp_path.name, "a")
 
         try:
             async for raw_event in self._iter_events(
@@ -136,7 +149,7 @@ class GoalExecutionService(BaseService):
             ):
                 event_count += 1
                 if event_count >= self.max_stream_events:
-                    full_events.append(raw_event)
+                    tmp_file.write(json.dumps(raw_event, default=str) + "\n")
                     err = self._event.error(
                         run_id="unknown",
                         error_msg=(
@@ -147,7 +160,7 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    full_events.append(err)
+                    tmp_file.write(json.dumps(err, default=str) + "\n")
                     yield err
                     comp = self._event.complete(
                         run_id="unknown",
@@ -158,7 +171,7 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    full_events.append(comp)
+                    tmp_file.write(json.dumps(comp, default=str) + "\n")
                     yield comp
                     break
 
@@ -166,14 +179,16 @@ class GoalExecutionService(BaseService):
                 if len(events) >= self.event_buffer_size:
                     events.pop(0)
                 events.append(raw_event)
-                full_events.append(raw_event)
+                tmp_file.write(json.dumps(raw_event, default=str) + "\n")
 
                 await bp.apply()
                 yield raw_event
 
-            # Persist successful run
-            record = self._persist(
-                full_events, strategy, user_id, request_id
+            tmp_file.flush()
+
+            # Persist successful run from temp file
+            record = self._persist_from_file(
+                tmp_path.name, strategy, user_id, request_id
             )
             persisted = True
             if yield_persisted and record is not None:
@@ -200,10 +215,11 @@ class GoalExecutionService(BaseService):
             yield err
             raise
         finally:
-            if full_events and not persisted:
+            tmp_file.close()
+            if not persisted:
                 try:
-                    self._persist(
-                        full_events, strategy, user_id, request_id
+                    self._persist_from_file(
+                        tmp_path.name, strategy, user_id, request_id
                     )
                 except Exception as persist_err:
                     self._log(
@@ -211,6 +227,10 @@ class GoalExecutionService(BaseService):
                         f"Fallback persistence failed: {persist_err}",
                         request_id,
                     )
+            try:
+                os.unlink(tmp_path.name)
+            except Exception:
+                pass
 
     def _persist(
         self,
@@ -246,6 +266,30 @@ class GoalExecutionService(BaseService):
                 request_id,
             )
             return None
+
+    def _persist_from_file(
+        self,
+        file_path: str,
+        strategy: Any,
+        user_id: Optional[str],
+        request_id: str,
+    ) -> Any:
+        """Read events from JSONL file and persist."""
+        events: list[dict] = []
+        try:
+            with open(file_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        events.append(json.loads(line))
+        except Exception as read_err:
+            self._log(
+                "error",
+                f"Failed to read event file: {read_err}",
+                request_id,
+            )
+            return None
+        return self._persist(events, strategy, user_id, request_id)
 
     async def _iter_events(
         self,

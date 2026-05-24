@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import pickle
 import random
 import threading
 import time
@@ -35,6 +36,27 @@ _MAX_RECIPE_CACHE_SIZE = 50
 # Shared thread pool for _run_with_timeout to avoid per-skill churn.
 _TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 _TIMEOUT_POOL_LOCK = threading.Lock()
+
+# Pickle-based snapshot is 3-10x faster than copy.deepcopy for large dicts
+_USE_PICKLE_SNAPSHOT = (
+    os.getenv("UAR_PICKLE_SNAPSHOT", "true").lower() == "true"
+)
+
+
+def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Fast snapshot of context data for retry / parallel isolation.
+
+    Uses ``pickle`` (3-10x faster than ``copy.deepcopy`` for large dicts)
+    and falls back to ``copy.deepcopy`` if pickle fails.
+    """
+    if not _USE_PICKLE_SNAPSHOT:
+        return copy.deepcopy(data)
+    try:
+        return pickle.loads(
+            pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
+        )
+    except Exception:
+        return copy.deepcopy(data)
 
 
 def _estimate_size(obj, max_depth=3, current_depth=0):
@@ -815,11 +837,34 @@ class Executor:
             enable_parallel = getattr(goal, "metadata", {}).get(
                 "enable_parallel", True
             )
-            skill_groups = (
-                _get_parallel_groups(strategy.ordered_skills)
-                if enable_parallel
-                else [[s] for s in strategy.ordered_skills]
-            )
+            if enable_parallel and strategy.waves:
+                # DAG-aware parallel waves from orchestration plan
+                skill_groups: List[List[str]] = []
+                for g in strategy.waves:
+                    if len(g) == 1:
+                        # Singleton groups always included
+                        skill_groups.append(g)
+                    else:
+                        # Multi-skill wave: split out context-modifying
+                        clean: List[str] = []
+                        for skill in g:
+                            if skill in CONTEXT_MODIFYING_SKILLS:
+                                if clean:
+                                    skill_groups.append(clean)
+                                    clean = []
+                                skill_groups.append([skill])
+                            else:
+                                clean.append(skill)
+                        if clean:
+                            skill_groups.append(clean)
+            elif enable_parallel:
+                skill_groups = _get_parallel_groups(
+                    strategy.ordered_skills
+                )
+            else:
+                skill_groups = [
+                    [s] for s in strategy.ordered_skills
+                ]
         else:
             skill_groups = []
 
@@ -898,7 +943,9 @@ class Executor:
                     params = marker.get("parameters", {})
                     # Snapshot BEFORE pushing params so retry is clean.
                     if instance_id not in recipe_snapshots:
-                        recipe_snapshots[instance_id] = copy.deepcopy(ctx.data)
+                        recipe_snapshots[instance_id] = (
+                            _snapshot_context(ctx.data)
+                        )
                         recipe_retry_remaining[instance_id] = marker.get(
                             "max_retries", 0
                         )
@@ -1224,7 +1271,7 @@ class Executor:
                         # race conditions if skills modify nested structures.
                         # This is a performance trade-off for correctness.
                         ctx_copy = PipelineContext(goal=goal)
-                        ctx_copy.data = copy.deepcopy(ctx.data)
+                        ctx_copy.data = _snapshot_context(ctx.data)
                         _skill_t0 = time.time()
                         future = pool.submit(
                             _run_with_timeout, fn, ctx_copy, timeout_seconds
@@ -1375,7 +1422,7 @@ class Executor:
                                     ],
                                 },
                             )
-                            ctx.data = copy.deepcopy(
+                            ctx.data = _snapshot_context(
                                 recipe_snapshots[instance_id]
                             )
                             recipe_error_lists[instance_id] = []
@@ -1700,7 +1747,7 @@ class Executor:
                     stack = ctx.data.setdefault("_recipe_params", [])
                     stack.append(params)
 
-                snapshot = copy.deepcopy(ctx.data)
+                snapshot = _snapshot_context(ctx.data)
                 max_retries = item.get(
                     "max_retries", recipe.get("max_retries", 0)
                 )
@@ -1726,7 +1773,7 @@ class Executor:
 
                 while True:
                     if attempt > 0:
-                        ctx.data = copy.deepcopy(snapshot)
+                        ctx.data = _snapshot_context(snapshot)
                         recipe_errors = []
                         yield _event(
                             "recipe_retry",

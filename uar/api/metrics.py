@@ -97,6 +97,7 @@ class MetricsCollector:
     """Collects and aggregates request and skill metrics."""
 
     _REDIS_KEY = "uar:metrics:totals"
+    _FLUSH_INTERVAL = float(os.getenv("UAR_METRICS_FLUSH_SEC", "5.0"))
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -110,7 +111,33 @@ class MetricsCollector:
         self._total_errors = 0
         self._active_ws_connections = 0
         self._start_time = time.time()
+        self._dirty = False
+        self._flush_thread: Optional[threading.Thread] = None
+        self._shutdown = False
         self._load_from_redis()
+        self._start_flush_thread()
+
+    def _start_flush_thread(self) -> None:
+        """Start background thread that flushes metrics to Redis."""
+        if _get_redis() is None:
+            return
+        self._flush_thread = threading.Thread(
+            target=self._flush_loop, daemon=True
+        )
+        self._flush_thread.start()
+
+    def _flush_loop(self) -> None:
+        """Periodic flush of dirty metrics to Redis."""
+        while not self._shutdown:
+            time.sleep(self._FLUSH_INTERVAL)
+            if self._dirty:
+                self._persist_to_redis()
+
+    def shutdown(self) -> None:
+        """Signal flush thread to stop and do final persist."""
+        self._shutdown = True
+        if self._dirty:
+            self._persist_to_redis()
 
     def record_request(
         self, endpoint: str, duration: float, error: bool = False
@@ -125,7 +152,7 @@ class MetricsCollector:
             if error:
                 metrics.errors += 1
                 self._total_errors += 1
-        self._persist_to_redis()
+            self._dirty = True
 
     def record_skill(
         self, skill_name: str, duration: float, error: bool = False
@@ -138,7 +165,7 @@ class MetricsCollector:
             metrics.histogram.observe(duration)
             if error:
                 metrics.errors += 1
-        self._persist_to_redis()
+            self._dirty = True
 
     def record_connection(self, delta: int = 1) -> None:
         """Adjust the active WebSocket connection gauge."""
@@ -146,7 +173,7 @@ class MetricsCollector:
             self._active_ws_connections = max(
                 0, self._active_ws_connections + delta
             )
-        self._persist_to_redis()
+            self._dirty = True
 
     def _load_from_redis(self) -> None:
         """Hydrate simple counters from Redis on startup."""
@@ -170,14 +197,16 @@ class MetricsCollector:
         if r is None:
             return
         try:
-            r.hset(
-                self._REDIS_KEY,
-                mapping={
-                    "total_requests": self._total_requests,
-                    "total_errors": self._total_errors,
-                    "active_ws_connections": self._active_ws_connections,
-                },
-            )
+            with self._lock:
+                r.hset(
+                    self._REDIS_KEY,
+                    mapping={
+                        "total_requests": self._total_requests,
+                        "total_errors": self._total_errors,
+                        "active_ws_connections": self._active_ws_connections,
+                    },
+                )
+                self._dirty = False
             r.expire(self._REDIS_KEY, 86400)  # 24 h TTL
         except Exception:  # noqa: BLE001
             pass

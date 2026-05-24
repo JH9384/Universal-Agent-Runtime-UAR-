@@ -17,6 +17,7 @@ class GoalSpec:
 class StrategySpec:
     goal_id: str
     ordered_skills: List[str]
+    waves: Optional[List[List[str]]] = None
 
 
 @dataclass
