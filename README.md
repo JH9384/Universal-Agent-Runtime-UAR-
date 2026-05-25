@@ -122,6 +122,28 @@ pip install -e ".[autonomi]"
 pip install -e ".[dev]"
 ```
 
+### UOR alignment snapshot
+
+UAR pins the upstream **UOR-Foundation/UOR-Framework** release under
+`third_party/uor`. We currently align to **v0.5.2** (released 2026-05-23) and
+record SHA-256 digests for all ontology/shape artifacts so schema validation is
+reproducible.
+
+Refresh the pinned assets with:
+
+```bash
+python scripts/fetch_uor_artifacts.py --tag v0.5.2
+```
+
+The script downloads into `third_party/uor/cache/<tag>/` and verifies against
+[`DIGESTS.json`](third_party/uor/DIGESTS.json). When the UOR Foundation publishes
+a new release:
+
+1. Update `third_party/uor/VERSION` and the digests file.
+2. Re-run the fetch script.
+3. Re-run compatibility validation (SHACL/JSON Schema) before advertising the
+   new alignment level.
+
 ### Run Locally
 
 ```bash

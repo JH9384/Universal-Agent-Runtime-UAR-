@@ -20,6 +20,7 @@ dependencies = [
   "pyarrow>=14.0,<16.0",
   "python-multipart>=0.0.9,<1.0",
   "rfc8785>=0.1.0,<1.0",
+  "uor-addr>=0.5,<1.0",
   # Core math and crypto libraries (required for full skill suite)
   "numpy>=1.24",
   "matplotlib>=3.0,<4.0",
@@ -135,6 +136,7 @@ module = [
     "llama_index.indices.knowledge_graph",
     "wasmtime",
     "asyncpg",
+    "uor_addr",
 ]
 ignore_missing_imports = true
 

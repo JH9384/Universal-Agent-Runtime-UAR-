@@ -18,6 +18,7 @@ from .contracts import PipelineContext, RunRecord, StrategySpec
 from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .registry import registry
 from .validation import validate_timeout
+from ..compat.uor_address import address_for_json, UORAddressError
 from .recipes import DEFAULT_RECIPES
 from .schema import validate_event
 from ..api.metrics import get_metrics_collector
@@ -713,6 +714,10 @@ def make_executor_event(
         "payload": payload or {},
         "error": error,
     }
+    try:
+        event["uor_address"] = address_for_json(event)
+    except UORAddressError as exc:
+        logger.warning("Failed to derive UOR address: %s", exc)
     # Validate against schema and log a warning if non-compliant
     validation_errors = validate_event(event)
     if validation_errors:
