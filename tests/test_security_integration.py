@@ -228,6 +228,7 @@ class TestAPIProductionFeatures:
         assert "status" in data
         assert "version" in data
         assert data["status"] == "healthy"
+        assert "uor_upstream_version" in data
 
 
 class TestRateLimitingProduction:

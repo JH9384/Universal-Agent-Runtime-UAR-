@@ -187,6 +187,10 @@ class TestAPIErrorHandling:
         data = response.json()
         assert data["status"] == "healthy"
         assert "version" in data
+        assert data["version"]
+        assert data["uor_upstream_version"].startswith("v") or (
+            data["uor_upstream_version"] == "unknown"
+        )
 
     def test_status_endpoint(self):
         """Test status endpoint"""

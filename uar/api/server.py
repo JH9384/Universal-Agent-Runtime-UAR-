@@ -32,6 +32,8 @@ from pydantic import (
 )
 
 from uar.core.contracts import GoalSpec
+from uar.version import get_uar_version
+from uar.compat.uor_version import get_uor_version
 from uar.core.binary_stream import (
     serialize_trefoil,
     serialize_molecular,
@@ -202,6 +204,11 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+logger.info(
+    "Booting UAR %s (aligned with UOR %s)",
+    get_uar_version(),
+    get_uor_version(),
+)
 
 
 # register skills
@@ -1875,7 +1882,11 @@ async def list_runs(
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint (backwards-compatible alias for liveness)."""
-    return {"status": "healthy", "version": "1.0.0"}
+    return {
+        "status": "healthy",
+        "version": get_uar_version(),
+        "uor_upstream_version": get_uor_version(),
+    }
 
 
 @app.get("/api/status")

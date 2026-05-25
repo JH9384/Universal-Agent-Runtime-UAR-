@@ -1,0 +1,12 @@
+{
+  "v0.5.2": {
+    "uor.foundation.jsonld": "22ced9b75e625828dc67ed07f2c94f96c3a095f6521cdbfc0d6503e7dd52ff1b",
+    "uor.foundation.ttl": "4e47d4c670bbdb66b24b6e8400acdf145f70fc8978eac9ff5ca97c5a545937ed",
+    "uor.foundation.nt": "bd752fcf6f0641ba78bdf50ed0fd44d35f79a72e46535adf15dfa1e9ec089f0e",
+    "uor.foundation.owl": "d8ac51bb277ce2bbecf478b6d9d19b0bd2fcedbf9fa72d3500bfc7c605d3fe99",
+    "uor.foundation.schema.json": "e85d7b92471ab7a54409295693b9ac75b0790a8078111ef8dd4e5e8d3bddae2d",
+    "uor.shapes.ttl": "b49ba70c8b225a9c9aeca8493043fbaa4903d3622055d0b004283e083f217d3c",
+    "uor.term.ebnf": "514f4123a1678b42e466bbe01e39c7ddcb1d1ae1107dcafc105b186c2fc604fa",
+    "uor-x86_64-unknown-linux-gnu.tar.gz": "1345299a1a697c94673fd81b713e2e7cf94d50a68218f7afcbc23ef426e6637b"
+  }
+}
