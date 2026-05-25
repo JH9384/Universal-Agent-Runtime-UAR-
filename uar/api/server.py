@@ -347,9 +347,13 @@ async def lifespan(app: FastAPI):
 
 
 # CORS configuration
+# In production, CORS_ORIGINS must be explicitly set. Defaulting to an empty
+# list blocks all cross-origin requests unless explicitly allowed.
+_is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
+_default_cors = "" if _is_production else "http://localhost:3000"
 CORS_ORIGINS = [
     o
-    for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    for o in os.getenv("CORS_ORIGINS", _default_cors).split(",")
     if o
 ]
 CORS_ALLOW_CREDENTIALS = (
