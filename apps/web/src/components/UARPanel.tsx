@@ -1088,6 +1088,9 @@ export function UARPanel() {
   }
 
   const runStream = useCallback(async () => {
+    // Abort any previous stream before starting a new one (prevents
+    // orphaned connections when the user rapidly clicks Run).
+    abortControllerRef.current?.abort()
     setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setDataViz3D(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
@@ -2020,48 +2023,46 @@ export function UARPanel() {
                           draggable={!isRunning}
                           aria-label={`${item.type === 'recipe' ? 'Recipe' : 'Skill'}: ${label} (position ${index + 1})`}
                           onDragStart={(e) => {
-                            e.dataTransfer.setData('text/uar-order', String(index))
+                            e.dataTransfer.setData('text/uar-order', item.id)
                             e.dataTransfer.effectAllowed = 'move'
                           }}
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             e.preventDefault()
                             if (!Array.from(e.dataTransfer.types).includes('text/uar-order')) return
-                            const fromIndex = parseInt(e.dataTransfer.getData('text/uar-order'), 10)
+                            const fromId = e.dataTransfer.getData('text/uar-order')
                             const toIndex = index
-                            if (!Number.isNaN(fromIndex) && fromIndex !== toIndex) {
-                              setUnifiedOrder((prev) => {
-                                const newOrder = [...prev]
-                                const [moved] = newOrder.splice(fromIndex, 1)
-                                newOrder.splice(toIndex, 0, moved)
-                                // Update skillLastPositions for skills
-                                setSkillLastPositions((prevPositions) => {
-                                  const newPositions = { ...prevPositions }
-                                  const minIndex = Math.min(fromIndex, toIndex)
-                                  const maxIndex = Math.max(fromIndex, toIndex)
-                                  for (let i = minIndex; i <= maxIndex; i++) {
-                                    if (newOrder[i].type === 'skill') {
-                                      newPositions[newOrder[i].content] = i
-                                    }
+                            setUnifiedOrder((prev) => {
+                              const fromIndex = prev.findIndex((i) => i.id === fromId)
+                              if (fromIndex === -1 || fromIndex === toIndex) return prev
+                              const newOrder = [...prev]
+                              const [moved] = newOrder.splice(fromIndex, 1)
+                              newOrder.splice(toIndex, 0, moved)
+                              // Update skillLastPositions for skills
+                              setSkillLastPositions((prevPositions) => {
+                                const newPositions = { ...prevPositions }
+                                const minIndex = Math.min(fromIndex, toIndex)
+                                const maxIndex = Math.max(fromIndex, toIndex)
+                                for (let i = minIndex; i <= maxIndex; i++) {
+                                  if (newOrder[i].type === 'skill') {
+                                    newPositions[newOrder[i].content] = i
                                   }
-                                  return newPositions
-                                })
-                                // selectedSkills is now derived from unifiedOrder, no need to set it
-                                const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
-                                setSkillHistory((history) => {
-                                  const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
-                                  setSkillHistoryIndex((idx) => idx + 1)
-                                  return newHistory
-                                })
-                                // Save unified order to history to preserve instance IDs
-                                setUnifiedOrderHistory((history) => {
-                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
-                                  setUnifiedOrderHistoryIndex((idx) => idx + 1)
-                                  return newHistory
-                                })
-                                return newOrder
+                                }
+                                return newPositions
                               })
-                            }
+                              const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+                              setSkillHistory((history) => {
+                                const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
+                                setSkillHistoryIndex((idx) => idx + 1)
+                                return newHistory
+                              })
+                              setUnifiedOrderHistory((history) => {
+                                const newHistory = [...history.slice(0, unifiedOrderHistoryRef.current + 1), newOrder]
+                                setUnifiedOrderHistoryIndex((idx) => idx + 1)
+                                return newHistory
+                              })
+                              return newOrder
+                            })
                           }}
                         >
                           {item.type === 'recipe' ? '🍳 ' : ''}{label}
@@ -2175,29 +2176,29 @@ export function UARPanel() {
                       className={styles.recipeChip}
                       draggable={!isRunning}
                       onDragStart={(e) => {
-                        e.dataTransfer.setData('text/uar-recipe', String(index))
+                        e.dataTransfer.setData('text/uar-recipe', r.id)
                         e.dataTransfer.effectAllowed = 'move'
                       }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault()
                         if (!Array.from(e.dataTransfer.types).includes('text/uar-recipe')) return
-                        const fromIndex = parseInt(e.dataTransfer.getData('text/uar-recipe'), 10)
-                        const toIndex = index
-                        if (!Number.isNaN(fromIndex) && fromIndex !== toIndex) {
-                          setRecipes((prev) => {
-                            const newRecipes = [...prev]
-                            const [moved] = newRecipes.splice(fromIndex, 1)
-                            newRecipes.splice(toIndex, 0, moved)
-                            // Update history atomically
-                            setRecipeHistory((history) => {
-                              const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
-                              setRecipeHistoryIndex((idx) => idx + 1)
-                              return newHistory
-                            })
-                            return newRecipes
+                        const fromId = e.dataTransfer.getData('text/uar-recipe')
+                        setRecipes((prev) => {
+                          const fromIndex = prev.findIndex((recipe) => recipe.id === fromId)
+                          const toIndex = index
+                          if (fromIndex === -1 || fromIndex === toIndex) return prev
+                          const newRecipes = [...prev]
+                          const [moved] = newRecipes.splice(fromIndex, 1)
+                          newRecipes.splice(toIndex, 0, moved)
+                          // Update history atomically
+                          setRecipeHistory((history) => {
+                            const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
+                            setRecipeHistoryIndex((idx) => idx + 1)
+                            return newHistory
                           })
-                        }
+                          return newRecipes
+                        })
                       }}
                     >
                       <button
