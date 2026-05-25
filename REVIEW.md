@@ -204,10 +204,10 @@ Client → FastAPI (server.py) → Executor (executor.py)
 - **Code:** `zstd` compression + Bloom filter, but on Redis failure it silently falls back to DB every time.
 - **Fix:** Add a failure counter; skip Redis attempts for 30 s after 5 consecutive failures.
 
-#### M5: Missing CORS Origin Validation
-- **File:** `uar/api/server.py:92`
-- **Code:** `CORSMiddleware` uses `allow_origins=["*"]` in production if `UAR_CORS_ORIGINS` is not set.
-- **Fix:** Default to an empty list in production; require explicit configuration.
+#### M5: Missing CORS Origin Validation — **RESOLVED**
+- **File:** `uar/api/server.py:349-363`
+- **Code:** `CORSMiddleware` used `allow_origins=["http://localhost:3000"]` unconditionally.
+- **Fix:** Default to an empty list when `ENVIRONMENT=production`; require explicit `CORS_ORIGINS` configuration.
 
 ---
 
