@@ -213,21 +213,21 @@ Client → FastAPI (server.py) → Executor (executor.py)
 
 ### 🟢 Low
 
-#### L1: Inconsistent Error Response Keys
-- **Files:** `uar/api/server.py`, `uar/api/middleware.py`
-- **Details:** Some error responses use `detail`, others use `message`, and some use `error`. Standardize on `{error, message, request_id}`.
+#### L1: Inconsistent Error Response Keys — **RESOLVED**
+- **Files:** `uar/api/server.py:1426-1436`
+- **Details:** `stream_goal` used a plain-string `detail` for the SSE rate-limit error while all other endpoints returned structured `{"error", "message"}` dicts. Standardized to structured dict.
 
-#### L2: Dead Code in HTTP Client
-- **File:** `uar/core/http_client.py:37-55`
-- **Details:** `send_json` method is defined but never used anywhere in the codebase.
+#### L2: Dead Code in HTTP Client — **RESOLVED (pre-existing)**
+- **File:** `uar/core/http_client.py`
+- **Details:** `send_json` is no longer present in the current codebase; removed during earlier refactoring.
 
-#### L3: Unused Imports
-- **File:** `uar/api/server.py:1-15`
-- **Details:** `from uar.core.schema import validate_event` imported but never called.
+#### L3: Unused Imports — **RESOLVED (pre-existing)**
+- **File:** `uar/api/server.py`
+- **Details:** `validate_event` is not imported in the current version of `server.py`; already cleaned up.
 
-#### L4: Typo in Logger Name
-- **File:** `uar/services/execution.py:28`
-- **Code:** `logger = logging.getLogger("execution-service")` — all other modules use dotted names (`uar.api.server`).
+#### L4: Typo in Logger Name — **RESOLVED (pre-existing)**
+- **File:** `uar/services/execution.py`
+- **Code:** `logger = logging.getLogger(__name__)` — already uses standard dotted module naming.
 
 ---
 
