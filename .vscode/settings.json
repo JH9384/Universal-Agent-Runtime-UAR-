@@ -17,5 +17,7 @@
     },
     "antigravity.lmStudio.url": "http://localhost:1234/",
     "lmStudioCopilot.serverUrl": "http://127.0.0.1:1234",
-    "lmStudioCopilot.allowFileModifications": true
+    "lmStudioCopilot.allowFileModifications": true,
+    "localLlmCopilot.apiUrl": "http://127.0.0.1:1234",
+    "localLlmCopilot.model": "openai-gpt-oss-20b-abliterated-uncensored-neo-imatrix"
 }

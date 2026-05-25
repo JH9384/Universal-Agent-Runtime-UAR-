@@ -1980,7 +1980,11 @@ class Executor:
                         },
                         correlation_id=correlation_id,
                     )
-                    ctx.data.update(cached_delta)
+                    # Prevent cached deltas from overwriting internal keys
+                    if cached_delta:
+                        for key, value in cached_delta.items():
+                            if not key.startswith("_"):
+                                ctx.data[key] = value
                     yield _event(
                         "recipe_end",
                         "",

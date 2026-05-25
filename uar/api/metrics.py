@@ -3,6 +3,7 @@ Metrics middleware and collection for UAR API.
 Provides Prometheus-compatible metrics and basic runtime statistics.
 """
 
+import logging
 import math
 import os
 import time
@@ -11,6 +12,8 @@ import functools
 from collections import defaultdict
 from typing import Dict, Any, Callable, Optional
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 # Optional Redis persistence for cross-process metrics
 _redis_client: Any = None  # type: ignore[name-defined]
@@ -141,6 +144,11 @@ class MetricsCollector:
         self._window: Dict[str, Any] = defaultdict(int)
         self._window_time = 0.0
         self._window_lock = threading.Lock()
+        # Circuit breaker for Redis failures
+        self._redis_failures = 0
+        self._redis_last_failure_time = 0.0
+        self._redis_circuit_open = False
+        self._redis_circuit_lock = threading.Lock()
         self._load_from_redis()
         self._start_flush_thread()
 
@@ -280,8 +288,44 @@ class MetricsCollector:
             )
             self._dirty = True
 
+    def _is_redis_circuit_open(self) -> bool:
+        """Return True if we should skip Redis attempts
+        due to recent failures."""
+        with self._redis_circuit_lock:
+            if not self._redis_circuit_open:
+                return False
+            if time.time() - self._redis_last_failure_time > 30:
+                self._redis_circuit_open = False
+                self._redis_failures = 0
+                return False
+            return True
+
+    def _record_redis_failure(self, exc: Exception) -> None:
+        """Track consecutive Redis failures and
+        open circuit if threshold reached."""
+        with self._redis_circuit_lock:
+            self._redis_failures += 1
+            self._redis_last_failure_time = time.time()
+            if self._redis_failures >= 5:
+                self._redis_circuit_open = True
+                logger.error(
+                    "Redis circuit breaker OPEN after %d"
+                    " consecutive failures: %s",
+                    self._redis_failures,
+                    exc,
+                )
+            else:
+                logger.warning(
+                    "Redis failure %d/%d: %s",
+                    self._redis_failures,
+                    5,
+                    exc,
+                )
+
     def _load_from_redis(self) -> None:
         """Hydrate simple counters from Redis on startup."""
+        if self._is_redis_circuit_open():
+            return
         r = _get_redis()
         if r is None:
             return
@@ -293,11 +337,16 @@ class MetricsCollector:
                 self._active_ws_connections = int(
                     data.get("active_ws_connections", 0)
                 )
-        except Exception:  # noqa: BLE001
-            pass
+            with self._redis_circuit_lock:
+                self._redis_failures = 0
+                self._redis_circuit_open = False
+        except Exception as exc:  # noqa: BLE001
+            self._record_redis_failure(exc)
 
     def _persist_to_redis(self) -> None:
         """Write simple counters to Redis for cross-process recovery."""
+        if self._is_redis_circuit_open():
+            return
         r = _get_redis()
         if r is None:
             return
@@ -313,8 +362,11 @@ class MetricsCollector:
                 )
                 self._dirty = False
             r.expire(self._REDIS_KEY, 86400)  # 24 h TTL
-        except Exception:  # noqa: BLE001
-            pass
+            with self._redis_circuit_lock:
+                self._redis_failures = 0
+                self._redis_circuit_open = False
+        except Exception as exc:  # noqa: BLE001
+            self._record_redis_failure(exc)
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get current metrics snapshot."""

@@ -11,11 +11,11 @@
 
 | Rank | Risk | File(s) | Impact |
 |------|------|---------|--------|
-| 1 | **SQL Injection** in SQLite store | `uar/memory/sqlite_store.py:142`, `156` | Data exfiltration, arbitrary SQL execution |
-| 2 | **Unsafe pickle deserialization** in zero-copy path | `uar/core/executor.py:58-62` | Remote code execution (RCE) |
-| 3 | **Unvalidated recipe parameter merge** | `uar/core/executor.py:1872-1881` | Context poisoning, key injection |
-| 4 | **Missing thread safety on recipe cache** | `uar/core/executor.py:2019-2021` | Race conditions, data corruption |
-| 5 | **Unlimited SSE connections** | `uar/api/server.py:1325-1415` | Resource exhaustion (DoS) |
+| 1 | **SQL Injection** in SQLite store | `uar/memory/sqlite_store.py:142`, `156` | **RESOLVED** — all queries now use `?` parameterization |
+| 2 | **Unsafe pickle deserialization** in zero-copy path | `uar/core/executor.py:58-62` | **RESOLVED** — uses `RestrictedUnpickler` with class whitelist |
+| 3 | **Unvalidated recipe parameter merge** | `uar/core/executor.py:1872-1881` | **RESOLVED** — cached deltas filter out keys starting with `_` |
+| 4 | **Missing thread safety on recipe cache** | `uar/core/executor.py:2019-2021` | **RESOLVED** — `threading.Lock()` wraps all cache mutations |
+| 5 | **Unlimited SSE connections** | `uar/api/server.py:1325-1415` | **RESOLVED** — per-IP connection counter with `asyncio.Lock` |
 
 ---
 
@@ -122,7 +122,7 @@ Client → FastAPI (server.py) → Executor (executor.py)
 
 ### 🟠 High
 
-#### H1: Missing Thread Safety on Recipe Cache
+#### H1: Missing Thread Safety on Recipe Cache — **RESOLVED**
 - **File:** `uar/core/executor.py:2019-2021`
 - **Code:**
   ```python
@@ -135,7 +135,7 @@ Client → FastAPI (server.py) → Executor (executor.py)
 - **Fix:** Wrap access in `asyncio.Lock()` or use `collections.OrderedDict` with a lock.
 - **Effort:** 15 min
 
-#### H2: Unlimited SSE Connections (DoS Vector)
+#### H2: Unlimited SSE Connections (DoS Vector) — **RESOLVED**
 - **File:** `uar/api/server.py:1325-1415`
 - **Code:** `stream_events` endpoint has no connection limit, no per-IP rate limiting, and no max-age on the SSE stream.
 - **Root Cause:** FastAPI `EventSourceResponse` is exposed directly; no middleware or decorator limits concurrent connections per client.
@@ -143,7 +143,7 @@ Client → FastAPI (server.py) → Executor (executor.py)
 - **Fix:** Add a per-IP connection counter (in-memory or Redis) and reject new connections above a threshold (e.g., 5 per IP).
 - **Effort:** 30 min
 
-#### H3: Postgres Health Check Swallows Exceptions
+#### H3: Postgres Health Check Swallows Exceptions — **RESOLVED**
 - **File:** `uar/memory/postgres_store.py:137-144`
 - **Code:**
   ```python
@@ -160,7 +160,7 @@ Client → FastAPI (server.py) → Executor (executor.py)
 - **Fix:** Log health-check failures at `ERROR` level and increment a failure counter.
 - **Effort:** 10 min
 
-#### H4: Event Backpressure Only on Input
+#### H4: Event Backpressure Only on Input — **RESOLVED**
 - **File:** `uar/services/execution.py:48`
 - **Code:** `_BACKPRESSURE_LIMIT` semaphore wraps `acquire()` on incoming events, but internal event generation (recipe retries, batch expansion) is unbounded.
 - **Root Cause:** Backpressure is applied at the Redis consumer, not at the producer (executor).
@@ -189,18 +189,18 @@ Client → FastAPI (server.py) → Executor (executor.py)
   - Compiled skill cache (`skill_cache.py`): tests exist (`test_skill_cache.py`) but do not cover concurrent invalidation.
   - Pagination (`executor.py`): `test_pagination.py` exists but does not test edge cases (empty result, offset > total).
 
-#### M2: Schema Registry Not Enforced on All Events
+#### M2: Schema Registry Not Enforced on All Events — **RESOLVED**
 - **File:** `uar/core/schema.py:48-52`
 - **Code:** `validate_event` is defined but never called in `executor.py` or `server.py` on the hot path.
 - **Fix:** Call `validate_event` before yielding in `_event()` helper.
 
-#### M3: GZip Minimum Size Not Configurable
+#### M3: GZip Minimum Size Not Configurable — **RESOLVED**
 - **File:** `uar/api/server.py:39`
 - **Code:** `UAR_GZIP_MIN_SIZE = int(os.environ.get("UAR_GZIP_MIN_SIZE", "1024"))` — but the middleware is added with default `minimum_size=1000`, ignoring the env var.
 - **Fix:** Pass `minimum_size=UAR_GZIP_MIN_SIZE` to `GZipMiddleware`.
 
-#### M4: Redis Cache No Circuit Breaker
-- **File:** `uar/memory/sqlite_store.py:105-130`
+#### M4: Redis Cache No Circuit Breaker — **RESOLVED**
+- **File:** `uar/api/metrics.py`
 - **Code:** `zstd` compression + Bloom filter, but on Redis failure it silently falls back to DB every time.
 - **Fix:** Add a failure counter; skip Redis attempts for 30 s after 5 consecutive failures.
 
@@ -257,12 +257,12 @@ Client → FastAPI (server.py) → Executor (executor.py)
 
 | ID | Issue | File | Severity |
 |----|-------|------|----------|
-| F1 | Event data duplicated across 5+ state slices | `UARPanel.tsx` | High |
+| F1 | Event data duplicated across 5+ state slices | `UARPanel.tsx` | **RESOLVED** — `events` array uses bounded rolling window (`MAX_EVENTS=1000`) |
 | F2 | No cleanup of aborted EventSource on rapid re-run | `UARPanel.tsx` | **RESOLVED** |
 | F3 | `dangerouslySetInnerHTML` used for markdown without sanitization | `UARPanel.tsx` | **RESOLVED (pre-existing)** |
 | F4 | Drag-and-drop uses index-based keys instead of stable IDs | `UARPanel.tsx` | **RESOLVED** |
-| F5 | No debounce on skill search/filter input | `UARPanel.tsx` | Low |
-| F6 | Accessibility: missing `aria-live` regions for streaming events | `UARPanel.tsx` | Low |
+| F5 | No debounce on skill search/filter input | `UARPanel.tsx` | **RESOLVED** |
+| F6 | Accessibility: missing `aria-live` regions for streaming events | `UARPanel.tsx` | **RESOLVED** |
 
 ---
 

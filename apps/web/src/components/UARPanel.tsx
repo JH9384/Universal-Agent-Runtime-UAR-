@@ -556,6 +556,17 @@ export function UARPanel() {
   const [showHealthDashboard, setShowHealthDashboard] = useState(false)
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
+  const [debouncedSkillSearch, setDebouncedSkillSearch] = useState<string>('')
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSkillSearch(skillSearch)
+    }, 150)
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    }
+  }, [skillSearch])
   const [expandedTipSections, setExpandedTipSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     const sections = ['Documents', 'Goal', 'Skills', 'Run', 'Events', 'Graph', ...SKILL_GROUPS.map(g => g.name)]
@@ -1953,7 +1964,7 @@ export function UARPanel() {
               </div>
               <div className={styles.skillsContainer}>
                 {(() => {
-                  const query = skillSearch.trim().toLowerCase()
+                  const query = debouncedSkillSearch.trim().toLowerCase()
                   const groups = query
                     ? SKILL_GROUPS.map(g => ({
                         ...g,
@@ -2554,7 +2565,7 @@ export function UARPanel() {
         </div>
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
-            <div className={styles.eventsContainer}>
+            <div className={styles.eventsContainer} aria-live="polite" aria-atomic="false">
               {(() => {
                 const filtered = events.filter((e) => {
                   if (eventFilter === 'all') return true
