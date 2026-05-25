@@ -357,7 +357,7 @@ class TestInputValidationEdgeCases:
 
 
 class TestHardeningSecurity:
-    """Hardening tests for sandbox / safety features introduced in core modules."""
+    """Hardening tests for sandbox / safety features in core modules."""
 
     def test_pickle_safety_restriced_unpickler(self):
         """Test RestrictedUnpickler rejects arbitrary class loading."""
@@ -373,7 +373,7 @@ class TestHardeningSecurity:
         payload = MaliciousPayload()
         serialized = pickle.dumps(payload)
 
-        # Attempting to load MaliciousPayload should raise pickle.UnpicklingError
+        # Loading MaliciousPayload should raise pickle.UnpicklingError.
         with pytest.raises(pickle.UnpicklingError) as excinfo:
             RestrictedUnpickler(io.BytesIO(serialized)).load()
         assert "Forbidden unpickling class" in str(excinfo.value)

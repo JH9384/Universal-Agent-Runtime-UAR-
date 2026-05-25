@@ -1421,9 +1421,22 @@ async def stream_goal(
             if current_conns >= _MAX_CONCURRENT_SSE_PER_IP:
                 raise HTTPException(
                     status_code=429,
-                    detail=f"Too many concurrent streaming connections from IP {client_ip} (limit: {_MAX_CONCURRENT_SSE_PER_IP})"
+                    detail=(
+                        "Too many concurrent streaming connections from "
+                        f"IP {client_ip} "
+                        f"(limit: {_MAX_CONCURRENT_SSE_PER_IP})"
+                    ),
                 )
             _sse_connections[client_ip] = current_conns + 1
+
+        async def _release_sse_connection() -> None:
+            async with _sse_connections_lock:
+                if client_ip in _sse_connections:
+                    _sse_connections[client_ip] = max(
+                        0, _sse_connections[client_ip] - 1
+                    )
+                    if _sse_connections[client_ip] == 0:
+                        _sse_connections.pop(client_ip, None)
 
         try:
             goal = _build_goal(req)
@@ -1479,25 +1492,14 @@ async def stream_goal(
                         )
                     )
                 finally:
-                    async with _sse_connections_lock:
-                        if client_ip in _sse_connections:
-                            _sse_connections[client_ip] = max(0, _sse_connections[client_ip] - 1)
-                            if _sse_connections[client_ip] == 0:
-                                _sse_connections.pop(client_ip, None)
+                    await _release_sse_connection()
 
             return StreamingResponse(
                 _generate(), media_type="text/event-stream"
             )
 
-        except Exception:
-            async with _sse_connections_lock:
-                if client_ip in _sse_connections:
-                    _sse_connections[client_ip] = max(0, _sse_connections[client_ip] - 1)
-                    if _sse_connections[client_ip] == 0:
-                        _sse_connections.pop(client_ip, None)
-            raise
-
         except ValidationError as e:
+            await _release_sse_connection()
             logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
             # Provide user-friendly error messages based on field
             user_message = str(e)
@@ -1545,6 +1547,7 @@ async def stream_goal(
                 },
             )
         except UARError as e:
+            await _release_sse_connection()
             logger.error(f"[{request_id}] Stream UAR error: {str(e)}")
             # Provide more context for UARError types
             error_type = type(e).__name__
@@ -1572,6 +1575,7 @@ async def stream_goal(
                 },
             )
         except Exception as e:
+            await _release_sse_connection()
             logger.error(
                 f"[{request_id}] Unexpected stream error: {str(e)}",
                 exc_info=True,

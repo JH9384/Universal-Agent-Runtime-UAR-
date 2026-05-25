@@ -29,15 +29,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Install package with dev dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[dev]'
+          python-version: '3.12'
+          cache: 'pip'
 
       - name: Run pytest (foundation scope)
-        run: pytest tests/test_*.py
+        run: make validate PYTHON=python
 
   web-build:
     name: Staged Web Build Signal
@@ -54,9 +50,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build web app (non-blocking staged UI signal)
         run: npm run build

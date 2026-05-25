@@ -89,10 +89,22 @@ class RestrictedUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
         # Permit basic data structures and some builtins
         if module == "builtins" and name in {
-            "dict", "list", "set", "tuple", "str", "int", "float", "bool", "bytes", "bytearray", "NoneType"
+            "dict",
+            "list",
+            "set",
+            "tuple",
+            "str",
+            "int",
+            "float",
+            "bool",
+            "bytes",
+            "bytearray",
+            "NoneType",
         }:
             return getattr(sys.modules[module], name)
-        raise pickle.UnpicklingError(f"Forbidden unpickling class: {module}.{name}")
+        raise pickle.UnpicklingError(
+            f"Forbidden unpickling class: {module}.{name}"
+        )
 
 
 def validate_parameters(params: Dict[str, Any]) -> None:
@@ -100,8 +112,16 @@ def validate_parameters(params: Dict[str, Any]) -> None:
     if not isinstance(params, dict):
         return
     for key in params:
-        if key.startswith("_") or key in {"metadata", "objective", "id", "goal_id", "user_id"}:
-            raise ValidationError(f"Invalid parameter key: '{key}' is restricted.")
+        if key.startswith("_") or key in {
+            "metadata",
+            "objective",
+            "id",
+            "goal_id",
+            "user_id",
+        }:
+            raise ValidationError(
+                f"Invalid parameter key: '{key}' is restricted."
+            )
 
 
 def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -693,12 +713,6 @@ def make_executor_event(
         "payload": payload or {},
         "error": error,
     }
-    # Standardize optional fields to avoid strict schema validation noise
-    if event["skill"] is None:
-        event.pop("skill")
-    if event["error"] is None:
-        event.pop("error")
-
     # Validate against schema and log a warning if non-compliant
     validation_errors = validate_event(event)
     if validation_errors:
@@ -1169,6 +1183,18 @@ class Executor:
                     last_error = None
 
                     for attempt in range(max_retries + 1):
+                        _coalesce_lock_acquired = False
+
+                        def _release_coalesce_lock() -> None:
+                            nonlocal _coalesce_lock_acquired
+                            if (
+                                _COALESCE_ENABLED
+                                and _coalesce_key
+                                and _coalesce_lock_acquired
+                            ):
+                                _coalesce_locks[_coalesce_key].release()
+                                _coalesce_lock_acquired = False
+
                         try:
                             # Request coalescing: dedup concurrent
                             # identical executions
@@ -1176,10 +1202,23 @@ class Executor:
                             if _COALESCE_ENABLED:
                                 import hashlib
 
+                                coalesce_input = {
+                                    "context": ctx.data,
+                                    "goal": {
+                                        "id": getattr(goal, "id", ""),
+                                        "objective": getattr(
+                                            goal, "objective", ""
+                                        ),
+                                        "metadata": getattr(
+                                            goal, "metadata", {}
+                                        ),
+                                    },
+                                }
                                 _input_hash = hashlib.blake2b(
                                     json.dumps(
-                                        ctx.data, sort_keys=True,
-                                        default=str
+                                        coalesce_input,
+                                        sort_keys=True,
+                                        default=str,
                                     ).encode(),
                                     digest_size=8,
                                 ).hexdigest()
@@ -1192,13 +1231,12 @@ class Executor:
                                             threading.Lock()
                                         )
                                 _coalesce_locks[_coalesce_key].acquire()
+                                _coalesce_lock_acquired = True
                                 if _coalesce_key in _coalesce_results:
                                     result = _coalesce_results[
                                         _coalesce_key
                                     ]
-                                    _coalesce_locks[
-                                        _coalesce_key
-                                    ].release()
+                                    _release_coalesce_lock()
                                     with ctx_lock:
                                         ctx.data[skill_name] = result
                                     outputs.append(
@@ -1263,6 +1301,7 @@ class Executor:
                             if _COALESCE_ENABLED and _coalesce_key:
                                 _coalesce_results[_coalesce_key] = result
 
+                            _release_coalesce_lock()
                             yield _ev(
                                 "skill_complete",
                                 skill=skill_name,
@@ -1271,12 +1310,11 @@ class Executor:
                                     "attempt": attempt + 1,
                                 },
                             )
-                            if _COALESCE_ENABLED and _coalesce_key:
-                                _coalesce_locks[_coalesce_key].release()
                             break
                         except (TimeoutError, SkillExecutionError) as exc:
                             last_error = exc
                             if attempt < max_retries:
+                                _release_coalesce_lock()
                                 # Add jitter to prevent thundering herd
                                 base_backoff = min(2**attempt, 5)
                                 backoff = base_backoff * random.uniform(
@@ -1304,8 +1342,7 @@ class Executor:
                                     time.time() - _skill_t0,
                                     error=True,
                                 )
-                                if _COALESCE_ENABLED and _coalesce_key:
-                                    _coalesce_locks[_coalesce_key].release()
+                                _release_coalesce_lock()
                                 _add_error(f"{skill_name}: {str(last_error)}")
                                 if (
                                     active_recipe_stack
@@ -1320,8 +1357,7 @@ class Executor:
                                 else:
                                     execution_broken = True
                         except Exception as exc:
-                            if _COALESCE_ENABLED and _coalesce_key:
-                                _coalesce_locks[_coalesce_key].release()
+                            _release_coalesce_lock()
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
@@ -2061,8 +2097,12 @@ class Executor:
                         if key not in snapshot or snapshot[key] != value:
                             delta[key] = value
                     with self._recipe_cache_lock:
-                        while len(self._recipe_cache) >= _MAX_RECIPE_CACHE_SIZE:
-                            self._recipe_cache.pop(next(iter(self._recipe_cache)))
+                        while (
+                            len(self._recipe_cache) >= _MAX_RECIPE_CACHE_SIZE
+                        ):
+                            self._recipe_cache.pop(
+                                next(iter(self._recipe_cache))
+                            )
                         self._recipe_cache[_cache_key] = delta
 
                 yield _event(

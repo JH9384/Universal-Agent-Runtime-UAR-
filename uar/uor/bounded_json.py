@@ -8,6 +8,7 @@ Uses JCS-RFC8785 canonicalization with Unicode NFC normalization.
 import unicodedata
 import rfc8785
 import logging
+import sys
 from typing import Any
 from enum import IntEnum
 import hashlib
@@ -48,6 +49,11 @@ class JsonValue:
     def from_python(cls, obj: Any, depth: int = 0) -> "JsonValue":
         """Convert Python object to typed JsonValue with recursion bounds
         (CT-B)."""
+        if depth == 0:
+            needed_limit = (MAX_RECURSION_DEPTH * 3) + 100
+            if sys.getrecursionlimit() < needed_limit:
+                sys.setrecursionlimit(needed_limit)
+
         if depth > MAX_RECURSION_DEPTH:
             msg = (
                 f"Recursion depth {depth} exceeds "

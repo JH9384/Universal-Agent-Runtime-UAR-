@@ -10,9 +10,26 @@ import RecipeTimeline from './RecipeTimeline'
 import { HealthDashboard } from './HealthDashboard'
 import styles from './UARPanel.module.css'
 
+function getLocalStorage(): Storage | null {
+  try {
+    const storage = globalThis.localStorage
+    if (
+      storage &&
+      typeof storage.getItem === 'function' &&
+      typeof storage.setItem === 'function' &&
+      typeof storage.removeItem === 'function'
+    ) {
+      return storage
+    }
+  } catch {
+    // localStorage can be unavailable in tests, SSR, or privacy modes.
+  }
+  return null
+}
+
 // Helper to build Authorization header when API key is present
 function authHeaders(init?: Record<string, string>): Record<string, string> {
-  const key = localStorage.getItem('uar_api_key')
+  const key = getLocalStorage()?.getItem('uar_api_key')
   if (!key) return init || {}
   return { Authorization: `Bearer ${key}`, ...init }
 }
@@ -373,10 +390,9 @@ function human(bytes: number) {
 const INITIAL_SKILLS = ['doc_ingest', 'dependency_map', 'sum_review']
 const INITIAL_RECIPES = (() => {
   try {
-    const saved = localStorage.getItem(RECIPES_KEY)
+    const saved = getLocalStorage()?.getItem(RECIPES_KEY)
     return saved ? JSON.parse(saved) : RECIPES
-  } catch (e) {
-    console.warn('Failed to load recipes from localStorage:', e)
+  } catch {
     return RECIPES
   }
 })()
@@ -503,7 +519,7 @@ export function UARPanel() {
   // User presets (save/load panel configuration)
   const [userPresets, setUserPresets] = useState<UserPreset[]>(() => {
     try {
-      const saved = localStorage.getItem(USER_PRESETS_KEY)
+      const saved = getLocalStorage()?.getItem(USER_PRESETS_KEY)
       return saved ? JSON.parse(saved) : []
     } catch {
       return []
@@ -592,7 +608,7 @@ export function UARPanel() {
   })
   const [recent, setRecent] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem(RECENT_KEY)
+      const saved = getLocalStorage()?.getItem(RECENT_KEY)
       return saved ? JSON.parse(saved) : []
     } catch (e) {
       console.warn('Failed to load recent paths from localStorage:', e)
@@ -603,7 +619,7 @@ export function UARPanel() {
   // Save recipes to localStorage when they change
   useEffect(() => {
     try {
-      localStorage.setItem(RECIPES_KEY, JSON.stringify(recipes))
+      getLocalStorage()?.setItem(RECIPES_KEY, JSON.stringify(recipes))
     } catch (e) {
       // Handle localStorage quota exceeded errors gracefully
       if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
@@ -683,7 +699,7 @@ export function UARPanel() {
           const merged = [...fetched, ...preserved]
           // Save merged result to localStorage
           try {
-            localStorage.setItem(RECIPES_KEY, JSON.stringify(merged))
+            getLocalStorage()?.setItem(RECIPES_KEY, JSON.stringify(merged))
           } catch {
             /* ignore quota errors */
           }
@@ -799,7 +815,7 @@ export function UARPanel() {
     setRecent((prev) => {
       const next = [p, ...prev.filter((x) => x !== p)].slice(0, RECENT_MAX)
       try {
-        localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+        getLocalStorage()?.setItem(RECENT_KEY, JSON.stringify(next))
       } catch (e) {
         console.warn('Failed to save recent paths to localStorage:', e)
       }
@@ -810,7 +826,7 @@ export function UARPanel() {
   const clearRecent = () => {
     setRecent([])
     try {
-      localStorage.removeItem(RECENT_KEY)
+      getLocalStorage()?.removeItem(RECENT_KEY)
     } catch (e) {
       console.warn('Failed to clear recent paths from localStorage:', e)
     }
@@ -836,7 +852,7 @@ export function UARPanel() {
     setUserPresets((prev) => {
       const next = [...prev.filter((p) => p.name !== name), preset]
       try {
-        localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(next))
+        getLocalStorage()?.setItem(USER_PRESETS_KEY, JSON.stringify(next))
       } catch {
         /* ignore quota errors */
       }
@@ -875,7 +891,7 @@ export function UARPanel() {
     setUserPresets((prev) => {
       const next = prev.filter((p) => p.name !== name)
       try {
-        localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(next))
+        getLocalStorage()?.setItem(USER_PRESETS_KEY, JSON.stringify(next))
       } catch {
         /* ignore quota errors */
       }
@@ -1227,7 +1243,7 @@ export function UARPanel() {
       const connect = async (): Promise<boolean> => {
         return new Promise((resolve) => {
           const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-          const token = localStorage.getItem('uar_api_key')
+          const token = getLocalStorage()?.getItem('uar_api_key')
           const wsUrl = token ? `${proto}//${window.location.host}/ws/run?token=${encodeURIComponent(token)}` : `${proto}//${window.location.host}/ws/run`
           ws = new WebSocket(wsUrl)
           wsRef.current = ws
@@ -1630,7 +1646,7 @@ export function UARPanel() {
           className={styles.skillGuideButton}
           title="Toggle quick start tips"
           aria-label="Toggle quick start tips"
-          aria-pressed={String(showHelp)}
+          aria-pressed={showHelp}
         >
           💡
         </button>
@@ -1948,7 +1964,7 @@ export function UARPanel() {
                     const isCollapsed = collapsedGroups[group.name]
                     return (
                       <div key={group.name} className={styles.skillGroup}>
-                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={String(!isCollapsed)} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
+                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
                           <span className={styles.skillGroupIcon}>{group.icon}</span>
                           <span className={styles.skillGroupName}>{group.name}</span>
                           <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
@@ -2358,7 +2374,7 @@ export function UARPanel() {
             className={`${styles.runButton} ${styles.smallButton}`}
             title={useWebSocket ? 'Using WebSocket transport' : 'Using SSE transport (click to switch)'}
             aria-label={useWebSocket ? 'Switch to SSE transport' : 'Switch to WebSocket transport'}
-            aria-pressed={String(useWebSocket)}
+            aria-pressed={useWebSocket}
           >
             {useWebSocket ? '⚡ WS' : '⬡ SSE'}
           </button>
@@ -2372,7 +2388,7 @@ export function UARPanel() {
                 : 'Flat execution: recipes expand into a single skill list (click to switch)'
             }
             aria-label={useHierarchical ? 'Switch to flat execution' : 'Switch to hierarchical execution'}
-            aria-pressed={String(useHierarchical)}
+            aria-pressed={useHierarchical}
           >
             {useHierarchical ? '🔀 Nested' : '➡ Flat'}
           </button>
@@ -2930,7 +2946,7 @@ export function UARPanel() {
               data-section="Documents"
               tabIndex={0}
               role="button"
-              aria-expanded={String(expandedTipSections['Documents'])}
+              aria-expanded={expandedTipSections['Documents']}
             >
               <span className={styles.tipsPopupSectionTitle}>Documents</span>
               <span>{expandedTipSections['Documents'] ? '▼' : '▶'}</span>
@@ -2962,7 +2978,7 @@ export function UARPanel() {
               data-section="Goal"
               tabIndex={0}
               role="button"
-              aria-expanded={String(expandedTipSections['Goal'])}
+              aria-expanded={expandedTipSections['Goal']}
             >
               <span className={styles.tipsPopupSectionTitle}>Goal</span>
               <span>{expandedTipSections['Goal'] ? '▼' : '▶'}</span>
@@ -2992,7 +3008,7 @@ export function UARPanel() {
               data-section="Skills"
               tabIndex={0}
               role="button"
-              aria-expanded={String(expandedTipSections['Skills'])}
+              aria-expanded={expandedTipSections['Skills']}
             >
               <span className={styles.tipsPopupSectionTitle}>Skills</span>
               <span>{expandedTipSections['Skills'] ? '▼' : '▶'}</span>
@@ -3027,7 +3043,7 @@ export function UARPanel() {
                 data-section={group.name}
                 tabIndex={0}
                 role="button"
-                aria-expanded={String(expandedTipSections[group.name])}
+                aria-expanded={expandedTipSections[group.name]}
               >
                 <span className={styles.tipsPopupSectionTitle}>{group.name}</span>
                 <span>{expandedTipSections[group.name] ? '▼' : '▶'}</span>
@@ -3254,7 +3270,7 @@ export function UARPanel() {
               data-section="Run"
               tabIndex={0}
               role="button"
-              aria-expanded={String(expandedTipSections['Run'])}
+              aria-expanded={expandedTipSections['Run']}
             >
               <span className={styles.tipsPopupSectionTitle}>Run</span>
               <span>{expandedTipSections['Run'] ? '▼' : '▶'}</span>
@@ -3289,7 +3305,7 @@ export function UARPanel() {
               data-section="Events"
               tabIndex={0}
               role="button"
-              aria-expanded={String(expandedTipSections['Events'])}
+              aria-expanded={expandedTipSections['Events']}
             >
               <span className={styles.tipsPopupSectionTitle}>Events</span>
               <span>{expandedTipSections['Events'] ? '▼' : '▶'}</span>
@@ -3325,7 +3341,7 @@ export function UARPanel() {
               data-section="Graph"
               tabIndex={0}
               role="button"
-              aria-expanded={String(expandedTipSections['Graph'])}
+              aria-expanded={expandedTipSections['Graph']}
             >
               <span className={styles.tipsPopupSectionTitle}>Dependency Graph</span>
               <span>{expandedTipSections['Graph'] ? '▼' : '▶'}</span>
@@ -3612,7 +3628,7 @@ export function UARPanel() {
                           newRecipes = [...prev, newRecipe]
                         }
                         try {
-                          localStorage.setItem(RECIPES_KEY, JSON.stringify(newRecipes))
+                          getLocalStorage()?.setItem(RECIPES_KEY, JSON.stringify(newRecipes))
                         } catch {
                           /* ignore quota errors */
                         }

@@ -313,7 +313,7 @@ def create_rate_limiter() -> RateLimiter:
             return RedisRateLimiter(redis_url)  # type: ignore[return-value]
         except ImportError:
             msg = (
-                "REDIS_URL is set but the 'redis' package is not installed. "
+                "REDIS_URL is set but the redis package is not installed. "
                 "Install it with: pip install redis"
             )
             if is_production:

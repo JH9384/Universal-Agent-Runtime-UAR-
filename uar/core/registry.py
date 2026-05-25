@@ -94,6 +94,11 @@ class SkillRegistry:
                     f"Skill '{name}' is already registered", field="name"
                 )
             if isinstance(fn, str):
+                if not fn.strip() or any(ch.isspace() for ch in fn):
+                    raise ValidationError(
+                        "Lazy skill path must be a valid module path",
+                        field="function",
+                    )
                 self._lazy[name] = fn
                 self._trie.add(name)
             elif callable(fn):

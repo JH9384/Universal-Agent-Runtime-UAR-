@@ -11,11 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        install_type:
-          - base
-          - advanced
-          - doc-processing
-          - agent-orchestration
+        python-version: ['3.10', '3.11', '3.12']
     defaults:
       run:
         working-directory: .
@@ -26,27 +22,58 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-          # Install optional dependencies based on matrix
-          if [ "${{ matrix.install_type }}" != "base" ]; then
-            pip install -e ".[${{ matrix.install_type }}]"
-          fi
+      - name: Validate backend
+        run: make validate PYTHON=python
 
-      - name: Run Python tests
-        run: pytest tests/ -v --tb=short --ignore=tests/conformance/
+      - name: Lint backend
+        run: make lint-py PYTHON=python
 
-      - name: Run ecosystem tests
-        run: pytest tests/test_uor_ecosystem.py tests/test_api.py::TestEcosystemAPI -v --tb=short
+      - name: Check release version alignment
+        run: make check-version PYTHON=python
 
       - name: Run benchmark (non-blocking)
         run: |
-          python tests/benchmark_skills.py || true
+          .venv/bin/python tests/benchmark_skills.py || true
         continue-on-error: true
+
+  optional-dependency-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extra: ['advanced', 'doc-processing', 'agent-orchestration']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install optional dependency group
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,${{ matrix.extra }}]"
+
+      - name: Import optional integration modules
+        run: |
+          python - <<'PY'
+          import importlib
+
+          modules = {
+              "advanced": ["crewai", "dagster", "neo4j"],
+              "doc-processing": ["unstructured", "docling"],
+              "agent-orchestration": ["crewai"],
+          }
+          for module in modules["${{ matrix.extra }}"]:
+              importlib.import_module(module)
+              print(f"Imported {module}")
+          PY
 
   web-tests:
     runs-on: ubuntu-latest
@@ -61,6 +88,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
         run: npm ci

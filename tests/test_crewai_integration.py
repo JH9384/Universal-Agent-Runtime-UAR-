@@ -4,7 +4,6 @@ Tests for CrewAI role-based multi-agent patterns integration.
 
 import asyncio
 
-import pytest
 from uar.core.crewai_integration import (
     AgentRole,
     AgentTask,

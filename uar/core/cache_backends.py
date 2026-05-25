@@ -318,20 +318,24 @@ class RedisCacheBackend(CacheBackend):
                 with self._lock:
                     self._circuit_tripped = False
                     self._failure_count = 0
-                logger.info("Redis cache circuit breaker closed (retrying connection)")
+                logger.info(
+                    "Redis cache circuit breaker closed "
+                    "(retrying connection)"
+                )
                 return False
             return True
         return False
 
     def _record_failure(self, exc: Exception) -> None:
-        """Increment failure counter and trip circuit breaker if threshold reached."""
+        """Increment failure counter and trip the circuit breaker."""
         with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.time()
             if self._failure_count >= 5:
                 self._circuit_tripped = True
                 logger.error(
-                    f"Redis cache circuit breaker TRIPPED after 5 consecutive failures. "
+                    "Redis cache circuit breaker TRIPPED after "
+                    "5 consecutive failures. "
                     f"Bypassing Redis cache for 30s. Last error: {exc}"
                 )
 
@@ -413,7 +417,11 @@ class RedisCacheBackend(CacheBackend):
 
     def get_stats(self) -> Dict[str, Any]:
         if self._check_circuit_breaker():
-            return {"backend": "redis", "available": False, "circuit_tripped": self._circuit_tripped}
+            return {
+                "backend": "redis",
+                "available": False,
+                "circuit_tripped": self._circuit_tripped,
+            }
         try:
             info = self._client.info("keyspace")
             total_keys = sum(
@@ -428,7 +436,11 @@ class RedisCacheBackend(CacheBackend):
             }
         except Exception as exc:
             self._record_failure(exc)
-            return {"backend": "redis", "available": False, "circuit_tripped": self._circuit_tripped}
+            return {
+                "backend": "redis",
+                "available": False,
+                "circuit_tripped": self._circuit_tripped,
+            }
 
 
 # ---------------------------------------------------------------------------

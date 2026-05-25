@@ -87,6 +87,7 @@ class JsonRunStore:
             return []
 
         with self._thread_lock:
+            self._flush()
             with self._acquire_lock(shared=True):
                 records = []
                 with self.path.open("r", encoding="utf-8") as f:

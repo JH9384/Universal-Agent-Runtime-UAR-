@@ -60,7 +60,9 @@ class TestCreateRateLimiter:
         }
         with mock.patch.dict(os.environ, env, clear=True):
             try:
-                rl = create_rate_limiter()
-            except RuntimeError:
+                import redis as _redis  # noqa: F401
+            except ImportError:
                 pytest.skip("redis package not installed")
+
+            rl = create_rate_limiter()
             assert isinstance(rl, RedisRateLimiter)

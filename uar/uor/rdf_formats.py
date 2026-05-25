@@ -83,9 +83,9 @@ class RDFConverter:
             base_uri: Base URI for UOR namespace
         """
         self.base_uri = base_uri
-        self.uor_ns = Namespace(base_uri)
 
         if RDFLIB_AVAILABLE:
+            self.uor_ns = Namespace(base_uri)
             self.graph = Graph()
             self.graph.bind("uor", self.uor_ns)
             self.graph.bind("rdf", RDF)
@@ -93,6 +93,7 @@ class RDFConverter:
             self.graph.bind("owl", OWL)
             self.graph.bind("xsd", XSD)
         else:
+            self.uor_ns = None
             self.graph = None
 
     def jsonld_to_rdf(
@@ -392,15 +393,16 @@ class OWLConverter:
             base_uri: Base URI for UOR ontology
         """
         self.base_uri = base_uri
-        self.uor_ns = Namespace(base_uri)
 
         if RDFLIB_AVAILABLE:
+            self.uor_ns = Namespace(base_uri)
             self.graph = Graph()
             self.graph.bind("uor", self.uor_ns)
             self.graph.bind("owl", OWL)
             self.graph.bind("rdf", RDF)
             self.graph.bind("rdfs", RDFS)
         else:
+            self.uor_ns = None
             self.graph = None
 
     def schema_to_owl(self, schema: Dict[str, Any]) -> RDFConversionResult:

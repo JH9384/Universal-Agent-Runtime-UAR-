@@ -4,6 +4,7 @@ import pytest
 import time
 from unittest.mock import Mock, patch
 
+import uar.core.executor as executor_module
 from uar.core.executor import (
     get_max_retries,
     _run_with_timeout,
@@ -193,6 +194,50 @@ class TestExecutor:
         assert len(events) >= 2
         assert events[0]["type"] == "start"
         assert events[-1]["type"] == "complete"
+
+    @patch("uar.core.executor.registry")
+    def test_coalescing_lock_released_before_success_event_yield(
+        self, mock_registry, monkeypatch
+    ):
+        """Closing a stream at skill_complete must not keep a lock held."""
+        monkeypatch.setattr(executor_module, "_COALESCE_ENABLED", True)
+        executor_module._coalesce_locks.clear()
+        executor_module._coalesce_results.clear()
+
+        mock_skill = Mock(return_value={"status": "completed"})
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+
+        goal = GoalSpec(id="test", user_intent="test", objective="test")
+        strategy = StrategySpec(
+            goal_id="goal_123",
+            ordered_skills=["test_skill"],
+        )
+
+        executor = Executor()
+        gen = executor.iter_events(strategy, goal, timeout_seconds=1.0)
+
+        try:
+            event = None
+            for event in gen:
+                if event["type"] == "skill_complete":
+                    break
+
+            assert event is not None
+            assert event["type"] == "skill_complete"
+            assert executor_module._coalesce_locks
+
+            for lock in executor_module._coalesce_locks.values():
+                acquired = lock.acquire(blocking=False)
+                try:
+                    assert acquired
+                finally:
+                    if acquired:
+                        lock.release()
+        finally:
+            gen.close()
+            executor_module._coalesce_locks.clear()
+            executor_module._coalesce_results.clear()
 
 
 class TestExpandExecutionOrder:

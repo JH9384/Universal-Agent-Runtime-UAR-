@@ -97,7 +97,9 @@ class SqliteRunStore:
     def append(self, record: RunRecord) -> None:
         data = {
             "run_id": getattr(record, "run_id", getattr(record, "id", "")),
-            "goal_id": getattr(record, "goal_id", getattr(record, "goal", {}).get("id", "")),
+            "goal_id": getattr(
+                record, "goal_id", getattr(record, "goal", {}).get("id", "")
+            ),
             "user_id": getattr(record, "user_id", None),
             "status": getattr(record, "status", "unknown"),
             "skills": json.dumps(getattr(record, "skills", [])),
@@ -142,7 +144,11 @@ class SqliteRunStore:
             rows.append(
                 tuple([
                     getattr(record, "run_id", getattr(record, "id", "")),
-                    getattr(record, "goal_id", getattr(record, "goal", {}).get("id", "")),
+                    getattr(
+                        record,
+                        "goal_id",
+                        getattr(record, "goal", {}).get("id", ""),
+                    ),
                     getattr(record, "user_id", None),
                     getattr(record, "status", "unknown"),
                     json.dumps(getattr(record, "skills", [])),

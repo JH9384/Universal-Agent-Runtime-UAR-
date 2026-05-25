@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/check-bundle-budget.mjs",
     "preview": "vite preview",
-    "test": "vitest",
+    "test": "node scripts/run-vitest.mjs",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "node scripts/run-vitest.mjs run",
+    "bundle:check": "node scripts/check-bundle-budget.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

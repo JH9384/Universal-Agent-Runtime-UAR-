@@ -2,7 +2,6 @@
 
 import os
 from unittest.mock import patch
-import pytest
 
 from uar.core.contracts import RunRecord
 from uar.memory.sqlite_store import SqliteRunStore
@@ -28,17 +27,17 @@ def test_sqlite_hot_cache_eviction_and_fallback(tmp_path):
         # The hot cache should contain exactly 3 items
         assert len(store._hot_cache) == 3
 
-        # 'run_0' should have been evicted from the hot cache as it was the oldest
+        # 'run_0' should be evicted as the oldest hot-cache entry.
         assert "run_0" not in store._hot_cache
 
-        # However, calling get_by_run_id("run_0") should successfully fall back
-        # to SQLite, retrieve the record, and repopulate it back into the hot cache
+        # get_by_run_id("run_0") should fall back to SQLite and repopulate
+        # the hot cache.
         retrieved = store.get_by_run_id("run_0")
         assert retrieved is not None
         assert retrieved["run_id"] == "run_0"
         assert retrieved["status"] == "completed"
 
-        # Now, 'run_0' is back in the hot cache, and the oldest item ('run_1') should be evicted if we append again
+        # Now, 'run_0' is back in the hot cache.
         assert "run_0" in store._hot_cache
         assert len(store._hot_cache) == 3
 
