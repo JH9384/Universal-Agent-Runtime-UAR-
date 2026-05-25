@@ -168,13 +168,10 @@ Client → FastAPI (server.py) → Executor (executor.py)
 - **Fix:** Apply the same semaphore limit inside `executor.py` before yielding events.
 - **Effort:** 20 min
 
-#### H5: Frontend State Duplication & Memory Leak
+#### H5: Frontend State Duplication & Memory Leak — **RESOLVED**
 - **File:** `apps/web/src/components/UARPanel.tsx`
-- **Code:** Multiple state objects (`events`, `timelineData`, `resultsBySkill`, `summariesBySkill`, `loadingMap`) all store copies of event data. No deduplication or weak-ref cleanup.
-- **Root Cause:** Each new event type appends to a separate array; old events are never purged.
-- **Impact:** Long-running sessions exhaust browser memory.
-- **Fix:** Centralize event storage in a single normalized structure; implement a rolling window eviction (keep last N events per type).
-- **Effort:** 1–2 hrs
+- **Code:** The state variables mentioned (`timelineData`, `resultsBySkill`, `summariesBySkill`, `loadingMap`) no longer exist in the codebase. Only a single `events` array remains.
+- **Fix:** The `events` state already implements a bounded rolling window (`MAX_EVENTS = 1000`) with FIFO eviction via `slice(1)` on overflow.
 
 ---
 
