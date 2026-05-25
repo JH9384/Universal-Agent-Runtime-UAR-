@@ -13,6 +13,7 @@ import os
 import queue
 import sqlite3
 import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -39,6 +40,10 @@ class SqliteRunStore:
         self._read_pool_size = int(os.getenv("UAR_SQLITE_READ_POOL", "4"))
         self._read_pool: queue.Queue = queue.Queue()
         self._read_pool_lock = threading.Lock()
+        # Hot data tiering: in-memory LRU for recent runs
+        self._hot_cache_size = int(os.getenv("UAR_HOT_CACHE", "100"))
+        self._hot_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self._hot_cache_lock = threading.Lock()
         self._ensure_table()
         self._init_read_pool()
 
@@ -91,8 +96,8 @@ class SqliteRunStore:
 
     def append(self, record: RunRecord) -> None:
         data = {
-            "run_id": getattr(record, "id", ""),
-            "goal_id": getattr(record, "goal", {}).get("id", ""),
+            "run_id": getattr(record, "run_id", getattr(record, "id", "")),
+            "goal_id": getattr(record, "goal_id", getattr(record, "goal", {}).get("id", "")),
             "user_id": getattr(record, "user_id", None),
             "status": getattr(record, "status", "unknown"),
             "skills": json.dumps(getattr(record, "skills", [])),
@@ -109,6 +114,18 @@ class SqliteRunStore:
                 " VALUES (?,?,?,?,?,?,?,?)",
                 tuple(data.values()),
             )
+        # Populate hot cache with newly inserted record
+        hot_record = dict(data)
+        hot_record["skills"] = json.loads(hot_record["skills"])
+        hot_record["events"] = json.loads(hot_record["events"])
+        hot_record["outputs"] = json.loads(hot_record["outputs"])
+        hot_record["metadata"] = json.loads(hot_record["metadata"])
+        hot_record["created_at"] = None
+        with self._hot_cache_lock:
+            self._hot_cache[data["run_id"]] = hot_record
+            self._hot_cache.move_to_end(data["run_id"])
+            while len(self._hot_cache) > self._hot_cache_size:
+                self._hot_cache.popitem(last=False)
 
     def append_many(self, records: List[RunRecord]) -> None:
         """Bulk insert multiple records in a single transaction."""
@@ -124,8 +141,8 @@ class SqliteRunStore:
         for record in records:
             rows.append(
                 tuple([
-                    getattr(record, "id", ""),
-                    getattr(record, "goal", {}).get("id", ""),
+                    getattr(record, "run_id", getattr(record, "id", "")),
+                    getattr(record, "goal_id", getattr(record, "goal", {}).get("id", "")),
                     getattr(record, "user_id", None),
                     getattr(record, "status", "unknown"),
                     json.dumps(getattr(record, "skills", [])),
@@ -177,6 +194,15 @@ class SqliteRunStore:
         return [_decode_row(dict(r)) for r in rows]
 
     def get_by_run_id(self, run_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a single record by run ID.
+
+        Checks hot cache first, then falls back to SQLite.
+        """
+        with self._hot_cache_lock:
+            if run_id in self._hot_cache:
+                self._hot_cache.move_to_end(run_id)
+                return self._hot_cache[run_id]
+
         conn = self._get_read_conn()
         try:
             cur = conn.execute(
@@ -189,7 +215,13 @@ class SqliteRunStore:
             self._release_read_conn(conn)
         if row is None:
             return None
-        return _decode_row(dict(row))
+        record = _decode_row(dict(row))
+        with self._hot_cache_lock:
+            self._hot_cache[run_id] = record
+            self._hot_cache.move_to_end(run_id)
+            while len(self._hot_cache) > self._hot_cache_size:
+                self._hot_cache.popitem(last=False)
+        return record
 
     def purge_old_records(self, retention_days: int) -> int:
         if retention_days <= 0:

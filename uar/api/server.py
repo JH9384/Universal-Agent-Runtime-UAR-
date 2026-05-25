@@ -24,6 +24,7 @@ from starlette.websockets import WebSocketState
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import (
     BaseModel,
     field_validator,
@@ -126,6 +127,15 @@ def _setup_tracing(app: FastAPI) -> None:
 
 # Constants
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+
+# SSE connection limit
+_MAX_CONCURRENT_SSE_PER_IP = int(os.getenv("UAR_MAX_SSE_PER_IP", "5"))
+_sse_connections: Dict[str, int] = {}
+_sse_connections_lock = asyncio.Lock()
+
+# Idempotency key cache: key -> result (no TTL eviction for simplicity)
+_idempotency_cache: Dict[str, Any] = {}
+_IDEMPOTENCY_TTL = int(os.getenv("UAR_IDEMPOTENCY_TTL", "86400"))  # 24h
 
 
 class _WebSocketConnectionCounter:
@@ -368,6 +378,12 @@ app.add_middleware(
 # Apply request logging, body parsing, and size-limit middleware
 apply_middleware(app)
 
+# Response compression for large JSON/SSE payloads
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=int(os.getenv("UAR_GZIP_MIN_SIZE", "1024")),
+)
+
 # Universal request-timing middleware (records every HTTP endpoint)
 
 
@@ -500,6 +516,8 @@ class RunRequest(BaseModel):
     # Opt-in to hierarchical recipe execution (discrete units with
     # snapshot/retry/params scoping) instead of legacy flat expansion.
     use_hierarchical: Optional[bool] = None
+    # Idempotency key for safe retries (cached 24h)
+    idempotency_key: Optional[str] = None
 
     @field_validator("goal")
     @classmethod
@@ -757,6 +775,16 @@ async def run_goal(
         request_id = request_logging_middleware(request, user_info)
 
         try:
+            # Idempotency: return cached result for duplicate keys
+            if req.idempotency_key:
+                cached = _idempotency_cache.get(req.idempotency_key)
+                if cached:
+                    logger.info(
+                        f"[{request_id}] Idempotency hit: "
+                        f"{req.idempotency_key}"
+                    )
+                    return cached
+
             goal = _build_goal(req)
             planner = SimplePlanner()
             strategy = planner.plan(goal)
@@ -767,6 +795,10 @@ async def run_goal(
             timeout = req.timeout_seconds or 5.0
             result = executor.run(strategy, goal, timeout_seconds=timeout)
             result.user_id = user_info["user"] if user_info else None
+
+            # Cache result for idempotency
+            if req.idempotency_key:
+                _idempotency_cache[req.idempotency_key] = result
 
             store.append(result)
             logger.info(
@@ -1383,6 +1415,16 @@ async def stream_goal(
         # Log request
         request_id = request_logging_middleware(request, user_info)
 
+        client_ip = request.client.host if request.client else "unknown"
+        async with _sse_connections_lock:
+            current_conns = _sse_connections.get(client_ip, 0)
+            if current_conns >= _MAX_CONCURRENT_SSE_PER_IP:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Too many concurrent streaming connections from IP {client_ip} (limit: {_MAX_CONCURRENT_SSE_PER_IP})"
+                )
+            _sse_connections[client_ip] = current_conns + 1
+
         try:
             goal = _build_goal(req)
             cid = getattr(request.state, "correlation_id", "")
@@ -1390,12 +1432,12 @@ async def stream_goal(
             _sse_emit = _event_svc.emit_sse
 
             async def _generate():
-                last_hb = time.time()
-                hb_interval = 30
-                stream = _exec_svc.stream_goal(
-                    goal, request_id, user_id, cid
-                )
                 try:
+                    last_hb = time.time()
+                    hb_interval = 30
+                    stream = _exec_svc.stream_goal(
+                        goal, request_id, user_id, cid
+                    )
                     while True:
                         elapsed = time.time() - last_hb
                         timeout = max(0.1, hb_interval - elapsed)
@@ -1436,10 +1478,24 @@ async def stream_goal(
                             correlation_id=cid,
                         )
                     )
+                finally:
+                    async with _sse_connections_lock:
+                        if client_ip in _sse_connections:
+                            _sse_connections[client_ip] = max(0, _sse_connections[client_ip] - 1)
+                            if _sse_connections[client_ip] == 0:
+                                _sse_connections.pop(client_ip, None)
 
             return StreamingResponse(
                 _generate(), media_type="text/event-stream"
             )
+
+        except Exception:
+            async with _sse_connections_lock:
+                if client_ip in _sse_connections:
+                    _sse_connections[client_ip] = max(0, _sse_connections[client_ip] - 1)
+                    if _sse_connections[client_ip] == 0:
+                        _sse_connections.pop(client_ip, None)
+            raise
 
         except ValidationError as e:
             logger.warning(f"[{request_id}] Stream validation error: {str(e)}")

@@ -356,5 +356,47 @@ class TestInputValidationEdgeCases:
             assert response.status_code in [200, 400]
 
 
+class TestHardeningSecurity:
+    """Hardening tests for sandbox / safety features introduced in core modules."""
+
+    def test_pickle_safety_restriced_unpickler(self):
+        """Test RestrictedUnpickler rejects arbitrary class loading."""
+        import pickle
+        from uar.core.executor import RestrictedUnpickler
+        import io
+
+        class MaliciousPayload:
+            def __reduce__(self):
+                import os
+                return (os.system, ("echo vulnerability",))
+
+        payload = MaliciousPayload()
+        serialized = pickle.dumps(payload)
+
+        # Attempting to load MaliciousPayload should raise pickle.UnpicklingError
+        with pytest.raises(pickle.UnpicklingError) as excinfo:
+            RestrictedUnpickler(io.BytesIO(serialized)).load()
+        assert "Forbidden unpickling class" in str(excinfo.value)
+
+    def test_recipe_parameter_restrictions(self):
+        """Test validate_parameters rejects restricted and internal keys."""
+        from uar.core.executor import validate_parameters
+        from uar.core.exceptions import ValidationError
+
+        # Normal params should pass
+        validate_parameters({"user_name": "Alice", "count": 42})
+
+        # Private keys starting with _ should be rejected
+        with pytest.raises(ValidationError) as excinfo:
+            validate_parameters({"_secret_internal_key": "inject"})
+        assert "is restricted" in str(excinfo.value)
+
+        # Sensitive keys should be rejected
+        for key in ["metadata", "objective", "id", "goal_id", "user_id"]:
+            with pytest.raises(ValidationError) as excinfo:
+                validate_parameters({key: "value"})
+            assert "is restricted" in str(excinfo.value)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

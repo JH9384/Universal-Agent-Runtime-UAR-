@@ -126,6 +126,19 @@ class PostgresRunStore:
         else:
             self._release_conn(conn)
 
+    def _health_check(self) -> bool:
+        """Proactive health check: ping DB before using connection."""
+        try:
+            conn = self._connect_sync()
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+            self._release_conn(conn)
+            return True
+        except Exception as e:
+            logger.error(f"Postgres health check failed: {e}", exc_info=True)
+            return False
+
     async def _connect_async(self):
         """Return an asyncpg connection (optional dependency)."""
         import asyncpg  # type: ignore[import-untyped]

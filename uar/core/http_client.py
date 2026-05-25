@@ -41,6 +41,7 @@ async def _get_session(url: str):
             limit_per_host=int(os.getenv("UAR_HTTP_POOL_PER_HOST", "5")),
             ttl_dns_cache=300,
             enable_cleanup_closed=True,
+            force_close=False,
         )
         sess = aiohttp.ClientSession(connector=conn, timeout=timeout)
         _sessions[domain] = sess

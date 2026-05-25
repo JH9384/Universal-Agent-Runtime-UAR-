@@ -287,6 +287,9 @@ class RedisCacheBackend(CacheBackend):
         self.ttl_seconds = ttl_seconds
         self.key_prefix = key_prefix
         self._lock = threading.Lock()
+        self._failure_count = 0
+        self._last_failure_time = 0.0
+        self._circuit_tripped = False
 
         url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
         try:
@@ -302,21 +305,60 @@ class RedisCacheBackend(CacheBackend):
             self._client = None
             self._available = False
 
+    def _check_circuit_breaker(self) -> bool:
+        """Check if circuit breaker is open/tripped.
+
+        If open, bypasses Redis queries and returns True.
+        """
+        if not self._available:
+            return True
+        if self._circuit_tripped:
+            now = time.time()
+            if now - self._last_failure_time > 30.0:
+                with self._lock:
+                    self._circuit_tripped = False
+                    self._failure_count = 0
+                logger.info("Redis cache circuit breaker closed (retrying connection)")
+                return False
+            return True
+        return False
+
+    def _record_failure(self, exc: Exception) -> None:
+        """Increment failure counter and trip circuit breaker if threshold reached."""
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+            if self._failure_count >= 5:
+                self._circuit_tripped = True
+                logger.error(
+                    f"Redis cache circuit breaker TRIPPED after 5 consecutive failures. "
+                    f"Bypassing Redis cache for 30s. Last error: {exc}"
+                )
+
+    def _record_success(self) -> None:
+        """Reset failure counts on successful Redis operation."""
+        if self._failure_count > 0:
+            with self._lock:
+                self._failure_count = 0
+                self._circuit_tripped = False
+
     def _key(self, cache_key: str) -> str:
         return f"{self.key_prefix}{cache_key}"
 
     def get(
         self, skill_name: str, ctx: Dict[str, Any], goal: str
     ) -> Optional[Any]:
-        if not self._available:
+        if self._check_circuit_breaker():
             return None
         key = _make_cache_key(skill_name, ctx, goal)
         try:
             raw = self._client.get(self._key(key))
+            self._record_success()
             if raw is None:
                 return None
             return json.loads(raw).get("result")
-        except Exception:
+        except Exception as exc:
+            self._record_failure(exc)
             return None
 
     def set(
@@ -327,7 +369,7 @@ class RedisCacheBackend(CacheBackend):
         result: Any,
         ttl_seconds: Optional[int] = None,
     ) -> None:
-        if not self._available:
+        if self._check_circuit_breaker():
             return
         try:
             payload = json.dumps(
@@ -343,11 +385,12 @@ class RedisCacheBackend(CacheBackend):
         ttl = ttl_seconds if ttl_seconds is not None else self.ttl_seconds
         try:
             self._client.setex(self._key(key), ttl, payload)
-        except Exception:
-            pass
+            self._record_success()
+        except Exception as exc:
+            self._record_failure(exc)
 
     def clear(self, skill_name: Optional[str] = None) -> None:
-        if not self._available:
+        if self._check_circuit_breaker():
             return
         try:
             if skill_name:
@@ -364,25 +407,28 @@ class RedisCacheBackend(CacheBackend):
             else:
                 for k in self._client.scan_iter(match=f"{self.key_prefix}*"):
                     self._client.delete(k)
-        except Exception:
-            pass
+            self._record_success()
+        except Exception as exc:
+            self._record_failure(exc)
 
     def get_stats(self) -> Dict[str, Any]:
-        if not self._available:
-            return {"backend": "redis", "available": False}
+        if self._check_circuit_breaker():
+            return {"backend": "redis", "available": False, "circuit_tripped": self._circuit_tripped}
         try:
             info = self._client.info("keyspace")
             total_keys = sum(
                 v.get("keys", 0) for v in info.values() if isinstance(v, dict)
             )
+            self._record_success()
             return {
                 "backend": "redis",
                 "available": True,
                 "total_keys_estimate": total_keys,
                 "prefix": self.key_prefix,
             }
-        except Exception:
-            return {"backend": "redis", "available": False}
+        except Exception as exc:
+            self._record_failure(exc)
+            return {"backend": "redis", "available": False, "circuit_tripped": self._circuit_tripped}
 
 
 # ---------------------------------------------------------------------------

@@ -423,3 +423,46 @@ def cached_skill(
         return wrapper
 
     return decorator
+
+
+# ─── compiled skill cache ─────────────────────────────────────────────────
+
+
+class CompiledSkillCache:
+    """In-memory cache for imported/compiled skill callables.
+
+    Avoids repeated import overhead for lazy-loaded skills by storing
+    the resolved callable object keyed by its module path.
+    """
+
+    def __init__(self) -> None:
+        self._cache: Dict[str, Any] = {}
+        self._lock = threading.Lock()
+
+    def get(self, module_path: str) -> Optional[Any]:
+        """Return cached skill callable, or None if not compiled."""
+        with self._lock:
+            return self._cache.get(module_path)
+
+    def set(self, module_path: str, skill: Any) -> None:
+        """Cache a compiled skill callable."""
+        with self._lock:
+            self._cache[module_path] = skill
+
+    def invalidate(self, module_path: str) -> None:
+        """Remove a skill from the compiled cache."""
+        with self._lock:
+            self._cache.pop(module_path, None)
+
+    def clear(self) -> None:
+        """Clear all compiled skill entries."""
+        with self._lock:
+            self._cache.clear()
+
+    def stats(self) -> Dict[str, int]:
+        """Return cache stats (size and capacity)."""
+        with self._lock:
+            return {"size": len(self._cache), "capacity": 0}
+
+
+_compiled_skill_cache = CompiledSkillCache()

@@ -19,6 +19,7 @@ from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .registry import registry
 from .validation import validate_timeout
 from .recipes import DEFAULT_RECIPES
+from .schema import validate_event
 from ..api.metrics import get_metrics_collector
 
 # GC hint threshold: trigger gc.collect() after runs with many events
@@ -51,13 +52,56 @@ def _cached_expand_execution_order(
 _MAX_RECIPE_CACHE_SIZE = 50
 
 # Shared thread pool for _run_with_timeout to avoid per-skill churn.
-_TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+# Adaptive sizing: UAR_TIMEOUT_POOL_MAX controls max workers.
+_TIMEOUT_POOL_MAX = int(os.getenv("UAR_TIMEOUT_POOL_MAX", "16"))
+_TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(
+    max_workers=_TIMEOUT_POOL_MAX
+)
 _TIMEOUT_POOL_LOCK = threading.Lock()
+
+# Request coalescing: dedup concurrent identical skill executions
+# Keyed by "skill_name:input_hash" — first caller executes,
+# subsequent callers wait and receive the same result.
+_COALESCE_ENABLED = (
+    os.getenv("UAR_COALESCE", "true").lower() == "true"
+)
+_coalesce_locks: Dict[str, threading.Lock] = {}
+_coalesce_results: Dict[str, Any] = {}
+_coalesce_meta_lock = threading.Lock()
 
 # Pickle-based snapshot is 3-10x faster than copy.deepcopy for large dicts
 _USE_PICKLE_SNAPSHOT = (
     os.getenv("UAR_PICKLE_SNAPSHOT", "true").lower() == "true"
 )
+
+# Zero-copy: pickle protocol 5 supports out-of-band buffers (Python 3.8+)
+_PICKLE_PROTOCOL = (
+    5 if hasattr(pickle, "Protocol") else pickle.HIGHEST_PROTOCOL
+)
+
+# Early result streaming: emit partial outputs as waves complete
+_EARLY_STREAMING = (
+    os.getenv("UAR_EARLY_STREAMING", "false").lower() == "true"
+)
+
+
+class RestrictedUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        # Permit basic data structures and some builtins
+        if module == "builtins" and name in {
+            "dict", "list", "set", "tuple", "str", "int", "float", "bool", "bytes", "bytearray", "NoneType"
+        }:
+            return getattr(sys.modules[module], name)
+        raise pickle.UnpicklingError(f"Forbidden unpickling class: {module}.{name}")
+
+
+def validate_parameters(params: Dict[str, Any]) -> None:
+    """Validate item parameters to prevent restricted key injection."""
+    if not isinstance(params, dict):
+        return
+    for key in params:
+        if key.startswith("_") or key in {"metadata", "objective", "id", "goal_id", "user_id"}:
+            raise ValidationError(f"Invalid parameter key: '{key}' is restricted.")
 
 
 def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -69,11 +113,29 @@ def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
     if not _USE_PICKLE_SNAPSHOT:
         return copy.deepcopy(data)
     try:
-        return pickle.loads(
-            pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
-        )
+        import io
+        serialized = pickle.dumps(data, protocol=_PICKLE_PROTOCOL)
+        return RestrictedUnpickler(io.BytesIO(serialized)).load()
     except Exception:
         return copy.deepcopy(data)
+
+
+def _zero_copy_serialize(data: Dict[str, Any]) -> bytes:
+    """Serialize data with pickle protocol 5 for zero-copy deserialization.
+
+    Uses out-of-band buffers to avoid extra copies during deserialization
+    when the consumer also supports protocol 5.
+    """
+    try:
+        import pickle
+        if hasattr(pickle, "Protocol") and _PICKLE_PROTOCOL >= 5:
+            buffers: List[Any] = []
+            return pickle.dumps(
+                data, protocol=_PICKLE_PROTOCOL, buffer_callback=buffers.append
+            )
+        return pickle.dumps(data, protocol=_PICKLE_PROTOCOL)
+    except Exception:
+        return pickle.dumps(data)
 
 
 def _estimate_size(obj, max_depth=3, current_depth=0):
@@ -620,7 +682,7 @@ def make_executor_event(
     executor.  All event emission flows through here.
     Interns frequently repeated strings to reduce memory overhead.
     """
-    return {
+    event = {
         "schema_version": "uar.event.v1",
         "type": sys.intern(event_type),
         "run_id": sys.intern(run_id),
@@ -631,6 +693,20 @@ def make_executor_event(
         "payload": payload or {},
         "error": error,
     }
+    # Standardize optional fields to avoid strict schema validation noise
+    if event["skill"] is None:
+        event.pop("skill")
+    if event["error"] is None:
+        event.pop("error")
+
+    # Validate against schema and log a warning if non-compliant
+    validation_errors = validate_event(event)
+    if validation_errors:
+        logger.warning(
+            f"Event schema validation failed: {validation_errors} "
+            f"for event: {event}"
+        )
+    return event
 
 
 def _event(
@@ -674,6 +750,7 @@ class Executor:
         self._recipe_cache: Dict[str, Dict[str, Any]] = {}
         self._recipe_cache_hits = 0
         self._recipe_cache_misses = 0
+        self._recipe_cache_lock = threading.Lock()
 
     def iter_events(
         self,
@@ -982,6 +1059,7 @@ class Executor:
                         continue
                     recipe_start_times[instance_id] = time.time()
                     params = marker.get("parameters", {})
+                    validate_parameters(params)
                     # Snapshot BEFORE pushing params so retry is clean.
                     if instance_id not in recipe_snapshots:
                         recipe_snapshots[instance_id] = (
@@ -1092,6 +1170,51 @@ class Executor:
 
                     for attempt in range(max_retries + 1):
                         try:
+                            # Request coalescing: dedup concurrent
+                            # identical executions
+                            _coalesce_key = ""
+                            if _COALESCE_ENABLED:
+                                import hashlib
+
+                                _input_hash = hashlib.blake2b(
+                                    json.dumps(
+                                        ctx.data, sort_keys=True,
+                                        default=str
+                                    ).encode(),
+                                    digest_size=8,
+                                ).hexdigest()
+                                _coalesce_key = (
+                                    f"{skill_name}:{_input_hash}"
+                                )
+                                with _coalesce_meta_lock:
+                                    if _coalesce_key not in _coalesce_locks:
+                                        _coalesce_locks[_coalesce_key] = (
+                                            threading.Lock()
+                                        )
+                                _coalesce_locks[_coalesce_key].acquire()
+                                if _coalesce_key in _coalesce_results:
+                                    result = _coalesce_results[
+                                        _coalesce_key
+                                    ]
+                                    _coalesce_locks[
+                                        _coalesce_key
+                                    ].release()
+                                    with ctx_lock:
+                                        ctx.data[skill_name] = result
+                                    outputs.append(
+                                        {skill_name: result}
+                                    )
+                                    yield _ev(
+                                        "skill_complete",
+                                        skill=skill_name,
+                                        payload={
+                                            "result": result,
+                                            "cached": True,
+                                            "coalesced": True,
+                                            "attempt": 1,
+                                        },
+                                    )
+                                    break
                             fn = registry.get(skill_name)
                             _skill_t0 = time.time()
                             result = _run_with_timeout(
@@ -1136,6 +1259,9 @@ class Executor:
                                     goal.objective,
                                     result,
                                 )
+                            # Publish coalesced result for waiters
+                            if _COALESCE_ENABLED and _coalesce_key:
+                                _coalesce_results[_coalesce_key] = result
 
                             yield _ev(
                                 "skill_complete",
@@ -1145,6 +1271,8 @@ class Executor:
                                     "attempt": attempt + 1,
                                 },
                             )
+                            if _COALESCE_ENABLED and _coalesce_key:
+                                _coalesce_locks[_coalesce_key].release()
                             break
                         except (TimeoutError, SkillExecutionError) as exc:
                             last_error = exc
@@ -1176,6 +1304,8 @@ class Executor:
                                     time.time() - _skill_t0,
                                     error=True,
                                 )
+                                if _COALESCE_ENABLED and _coalesce_key:
+                                    _coalesce_locks[_coalesce_key].release()
                                 _add_error(f"{skill_name}: {str(last_error)}")
                                 if (
                                     active_recipe_stack
@@ -1190,6 +1320,8 @@ class Executor:
                                 else:
                                     execution_broken = True
                         except Exception as exc:
+                            if _COALESCE_ENABLED and _coalesce_key:
+                                _coalesce_locks[_coalesce_key].release()
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
@@ -1420,6 +1552,16 @@ class Executor:
                                     result,
                                 )
 
+                # Early streaming: emit partial outputs as waves complete
+                if _EARLY_STREAMING and parallel_results:
+                    yield _ev(
+                        "partial_result",
+                        payload={
+                            "wave": group_idx,
+                            "outputs": parallel_results,
+                        },
+                    )
+
                 yield _ev("parallel_complete", payload={"skills": skill_group})
 
             # Advance flat skill index and emit recipe_end events for
@@ -1631,6 +1773,44 @@ class Executor:
             final_context=payload.get("final_context", {}),
         )
 
+    def run_batch(
+        self,
+        strategies: List[StrategySpec],
+        goals: List[Any],
+        timeout_seconds: float = 5.0,
+    ) -> List[RunRecord]:
+        """Execute multiple skill strategies in a single batch.
+
+        Runs each strategy-goal pair sequentially, reusing the same
+        registry and cache context for efficiency.
+        """
+        results: List[RunRecord] = []
+        for strategy, goal in zip(strategies, goals):
+            results.append(self.run(strategy, goal, timeout_seconds))
+        return results
+
+    @staticmethod
+    def paginate_results(
+        results: List[Any],
+        page: int = 1,
+        page_size: int = 100,
+    ) -> Dict[str, Any]:
+        """Paginate large result lists for API responses.
+
+        Returns a dict with items, total, page, page_size, and pages.
+        """
+        total = len(results)
+        pages = max(1, (total + page_size - 1) // page_size)
+        start = (page - 1) * page_size
+        end = start + page_size
+        return {
+            "items": results[start:end],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages,
+        }
+
     def _execute_items(
         self,
         items: List[Dict[str, Any]],
@@ -1730,6 +1910,7 @@ class Executor:
                     continue
 
                 params = item.get("parameters") or recipe.get("parameters", {})
+                validate_parameters(params)
                 self._recipe_pre_execute(recipe_id, instance_id, params)
 
                 # Build cache key from recipe_id + deterministic params
@@ -1741,8 +1922,16 @@ class Executor:
                     )
 
                 # Cache hit: replay cached context mutations
-                if _cache_key and _cache_key in self._recipe_cache:
-                    self._recipe_cache_hits += 1
+                has_hit = False
+                cached_delta = None
+                if _cache_key:
+                    with self._recipe_cache_lock:
+                        if _cache_key in self._recipe_cache:
+                            self._recipe_cache_hits += 1
+                            cached_delta = self._recipe_cache[_cache_key]
+                            has_hit = True
+
+                if has_hit:
                     yield _event(
                         "recipe_start",
                         "",
@@ -1755,7 +1944,6 @@ class Executor:
                         },
                         correlation_id=correlation_id,
                     )
-                    cached_delta = self._recipe_cache[_cache_key]
                     ctx.data.update(cached_delta)
                     yield _event(
                         "recipe_end",
@@ -1872,9 +2060,10 @@ class Executor:
                     for key, value in ctx.data.items():
                         if key not in snapshot or snapshot[key] != value:
                             delta[key] = value
-                    while len(self._recipe_cache) >= _MAX_RECIPE_CACHE_SIZE:
-                        self._recipe_cache.pop(next(iter(self._recipe_cache)))
-                    self._recipe_cache[_cache_key] = delta
+                    with self._recipe_cache_lock:
+                        while len(self._recipe_cache) >= _MAX_RECIPE_CACHE_SIZE:
+                            self._recipe_cache.pop(next(iter(self._recipe_cache)))
+                        self._recipe_cache[_cache_key] = delta
 
                 yield _event(
                     "recipe_end",

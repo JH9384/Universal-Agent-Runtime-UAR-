@@ -14,5 +14,8 @@
     "yaml.schemaStore.enable": false,
     "yaml.schemas": {
         "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
-    }
+    },
+    "antigravity.lmStudio.url": "http://localhost:1234/",
+    "lmStudioCopilot.serverUrl": "http://127.0.0.1:1234",
+    "lmStudioCopilot.allowFileModifications": true
 }

@@ -42,6 +42,10 @@ BACKPRESSURE_ENABLED = (
     os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
 )
 
+# Hard backpressure: limit in-flight events to prevent OOM on slow consumers
+_BACKPRESSURE_LIMIT = int(os.getenv("UAR_BACKPRESSURE_LIMIT", "1000"))
+_backpressure_sem = asyncio.Semaphore(_BACKPRESSURE_LIMIT)
+
 
 class AdaptiveBackpressure:
     """Adjusts event emission delay based on client consumption rate."""
@@ -489,4 +493,5 @@ class GoalExecutionService(BaseService):
             for event in batch:
                 if event is None:
                     return
-                yield event
+                async with _backpressure_sem:
+                    yield event
