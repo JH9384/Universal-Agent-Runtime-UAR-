@@ -2057,7 +2057,7 @@ export function UARPanel() {
                                 return newHistory
                               })
                               setUnifiedOrderHistory((history) => {
-                                const newHistory = [...history.slice(0, unifiedOrderHistoryRef.current + 1), newOrder]
+                                const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
                                 setUnifiedOrderHistoryIndex((idx) => idx + 1)
                                 return newHistory
                               })

@@ -258,9 +258,9 @@ Client → FastAPI (server.py) → Executor (executor.py)
 | ID | Issue | File | Severity |
 |----|-------|------|----------|
 | F1 | Event data duplicated across 5+ state slices | `UARPanel.tsx` | High |
-| F2 | No cleanup of aborted EventSource on rapid re-run | `UARPanel.tsx` | High |
-| F3 | `dangerouslySetInnerHTML` used for markdown without sanitization | `UARPanel.tsx` | Medium |
-| F4 | Drag-and-drop uses index-based keys instead of stable IDs | `UARPanel.tsx` | Medium |
+| F2 | No cleanup of aborted EventSource on rapid re-run | `UARPanel.tsx` | **RESOLVED** |
+| F3 | `dangerouslySetInnerHTML` used for markdown without sanitization | `UARPanel.tsx` | **RESOLVED (pre-existing)** |
+| F4 | Drag-and-drop uses index-based keys instead of stable IDs | `UARPanel.tsx` | **RESOLVED** |
 | F5 | No debounce on skill search/filter input | `UARPanel.tsx` | Low |
 | F6 | Accessibility: missing `aria-live` regions for streaming events | `UARPanel.tsx` | Low |
 
