@@ -1425,11 +1425,14 @@ async def stream_goal(
             if current_conns >= _MAX_CONCURRENT_SSE_PER_IP:
                 raise HTTPException(
                     status_code=429,
-                    detail=(
-                        "Too many concurrent streaming connections from "
-                        f"IP {client_ip} "
-                        f"(limit: {_MAX_CONCURRENT_SSE_PER_IP})"
-                    ),
+                    detail={
+                        "error": "rate_limit_exceeded",
+                        "message": (
+                            "Too many concurrent streaming connections from "
+                            f"IP {client_ip} "
+                            f"(limit: {_MAX_CONCURRENT_SSE_PER_IP})"
+                        ),
+                    },
                 )
             _sse_connections[client_ip] = current_conns + 1
 
