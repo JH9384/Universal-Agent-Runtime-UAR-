@@ -18,7 +18,10 @@ from .contracts import PipelineContext, RunRecord, StrategySpec
 from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .registry import registry
 from .validation import validate_timeout
-from ..compat.uor_address import address_for_json, UORAddressError
+from ..compat.uor_address import (
+    address_with_witness,
+    UORAddressError,
+)
 from .recipes import DEFAULT_RECIPES
 from .schema import validate_event
 from ..api.metrics import get_metrics_collector
@@ -715,7 +718,10 @@ def make_executor_event(
         "error": error,
     }
     try:
-        event["uor_address"] = address_for_json(event)
+        address, witness = address_with_witness(event)
+        event["uor_address"] = address
+        if witness:
+            event["uor_witness"] = witness
     except UORAddressError as exc:
         logger.warning("Failed to derive UOR address: %s", exc)
     # Validate against schema and log a warning if non-compliant
@@ -1812,6 +1818,8 @@ class Executor:
             errors=payload.get("errors", []),
             events=events,
             final_context=payload.get("final_context", {}),
+            uor_address=complete_event.get("uor_address"),
+            uor_witness=complete_event.get("uor_witness"),
         )
 
     def run_batch(

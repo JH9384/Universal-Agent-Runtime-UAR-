@@ -85,6 +85,9 @@ build-frontend:
 validate: check-version $(VENV_STAMP)
 	$(PYTEST) tests/ -q --tb=short
 
+validate-uor: $(VENV_STAMP)
+	$(VENV_PYTHON) scripts/validate_uor_alignment.py
+
 api:
 	uvicorn uar.api.server:app --reload --host $(API_HOST) --port $(API_PORT)
 

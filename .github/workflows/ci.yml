@@ -34,6 +34,9 @@ jobs:
       - name: Check release version alignment
         run: make check-version PYTHON=python
 
+      - name: Validate UOR artifacts
+        run: make validate-uor PYTHON=python
+
       - name: Run benchmark (non-blocking)
         run: |
           .venv/bin/python tests/benchmark_skills.py || true

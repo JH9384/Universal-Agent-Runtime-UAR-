@@ -67,3 +67,5 @@ class RunRecord:
     events: List[Dict[str, Any]] = field(default_factory=list)
     final_context: Dict[str, Any] = field(default_factory=dict)
     user_id: Optional[str] = None
+    uor_address: Optional[str] = None
+    uor_witness: Optional[Dict[str, Any]] = None

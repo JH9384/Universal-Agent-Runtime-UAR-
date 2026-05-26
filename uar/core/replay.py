@@ -85,6 +85,8 @@ def run_record_from_events(
         events=event_list,
         final_context=payload.get("final_context", {}),
         user_id=user_id,
+        uor_address=final_event.get("uor_address"),
+        uor_witness=final_event.get("uor_witness"),
     )
 
 

@@ -64,3 +64,12 @@ Do not yet use:
 > UAR is fully UOR-conformant.
 
 until external UOR fixtures and API interoperability tests pass.
+
+## Alignment tracking
+
+- Pinned upstream release: **UOR-Framework v0.5.2** (2026-05-23) with SHA-256
+  digests recorded in `third_party/uor/DIGESTS.json`.
+- `/api/health` exposes both the local UAR version and the pinned upstream tag
+  (`uor_upstream_version`) so operators can monitor alignment in production.
+- `scripts/fetch_uor_artifacts.py` + CI jobs fetch the ontology artifacts and
+  (coming next) run SHACL/JSON Schema validation to detect drift early.

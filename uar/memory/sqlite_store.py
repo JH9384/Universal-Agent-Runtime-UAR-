@@ -71,16 +71,18 @@ class SqliteRunStore:
     def _ensure_table(self) -> None:
         ddl = """
         CREATE TABLE IF NOT EXISTS uar_runs (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id     TEXT NOT NULL,
-            goal_id    TEXT,
-            user_id    TEXT,
-            status     TEXT,
-            skills     TEXT,
-            events     TEXT,
-            outputs    TEXT,
-            metadata   TEXT,
-            created_at REAL DEFAULT (julianday('now'))
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id       TEXT NOT NULL,
+            goal_id      TEXT,
+            user_id      TEXT,
+            status       TEXT,
+            skills       TEXT,
+            events       TEXT,
+            outputs      TEXT,
+            metadata     TEXT,
+            uor_address  TEXT,
+            uor_witness  TEXT,
+            created_at   REAL DEFAULT (julianday('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_runs_run_id ON uar_runs(run_id);
         CREATE INDEX IF NOT EXISTS idx_runs_user  ON uar_runs(user_id);
@@ -90,11 +92,23 @@ class SqliteRunStore:
         conn = self._connect()
         try:
             conn.executescript(ddl)
+            for column, col_type in (
+                ("uor_address", "TEXT"),
+                ("uor_witness", "TEXT"),
+            ):
+                try:
+                    conn.execute(
+                        f"ALTER TABLE uar_runs ADD COLUMN {column} {col_type}"
+                    )
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column name" not in str(exc):
+                        raise
             conn.commit()
         finally:
             conn.close()
 
     def append(self, record: RunRecord) -> None:
+        witness = getattr(record, "uor_witness", None)
         data = {
             "run_id": getattr(record, "run_id", getattr(record, "id", "")),
             "goal_id": getattr(
@@ -106,14 +120,16 @@ class SqliteRunStore:
             "events": json.dumps(getattr(record, "events", [])),
             "outputs": json.dumps(getattr(record, "outputs", {})),
             "metadata": json.dumps(getattr(record, "metadata", {})),
+            "uor_address": getattr(record, "uor_address", None),
+            "uor_witness": json.dumps(witness) if witness is not None else None,
         }
         with self._lock:
             conn = self._get_conn()
             conn.execute(
                 "INSERT INTO uar_runs"
                 " (run_id, goal_id, user_id, status,"
-                "  skills, events, outputs, metadata)"
-                " VALUES (?,?,?,?,?,?,?,?)",
+                "  skills, events, outputs, metadata, uor_address, uor_witness)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?)",
                 tuple(data.values()),
             )
         # Populate hot cache with newly inserted record
@@ -122,6 +138,13 @@ class SqliteRunStore:
         hot_record["events"] = json.loads(hot_record["events"])
         hot_record["outputs"] = json.loads(hot_record["outputs"])
         hot_record["metadata"] = json.loads(hot_record["metadata"])
+        if hot_record["uor_witness"]:
+            try:
+                hot_record["uor_witness"] = json.loads(
+                    hot_record["uor_witness"]
+                )
+            except json.JSONDecodeError:
+                pass
         hot_record["created_at"] = None
         with self._hot_cache_lock:
             self._hot_cache[data["run_id"]] = hot_record
@@ -136,11 +159,12 @@ class SqliteRunStore:
         sql = (
             "INSERT INTO uar_runs"
             " (run_id, goal_id, user_id, status,"
-            "  skills, events, outputs, metadata)"
-            " VALUES (?,?,?,?,?,?,?,?)"
+            "  skills, events, outputs, metadata, uor_address, uor_witness)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)"
         )
         rows = []
         for record in records:
+            witness = getattr(record, "uor_witness", None)
             rows.append(
                 tuple([
                     getattr(record, "run_id", getattr(record, "id", "")),
@@ -155,6 +179,12 @@ class SqliteRunStore:
                     json.dumps(getattr(record, "events", [])),
                     json.dumps(getattr(record, "outputs", {})),
                     json.dumps(getattr(record, "metadata", {})),
+                    getattr(record, "uor_address", None),
+                    (
+                        json.dumps(witness)
+                        if witness is not None
+                        else None
+                    ),
                 ])
             )
         with self._lock:
@@ -257,7 +287,7 @@ class SqliteRunStore:
 
 
 def _decode_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    for key in ("skills", "events", "outputs", "metadata"):
+    for key in ("skills", "events", "outputs", "metadata", "uor_witness"):
         val = row.get(key)
         if isinstance(val, str):
             try:

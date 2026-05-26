@@ -12,6 +12,7 @@ from uar.core.executor import (
     _expand_execution_order_with_markers,
     _get_parallel_groups,
     Executor,
+    make_executor_event,
 )
 from uar.core.exceptions import TimeoutError, ValidationError
 from uar.core.contracts import StrategySpec, GoalSpec, PipelineContext
@@ -108,6 +109,7 @@ class TestEventFunction:
         assert event["error"] == "test_error"
         assert event["correlation_id"] == "corr_789"
         assert "timestamp" in event
+        assert event["uor_address"].startswith("sha256:")
 
     def test_event_optional_fields(self):
         """Event works with optional fields"""
@@ -119,6 +121,24 @@ class TestEventFunction:
         assert event["payload"] == {}
         assert event["error"] is None
         assert event["correlation_id"] == ""
+        assert event["uor_address"].startswith("sha256:")
+
+    def test_make_executor_event_produces_address(self):
+        event = make_executor_event("demo", "run", "goal")
+        assert event["uor_address"].startswith("sha256:")
+
+    def test_make_executor_event_injects_mock_witness(self, monkeypatch):
+        def fake_address_with_witness(value):
+            return "sha256:mock", {"fingerprint": "ff"}
+
+        monkeypatch.setattr(
+            executor_module,
+            "address_with_witness",
+            fake_address_with_witness,
+        )
+        event = make_executor_event("demo", "run", "goal")
+        assert event["uor_address"] == "sha256:mock"
+        assert event["uor_witness"]["fingerprint"] == "ff"
 
 
 class TestExecutor:
@@ -140,6 +160,8 @@ class TestExecutor:
         assert len(events) >= 2
         assert events[0]["type"] == "start"
         assert events[-1]["type"] == "complete"
+        for ev in events:
+            assert ev["uor_address"].startswith("sha256:")
         assert events[-1]["payload"]["status"] == "failed"
         assert "not found" in events[-1]["payload"]["errors"][0]
 
@@ -170,6 +192,7 @@ class TestExecutor:
 
         for event in events:
             assert event["correlation_id"] == "test_corr"
+            assert event["uor_address"].startswith("sha256:")
 
     @patch("uar.core.executor.registry")
     def test_iter_events_with_registered_skill(self, mock_registry):

@@ -141,8 +141,8 @@ a new release:
 
 1. Update `third_party/uor/VERSION` and the digests file.
 2. Re-run the fetch script.
-3. Re-run compatibility validation (SHACL/JSON Schema) before advertising the
-   new alignment level.
+3. Run `python scripts/validate_uor_alignment.py` (SHACL + JSON Schema) before
+   advertising the new alignment level.
 
 ### Run Locally
 

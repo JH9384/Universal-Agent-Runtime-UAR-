@@ -41,6 +41,9 @@ dev = [
   "mypy>=1.0,<2.0",
   "types-requests>=2.31,<3.0",
   "requests>=2.31,<3.0",
+  "jsonschema>=4.21,<5.0",
+  "pyshacl>=0.20,<1.0",
+  "rdflib>=7.0,<8.0",
 ]
 # UOR capabilities (mathematical foundations and distributed graphs)
 uor = [
