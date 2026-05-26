@@ -54,6 +54,11 @@ uor = [
   "blake3>=0.4,<1.0",
   "cryptography>=42.0,<43.0",
 ]
+# Sigstore signing for artifact provenance
+sigstore = [
+  "sigstore>=2.0,<3.0",
+  "cryptography>=42.0,<43.0",
+]
 # Advanced integrations (heavy dependencies)
 advanced = [
   "unstructured[local-inference]>=0.12,<1.0",
