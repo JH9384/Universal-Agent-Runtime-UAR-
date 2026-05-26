@@ -1,6 +1,125 @@
 import os
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
+
+
+SkillMaturity = Literal[
+    "stable",
+    "beta",
+    "experimental",
+    "stub",
+    "deprecated",
+]
+
+SideEffectPolicy = Literal[
+    "PURE",
+    "LOCAL_WRITE",
+    "NETWORK_WRITE",
+    "EXTERNAL_MUTATION",
+    "DESTRUCTIVE",
+]
+
+ReplaySafety = Literal[
+    "ReplaySafe",
+    "ReplayConditional",
+    "ReplayUnsafe",
+]
+
+ObservabilityLevel = Literal[
+    "minimal",
+    "standard",
+    "verbose",
+]
+
+
+SKILL_MATURITY_VALUES = {
+    "stable",
+    "beta",
+    "experimental",
+    "stub",
+    "deprecated",
+}
+
+SIDE_EFFECT_POLICY_VALUES = {
+    "PURE",
+    "LOCAL_WRITE",
+    "NETWORK_WRITE",
+    "EXTERNAL_MUTATION",
+    "DESTRUCTIVE",
+}
+
+REPLAY_SAFETY_VALUES = {
+    "ReplaySafe",
+    "ReplayConditional",
+    "ReplayUnsafe",
+}
+
+OBSERVABILITY_LEVEL_VALUES = {
+    "minimal",
+    "standard",
+    "verbose",
+}
+
+
+@dataclass(slots=True)
+class SkillContract:
+    """Runtime governance contract for a registered skill.
+
+    SkillContract is intentionally metadata-first in Phase 2A. It gives the
+    registry and executor a stable governance surface before enforcement is
+    expanded into scheduling, replay certification, and side-effect policy
+    gates.
+    """
+
+    name: str
+    version: str = "0.1.0"
+    maturity: SkillMaturity = "experimental"
+    timeout_policy: str = "default"
+    retry_policy: str = "default"
+    side_effect_policy: SideEffectPolicy = "PURE"
+    replay_safety: ReplaySafety = "ReplayConditional"
+    input_schema: Dict[str, Any] = field(default_factory=dict)
+    output_schema: Dict[str, Any] = field(default_factory=dict)
+    resource_requirements: Dict[str, Any] = field(default_factory=dict)
+    failure_modes: List[str] = field(default_factory=list)
+    observability_level: ObservabilityLevel = "standard"
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def validate(self) -> List[str]:
+        """Return governance validation errors for this contract."""
+        errors: List[str] = []
+        if not self.name:
+            errors.append("SkillContract.name must be non-empty")
+        if self.maturity not in SKILL_MATURITY_VALUES:
+            errors.append(f"Invalid skill maturity: {self.maturity}")
+        if self.side_effect_policy not in SIDE_EFFECT_POLICY_VALUES:
+            errors.append(
+                f"Invalid side effect policy: {self.side_effect_policy}"
+            )
+        if self.replay_safety not in REPLAY_SAFETY_VALUES:
+            errors.append(f"Invalid replay safety: {self.replay_safety}")
+        if self.observability_level not in OBSERVABILITY_LEVEL_VALUES:
+            errors.append(
+                f"Invalid observability level: {self.observability_level}"
+            )
+        if (
+            self.replay_safety == "ReplaySafe"
+            and self.side_effect_policy != "PURE"
+        ):
+            errors.append(
+                "ReplaySafe skills must declare PURE side_effect_policy"
+            )
+        return errors
+
+    @property
+    def is_executable_by_default(self) -> bool:
+        """Whether the skill should execute without explicit override."""
+        return self.maturity not in {"deprecated", "stub"}
+
+    @property
+    def is_replay_safe(self) -> bool:
+        """Whether the skill is safe for deterministic replay certification."""
+        return self.replay_safety == "ReplaySafe"
 
 
 @dataclass
