@@ -2193,6 +2193,55 @@ async def prometheus_metrics():
     return Response(content=body, media_type="text/plain")
 
 
+@app.get("/api/provenance/{run_id}")
+async def get_provenance(
+    run_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Fetch provenance data for a specific run.
+
+    Returns the UOR address, witness data, and verification status
+    for cryptographic audit of the run.
+    """
+    user_info = auth_middleware(credentials)
+    user = user_info["user"] if user_info else "anonymous"
+
+    # Load from store
+    from uar.memory.sqlite_store import SqliteRunStore
+
+    store_path = store.path.parent / "runs.db"
+    if not store_path.exists():
+        raise HTTPException(status_code=404, detail="Run store not found")
+
+    run_store = SqliteRunStore(str(store_path))
+    record = run_store.get_by_run_id(run_id)
+
+    if not record:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+
+    # Verify ownership if not admin
+    if record.get("user_id") != user and user != "admin":
+        raise HTTPException(
+            status_code=403, detail="Not authorized to access this run"
+        )
+
+    # Build provenance response
+    provenance = {
+        "run_id": run_id,
+        "uor_address": record.get("uor_address"),
+        "uor_witness": record.get("uor_witness"),
+        "timestamp": record.get("timestamp"),
+        "goal": record.get("goal"),
+        "skills": record.get("skills", []),
+        "verification": {
+            "address_present": bool(record.get("uor_address")),
+            "witness_present": bool(record.get("uor_witness")),
+        },
+    }
+
+    return provenance
+
+
 def _docs_root():
     from pathlib import Path
     import os
