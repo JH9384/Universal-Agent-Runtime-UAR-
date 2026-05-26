@@ -24,6 +24,7 @@ help:
 	@echo "  make lint-ts          Run TypeScript type check"
 	@echo "  make build-frontend   Build production frontend bundle"
 	@echo "  make validate         Install and run foundation validation"
+	@echo "  make validate-uor     Validate pinned UOR artifacts (SHACL + JSON Schema)"
 	@echo "  make api              Start the FastAPI runtime server"
 	@echo "  make web              Start the staged web UI"
 	@echo "  make up               One-command runtime launch: install + API"

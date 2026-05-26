@@ -4,13 +4,13 @@ This file captures the public UOR facts UAR must align with.
 
 ## Public entry points
 
-- Foundation site: https://uor.foundation/
-- Framework docs: https://www.uor.foundation/docs/uor-framework
-- OpenAPI spec: https://uor.foundation/openapi.json
-- Live API base: https://api.uor.foundation/v1
-- Source/ontology: https://github.com/UOR-Foundation/UOR-Framework
-- Crate: https://crates.io/crates/uor-foundation
-- Docs: https://docs.rs/uor-foundation
+- Foundation site: [uor.foundation](https://uor.foundation/)
+- Framework docs: [Docs](https://www.uor.foundation/docs/uor-framework)
+- OpenAPI spec: [openapi.json](https://uor.foundation/openapi.json)
+- Live API base: [api.uor.foundation/v1](https://api.uor.foundation/v1)
+- Source/ontology: [GitHub repo](https://github.com/UOR-Foundation/UOR-Framework)
+- Crate: [uor-foundation on crates.io](https://crates.io/crates/uor-foundation)
+- Docs: [docs.rs/uor-foundation](https://docs.rs/uor-foundation)
 
 ## Core public claims
 
@@ -28,7 +28,7 @@ UOR describes a universal data infrastructure where objects are identified by wh
 The public OpenAPI describes three spaces:
 
 | Space | Namespaces | API group |
-|---|---|---|
+| --- | --- | --- |
 | Kernel | `u:`, `schema:`, `op:` | `/kernel` |
 | Bridge | `resolver:`, `partition:`, `observable:`, `proof:`, `derivation:`, `trace:`, `cert:` | `/bridge` |
 | User | `type:`, `morphism:`, `state:` | `/user` |

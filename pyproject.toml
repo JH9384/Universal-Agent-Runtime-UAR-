@@ -140,6 +140,9 @@ module = [
     "wasmtime",
     "asyncpg",
     "uor_addr",
+    "jsonschema",
+    "pyshacl",
+    "rdflib",
 ]
 ignore_missing_imports = true
 

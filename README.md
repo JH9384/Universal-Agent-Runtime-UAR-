@@ -70,7 +70,7 @@ UAR offers multiple installation options depending on your use case. The base in
 
 ```bash
 # Clone repository
-git clone https://github.com/JH9384/Universal-Agent-Runtime-UAR-.git
+`git clone https://github.com/JH9384/Universal-Agent-Runtime-UAR-.git`
 cd Universal-Agent-Runtime-UAR-
 
 # Install base dependencies (core functionality only)
@@ -482,7 +482,7 @@ cd apps/web && npm run build
 
 ## Architecture
 
-```
+```text
 Client (React / curl / CLI)
     │
     ▼
