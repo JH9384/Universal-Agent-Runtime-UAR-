@@ -16,6 +16,7 @@ from uar.core.replay import (
     validate_event_stream,
 )
 from uar.core.executor import make_executor_event
+from uar.core.replay_certification import certify_event_stream
 
 
 class TestTimestampNormalization:
@@ -112,3 +113,36 @@ class TestEventOrderNormalization:
         ]
         with pytest.raises(Exception):
             validate_event_stream(evs)
+
+
+class TestReplayCertification:
+    def test_replay_certification_reports_success(self):
+        report = certify_event_stream([
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("skill_complete", "r1", "g1", skill="a"),
+            make_executor_event(
+                "complete",
+                "r1",
+                "g1",
+                payload={"status": "completed"},
+            ),
+        ])
+
+        assert report.status == "CERTIFIED"
+        assert report.certified
+
+    def test_replay_certification_detects_run_drift(self):
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event(
+                "complete",
+                "r2",
+                "g1",
+                payload={"status": "completed"},
+            ),
+        ]
+
+        report = certify_event_stream(evs)
+
+        assert report.failed
+        assert any(v.code == "RUN_ID_DRIFT" for v in report.violations)
