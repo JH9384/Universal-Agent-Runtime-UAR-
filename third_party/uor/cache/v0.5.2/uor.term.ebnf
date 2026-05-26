@@ -1,0 +1,222 @@
+(* ============================================================================
+   UOR Term Language — EBNF
+   Specification version: v0.5.2
+   Authoritative source: https://uor.foundation/
+   Notation: ISO/IEC 14977.
+
+   The grammar describes the free term tree. Equational structure
+   (operad axioms, rewrite rules, canonical forms) is enforced by the
+   resolver, not by the grammar.
+   ============================================================================ *)
+
+program          ::= { statement } ;
+
+statement        ::= type-decl
+                   | binding
+                   | assertion
+                   | effect-decl
+                   | boundary-decl
+                   | expression , ";" ;
+
+expression       ::= term ;
+
+(* ── Terms (schema:Term, disjoint from schema:Datum) ────────────────────────── *)
+
+term             ::= literal
+                   | application
+                   | variable
+                   | match-expr
+                   | try-expr
+                   | recurse-expr
+                   | stream-expr
+                   | set-expr ;
+
+literal          ::= integer-literal
+                   | element-literal
+                   | witt-literal ;
+
+integer-literal  ::= digit , { digit } ;
+
+element-literal  ::= byte-element , { byte-element } ;
+byte-element     ::= "\u2800" .. "\u28FF" ;
+
+witt-literal     ::= integer-literal , "@" , name ;
+                   (* name → individual of schema:WittLevel. *)
+
+(* ── Application (schema:Application) ──────────────────────────────────────────
+   The n-ary form realises operadic substitution θ ∘ (θ₁,…,θₖ).
+   Arity is checked semantically against op:arity for the resolved name.
+   The Σₙ action and associative reassociation are quotients applied by the
+   canonical-form resolver, not constraints of this grammar.
+   Asymmetry with type-app: application admits ≥ 0 args (so op:arity = 0
+   is expressible); type-app requires ≥ 1 because a nullary type
+   constructor is already covered by the name alternative of type-expr. *)
+
+application      ::= name , "(" , [ term , { "," , term } ] , ")" ;
+                   (* name → individual of op:Operation (a UnaryOp, BinaryOp,
+                      or Involution member). op:ComposedOperation individuals
+                      are synthesised by the resolver from nested applications
+                      and have no introduction form in this grammar. *)
+
+variable         ::= identifier ;
+
+(* An identifier whose meaning is resolved through the ontology rather
+   than the local binding context. Each use site comments which
+   ontology class the name must resolve to. *)
+name             ::= identifier ;
+
+identifier       ::= alpha , { alpha | digit | "_" } ;
+alpha            ::= "a" .. "z" | "A" .. "Z" ;
+digit            ::= "0" .. "9" ;
+
+(* ── Type expressions (operad:StructuralOperad) ────────────────────────────────
+   type-app is an operadic composition over the structural operad and
+   materialises an operad:OperadComposition individual whose outerType,
+   innerType, composedType, composedSiteCount and composedGrounding are
+   populated from the AST and the carry layer. *)
+
+type-expr        ::= name
+                   | type-app ;
+                   (* name → owl:NamedIndividual of type:TypeDefinition
+                      (transitively, via any subclass). Category classes
+                      (PrimitiveType, ProductType, SumType, ConstrainedType)
+                      and state classes (CompleteType, SuperposedSiteState,
+                      CompletenessCandidate, SynthesizedType, TwistedType,
+                      FlatType) are not valid targets at this position. *)
+
+type-app         ::= name , "(" , type-expr , { "," , type-expr } , ")" ;
+                   (* name → owl:NamedIndividual of type:TypeDefinition
+                      (a parameterised one). The application materialises
+                      a fresh operad:OperadComposition individual whose
+                      outerType, innerType, composedType, composedSiteCount,
+                      and composedGrounding are populated from the AST and
+                      the carry layer, and a fresh type:TypeDefinition
+                      individual representing the composed type. *)
+
+(* ── Type declarations (type:TypeDefinition) ───────────────────────────────────
+   Parameterised declarations carry the colored structural operad.
+   Per-position variance (type:positionVariance, range type:VarianceAnnotation)
+   is asserted via constraint-decl in the body, not encoded as syntax. *)
+
+type-decl        ::= "type" , identifier , [ type-params ] ,
+                     "{" , { constraint-decl } , "}" ;
+
+type-params      ::= "(" , type-param , { "," , type-param } , ")" ;
+type-param       ::= identifier ;
+
+constraint-decl  ::= name , "(" , [ constraint-arg , { "," , constraint-arg } ] , ")" , ";" ;
+constraint-arg   ::= name , ":" , term ;
+                   (* outer name → subclass of type:Constraint. The currently
+                      declared subclasses are ResidueConstraint,
+                      CarryConstraint, DepthConstraint, HammingConstraint,
+                      SiteConstraint, AffineConstraint. CompositeConstraint
+                      is the implicit shape of any type-decl body containing
+                      more than one constraint-decl and has no syntactic
+                      constructor. inner name (in constraint-arg) → property
+                      whose rdfs:domain is the outer subclass; the trailing
+                      term is the value, type-checked against the property's
+                      rdfs:range and required to be Datum-denoting. Functional
+                      properties accept exactly one matching constraint-arg;
+                      non-functional properties accept either repeated
+                      constraint-args with the same field name or a single
+                      set-expr value that unpacks. *)
+
+(* ── Bindings ───────────────────────────────────────────────────────────────── *)
+
+binding          ::= "let" , identifier , ":" , type-expr , "=" , term , ";" ;
+
+(* ── Assertions ────────────────────────────────────────────────────────────────
+   The asserted term must resolve to a verdict at the predicate layer.
+   Equality flavours (ring equality, canonical-form equivalence, etc.) are
+   selected by the predicate identifier appearing in the term, not by syntax. *)
+
+assertion        ::= "assert" , term , ";" ;
+
+(* ── Match ──────────────────────────────────────────────────────────────────── *)
+
+match-expr       ::= "match" , term , "{" , { match-arm } , "}" ;
+match-arm        ::= name , "=>" , term , ";" ;
+                   (* name → individual of predicate:Predicate (a TypePredicate,
+                      StatePredicate, or SitePredicate member). *)
+
+(* ── Streams ────────────────────────────────────────────────────────────────── *)
+
+stream-expr      ::= "unfold" , identifier , ":" , type-expr , "from" , term ;
+
+(* ── Sets ──────────────────────────────────────────────────────────────────────
+   A constructor form, not a literal: elements may be arbitrary terms.
+   Element order in the source is parser-arbitrary; the resolver
+   canonicalises by content address (the same Normalization quotient
+   applied to commutative applications). *)
+
+set-expr         ::= "{" , [ term , { "," , term } ] , "}" ;
+
+(* ── Property values ───────────────────────────────────────────────────────────
+   A value is what fills a property-position slot whose ontology range may
+   be a Datum (term) or an xsd-typed host datum (host-literal). The two
+   sorts are syntactically disjoint. Operations are mono-sorted over Datum
+   terms — host literals can never appear inside an application — so the
+   bi-sortedness is enforced by the grammar, not deferred to type checking. *)
+
+value            ::= term | host-literal ;
+
+host-literal     ::= string-literal | boolean-literal ;
+                   (* No host-integer-literal: integer-literal in term
+                      position already projects to xsd:integer through the
+                      Datum integer projection, and the resolver coerces
+                      when the property range is xsd:integer. *)
+
+string-literal   ::= '"' , { string-char } , '"' ;
+string-char      ::= any-char-except-quote-or-backslash
+                   | "\\" , escape-char ;
+escape-char      ::= '"' | "\\" | "n" | "r" | "t" | "u" , hex , hex , hex , hex ;
+hex              ::= digit | "a" .. "f" | "A" .. "F" ;
+
+boolean-literal  ::= "true" | "false" ;
+
+(* ── Effects ───────────────────────────────────────────────────────────────────
+   Property keys must resolve to ontology-declared properties on the
+   target effect class; the property's range constrains the value. *)
+
+effect-decl      ::= "effect" , identifier , "{" , { effect-prop } , "}" ;
+effect-prop      ::= name , ":" , value , ";" ;
+                   (* name → property IRI (an owl:DatatypeProperty or
+                      owl:ObjectProperty whose domain is the effect class).
+                      The "effect" identifier is a fresh binding occurrence
+                      introducing a new effect:Effect individual. *)
+
+(* ── Failure and recovery ───────────────────────────────────────────────────── *)
+
+try-expr         ::= "try" , term , "{" , { recover-arm } , "}" ;
+recover-arm      ::= "recover" , name , "=>" , term , ";" ;
+                   (* name → subclass of failure:FailureReason. The currently
+                      declared subclasses are GuardFailure,
+                      ConstraintContradiction, SiteExhaustion,
+                      LiftObstructionFailure. *)
+
+(* ── Bounded recursion ──────────────────────────────────────────────────────── *)
+
+recurse-expr     ::= "recurse" , identifier , "(" , term , ")" ,
+                     "measure" , term ,
+                     base-arm , { base-arm } ,
+                     "step" , "=>" , term ;
+base-arm         ::= "base" , name , "=>" , term ;
+                   (* name → individual of predicate:Predicate. *)
+
+(* ── IO boundary declarations ───────────────────────────────────────────────── *)
+
+boundary-decl    ::= source-decl | sink-decl ;
+source-decl      ::= "source" , identifier , ":" , type-expr , "via" , name , ";" ;
+                   (* "via" name → individual of morphism:GroundingMap.
+                      The leading identifier is a fresh binding occurrence
+                      introducing a new boundary:Source individual. *)
+sink-decl        ::= "sink"   , identifier , ":" , type-expr , "via" , name , ";" ;
+                   (* "via" name → individual of morphism:ProjectionMap.
+                      The leading identifier is a fresh binding occurrence
+                      introducing a new boundary:Sink individual. *)
+
+(* ── Lexical ────────────────────────────────────────────────────────────────── *)
+
+whitespace       ::= " " | "\t" | "\n" | "\r" ;
+line-comment     ::= "--" , { any-char-except-newline } , "\n" ;
+block-comment    ::= "(*" , { any-char } , "*)" ;
