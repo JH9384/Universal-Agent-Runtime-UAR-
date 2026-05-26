@@ -22,7 +22,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
 
-      - name: Run replay governance tests
+      - name: Run constitutional runtime governance tests
         run: |
           pytest tests/test_replay_certificate.py
           pytest tests/test_replay_drift_comparator.py
+          pytest tests/test_runtime_replay_store.py
+          pytest tests/test_execution_authority.py
+          pytest tests/test_executor_authority_adapter.py
+          pytest tests/test_governed_executor.py
+          pytest tests/test_runtime_dispatch_pipeline.py
+          pytest tests/test_live_replay_engine.py
