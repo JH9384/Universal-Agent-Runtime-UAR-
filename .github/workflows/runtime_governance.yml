@@ -31,4 +31,6 @@ jobs:
           pytest tests/test_executor_authority_adapter.py
           pytest tests/test_governed_executor.py
           pytest tests/test_runtime_dispatch_pipeline.py
+          pytest tests/test_constitutional_no_bypass.py
+          pytest tests/test_constitutional_execution_chain.py
           pytest tests/test_live_replay_engine.py
