@@ -2186,10 +2186,18 @@ async def prometheus_metrics():
 
     Exposes uar_requests_total, uar_errors_total,
     uar_request_duration_seconds histogram (by endpoint),
-    and uar_skill_duration_seconds histogram (by skill).
+    uar_skill_duration_seconds histogram (by skill),
+    and uor_alignment_* metrics for drift detection.
     """
+    from uar.api.uor_alignment_metrics import get_uor_alignment_metrics
+
     collector = get_metrics_collector()
     body = collector.get_prometheus_format()
+
+    # Append UOR alignment metrics
+    uor_metrics = get_uor_alignment_metrics()
+    body += uor_metrics.get_prometheus_metrics()
+
     return Response(content=body, media_type="text/plain")
 
 

@@ -1,0 +1,107 @@
+{
+  "dashboard": {
+    "title": "UOR Alignment Monitoring",
+    "tags": ["uor", "alignment", "compliance"],
+    "timezone": "UTC",
+    "schemaVersion": 36,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "UOR Alignment Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uor_alignment_drift",
+            "legendFormat": "Drift Detected"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "red", "value": 1}
+              ]
+            },
+            "mappings": [
+              {"options": {"0": {"text": "ALIGNED"}}, "type": "value"},
+              {"options": {"1": {"text": "DRIFT"}}, "type": "value"}
+            ]
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Artifacts Fresh",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uor_artifacts_fresh",
+            "legendFormat": "Artifacts Valid"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Local Version",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uor_alignment_info",
+            "legendFormat": "{{local}}"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Upstream Version",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uor_alignment_info",
+            "legendFormat": "{{upstream}}"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "Alignment Check History",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "uor_alignment_last_check",
+            "legendFormat": "Last Check"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+      },
+      {
+        "id": 6,
+        "title": "Drift Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "changes(uor_alignment_drift[1h])",
+            "legendFormat": "Drift Changes"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+      }
+    ]
+  }
+}
