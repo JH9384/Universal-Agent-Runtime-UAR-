@@ -20,11 +20,12 @@ Goal metadata overrides:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from pathlib import Path
+from typing import cast
 
+from uar.core.async_utils import run_sync_safe
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.validation import validate_path_security
@@ -72,16 +73,16 @@ def _resolve_input_path(ctx) -> Path | None:
     if isinstance(di, dict) and di.get("documents"):
         for d in di["documents"]:
             if isinstance(d, dict):
-                p = d.get("path")
-                if p:
-                    resolved = Path(p).resolve()
+                path_val = d.get("path")
+                if path_val and isinstance(path_val, (str, bytes)):
+                    resolved = cast(Path, Path(str(path_val)).resolve())
                     try:
                         validate_path_security(resolved, ALLOWED_ROOT)
                         if resolved.exists():
                             return resolved
                     except Exception as e:
                         logger.warning(
-                            f"Path security validation failed for {p}: {e}"
+                            f"Path security validation failed for {path_val}: {e}"
                         )
                         continue
     return None
@@ -166,8 +167,9 @@ def autonomi_upload(ctx):
         return result
 
     try:
+        import asyncio
         result = _autonomi_cb.call(
-            lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout))
+            lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
         )
         return {
             "status": "completed",
@@ -263,8 +265,9 @@ def autonomi_download(ctx):
         return str(dest)
 
     try:
+        import asyncio
         _autonomi_cb.call(
-            lambda: asyncio.run(asyncio.wait_for(_do(), timeout=timeout))
+            lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
         )
         return {
             "status": "completed",

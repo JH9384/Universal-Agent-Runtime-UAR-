@@ -4,7 +4,7 @@ Defines standard link relation types for UOR object references,
 providing consistent semantics for object relationships.
 """
 
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class LinkRelation:
@@ -63,7 +63,7 @@ class LinkRelationVocabulary:
 
     def __init__(self):
         """Initialize the link relation vocabulary."""
-        self.relations = {
+        self.relations: Dict[str, Any] = {
             # Structural
             LinkRelation.CONTAINS: {
                 "description": "Object contains the target",
@@ -240,7 +240,7 @@ class LinkRelationVocabulary:
         return list(self.relations.keys())
 
     def create_link(
-        self, relation: str, target: str, properties: Dict = None
+        self, relation: str, target: str, properties: Optional[Dict] = None
     ) -> Dict[str, str]:
         """Create a standardized link.
 

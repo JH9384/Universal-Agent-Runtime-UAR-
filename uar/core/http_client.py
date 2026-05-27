@@ -9,6 +9,8 @@ import random
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
+from uar.core.async_utils import run_sync_safe
+
 logger = logging.getLogger(__name__)
 
 # Per-domain aiohttp session cache
@@ -115,7 +117,7 @@ def close_all_sessions() -> None:
     """Close all cached sessions (call on shutdown)."""
     for domain, sess in list(_sessions.items()):
         try:
-            asyncio.get_event_loop().run_until_complete(sess.close())
+            run_sync_safe(sess.close())
         except Exception:
             pass
         del _sessions[domain]

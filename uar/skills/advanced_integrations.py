@@ -13,6 +13,7 @@ This module provides UAR skill wrappers for the integrated frameworks:
 import logging
 from pathlib import Path
 from typing import Any, Dict
+from uar.core.async_utils import run_sync_safe
 from uar.core.registry import register_skill
 
 logger = logging.getLogger(__name__)
@@ -63,12 +64,12 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
             )
             orchestrator.register_agent(agent)
 
-        # Execute workflow
-        result = execute_agent_workflow(
+        # Execute workflow (async function called safely from sync skill)
+        result = run_sync_safe(execute_agent_workflow(
             workflow_id=f"workflow_{workflow_type}",
             agent_sequence=agent_sequence,
             initial_message=initial_message,
-        )
+        ))
 
         return {
             "status": "success",
@@ -188,11 +189,11 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         workflow_type = metadata.get("workflow_type", "research_analyze_write")
         input_data = metadata.get("input_data", {"topic": ctx.get("goal", "")})
 
-        # Execute workflow
-        result = execute_standard_workflow(
+        # Execute workflow (async function called safely from sync skill)
+        result = run_sync_safe(execute_standard_workflow(
             workflow_type=workflow_type,
             input_data=input_data,
-        )
+        ))
 
         return {
             "status": "success",
@@ -246,7 +247,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
         # Map strings to enums
         chunking_map = {
-            "fixed": ChunkingStrategy.FIXED,
+            "fixed": ChunkingStrategy.FIXED,  # type: ignore[attr-defined]
             "hierarchical": ChunkingStrategy.HIERARCHICAL,
             "semantic": ChunkingStrategy.SEMANTIC,
         }
@@ -290,7 +291,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "status": "success",
             "query": query,
             "response": result.response,
-            "sources": [node.to_dict() for node in result.sources],
+            "sources": [node.to_dict() for node in result.sources],  # type: ignore[attr-defined]
             "metadata": result.metadata,
         }
 
@@ -342,7 +343,7 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
         # Execute query
         query = ctx.get("goal", "")
-        result = rag.query(
+        result = rag.query(  # type: ignore[call-arg]
             query, retrieval_strategy=retrieval_strategy, top_k=top_k
         )
 
@@ -350,7 +351,7 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "status": "success",
             "query": query,
             "response": result.response,
-            "sources": [node.to_dict() for node in result.sources],
+            "sources": [node.to_dict() for node in result.sources],  # type: ignore[attr-defined]
             "metadata": result.metadata,
         }
 

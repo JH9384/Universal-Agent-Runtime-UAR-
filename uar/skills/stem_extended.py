@@ -81,11 +81,11 @@ def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
 
         elif operation == "root":
             expr = meta.get("opt_function", "x**2 - 4")
-            x0 = float(meta.get("opt_initial", 1.0))
+            x0_scalar = float(meta.get("opt_initial", 1.0))
 
             def f(x):
                 return safe_eval(expr, {"np": np, "x": x})
-            res = opt.root_scalar(f, x0=x0, method="newton")
+            res = opt.root_scalar(f, x0=x0_scalar, method="newton")
             return {
                 "status": "completed",
                 "success": res.converged,

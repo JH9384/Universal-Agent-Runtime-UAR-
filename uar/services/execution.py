@@ -378,8 +378,8 @@ class GoalExecutionService(BaseService):
                             # Hint kernel for sequential readahead
                             if hasattr(mm, "madvise"):
                                 mm.madvise(mmap.MADV_SEQUENTIAL)
-                            for line in iter(mm.readline, b""):
-                                line_s = line.decode(
+                            for raw_line in iter(mm.readline, b""):
+                                line_s = bytes(raw_line).decode(
                                     "utf-8", errors="replace"
                                 ).strip()
                                 if line_s:

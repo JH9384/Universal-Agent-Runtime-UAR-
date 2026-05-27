@@ -42,7 +42,7 @@ except ImportError:
     Literal = None  # type: ignore[assignment,misc]
     Namespace = None  # type: ignore[assignment,misc]
     URIRef = None  # type: ignore[assignment,misc]
-    OWL = RDF = RDFS = XSD = None  # type: ignore[assignment]
+    OWL = RDF = RDFS = XSD = None  # type: ignore[assignment,misc]
 
 try:
     import json
@@ -93,8 +93,8 @@ class RDFConverter:
             self.graph.bind("owl", OWL)
             self.graph.bind("xsd", XSD)
         else:
-            self.uor_ns = None
-            self.graph = None
+            self.uor_ns = None  # type: ignore[assignment]
+            self.graph = None  # type: ignore[assignment]
 
     def jsonld_to_rdf(
         self, jsonld_data: str, context: Optional[Dict[str, Any]] = None
@@ -279,11 +279,11 @@ class RDFConverter:
             graph.add((subject, predicate, obj))
         elif isinstance(value, dict):
             # Handle nested object
-            obj = BNode()
-            graph.add((subject, predicate, obj))
+            bnode_obj = BNode()
+            graph.add((subject, predicate, bnode_obj))
             for nested_key, nested_value in value.items():
                 self._add_property_to_graph(
-                    graph, obj, nested_key, nested_value
+                    graph, bnode_obj, nested_key, nested_value  # type: ignore[arg-type]
                 )
 
     def _add_content_to_graph(
@@ -328,10 +328,11 @@ class RDFConverter:
 
             # Extract properties
             for predicate, obj in graph.predicate_objects(subject=uri):
+                predicate_str = str(predicate)
                 predicate_name = (
-                    predicate.split("#")[-1]
-                    if "#" in predicate
-                    else predicate.split("/")[-1]
+                    predicate_str.split("#")[-1]
+                    if "#" in predicate_str
+                    else predicate_str.split("/")[-1]
                 )
 
                 if predicate_name == "content":
@@ -347,7 +348,7 @@ class RDFConverter:
                         envelope[predicate_name] = str(obj)
 
             return RDFConversionResult(
-                success=True, data=envelope, format="envelope"
+                success=True, data=envelope, format="envelope"  # type: ignore[arg-type]
             )
         except Exception as e:
             logger.error(f"RDF to UOR envelope conversion failed: {e}")
@@ -367,10 +368,11 @@ class RDFConverter:
         """
         content = {}
         for predicate, obj in graph.predicate_objects(subject=content_uri):
+            pred_str = str(predicate)
             predicate_name = (
-                predicate.split("#")[-1]
-                if "#" in predicate
-                else predicate.split("/")[-1]
+                pred_str.split("#")[-1]
+                if "#" in pred_str
+                else pred_str.split("/")[-1]
             )
 
             if isinstance(obj, Literal):
@@ -402,8 +404,8 @@ class OWLConverter:
             self.graph.bind("rdf", RDF)
             self.graph.bind("rdfs", RDFS)
         else:
-            self.uor_ns = None
-            self.graph = None
+            self.uor_ns = None  # type: ignore[assignment]
+            self.graph = None  # type: ignore[assignment]
 
     def schema_to_owl(self, schema: Dict[str, Any]) -> RDFConversionResult:
         """Convert JSON Schema to OWL ontology.

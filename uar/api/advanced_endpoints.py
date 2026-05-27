@@ -24,7 +24,7 @@ async def get_orchestrator_status() -> Dict[str, Any]:
         from uar.core.agent_framework import get_orchestrator
 
         orchestrator = get_orchestrator()
-        return orchestrator.get_status()
+        return orchestrator.get_status()  # type: ignore[attr-defined,return-value]
     except Exception as e:
         logger.error(f"Failed to get orchestrator status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -274,7 +274,7 @@ async def execute_crewai_workflow(
             workflow_type=workflow_type,
             input_data=input_data,
         )
-        return result
+        return result  # type: ignore[return-value]
     except Exception as e:
         logger.error(f"Failed to execute workflow: {e}")
         raise HTTPException(status_code=500, detail=str(e))

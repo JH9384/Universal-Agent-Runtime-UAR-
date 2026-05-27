@@ -230,7 +230,7 @@ class SHACLValidator:
                         )
 
             turtle_data = g.serialize(format="turtle")
-            return turtle_data.decode("utf-8")
+            return turtle_data if isinstance(turtle_data, str) else turtle_data.decode("utf-8")  # type: ignore[union-attr]
 
         except Exception as e:
             logger.error(f"Failed to create SHACL shape: {e}")

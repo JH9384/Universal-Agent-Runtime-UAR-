@@ -268,7 +268,7 @@ class MetricsCollector:
                     )
                 elif key.startswith("skill:") and ":" not in key[6:]:
                     skill_name = key[6:]
-                    metrics = self._skill_metrics[skill_name]
+                    metrics = self._skill_metrics[skill_name]  # type: ignore[assignment]
                     metrics.count += val
                     metrics.total_duration += self._window.pop(
                         f"{key}:dur", 0.0

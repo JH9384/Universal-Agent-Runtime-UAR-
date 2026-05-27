@@ -95,6 +95,7 @@ def replay_summary(record: RunRecord) -> dict:
         "run_id": record.run_id,
         "goal_id": record.goal_id,
         "status": record.status,
+        "skills": list(record.skills),
         "skill_count": len(record.skills),
         "event_count": len(record.events),
         "errors": record.errors,

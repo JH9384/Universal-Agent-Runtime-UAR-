@@ -1,6 +1,7 @@
 import argparse
 
 from uar.core.contracts import GoalSpec
+from uar.memory.base_store import run_record_from_dict
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
 from uar.memory.json_store import JsonRunStore
@@ -54,7 +55,7 @@ def cmd_list(args):
 
     print(f"Found {len(records)} stored runs:")
     for i, record in enumerate(records, 1):
-        summary = replay_summary(record)
+        summary = replay_summary(run_record_from_dict(record))
         print(f"{i}. Run ID: {summary['run_id']}")
         print(f"   Goal ID: {summary['goal_id']}")
         print(f"   Status: {summary['status']}")
@@ -78,8 +79,8 @@ def cmd_replay(args):
         print(f"Invalid index. Must be between 1 and {len(records)}")
         return
 
-    record = records[args.index - 1]
-    summary = replay_summary(record)
+    run_record = run_record_from_dict(records[args.index - 1])
+    summary = replay_summary(run_record)
 
     print(f"Replaying run {args.index}:")
     print(f"Run ID: {summary['run_id']}")
@@ -91,7 +92,7 @@ def cmd_replay(args):
 
     if args.verbose:
         print("\nEvent stream:")
-        for event in record.events:
+        for event in run_record.events:
             print(
                 f"  [{event['type']}] {event['skill']}: {event.get('timestamp')}"  # noqa: E501
             )

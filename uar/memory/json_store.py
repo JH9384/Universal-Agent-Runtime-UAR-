@@ -104,6 +104,10 @@ class JsonRunStore:
                                 continue
                 return records
 
+    def list_all(self, user_id: Optional[str] = None) -> List[dict]:
+        """Alias for list_records — returns all stored run records."""
+        return self.list_records(user_id=user_id)
+
     def purge_old_records(self, retention_days: int) -> int:
         """Remove records older than *retention_days* from the JSONL file.
 

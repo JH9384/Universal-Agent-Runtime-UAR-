@@ -174,17 +174,17 @@ class GroupTheoryOperations:
                         and elements[j].matrix
                         and elements[k].matrix
                     ):
+                        mi = elements[i].matrix
+                        mj = elements[j].matrix
+                        mk = elements[k].matrix
+                        assert mi is not None and mj is not None and mk is not None
                         left = self.lie_ops.compose_matrices(
-                            self.lie_ops.compose_matrices(
-                                elements[i].matrix, elements[j].matrix
-                            ),
-                            elements[k].matrix,
+                            self.lie_ops.compose_matrices(mi, mj),
+                            mk,
                         )
                         right = self.lie_ops.compose_matrices(
-                            elements[i].matrix,
-                            self.lie_ops.compose_matrices(
-                                elements[j].matrix, elements[k].matrix
-                            ),
+                            mi,
+                            self.lie_ops.compose_matrices(mj, mk),
                         )
                         # Check approximate equality
                         for row in range(len(left)):

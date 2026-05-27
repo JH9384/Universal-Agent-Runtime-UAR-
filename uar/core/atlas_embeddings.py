@@ -31,7 +31,7 @@ class GoldenSeedVector:
     dimensions: int = 248  # E8 has 248 dimensions
     vector_data: Optional[np.ndarray] = None
     symmetry_group: str = "E8"
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -140,7 +140,7 @@ class AtlasEmbeddingsIntegrator:
         new_seed = GoldenSeedVector(
             dimensions=seed.dimensions,
             symmetry_group=seed.symmetry_group,
-            metadata=seed.metadata.copy(),
+            metadata=(seed.metadata or {}).copy(),
         )
         new_seed.vector_data = transformed_data
         new_seed.normalize()

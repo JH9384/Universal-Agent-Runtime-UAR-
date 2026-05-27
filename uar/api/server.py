@@ -51,6 +51,7 @@ from uar.core.validation import (
     validate_input_path,
 )
 from uar.memory.json_store import JsonRunStore
+from uar.memory.base_store import run_record_from_dict
 from .middleware import (
     error_handler_middleware,
     rate_limit_middleware,
@@ -499,9 +500,9 @@ app.include_router(uor_router, dependencies=[Depends(require_auth)])
 # Auto-select run store backend
 if os.getenv("UAR_DATABASE_URL"):
     from uar.memory.postgres_store import PostgresRunStore
-    store = PostgresRunStore()
+    store = PostgresRunStore()  # type: ignore[assignment]
 else:
-    store = JsonRunStore()
+    store = JsonRunStore()  # type: ignore[assignment]
 
 _uar_start_time = time.time()
 
@@ -777,7 +778,7 @@ async def _stream_binary_visualization(
         "quantum_circuit_visualization": serialize_quantum_circuit,
     }
 
-    serializer = serializers.get(skill)
+    serializer = serializers.get(skill or "")
     if not serializer:
         return
 
@@ -1125,12 +1126,12 @@ async def stream_goal_ws(
         # Only re-check when the skill has a tighter limit than the tier.
         # Avoids double-consuming tokens on the default tier limit.
         allowed = _ws_pre_allowed
-        remaining = _ws_pre_remaining
         if rate_limit_type == "skill":
             try:
-                allowed, remaining = rate_limiter.is_allowed(
+                _rl_result = rate_limiter.is_allowed(
                     rate_limit_key, limit, window
                 )
+                allowed = bool(_rl_result[0])  # type: ignore[index,assignment]
             except Exception as rate_limit_error:
                 logger.error(
                     f"[{request_id}] Rate limit check failed: "
@@ -1308,9 +1309,7 @@ async def get_run_timeline(
     records = store.list_records(user_id=user_id)
     for rec in records:
         if rec.get("run_id") == run_id:
-            from uar.core.contracts import RunRecord
-
-            rr = RunRecord(**rec)
+            rr = run_record_from_dict(rec)
             return timeline_from_record(rr)
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -1324,7 +1323,7 @@ _auth_svc = AuthService()
 _event_svc = EventService()
 _exec_svc = GoalExecutionService(
     event_service=_event_svc,
-    store=store,
+    store=store,  # type: ignore[arg-type]
     max_stream_events=MAX_STREAM_EVENTS,
     event_buffer_size=EVENT_BUFFER_SIZE,
 )
@@ -2158,11 +2157,18 @@ async def readiness_probe():
     skills = registry.list()
     checks["skills_loaded"] = len(skills) > 0
 
-    # Check disk writable
+    # Check disk writable (use RUNS_DIR — works for any store backend).
+    # Use a probe-unique filename to prevent concurrent readiness probes
+    # from racing on the same ".health_check" path.
     try:
-        test_file = store.path.parent / ".health_check"
-        test_file.write_text("ok")
-        test_file.unlink()
+        from pathlib import Path as _Path
+        _task = asyncio.current_task()
+        _probe_id = id(_task) if _task else id(object())
+        _runs_dir = _Path(os.getenv("RUNS_DIR", "runs")).resolve()
+        _runs_dir.mkdir(parents=True, exist_ok=True)
+        _test_file = _runs_dir / f".health_check_{os.getpid()}_{_probe_id}"
+        _test_file.write_text("ok")
+        _test_file.unlink()
         checks["disk_writable"] = True
     except Exception:
         checks["disk_writable"] = False
@@ -2187,15 +2193,17 @@ async def readiness_probe():
     redis_url = os.getenv("REDIS_URL", "").strip()
     if redis_url:
         try:
-            import redis as _redis
+            import redis as _redis_mod
 
-            r = _redis.from_url(redis_url, socket_connect_timeout=2)
-            r.ping()
+            _redis_client = _redis_mod.from_url(
+                redis_url, socket_connect_timeout=2
+            )
+            _redis_client.ping()
             checks["redis_reachable"] = True
         except Exception:
             checks["redis_reachable"] = False
     else:
-        checks["redis_reachable"] = None  # not configured
+        checks["redis_reachable"] = None  # type: ignore[assignment]  # not configured
 
     # Check circuit breaker states (non-blocking, informational)
     try:
@@ -2208,10 +2216,10 @@ async def readiness_probe():
             name for name, state in cb_states.items() if state == "open"
         ]
         checks["circuit_breakers"] = len(open_circuits) == 0
-        checks["open_circuits"] = open_circuits
+        checks["open_circuits"] = open_circuits  # type: ignore[assignment]
     except Exception:
         checks["circuit_breakers"] = True
-        checks["open_circuits"] = []
+        checks["open_circuits"] = []  # type: ignore[assignment]
 
     all_ready = all(v for k, v in checks.items() if isinstance(v, bool))
     status_code = 200 if all_ready else 503

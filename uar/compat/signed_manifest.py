@@ -67,6 +67,8 @@ class SignedManifest:
             if not self.load():
                 return False
 
+        if not self._data:
+            return False
         signatures = self._data.get("signatures", [])
         if not signatures:
             logger.warning("No signatures in manifest")
@@ -101,6 +103,8 @@ class SignedManifest:
             if not self.load():
                 return {}
 
+        if not self._data:
+            return {}
         return {
             a["name"]: a["digest"]
             for a in self._data.get("artifacts", [])

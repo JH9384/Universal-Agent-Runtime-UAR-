@@ -129,7 +129,7 @@ class UARMagics(Magics):
         executor = Executor()
         result = executor.run(strategy, goal_spec)
 
-        self._last_result = result
+        self._last_result = result  # type: ignore[assignment]
 
         if args.json:
             print(json.dumps(result, indent=2, default=str))
@@ -137,12 +137,12 @@ class UARMagics(Magics):
             print(f"Status: {result.status}")
             if result.outputs:
                 print("Outputs:")
-                for key, val in result.outputs.items():
+                for key, val in result.outputs.items():  # type: ignore[attr-defined]
                     print(f"  {key}: {val}")
             if hasattr(result, "events") and result.events:
                 print(f"Events: {len(result.events)}")
 
-        return result
+        return result  # type: ignore[return-value]
 
     def _run_remote(
         self,

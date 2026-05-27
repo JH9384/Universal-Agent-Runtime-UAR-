@@ -1,3 +1,4 @@
+import collections
 import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -25,11 +26,19 @@ class StrategySpec:
 class PipelineContext:
     goal: GoalSpec
     data: Dict[str, Any] = field(default_factory=dict)
+    # Stored as a collections.deque in __post_init__ for O(1) eviction;
+    # typed as List for external API compatibility.
     events: List[Dict[str, Any]] = field(default_factory=list)
     _max_events: int = 10000  # Prevent unbounded memory growth
     _overflow_file: Any = field(default=None, repr=False)
 
     def __post_init__(self):
+        # Convert to bounded deque for O(1) oldest-event eviction.
+        object.__setattr__(
+            self,
+            "events",
+            collections.deque(self.events, maxlen=self._max_events),
+        )
         if os.getenv("UAR_CONTEXT_DISK_OVERFLOW", "").lower() == "true":
             import tempfile
 
@@ -38,22 +47,30 @@ class PipelineContext:
             object.__setattr__(self, "_overflow_file", open(path, "a"))
 
     def emit(self, event_type: str, payload: Dict[str, Any]) -> None:
+        import json as _json
         event = {"type": event_type, "payload": payload}
-        # Circular buffer: drop oldest events when limit reached
-        if len(self.events) >= self._max_events:
-            if self._overflow_file is not None:
-                import json
-
-                self._overflow_file.write(json.dumps(event, default=str))
-                self._overflow_file.write("\n")
-            else:
-                self.events.pop(0)  # Remove oldest
-        self.events.append(event)
+        # When overflow is enabled, write evicted events to disk before
+        # the deque drops them (deque evicts oldest automatically via maxlen).
+        if (
+            self._overflow_file is not None
+            and len(self.events) >= self._max_events
+        ):
+            self._overflow_file.write(_json.dumps(event, default=str))
+            self._overflow_file.write("\n")
+        # deque with maxlen evicts the oldest entry automatically — O(1).
+        self.events.append(event)  # type: ignore[union-attr]
 
     def close(self) -> None:
         if self._overflow_file is not None:
             self._overflow_file.close()
-            self._overflow_file = None
+            object.__setattr__(self, "_overflow_file", None)
+
+    def __del__(self) -> None:
+        """Ensure overflow file is closed even if close() is never called."""
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 @dataclass(slots=True)

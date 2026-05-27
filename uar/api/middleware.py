@@ -287,7 +287,7 @@ class RedisRateLimiter:
         now = time.time()
         zset_key = f"uar:ratelimit:{key}"
         try:
-            result = self._redis.eval(
+            result: list = self._redis.eval(  # type: ignore[assignment]
                 self._LUA_RATE_LIMIT, 1, zset_key,
                 now, window, limit,
             )
@@ -308,7 +308,7 @@ class RedisRateLimiter:
             self._redis.zremrangebyscore(
                 f"uar:ratelimit:{key}", 0, window_start
             )
-            current = self._redis.zcard(f"uar:ratelimit:{key}")
+            current = int(self._redis.zcard(f"uar:ratelimit:{key}"))  # type: ignore[arg-type]
         except redis.RedisError:
             return limit
         return max(0, limit - current)

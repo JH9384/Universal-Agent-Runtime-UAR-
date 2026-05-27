@@ -38,7 +38,7 @@ class UORVector:
             {"shape": self.data.shape, "mean": float(np.mean(self.data))},
             source="vector_ops",
         )
-        self.digest = vector_uor.digest
+        self.digest = vector_uor.digest or ""
         return self.digest
 
 

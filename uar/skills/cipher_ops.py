@@ -133,7 +133,7 @@ def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
 
 def _sign_data(data: bytes, private_key: bytes) -> Dict[str, Any]:
     """Sign data using Ed25519."""
-    from Crypto.Signature import ed25519
+    from Crypto.Signature import ed25519  # type: ignore[attr-defined]
 
     try:
         key = ed25519.SigningKey(private_key)
@@ -152,7 +152,7 @@ def _verify_signature(
     data: bytes, signature: bytes, public_key: bytes
 ) -> Dict[str, Any]:
     """Verify signature using Ed25519."""
-    from Crypto.Signature import ed25519
+    from Crypto.Signature import ed25519  # type: ignore[attr-defined]
 
     try:
         key = ed25519.VerifyingKey(public_key)
@@ -279,11 +279,11 @@ def _execute_operation(
 ) -> Dict[str, Any]:
     """Execute the specified cryptographic operation."""
     operations = {
-        "encrypt": lambda: _aes_encrypt(data, key, iv),
-        "decrypt": lambda: _aes_decrypt(data, key, iv),
+        "encrypt": lambda: _aes_encrypt(data, key or b"", iv),
+        "decrypt": lambda: _aes_decrypt(data, key or b"", iv or b""),
         "hash": lambda: _hash_data(data, algorithm),
-        "sign": lambda: _sign_data(data, key),
-        "verify": lambda: _verify_signature(data, key, iv),
+        "sign": lambda: _sign_data(data, key or b""),
+        "verify": lambda: _verify_signature(data, key or b"", iv or b""),
     }
 
     if operation not in operations:

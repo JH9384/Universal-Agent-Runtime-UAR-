@@ -32,7 +32,7 @@ class Sigil:
 
     symbol: str
     value: Optional[Union[int, float, str]] = None
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.metadata is None:

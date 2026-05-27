@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich import box
 
 from uar.core.contracts import GoalSpec
+from uar.memory.base_store import run_record_from_dict
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
 from uar.core.registry import registry
@@ -275,7 +276,7 @@ def history_list(
     table.add_column("Events", justify="right")
 
     for i, rec in enumerate(records[:limit], 1):
-        summary = replay_summary(rec)
+        summary = replay_summary(run_record_from_dict(rec))
         status_style = "green" if summary["status"] == "completed" else "red"
         table.add_row(
             str(i),
@@ -303,8 +304,8 @@ def history_show(
         console.print(f"[red]Invalid index. 1–{len(records)}[/red]")
         raise typer.Exit(1)
 
-    rec = records[index - 1]
-    summary = replay_summary(rec)
+    run_record = run_record_from_dict(records[index - 1])
+    summary = replay_summary(run_record)
 
     console.print(Panel(
         f"Run ID: [cyan]{summary['run_id']}[/cyan]\n"
@@ -318,7 +319,7 @@ def history_show(
     ))
 
     if timeline:
-        tl = timeline_from_record(rec)
+        tl = timeline_from_record(run_record)  # noqa: E501
         console.print_json(data=tl)
 
 

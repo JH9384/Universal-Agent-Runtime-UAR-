@@ -137,7 +137,7 @@ class OntologySchema:
         type_name: str,
         source_types: List[str],
         target_types: List[str],
-        properties: Dict[str, str] = None,
+        properties: Optional[Dict[str, str]] = None,
     ):
         """Add a relation type to the ontology."""
         self.relation_types[type_name] = {
@@ -413,7 +413,7 @@ class FlexibleGraphRAG:
             vector_results = []
 
         # Deduplicate and score
-        scored_results = {}
+        scored_results: Dict[str, float] = {}
         for entity in fulltext_results:
             scored_results[entity.entity_id] = (
                 scored_results.get(entity.entity_id, 0) + 0.5
@@ -509,13 +509,13 @@ class FlexibleGraphRAG:
 
     def get_graph_stats(self) -> Dict[str, Any]:
         """Get statistics about the graph."""
-        entity_types = {}
+        entity_types: Dict[str, int] = {}
         for entity in self.entities.values():
             entity_types[entity.entity_type] = (
                 entity_types.get(entity.entity_type, 0) + 1
             )
 
-        relation_types = {}
+        relation_types: Dict[str, int] = {}
         for relation in self.relations.values():
             relation_types[relation.relation_type] = (
                 relation_types.get(relation.relation_type, 0) + 1

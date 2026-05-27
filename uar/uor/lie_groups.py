@@ -232,7 +232,7 @@ class LieGroupOperations:
                         result[i] += matrix[i][j] * point_homogeneous[j]
                 return result[:-1]
             else:
-                point_arr = point
+                point_arr = point  # type: ignore[assignment]
                 result_vec: List[float] = [0.0] * len(matrix)
                 for i in range(len(matrix)):
                     for j in range(len(matrix[0])):

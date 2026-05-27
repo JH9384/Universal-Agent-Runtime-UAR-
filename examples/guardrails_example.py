@@ -37,7 +37,7 @@ def example_budget_management():
     budget.used_tokens = 50000
     budget.used_api_calls = 500
 
-    print(f"\nAfter usage:")
+    print("\nAfter usage:")
     print(f"Used tokens: {budget.used_tokens}")
     print(f"Remaining tokens: {budget.remaining_tokens()}")
 

@@ -217,9 +217,9 @@ class KeyManager:
                 backend=default_backend(),
             )
 
-            signature = private_key.sign(  # type: ignore[union-attr]
+            signature = private_key.sign(  # type: ignore[union-attr,call-arg]
                 data,
-                padding.PSS(
+                padding.PSS(  # type: ignore[arg-type]
                     mgf=padding.MGF1(hashes.SHA256()),
                     salt_length=padding.PSS.MAX_LENGTH,
                 ),
@@ -270,10 +270,10 @@ class KeyManager:
             signature_bytes = base64.b64decode(signature)
 
             try:
-                public_key.verify(  # type: ignore[union-attr]
+                public_key.verify(  # type: ignore[union-attr,call-arg]
                     signature_bytes,
                     data,
-                    padding.PSS(
+                    padding.PSS(  # type: ignore[arg-type]
                         mgf=padding.MGF1(hashes.SHA256()),
                         salt_length=padding.PSS.MAX_LENGTH,
                     ),

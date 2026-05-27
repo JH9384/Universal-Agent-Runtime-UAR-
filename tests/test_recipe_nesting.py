@@ -10,7 +10,6 @@ Tests the executor's ability to:
 from __future__ import annotations
 
 import pytest
-from typing import Dict, List
 
 from uar.core.executor import _expand_execution_order_with_markers
 from uar.core.recipes import DEFAULT_RECIPES

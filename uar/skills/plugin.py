@@ -61,7 +61,7 @@ def _discover_pypi_plugins() -> List[Any]:
             group = eps.select(group=_PLUGIN_ENTRY_GROUP)
         else:
             # Legacy API
-            group = eps.get(_PLUGIN_ENTRY_GROUP, [])
+            group = eps.get(_PLUGIN_ENTRY_GROUP) or []  # type: ignore[attr-defined,assignment]
         for ep in group:
             try:
                 modules.append(ep.load())

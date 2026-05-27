@@ -175,8 +175,11 @@ class PostgresRunStore:
     def append(self, record: RunRecord) -> None:
         """Insert a run record."""
         data = {
-            "run_id": getattr(record, "id", ""),
-            "goal_id": getattr(record, "goal", {}).get("id", ""),
+            "run_id": getattr(record, "run_id", getattr(record, "id", "")),
+            "goal_id": getattr(
+                record, "goal_id",
+                getattr(record, "goal", {}).get("id", ""),
+            ),
             "user_id": getattr(record, "user_id", None),
             "status": getattr(record, "status", "unknown"),
             "skills": json.dumps(getattr(record, "skills", [])),
@@ -211,8 +214,11 @@ class PostgresRunStore:
         buf = io.StringIO()
         for record in records:
             fields = [
-                getattr(record, "id", ""),
-                getattr(record, "goal", {}).get("id", ""),
+                getattr(record, "run_id", getattr(record, "id", "")),
+                getattr(
+                    record, "goal_id",
+                    getattr(record, "goal", {}).get("id", ""),
+                ),
                 getattr(record, "user_id", None) or "",
                 getattr(record, "status", "unknown"),
                 json.dumps(getattr(record, "skills", [])),
@@ -279,6 +285,15 @@ class PostgresRunStore:
             results.append(record)
         return results
 
+    def list_all(
+        self, user_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Alias for list_records — satisfies RunStoreProtocol."""
+        return self.list_records(user_id=user_id)
+
+    def flush(self) -> None:
+        """No-op for API compatibility; Postgres commits are immediate."""
+
     def get_by_run_id(self, run_id: str) -> Optional[Dict[str, Any]]:
         """Fetch a single record by run ID."""
         sql = """
@@ -317,8 +332,11 @@ class PostgresRunStore:
     async def append_async(self, record: RunRecord) -> None:
         """Async insert a run record."""
         data = {
-            "run_id": getattr(record, "id", ""),
-            "goal_id": getattr(record, "goal", {}).get("id", ""),
+            "run_id": getattr(record, "run_id", getattr(record, "id", "")),
+            "goal_id": getattr(
+                record, "goal_id",
+                getattr(record, "goal", {}).get("id", ""),
+            ),
             "user_id": getattr(record, "user_id", None),
             "status": getattr(record, "status", "unknown"),
             "skills": json.dumps(getattr(record, "skills", [])),

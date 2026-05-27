@@ -92,7 +92,7 @@ def _plot_function(
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
     x = np.linspace(x_range[0], x_range[1], 1000)
-    colors = plt.cm.tab10(np.linspace(0, 1, max(len(expressions), 1)))
+    colors = getattr(plt.cm, "tab10")(np.linspace(0, 1, max(len(expressions), 1)))
 
     for idx, expr in enumerate(expressions):
         expr = expr.strip()
@@ -279,7 +279,7 @@ def _plot_scatter(
     if len(points) > 0:
         xs = [p[0] for p in points if len(p) >= 2]
         ys = [p[1] for p in points if len(p) >= 2]
-        colors = plt.cm.viridis(np.linspace(0, 1, len(xs)))
+        colors = getattr(plt.cm, "viridis")(np.linspace(0, 1, len(xs)))
         ax.scatter(
             xs, ys, c=colors, s=50, alpha=0.7,
             edgecolors="white", linewidth=0.5,

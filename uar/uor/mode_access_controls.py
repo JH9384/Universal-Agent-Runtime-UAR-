@@ -115,7 +115,7 @@ class ModeAccessController:
                 AccessAction.REMOVE,
                 AccessAction.TRANSFORM,
             },
-            denied_actions={},
+            denied_actions=set(),
         )
 
     def check_access(

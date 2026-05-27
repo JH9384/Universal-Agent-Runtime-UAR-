@@ -295,14 +295,14 @@ class RedisCacheBackend(CacheBackend):
         try:
             import redis as redis_lib
 
-            self._client = redis_lib.from_url(url, decode_responses=True)
+            self._client = redis_lib.from_url(url or "", decode_responses=True)  # type: ignore[assignment]
             self._client.ping()
             self._available = True
         except Exception as exc:
             logger.warning(
                 "Redis unavailable (%s), falling back to no-op", exc
             )
-            self._client = None
+            self._client = None  # type: ignore[assignment]
             self._available = False
 
     def _check_circuit_breaker(self) -> bool:
@@ -356,11 +356,11 @@ class RedisCacheBackend(CacheBackend):
             return None
         key = _make_cache_key(skill_name, ctx, goal)
         try:
-            raw = self._client.get(self._key(key))
+            raw = self._client.get(self._key(key))  # type: ignore[union-attr]
             self._record_success()
             if raw is None:
                 return None
-            return json.loads(raw).get("result")
+            return json.loads(str(raw)).get("result")
         except Exception as exc:
             self._record_failure(exc)
             return None
@@ -403,7 +403,7 @@ class RedisCacheBackend(CacheBackend):
                     try:
                         raw = self._client.get(k)
                         if raw:
-                            data = json.loads(raw)
+                            data = json.loads(str(raw))
                             if data.get("skill") == skill_name:
                                 self._client.delete(k)
                     except Exception:
@@ -423,9 +423,9 @@ class RedisCacheBackend(CacheBackend):
                 "circuit_tripped": self._circuit_tripped,
             }
         try:
-            info = self._client.info("keyspace")
+            info = self._client.info("keyspace")  # type: ignore[union-attr]
             total_keys = sum(
-                v.get("keys", 0) for v in info.values() if isinstance(v, dict)
+                v.get("keys", 0) for v in info.values() if isinstance(v, dict)  # type: ignore[union-attr]
             )
             self._record_success()
             return {

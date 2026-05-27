@@ -30,7 +30,7 @@ class PrismFacet:
     facet_id: str
     name: str
     data: Any
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -69,7 +69,7 @@ class Prism:
 
     prism_id: str
     facets: List[PrismFacet]
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.metadata is None:

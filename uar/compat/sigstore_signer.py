@@ -14,7 +14,6 @@ Usage:
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import subprocess
@@ -287,12 +286,15 @@ class SigstoreVerifier:
                 bundle=bundle,
             )
 
-            policy = self._verifier.policy.Identity(
+            if self._verifier is None:
+                return {"valid": False, "error": "Verifier not initialized"}
+            verifier = self._verifier
+            policy = verifier.policy.Identity(  # type: ignore[union-attr]
                 identity=bundle_data.get("cert", {}).get("subject", ""),
                 issuer="https://accounts.google.com",
             )
 
-            result = self._verifier.verify(materials, policy=policy)
+            result = verifier.verify(materials, policy=policy)  # type: ignore[union-attr]
 
             return {
                 "valid": result.ok,

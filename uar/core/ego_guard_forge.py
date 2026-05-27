@@ -33,7 +33,7 @@ class SecurityPolicy:
     description: str
     rules: Dict[str, Any]
     enabled: bool = True
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.metadata is None:

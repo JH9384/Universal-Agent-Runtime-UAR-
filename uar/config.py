@@ -4,7 +4,7 @@ import os
 import secrets
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 import logging
 import logging.config
 
@@ -218,7 +218,7 @@ class Config:
 
     def setup_logging(self):
         """Setup logging configuration"""
-        log_config = {
+        log_config: Dict[str, Any] = {
             "version": 1,
             "disable_existing_loggers": False,
             "formatters": {
