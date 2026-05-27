@@ -192,9 +192,13 @@ class GoalExecutionService(BaseService):
 
         # Buffered write: accumulate lines to amortize syscalls
         _write_buf: list[str] = []
-        _write_buf_size = int(os.getenv("UAR_WRITE_BUF_SIZE", "50"))
+        _write_buf_size = max(
+            1, int(os.getenv("UAR_WRITE_BUF_SIZE", "50").strip() or "50")
+        )
         # Yield frequency tuning: batch yields to reduce event loop overhead
-        _yield_batch = int(os.getenv("UAR_YIELD_BATCH", "1"))
+        _yield_batch = max(
+            1, int(os.getenv("UAR_YIELD_BATCH", "1").strip() or "1")
+        )
         _yield_counter = 0
 
         def _flush_write_buf() -> None:
@@ -482,7 +486,9 @@ class GoalExecutionService(BaseService):
             strategy, goal, timeout_seconds=timeout, correlation_id=cid
         )
 
-        _buf_size = int(os.getenv("UAR_EVENT_BUFFER", "10"))
+        _buf_size = max(
+            1, int(os.getenv("UAR_EVENT_BUFFER", "10").strip() or "10")
+        )
 
         def _next_batch() -> List[Optional[dict[str, Any]]]:
             batch: List[Optional[dict[str, Any]]] = []

@@ -67,7 +67,8 @@ _MAX_RECIPE_CACHE_SIZE = max(
 # Shared thread pool for _run_with_timeout to avoid per-skill churn.
 # Adaptive sizing: UAR_TIMEOUT_POOL_MAX controls max workers.
 _TIMEOUT_POOL_MAX = max(
-    1, int(os.getenv("UAR_TIMEOUT_POOL_MAX", "16"))
+    1,
+    int(os.getenv("UAR_TIMEOUT_POOL_MAX", "16").strip() or "16"),
 )
 _TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(
     max_workers=_TIMEOUT_POOL_MAX
