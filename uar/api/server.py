@@ -602,7 +602,7 @@ async def uar_error_handler(request, exc):
             "detail": {
                 "error": "Internal error",
                 "code": exc.code.value,
-                "message": str(exc),
+                "message": "An internal error occurred",
             }
         },
     )
@@ -1327,8 +1327,8 @@ async def stream_goal_ws(
             await websocket.send_json(
                 {
                     "type": "error",
-                    "error": str(e),
-                    "error_type": type(e).__name__,
+                    "error": "Internal server error",
+                    "error_type": "InternalError",
                     "request_id": request_id,
                 }
             )
@@ -1608,7 +1608,7 @@ async def stream_goal(
                     yield _sse_emit(
                         _event_svc.error(
                             run_id="unknown",
-                            error_msg=str(e),
+                            error_msg="Stream error",
                             request_id=request_id,
                             goal_id="",
                             correlation_id=cid,
@@ -1689,7 +1689,7 @@ async def stream_goal(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "UAR error",
-                    "message": str(e),
+                    "message": "Request failed",
                     "error_type": error_type,
                     "request_id": request_id,
                     "suggestion": suggestion,
