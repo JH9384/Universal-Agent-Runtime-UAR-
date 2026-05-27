@@ -35,9 +35,12 @@ def get_cache() -> ResultCache:
                 try:
                     ttl = max(
                         0,
-                        int(
-                            os.getenv("UAR_CACHE_TTL", "3600").strip()
-                            or "3600"
+                        min(
+                            86400,
+                            int(
+                                os.getenv("UAR_CACHE_TTL", "3600").strip()
+                                or "3600"
+                            ),
                         ),
                     )
                 except (ValueError, TypeError):
@@ -45,9 +48,14 @@ def get_cache() -> ResultCache:
                 try:
                     max_entries = max(
                         1,
-                        int(
-                            os.getenv("UAR_CACHE_MAX_ENTRIES", "1000").strip()
-                            or "1000"
+                        min(
+                            100000,
+                            int(
+                                os.getenv(
+                                    "UAR_CACHE_MAX_ENTRIES", "1000"
+                                ).strip()
+                                or "1000"
+                            ),
                         ),
                     )
                 except (ValueError, TypeError):
@@ -55,11 +63,15 @@ def get_cache() -> ResultCache:
                 try:
                     max_size = max(
                         1,
-                        int(
-                            os.getenv(
-                                "UAR_CACHE_MAX_SIZE", str(100 * 1024 * 1024)
-                            ).strip()
-                            or str(100 * 1024 * 1024)
+                        min(
+                            1024 * 1024 * 1024,
+                            int(
+                                os.getenv(
+                                    "UAR_CACHE_MAX_SIZE",
+                                    str(100 * 1024 * 1024),
+                                ).strip()
+                                or str(100 * 1024 * 1024)
+                            ),
                         ),
                     )
                 except (ValueError, TypeError):
