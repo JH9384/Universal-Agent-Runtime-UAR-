@@ -155,7 +155,7 @@ def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
         else:
             return {
                 "success": False,
-                "error": f"Unsupported algorithm: {algorithm}",
+                "error": "Unsupported algorithm",
             }
 
         hasher.update(data)
@@ -200,7 +200,7 @@ def _verify_signature(
         key.verify(signature, data)
 
         return {"success": True, "valid": True, "algorithm": "Ed25519"}
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError):
         return {
             "success": True,
             "valid": False,

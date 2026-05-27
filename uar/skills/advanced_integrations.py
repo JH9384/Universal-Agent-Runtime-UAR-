@@ -777,5 +777,5 @@ def blackboard_message(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "status": "failed",
-        "error": f"Unknown action: {action}",
+        "error": "Unknown action",
     }
