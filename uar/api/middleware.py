@@ -33,15 +33,38 @@ def _load_rate_limits() -> Dict[str, Dict[str, int]]:
     """Load rate limits from environment variables with safe defaults"""
     return {
         "default": {
-            "requests": int(os.getenv("RATE_LIMIT_ANONYMOUS", "10")),
-            "window": int(
-                os.getenv("RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW))
+            "requests": max(
+                1,
+                int(
+                    os.getenv("RATE_LIMIT_ANONYMOUS", "10").strip() or "10"
+                ),
+            ),
+            "window": max(
+                1,
+                int(
+                    os.getenv(
+                        "RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW)
+                    ).strip()
+                    or str(DEFAULT_RATE_LIMIT_WINDOW)
+                ),
             ),
         },
         "authenticated": {
-            "requests": int(os.getenv("RATE_LIMIT_AUTHENTICATED", "100")),
-            "window": int(
-                os.getenv("RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW))
+            "requests": max(
+                1,
+                int(
+                    os.getenv("RATE_LIMIT_AUTHENTICATED", "100").strip()
+                    or "100"
+                ),
+            ),
+            "window": max(
+                1,
+                int(
+                    os.getenv(
+                        "RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW)
+                    ).strip()
+                    or str(DEFAULT_RATE_LIMIT_WINDOW)
+                ),
             ),
         },
     }
