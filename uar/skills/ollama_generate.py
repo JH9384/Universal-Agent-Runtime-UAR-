@@ -1,6 +1,6 @@
 import os
 import logging
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -97,6 +97,10 @@ def ollama_generate(ctx):
       ollama_model     — model name override
     """
     host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    parsed_host = urlparse(host)
+    if parsed_host.scheme not in ("http", "https"):
+        logger.warning("Ignoring invalid OLLAMA_HOST scheme: %s", host)
+        host = "http://127.0.0.1:11434"
     model = ctx.goal.metadata.get("ollama_model") or os.getenv(
         "OLLAMA_MODEL", "llama3.2:3b"
     )

@@ -6,7 +6,7 @@ import time
 import uuid
 import asyncio
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from contextlib import asynccontextmanager
 
@@ -2299,6 +2299,11 @@ async def readiness_probe():
         ollama_host = os.getenv(
             "OLLAMA_HOST", "http://127.0.0.1:11434"
         )
+        if urlparse(ollama_host).scheme not in ("http", "https"):
+            logger.warning(
+                "Ignoring invalid OLLAMA_HOST scheme: %s", ollama_host
+            )
+            ollama_host = "http://127.0.0.1:11434"
         r = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: httpx.get(

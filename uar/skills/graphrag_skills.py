@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import logging
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
@@ -159,6 +159,11 @@ def _check_ollama_health() -> tuple[bool, str]:
 
     try:
         ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+        if urlparse(ollama_host).scheme not in ("http", "https"):
+            logger.warning(
+                "Ignoring invalid OLLAMA_HOST scheme: %s", ollama_host
+            )
+            ollama_host = "http://127.0.0.1:11434"
         r = httpx.get(urljoin(ollama_host, "/api/tags"), timeout=5.0)
         if r.is_success:
             return True, ""
@@ -467,7 +472,10 @@ def graphrag_index(ctx):
             "input_path": str(source),
         }
 
-    timeout = max(1, min(int(meta.get("timeout_sec") or DEFAULT_CLI_TIMEOUT), 7200))
+    timeout = max(
+        1,
+        min(int(meta.get("timeout_sec") or DEFAULT_CLI_TIMEOUT), 7200),
+    )
     result = _run_cli(
         ["graphrag", "index", "--root", str(root)],
         cwd=root,
