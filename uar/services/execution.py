@@ -37,10 +37,12 @@ logger = logging.getLogger(__name__)
 
 # Streaming bounds (module defaults; overridable per-instance)
 _MAX_STREAM_EVENTS = max(
-    1, int(os.getenv("MAX_STREAM_EVENTS", "5000").strip() or "5000")
+    1,
+    min(100000, int(os.getenv("MAX_STREAM_EVENTS", "5000").strip() or "5000")),
 )
 _EVENT_BUFFER_SIZE = max(
-    1, int(os.getenv("EVENT_BUFFER_SIZE", "200").strip() or "200")
+    1,
+    min(10000, int(os.getenv("EVENT_BUFFER_SIZE", "200").strip() or "200")),
 )
 BACKPRESSURE_ENABLED = (
     os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
@@ -48,7 +50,11 @@ BACKPRESSURE_ENABLED = (
 
 # Hard backpressure: limit in-flight events to prevent OOM on slow consumers
 _BACKPRESSURE_LIMIT = max(
-    1, int(os.getenv("UAR_BACKPRESSURE_LIMIT", "1000").strip() or "1000")
+    1,
+    min(
+        100000,
+        int(os.getenv("UAR_BACKPRESSURE_LIMIT", "1000").strip() or "1000"),
+    ),
 )
 _backpressure_sem = asyncio.Semaphore(_BACKPRESSURE_LIMIT)
 
@@ -193,11 +199,16 @@ class GoalExecutionService(BaseService):
         # Buffered write: accumulate lines to amortize syscalls
         _write_buf: list[str] = []
         _write_buf_size = max(
-            1, int(os.getenv("UAR_WRITE_BUF_SIZE", "50").strip() or "50")
+            1,
+            min(
+                10000,
+                int(os.getenv("UAR_WRITE_BUF_SIZE", "50").strip() or "50"),
+            ),
         )
         # Yield frequency tuning: batch yields to reduce event loop overhead
         _yield_batch = max(
-            1, int(os.getenv("UAR_YIELD_BATCH", "1").strip() or "1")
+            1,
+            min(1000, int(os.getenv("UAR_YIELD_BATCH", "1").strip() or "1")),
         )
         _yield_counter = 0
 
@@ -487,7 +498,11 @@ class GoalExecutionService(BaseService):
         )
 
         _buf_size = max(
-            1, int(os.getenv("UAR_EVENT_BUFFER", "10").strip() or "10")
+            1,
+            min(
+                10000,
+                int(os.getenv("UAR_EVENT_BUFFER", "10").strip() or "10"),
+            ),
         )
 
         def _next_batch() -> List[Optional[dict[str, Any]]]:
