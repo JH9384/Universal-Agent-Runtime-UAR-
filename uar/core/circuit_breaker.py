@@ -82,14 +82,16 @@ class CircuitBreaker:
                     # In half-open, any failure opens the circuit immediately
                     self._state = State.OPEN
                     logger.warning(
-                        f"CircuitBreaker[{self.name}]: "
-                        "half_open → open (failure in half-open)"
+                        "CircuitBreaker[%s]: half_open → open "
+                        "(failure in half-open)",
+                        self.name,
                     )
                 elif self._failures >= self.failure_threshold:
                     self._state = State.OPEN
                     logger.warning(
-                        f"CircuitBreaker[{self.name}]: → open "
-                        f"(failures={self._failures})"
+                        "CircuitBreaker[%s]: → open (failures=%s)",
+                        self.name,
+                        self._failures,
                     )
             raise
 
@@ -103,7 +105,7 @@ class CircuitBreaker:
                 if self._half_open_count >= self.half_open_max:
                     self._state = State.CLOSED
                     logger.info(
-                        f"CircuitBreaker[{self.name}]: half_open → closed"
+                        "CircuitBreaker[%s]: half_open → closed", self.name
                     )
 
         return result
