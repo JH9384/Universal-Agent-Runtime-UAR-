@@ -2801,19 +2801,21 @@ async def docs_library_delete(
     safe_name = Path(name).name
     if not safe_name or safe_name in (".", ".."):
         return JSONResponse(
-            status_code=400, content={"error": "Invalid name", "message": name}
+            status_code=400,
+            content={"error": "Invalid name", "message": "Invalid file name"},
         )
     target = (library / safe_name).resolve()
     try:
         target.relative_to(library)
     except ValueError:
         return JSONResponse(
-            status_code=400, content={"error": "Invalid name", "message": name}
+            status_code=400,
+            content={"error": "Invalid name", "message": "Invalid file name"},
         )
     if not target.exists() or not target.is_file():
         return JSONResponse(
             status_code=404,
-            content={"error": "Not found", "message": str(target)},
+            content={"error": "Not found", "message": "File not found"},
         )
     try:
         target.unlink()
