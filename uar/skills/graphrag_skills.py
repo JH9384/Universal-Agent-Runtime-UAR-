@@ -167,9 +167,9 @@ def _check_ollama_health() -> tuple[bool, str]:
         r = httpx.get(urljoin(ollama_host, "/api/tags"), timeout=5.0)
         if r.is_success:
             return True, ""
-        return False, f"Ollama returned HTTP {r.status_code}"
-    except Exception as e:
-        return False, f"Ollama unreachable: {e}"
+        return False, "Ollama returned error"
+    except Exception:
+        return False, "Ollama unreachable"
 
 
 SETTINGS_YAML = """\
