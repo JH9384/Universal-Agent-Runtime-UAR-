@@ -103,7 +103,7 @@ class WorkerPool:
                     task_id=task.task_id,
                     skill_name=task.skill_name,
                     success=False,
-                    error=f"Skill '{task.skill_name}' not registered",
+                    error="Skill not registered",
                     duration_ms=(time.time() - t0) * 1000,
                 )
 
@@ -182,13 +182,13 @@ class WorkerPool:
             try:
                 result = future.result(timeout=self.timeout)
                 results.append(result)
-            except Exception as exc:
+            except Exception:
                 results.append(
                     WorkerResult(
                         task_id=task.task_id,
                         skill_name=task.skill_name,
                         success=False,
-                        error=f"Worker timeout/error: {exc}",
+                        error="Worker timeout/error",
                     )
                 )
 
