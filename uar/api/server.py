@@ -211,7 +211,7 @@ class _WebSocketConnectionCounter:
 
 
 _ws_conn_counter = _WebSocketConnectionCounter(
-    int(os.getenv("WEBSOCKET_MAX_CONNECTIONS", "0"))
+    max(0, int(os.getenv("WEBSOCKET_MAX_CONNECTIONS", "0")))
 )
 CHUNK_SIZE = 1024 * 64  # 64KB
 DEFAULT_BROWSE_LIMIT = 200

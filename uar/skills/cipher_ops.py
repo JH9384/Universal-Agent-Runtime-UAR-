@@ -49,7 +49,7 @@ def _decode_base64(data: str) -> bytes:
     """Safely decode base64 data."""
     try:
         return base64.b64decode(data)
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"Invalid base64 data: {exc}")
 
 
@@ -66,9 +66,23 @@ def _aes_encrypt(
     from Crypto.Random import get_random_bytes
     from Crypto.Util.Padding import pad
 
+    if len(key) not in (16, 24, 32):
+        return {
+            "success": False,
+            "error": (
+                f"AES key must be 16, 24, or 32 bytes, got {len(key)}"
+            ),
+        }
     try:
         if iv is None:
             iv = get_random_bytes(16)
+        elif len(iv) != 16:
+            return {
+                "success": False,
+                "error": (
+                    f"AES-CBC IV must be 16 bytes, got {len(iv)}"
+                ),
+            }
         cipher = AES.new(key, AES.MODE_CBC, iv)  # type: ignore
         padded_data = pad(data, AES.block_size)
         encrypted = cipher.encrypt(padded_data)
@@ -79,7 +93,7 @@ def _aes_encrypt(
             "iv": _encode_base64(iv),
             "algorithm": "AES-CBC",
         }
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return {"success": False, "error": str(exc)}
 
 
@@ -90,6 +104,20 @@ def _aes_decrypt(
     from Crypto.Cipher import AES
     from Crypto.Util.Padding import unpad
 
+    if len(key) not in (16, 24, 32):
+        return {
+            "success": False,
+            "error": (
+                f"AES key must be 16, 24, or 32 bytes, got {len(key)}"
+            ),
+        }
+    if len(iv) != 16:
+        return {
+            "success": False,
+            "error": (
+                f"AES-CBC IV must be 16 bytes, got {len(iv)}"
+            ),
+        }
     try:
         cipher = AES.new(key, AES.MODE_CBC, iv)
         decrypted = cipher.decrypt(encrypted_data)
@@ -100,7 +128,7 @@ def _aes_decrypt(
             "decrypted_data": _encode_base64(unpadded),
             "algorithm": "AES-CBC",
         }
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return {"success": False, "error": str(exc)}
 
 
@@ -127,7 +155,7 @@ def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
             "hash": _encode_base64(digest),
             "algorithm": algorithm,
         }
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return {"success": False, "error": str(exc)}
 
 
@@ -159,7 +187,7 @@ def _verify_signature(
         key.verify(signature, data)
 
         return {"success": True, "valid": True, "algorithm": "Ed25519"}
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         return {
             "success": True,
             "valid": False,

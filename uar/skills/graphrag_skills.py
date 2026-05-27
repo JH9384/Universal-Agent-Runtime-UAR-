@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import logging
 from pathlib import Path
+from urllib.parse import urljoin
 
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
@@ -146,7 +147,7 @@ def _check_ollama_health() -> tuple[bool, str]:
 
     try:
         ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-        r = httpx.get(f"{ollama_host.rstrip('/')}/api/tags", timeout=5.0)
+        r = httpx.get(urljoin(ollama_host, "/api/tags"), timeout=5.0)
         if r.is_success:
             return True, ""
         return False, f"Ollama returned HTTP {r.status_code}"
@@ -454,7 +455,7 @@ def graphrag_index(ctx):
             "input_path": str(source),
         }
 
-    timeout = int(meta.get("timeout_sec") or DEFAULT_CLI_TIMEOUT)
+    timeout = max(1, min(int(meta.get("timeout_sec") or DEFAULT_CLI_TIMEOUT), 7200))
     result = _run_cli(
         ["graphrag", "index", "--root", str(root)],
         cwd=root,
@@ -516,7 +517,11 @@ def graphrag_query(ctx):
     if not query.strip():
         return {"status": "failed", "error": "Empty query"}
 
-    timeout = int(meta.get("timeout_sec") or DEFAULT_QUERY_TIMEOUT)
+    timeout = max(
+        1, min(
+            int(meta.get("timeout_sec") or DEFAULT_QUERY_TIMEOUT), 7200
+        )
+    )
     result = _run_cli(
         [
             "graphrag",

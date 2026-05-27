@@ -25,10 +25,13 @@ import os
 from pathlib import Path
 from typing import cast
 
+import re
+
 from uar.core.async_utils import run_sync_safe
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.validation import validate_path_security
+from uar.core.exceptions import PathSecurityError
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,15 @@ ALLOWED_ROOT = (
 _autonomi_cb = CircuitBreaker(
     "autonomi", failure_threshold=3, recovery_timeout=60.0
 )
+
+
+def _safe_filename(name: str) -> str:
+    """Sanitize a string so it is safe to use as a filename."""
+    safe = re.sub(r"[^\w.\-]+", "_", name)
+    safe = safe.strip("._")
+    if not safe:
+        safe = "unnamed"
+    return safe[:128]
 
 
 def _get_autonomi():
@@ -179,7 +191,7 @@ def autonomi_upload(ctx):
             "network": network_name,
             "has_wallet": bool(private_key),
         }
-    except Exception as exc:
+    except (ValueError, TypeError, OSError) as exc:
         logger.exception("autonomi_upload failed")
         return {
             "status": "failed",
@@ -235,14 +247,14 @@ def autonomi_download(ctx):
             ALLOWED_ROOT
             / ".uar_library"
             / "downloads"
-            / Path(str(address)).name
+            / _safe_filename(str(address))
         )
     dest = Path(dest_raw).resolve()
 
     # Validate destination path security
     try:
         validate_path_security(dest, ALLOWED_ROOT)
-    except Exception as e:
+    except (PathSecurityError, ValueError, OSError) as e:
         return {
             "status": "failed",
             "error": f"Destination path security violation: {e}",
@@ -276,7 +288,7 @@ def autonomi_download(ctx):
             "public": public,
             "network": network_name,
         }
-    except Exception as exc:
+    except (ValueError, TypeError, OSError) as exc:
         logger.exception("autonomi_download failed")
         return {
             "status": "failed",

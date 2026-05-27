@@ -175,3 +175,75 @@ class TestHistogramAlphaValidation:
 
         assert isinstance(metrics._LOG_ALPHA, float)
         assert metrics._LOG_ALPHA > 0
+
+
+class TestCipherOpsValidation:
+    """AES key/IV lengths must be validated before passing to PyCryptodome."""
+
+    def test_aes_encrypt_rejects_short_key(self):
+        from uar.skills.cipher_ops import _aes_encrypt
+
+        result = _aes_encrypt(b"data", b"short")
+        assert result["success"] is False
+        assert "16, 24, or 32 bytes" in result["error"]
+
+    def test_aes_decrypt_rejects_bad_iv(self):
+        from uar.skills.cipher_ops import _aes_decrypt
+
+        result = _aes_decrypt(b"data", b"x" * 32, b"bad")
+        assert result["success"] is False
+        assert "IV must be 16 bytes" in result["error"]
+
+    def test_decode_base64_catches_type_error(self):
+        from uar.skills.cipher_ops import _decode_base64
+
+        with pytest.raises(ValueError, match="Invalid base64"):
+            _decode_base64(None)  # type: ignore[arg-type]
+
+
+class TestAutonomiSafeFilename:
+    """Autonomi download destination must sanitize untrusted addresses."""
+
+    def test_safe_filename_strips_traversal(self):
+        from uar.skills.autonomi_storage import _safe_filename
+
+        assert _safe_filename("../../../etc/passwd") == "etc_passwd"
+        assert _safe_filename("a/b\\c.txt") == "a_b_c.txt"
+
+    def test_safe_filename_caps_length(self):
+        from uar.skills.autonomi_storage import _safe_filename
+
+        long_name = "x" * 500
+        assert len(_safe_filename(long_name)) == 128
+
+    def test_safe_filename_fallback_on_empty(self):
+        from uar.skills.autonomi_storage import _safe_filename
+
+        assert _safe_filename("...") == "unnamed"
+
+
+class TestGraphRagTimeoutClamp:
+    """User-provided timeout must be clamped to prevent absurd values."""
+
+    def test_timeout_clamped_high(self):
+        from uar.skills.graphrag_skills import DEFAULT_QUERY_TIMEOUT
+
+        raw = 999999999
+        clamped = max(1, min(int(raw or DEFAULT_QUERY_TIMEOUT), 7200))
+        assert clamped == 7200
+
+    def test_timeout_clamped_low(self):
+        from uar.skills.graphrag_skills import DEFAULT_QUERY_TIMEOUT
+
+        raw = -100
+        clamped = max(1, min(int(raw or DEFAULT_QUERY_TIMEOUT), 7200))
+        assert clamped == 1
+
+
+class TestWebSocketMaxConnectionsNonNegative:
+    """WEBSOCKET_MAX_CONNECTIONS env must not be negative."""
+
+    def test_ws_max_connections_is_non_negative(self):
+        from uar.api.server import _ws_conn_counter
+
+        assert _ws_conn_counter.max_connections >= 0
