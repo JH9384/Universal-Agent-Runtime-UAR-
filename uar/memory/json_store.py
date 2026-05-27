@@ -108,6 +108,17 @@ class JsonRunStore:
         """Alias for list_records — returns all stored run records."""
         return self.list_records(user_id=user_id)
 
+    def get_by_run_id(self, run_id: str) -> Optional[dict]:
+        """Fetch a single record by run ID.
+
+        Scans from newest to oldest so the most recent record wins.
+        """
+        records = self.list_records()
+        for record in reversed(records):
+            if record.get("run_id") == run_id:
+                return record
+        return None
+
     def purge_old_records(self, retention_days: int) -> int:
         """Remove records older than *retention_days* from the JSONL file.
 

@@ -14,6 +14,7 @@ import time
 import uuid
 from typing import Iterator, Dict, Any, List, Tuple
 
+from .async_utils import run_sync_safe
 from .cache import get_cache
 from .contracts import PipelineContext, RunRecord, StrategySpec
 from .exceptions import SkillExecutionError, TimeoutError, ValidationError
@@ -670,22 +671,7 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
     # "This event loop is already running".
     if inspect.iscoroutinefunction(fn):
         try:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop is not None and loop.is_running():
-                new_loop = asyncio.new_event_loop()
-                try:
-                    fut = new_loop.run_until_complete(
-                        asyncio.wait_for(fn(ctx), timeout=timeout_seconds)
-                    )
-                    return fut
-                except asyncio.TimeoutError as exc:
-                    raise TimeoutError(timeout_seconds) from exc
-                finally:
-                    new_loop.close()
-            return asyncio.run(
+            return run_sync_safe(
                 asyncio.wait_for(fn(ctx), timeout=timeout_seconds)
             )
         except asyncio.TimeoutError as exc:

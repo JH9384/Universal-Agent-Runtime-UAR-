@@ -19,6 +19,7 @@ from uar.core.contracts import GoalSpec
 from uar.core.executor import Executor
 from uar.core.planner import SimplePlanner
 from uar.core.orchestrator import build_orchestration_plan
+from uar.memory.base_store import RunStoreProtocol
 from uar.memory.json_store import JsonRunStore
 from .base import BaseService
 from .events import EventService
@@ -96,7 +97,7 @@ class GoalExecutionService(BaseService):
     def __init__(
         self,
         event_service: Optional[EventService] = None,
-        store: Optional[JsonRunStore] = None,
+        store: Optional[RunStoreProtocol] = None,
         max_stream_events: int = _MAX_STREAM_EVENTS,
         event_buffer_size: int = _EVENT_BUFFER_SIZE,
         **deps: Any,

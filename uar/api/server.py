@@ -2266,14 +2266,8 @@ async def get_provenance(
     user_info = auth_middleware(credentials)
     user = user_info["user"] if user_info else "anonymous"
 
-    # Load from store
-    from uar.memory.sqlite_store import SqliteRunStore
-
-    run_store = SqliteRunStore()
-    try:
-        record = run_store.get_by_run_id(run_id)
-    finally:
-        run_store.close()
+    # Load from the globally configured store (Json, Sqlite, or Postgres)
+    record = store.get_by_run_id(run_id)
 
     if not record:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
