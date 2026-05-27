@@ -150,6 +150,22 @@ This project uses semantic versioning for release tags.
 - `vitest`: `^1.1.0` → `3.2.4`
 - `@vitest/ui`: `^1.1.0` → `3.2.4`
 
+### Bug Fixes — Session 6 (Logging Refactor & Frontend Polish)
+- **Logging refactor across 56 Python files**: converted f-string log messages to %-style lazy
+  evaluation (`logger.info("User: %s", user)` instead of `logger.info(f"User: {user}")`)
+  for deferred string formatting and consistent formatting style
+- Replaced `logger.error(..., exc_info=True)` with `logger.exception(...)` for conciseness
+  and guaranteed traceback capture in catch-all exception handlers
+- **Frontend: Presets error visibility**: fetch failures for `/api/uar/docs/presets` now show
+  `"Failed to load presets — check server"` in red instead of silently displaying `"(none)"`
+- **Frontend: User-editable folder presets**: inline add/remove controls for custom folder
+  presets persisted to `localStorage`; merged with server presets without duplication
+- **Frontend: Dark mode UOR icon visibility**: added light background behind transparent
+  PNG UOR icon so dark icon content is visible on dark theme
+- **Python < 3.12 compatibility**: removed `follow_symlinks=False` from `Path.is_dir()`
+  call (argument added in 3.12); symlink skipping already handled by preceding
+  `entry.is_symlink()` check. Fixes `TypeError` in production runtime
+
 ### Planned / Deferred
 - Parallel executor expansion
 - Replay timeline UI
