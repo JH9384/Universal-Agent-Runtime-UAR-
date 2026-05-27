@@ -771,21 +771,6 @@ export function UARPanel() {
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(true) }
   const onDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(false) }
 
-  // ESC closes all open modals and popups
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setPickerOpen(false)
-        setTipsPopupOpen(false)
-        setSkillGuideOpen(false)
-        setLibraryPopupOpen(false)
-        setRecipesPopupOpen(false)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [setPickerOpen, setTipsPopupOpen, setSkillGuideOpen, setLibraryPopupOpen, setRecipesPopupOpen])
-
   // Click outside to close tips popup
   useEffect(() => {
     if (!tipsPopupOpen) return
@@ -1583,6 +1568,34 @@ export function UARPanel() {
     wsRef.current?.close()
     wsRef.current = null
   }, [])
+
+  // Keyboard shortcuts: ESC closes modals; Ctrl/Cmd+Enter runs the stream
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPickerOpen(false)
+        setTipsPopupOpen(false)
+        setSkillGuideOpen(false)
+        setLibraryPopupOpen(false)
+        setRecipesPopupOpen(false)
+      }
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.key === 'Enter' &&
+        !isRunning
+      ) {
+        const target = e.target as HTMLElement
+        const tag = target.tagName
+        // Ignore when focus is in a textarea to avoid interrupting multi-line input
+        if (tag !== 'TEXTAREA') {
+          e.preventDefault()
+          runStream()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setPickerOpen, setTipsPopupOpen, setSkillGuideOpen, setLibraryPopupOpen, setRecipesPopupOpen, isRunning, runStream])
 
   // Graph rendering is delegated to GraphVisualizer component
 
@@ -2416,7 +2429,11 @@ export function UARPanel() {
             onClick={runStream}
             disabled={!canRun}
             className={styles.runButton}
-            title={isRunning ? 'Currently running' : 'Execute selected skills in sequence'}
+            title={
+              isRunning
+                ? 'Currently running'
+                : 'Execute selected skills in sequence (Ctrl+Enter)'
+            }
           >
             {isRunning ? '⏳ Running…' : '▶ Run Stream'}
           </button>

@@ -1,4 +1,5 @@
 import React, { Component, type ReactNode } from 'react'
+import styles from './ErrorBoundary.module.css'
 
 interface Props {
   children: ReactNode
@@ -35,18 +36,9 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div
-            style={{
-              padding: '12px 16px',
-              background: '#fee',
-              border: '1px solid #fcc',
-              borderRadius: '6px',
-              color: '#c00',
-              fontSize: '13px',
-            }}
-          >
+          <div className={styles.errorContainer}>
             <strong>Component error</strong>
-            <div style={{ marginTop: '4px', opacity: 0.8 }}>
+            <div className={styles.errorMessage}>
               {this.state.error?.message || 'Unknown error'}
             </div>
           </div>
