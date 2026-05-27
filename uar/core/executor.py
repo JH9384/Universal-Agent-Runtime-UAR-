@@ -1301,8 +1301,9 @@ class Executor:
                                     + ", ".join(output_violations)
                                 )
                                 logger.warning(
-                                    f"Output guardrails failed for "
-                                    f"{skill_name}: {error_msg}"
+                                    "Output guardrails failed for %s: %s",
+                                    skill_name,
+                                    error_msg,
                                 )
                                 raise SkillExecutionError(
                                     skill_name,
@@ -1401,7 +1402,7 @@ class Executor:
                                     execution_broken = True
                         except Exception as exc:
                             logger.warning(
-                                f"Skill {skill_name} failed: {exc}"
+                                "Skill %s failed: %s", skill_name, exc
                             )
                             _release_coalesce_lock()
                             yield _ev(
@@ -1409,7 +1410,7 @@ class Executor:
                                 skill=skill_name,
                                 error="Skill execution failed",
                             )
-                            _add_error(f"{skill_name}: execution failed")
+                            _add_error("Skill execution failed")
                             if (
                                 active_recipe_stack
                                 and recipe_retry_remaining.get(
@@ -1555,15 +1556,16 @@ class Executor:
                                     + ", ".join(output_violations)
                                 )
                                 logger.warning(
-                                    f"Output guardrails failed for "
-                                    f"{skill_name}: {error_msg}"
+                                    "Output guardrails failed for %s: %s",
+                                    skill_name,
+                                    error_msg,
                                 )
                                 yield _ev(
                                     "skill_failed",
                                     skill=skill_name,
                                     error=error_msg,
                                 )
-                                _add_error(f"{skill_name}: {error_msg}")
+                                _add_error("Skill execution failed")
                                 any_failed = True
                                 if fail_fast:
                                     break
