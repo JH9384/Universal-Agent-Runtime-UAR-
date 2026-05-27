@@ -46,6 +46,7 @@ from uar.core.planner import SimplePlanner
 from uar.core.recipes import DEFAULT_RECIPES
 from uar.core.timeline import timeline_from_record
 from uar.api.advanced_endpoints import router as advanced_router
+from uar.api.responses import error_response
 from uar.core.validation import (
     validate_goal,
     validate_skills,
@@ -2821,33 +2822,18 @@ async def docs_library_delete(
     library = _library_dir().resolve()
     safe_name = Path(name).name
     if not safe_name or safe_name in (".", ".."):
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Invalid name", "message": "Invalid file name"},
-        )
+        return error_response(400, "Invalid name", "Invalid file name")
     target = (library / safe_name).resolve()
     try:
         target.relative_to(library)
     except ValueError:
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Invalid name", "message": "Invalid file name"},
-        )
+        return error_response(400, "Invalid name", "Invalid file name")
     if not target.exists() or not target.is_file():
-        return JSONResponse(
-            status_code=404,
-            content={"error": "Not found", "message": "File not found"},
-        )
+        return error_response(404, "Not found", "File not found")
     try:
         target.unlink()
     except OSError:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Delete failed",
-                "message": "File deletion failed",
-            },
-        )
+        return error_response(500, "Delete failed", "File deletion failed")
     return {"deleted": str(target)}
 
 
@@ -2954,23 +2940,13 @@ async def docs_browse(
             "entries": entries,
         }
     except (ValidationError, PathSecurityError):
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Invalid path",
-                "message": "Path validation failed",
-                "request_id": request_id,
-            },
+        return error_response(
+            400, "Invalid path", "Path validation failed", request_id
         )
     except Exception:
         logger.exception("[%s] docs_browse failed", request_id)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Internal server error",
-                "message": "Browse request failed",
-                "request_id": request_id,
-            },
+        return error_response(
+            500, "Internal server error", "Browse request failed", request_id
         )
 
 
@@ -3008,38 +2984,24 @@ async def docs_create_folder(
         if not isinstance(parent_path, str) or not isinstance(
             folder_name, str
         ):
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Invalid input types",
-                    "message": "Both 'path' and 'name' must be strings",
-                    "request_id": request_id,
-                },
+            return error_response(
+                400, "Invalid input types",
+                "Both 'path' and 'name' must be strings", request_id
             )
 
         # Check required fields
         if not parent_path or not folder_name:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Missing required fields",
-                    "message": "Both 'path' and 'name' are required",
-                    "request_id": request_id,
-                },
+            return error_response(
+                400, "Missing required fields",
+                "Both 'path' and 'name' are required", request_id
             )
 
         # Trim whitespace
         folder_name = folder_name.strip()
         if not folder_name:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Invalid folder name",
-                    "message": (
-                        "Folder name cannot be empty or whitespace only"
-                    ),
-                    "request_id": request_id,
-                },
+            return error_response(
+                400, "Invalid folder name",
+                "Folder name cannot be empty or whitespace only", request_id
             )
 
         # Prevent path traversal and invalid characters in folder name
@@ -3050,17 +3012,15 @@ async def docs_create_folder(
             or "\x00" in folder_name
             or any(ord(c) < 32 for c in folder_name)
         ):
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Invalid folder name",
-                    "message": (
-                        "Folder name cannot contain slashes, "
-                        "parent directory references, null "
-                        "bytes, or control characters"
-                    ),
-                    "request_id": request_id,
-                },
+            return error_response(
+                400,
+                "Invalid folder name",
+                (
+                    "Folder name cannot contain slashes, parent"
+                    " directory references, null bytes, or control"
+                    " characters"
+                ),
+                request_id,
             )
 
         # Check for reserved Windows names
@@ -3068,25 +3028,17 @@ async def docs_create_folder(
         reserved_names.update(f"COM{i}" for i in range(1, 10))
         reserved_names.update(f"LPT{i}" for i in range(1, 10))
         if folder_name.upper() in reserved_names:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Invalid folder name",
-                    "message": "Folder name is a reserved Windows name",
-                    "request_id": request_id,
-                },
+            return error_response(
+                400, "Invalid folder name",
+                "Folder name is a reserved Windows name", request_id
             )
 
         # Validate parent path
         parent_path = os.path.normpath(parent_path).lstrip(os.sep)
         if ".." in parent_path.split(os.sep):
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Invalid path",
-                    "message": "Parent path contains traversal attempt",
-                    "request_id": request_id,
-                },
+            return error_response(
+                400, "Invalid path",
+                "Parent path contains traversal attempt", request_id
             )
 
         # Resolve paths
@@ -3095,13 +3047,9 @@ async def docs_create_folder(
             target_parent = (library / parent_path).resolve()
             target_parent.relative_to(library.resolve())
         except (OSError, ValueError):
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Invalid path",
-                    "message": "Parent path is outside library",
-                    "request_id": request_id,
-                },
+            return error_response(
+                400, "Invalid path",
+                "Parent path is outside library", request_id
             )
 
         # Create folder
@@ -3110,12 +3058,9 @@ async def docs_create_folder(
             new_folder.mkdir(parents=True, exist_ok=True)
         except OSError:
             logger.exception("[%s] Folder creation failed", request_id)
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": "Folder creation failed",
-                    "request_id": request_id,
-                },
+            return error_response(
+                500, "Folder creation failed",
+                "Folder creation failed", request_id
             )
 
         return {
@@ -3131,25 +3076,16 @@ async def docs_create_folder(
             request_id,
             str(e),
         )
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Invalid path",
-                "message": "Invalid path provided",
-                "request_id": request_id,
-            },
+        return error_response(
+            400, "Invalid path", "Invalid path provided", request_id
         )
     except Exception:
         logger.exception(
             "[%s] docs_create_folder failed", request_id
         )
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Folder creation failed",
-                "message": "Internal server error",
-                "request_id": request_id,
-            },
+        return error_response(
+            500, "Folder creation failed",
+            "Internal server error", request_id
         )
 
 
