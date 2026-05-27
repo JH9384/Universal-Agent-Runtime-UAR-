@@ -903,10 +903,13 @@ body {
   font-size: 11px;
   color: #888;
   margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+}
+
+.orderEmpty {
+  font-size: 11px;
+  color: #aaa;
+  font-style: italic;
+  margin-left: 4px;
 }
 
 .loadingText {

@@ -2062,7 +2062,7 @@ export function UARPanel() {
                   </button>
                 )}
                 {unifiedOrder.length === 0 ? (
-                  <span>(none)</span>
+                  <span className={styles.orderEmpty}>No skills or recipes selected — click above to build your pipeline</span>
                 ) : (
                   <div className={styles.orderChips}>
                     {unifiedOrder.map((item, index) => {
