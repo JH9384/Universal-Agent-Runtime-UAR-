@@ -83,11 +83,11 @@ class DigestValidator:
                     computed_digest=computed,
                     error="Digest mismatch",
                 )
-        except Exception as e:
-            logger.error(f"Digest validation failed: {e}")
+        except Exception:
+            logger.exception("Digest validation failed")
             return ValidationResult(
                 is_valid=False,
-                error=f"Validation error: {e}",
+                error="Validation error",
             )
 
     def validate_envelope(self, envelope: Dict[str, Any]) -> ValidationResult:

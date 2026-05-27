@@ -66,19 +66,16 @@ def validate_event(event: Dict[str, Any]) -> List[str]:
     schema_version = event.get("schema_version", "")
 
     if schema_version != CURRENT_EVENT_SCHEMA:
-        errors.append(
-            f"Unknown schema version: {schema_version} "
-            f"(expected {CURRENT_EVENT_SCHEMA})"
-        )
+        errors.append("Unknown schema version")
 
     required = EVENT_SCHEMAS.get(event_type)
     if required is None:
-        errors.append(f"Unknown event type: {event_type}")
+        errors.append("Unknown event type")
         return errors
 
     for field in required:
         if field not in event:
-            errors.append(f"Missing required field '{field}' in {event_type}")
+            errors.append("Missing required field")
 
     return errors
 
