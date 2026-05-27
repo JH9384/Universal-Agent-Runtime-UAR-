@@ -50,6 +50,17 @@ export function UARSimplePanel() {
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const eventCountRef = useRef(0)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Auto-dismiss errors after 8 seconds
+  useEffect(() => {
+    if (!error) return
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    errorTimerRef.current = setTimeout(() => setError(''), 8000)
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
+  }, [error])
 
   useEffect(() => {
     try {
@@ -195,6 +206,21 @@ export function UARSimplePanel() {
     }
   }, [goal, isRunning, selectedSkills])
 
+  // Keyboard shortcut: Ctrl/Cmd+Enter to run
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !isRunning) {
+        const target = e.target as HTMLElement
+        if (target.tagName !== 'TEXTAREA') {
+          e.preventDefault()
+          run()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isRunning, run])
+
   const stop = useCallback(() => {
     abortControllerRef.current?.abort()
   }, [])
@@ -242,6 +268,7 @@ export function UARSimplePanel() {
           className={`${styles.runBtn} ${isRunning ? styles.runBtnRunning : ''}`}
           onClick={isRunning ? stop : run}
           disabled={!goal.trim() && !isRunning}
+          title={isRunning ? 'Stop execution' : 'Run (Ctrl+Enter)'}
         >
           {isRunning ? 'Stop' : 'Run'}
         </button>
