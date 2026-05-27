@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import importlib.util
 import threading
 from typing import Any, Callable, Dict, List
@@ -136,9 +137,18 @@ class SkillRegistry:
                 import requests
 
                 self._session = requests.Session()
+                atexit.register(self._close_session)
             except Exception:
                 self._session = None
             return self._session
+
+    def _close_session(self) -> None:
+        if self._session is not None:
+            try:
+                self._session.close()
+            except Exception:
+                pass
+            self._session = None
 
     def _resolve_lazy(self, name: str) -> None:
         """Import and bind a lazily registered skill."""
@@ -197,9 +207,9 @@ class SkillRegistry:
             return sorted(self._skills.keys())
 
     def is_registered(self, name: str) -> bool:
-        """Return whether ``name`` is registered."""
+        """Return whether ``name`` is registered (resolved or lazy)."""
         with self._lock:
-            return name in self._skills
+            return name in self._skills or name in self._lazy
 
     def search_by_prefix(self, prefix: str) -> List[str]:
         """Return skill names starting with *prefix* (trie-backed)."""
