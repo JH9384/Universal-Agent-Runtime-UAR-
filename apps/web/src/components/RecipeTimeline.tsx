@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import styles from './RecipeTimeline.module.css'
 
 // ---------------------------------------------------------------------------
@@ -55,6 +55,15 @@ export default function RecipeTimeline({
 }) {
   const [openRecipes, setOpenRecipes] = useState<Set<string>>(new Set())
   const [detailEvent, setDetailEvent] = useState<DetailEvent | null>(null)
+
+  useEffect(() => {
+    if (!detailEvent) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDetailEvent(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [detailEvent])
 
   const { meta, timeline, standaloneSkills } = useMemo(() => {
     // ---- meta --------------------------------------------------------------
