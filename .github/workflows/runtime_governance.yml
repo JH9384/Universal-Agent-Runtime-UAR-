@@ -1,0 +1,36 @@
+name: Runtime Governance
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  runtime-governance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run constitutional runtime governance tests
+        run: |
+          pytest tests/test_replay_certificate.py
+          pytest tests/test_replay_drift_comparator.py
+          pytest tests/test_runtime_replay_store.py
+          pytest tests/test_execution_authority.py
+          pytest tests/test_executor_authority_adapter.py
+          pytest tests/test_governed_executor.py
+          pytest tests/test_runtime_dispatch_pipeline.py
+          pytest tests/test_constitutional_no_bypass.py
+          pytest tests/test_constitutional_execution_chain.py
+          pytest tests/test_live_replay_engine.py
