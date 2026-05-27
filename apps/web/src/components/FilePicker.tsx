@@ -89,6 +89,15 @@ export function FilePicker(props: FilePickerProps) {
     return () => { abortRef.current?.abort() }
   }, [open, initialPath, projectRoot, load])
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   if (!open) return null
 
   // Breadcrumbs
