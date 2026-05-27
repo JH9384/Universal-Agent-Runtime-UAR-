@@ -306,8 +306,9 @@ class SigstoreVerifier:
                 "error": None if result.ok else str(result.reason),
             }
 
-        except Exception as e:
-            return {"valid": False, "error": f"API verification failed: {e}"}
+        except Exception:
+            logger.exception("API verification failed")
+            return {"valid": False, "error": "API verification failed"}
 
     def _verify_with_cli(
         self,

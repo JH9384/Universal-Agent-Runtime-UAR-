@@ -436,13 +436,14 @@ def graphrag_index(ctx):
     # Validate path security
     try:
         validate_path_security(source, ALLOWED_ROOT)
-    except Exception as e:
-        return {"status": "failed", "error": f"Path security violation: {e}"}
+    except Exception:
+        logger.exception("Path security validation failed")
+        return {"status": "failed", "error": "Path security violation"}
 
     if not source.exists():
         return {
             "status": "failed",
-            "error": f"input_path does not exist: {source}",
+            "error": "input_path does not exist",
         }
 
     # Check graph size limits before indexing
