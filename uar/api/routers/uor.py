@@ -388,7 +388,7 @@ def post_constraint_check(
         )
     except KeyError as exc:
         raise HTTPException(
-            status_code=404, detail=f"Object not found: {exc}"
+            status_code=404, detail="Object not found"
         ) from exc
 
 
@@ -412,7 +412,7 @@ def post_inference_analyze(
         return svc_inference_analyze(store, objects=req.objects, task=req.task)
     except KeyError as exc:
         raise HTTPException(
-            status_code=404, detail=f"Object not found: {exc}"
+            status_code=404, detail="Object not found"
         ) from exc
 
 
@@ -429,7 +429,7 @@ def post_delegation_plan(
         )
     except KeyError as exc:
         raise HTTPException(
-            status_code=404, detail=f"Object not found: {exc}"
+            status_code=404, detail="Object not found"
         ) from exc
 
 
