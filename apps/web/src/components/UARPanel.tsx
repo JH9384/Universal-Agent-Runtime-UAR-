@@ -2650,6 +2650,11 @@ export function UARPanel() {
                   <RecipeTimeline events={filtered} recipes={recipes} />
                 )
               })()}
+              {events.length === 0 && (
+                <div className={styles.eventsEmpty}>
+                  No events yet — click Run to start execution
+                </div>
+              )}
             </div>
           </div>
         </div>

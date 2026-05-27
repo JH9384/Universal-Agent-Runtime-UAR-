@@ -1321,6 +1321,14 @@ body {
   margin-top: 6px;
 }
 
+.eventsEmpty {
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+  padding: 12px 4px;
+  text-align: center;
+}
+
 .eventsPre {
   margin: 0;
   padding: 10px;
