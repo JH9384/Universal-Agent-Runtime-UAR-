@@ -43,7 +43,7 @@ def _close_redis() -> None:
         try:
             _redis_client.close()
         except Exception:
-            pass
+            logger.exception("Redis client close failed")
         _redis_client = None
 
 

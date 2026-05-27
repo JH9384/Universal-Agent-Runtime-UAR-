@@ -426,21 +426,21 @@ async def lifespan(app: FastAPI):
     try:
         get_metrics_collector().shutdown()
     except Exception:
-        pass
+        logger.exception("Metrics collector shutdown failed")
     # Shutdown Postgres connection pool if active
     try:
         from uar.memory.postgres_store import _shutdown_postgres_pool
 
         _shutdown_postgres_pool()
     except Exception:
-        pass
+        logger.exception("Postgres pool shutdown failed")
     # Close per-domain aiohttp sessions
     try:
         from uar.core.http_client import close_all_sessions
 
         close_all_sessions()
     except Exception:
-        pass
+        logger.exception("HTTP sessions close failed")
     logger.info("UAR API shutdown complete")
 
 
@@ -1232,7 +1232,7 @@ async def stream_goal_ws(
                         code=1008, reason="Rate limit error"
                     )
                 except Exception:
-                    pass
+                    logger.warning("WebSocket close failed", exc_info=True)
                 return
 
         if not allowed:
