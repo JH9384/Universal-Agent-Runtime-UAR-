@@ -151,10 +151,10 @@ class Agent:
     ) -> Optional[AgentMessage]:
         """Receive and process a message."""
         if not self.active:
-            logger.warning(f"Agent {self.agent_id} is not active")
+            logger.warning("Agent %s is not active", self.agent_id)
             return AgentMessage(
                 type=MessageType.ERROR,
-                content=f"Agent {self.agent_id} is not active",
+                content="Agent is not active",
                 sender_id=self.agent_id,
                 reply_to=message.id,
             )
@@ -171,11 +171,11 @@ class Agent:
                 )
                 if result:
                     response = result
-            except Exception as e:
-                logger.error(f"Handler error in {self.agent_id}: {e}")
+            except Exception:
+                logger.exception("Handler error in %s", self.agent_id)
                 response = AgentMessage(
                     type=MessageType.ERROR,
-                    content=f"Handler error: {e}",
+                    content="Handler error",
                     sender_id=self.agent_id,
                     reply_to=message.id,
                 )
@@ -225,11 +225,11 @@ class AgentOrchestrator:
         recipient = self.agents.get(message.recipient_id)
         if not recipient:
             logger.warning(
-                f"Recipient agent not found: {message.recipient_id}"
+                "Recipient agent not found: %s", message.recipient_id
             )
             return AgentMessage(
                 type=MessageType.ERROR,
-                content=f"Agent not found: {message.recipient_id}",
+                content="Agent not found",
                 sender_id="orchestrator",
             )
 
