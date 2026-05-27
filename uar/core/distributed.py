@@ -333,7 +333,15 @@ def get_distributed_executor() -> DistributedExecutor:
     if _distributed_executor is None:
         with _dist_lock:
             if _distributed_executor is None:
-                pool_size = int(os.getenv("UAR_DISTRIBUTED_POOL_SIZE", "4"))
+                pool_size = max(
+                    1,
+                    int(
+                        os.getenv(
+                            "UAR_DISTRIBUTED_POOL_SIZE", "4"
+                        ).strip()
+                        or "4"
+                    ),
+                )
                 _distributed_executor = DistributedExecutor(
                     pool=WorkerPool(max_workers=pool_size)
                 )
