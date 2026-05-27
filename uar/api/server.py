@@ -1893,7 +1893,10 @@ async def websocket_run(websocket: WebSocket):
         logger.error(f"WebSocket error: {str(e)}", exc_info=True)
         if websocket.client_state == WebSocketState.CONNECTED:
             try:
-                await websocket.send_json({"type": "error", "error": str(e)})
+                safe_error = "Internal server error"
+                await websocket.send_json(
+                    {"type": "error", "error": safe_error}
+                )
             except Exception as exc:
                 logger.warning(
                     "[%s] Failed to send error frame to client: %s",

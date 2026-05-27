@@ -35,7 +35,7 @@ def json_load_safely(
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in {file_path}: {e}")
         return default
-    except Exception as e:
+    except (OSError, TypeError) as e:
         logger.error(f"Error reading JSON from {file_path}: {e}")
         return default
 
@@ -67,7 +67,7 @@ def json_dump_safely(
     except TypeError as e:
         logger.error(f"Data not JSON serializable: {e}")
         return False
-    except Exception as e:
+    except (OSError, TypeError) as e:
         logger.error(f"Error writing JSON to {file_path}: {e}")
         return False
 
@@ -90,7 +90,7 @@ def json_loads_safely(
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON string: {e}")
         return default
-    except Exception as e:
+    except (TypeError, ValueError) as e:
         logger.error(f"Error parsing JSON string: {e}")
         return default
 
@@ -115,7 +115,7 @@ def json_dumps_safely(
     except TypeError as e:
         logger.error(f"Data not JSON serializable: {e}")
         return None
-    except Exception as e:
+    except (TypeError, ValueError) as e:
         logger.error(f"Error serializing to JSON: {e}")
         return None
 

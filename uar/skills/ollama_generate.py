@@ -1,5 +1,6 @@
 import os
 import logging
+from urllib.parse import urljoin
 
 import httpx
 
@@ -87,7 +88,9 @@ def ollama_generate(ctx):
     model = ctx.goal.metadata.get("ollama_model") or os.getenv(
         "OLLAMA_MODEL", "llama3.2:3b"
     )
-    timeout = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
+    timeout = max(
+        1.0, min(float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60")), 600.0)
+    )
     system = ctx.goal.metadata.get("ollama_system")
 
     # Build prompt. Explicit override wins.
@@ -123,7 +126,7 @@ def ollama_generate(ctx):
     try:
         response = _ollama_cb.call(
             lambda: httpx.post(
-                f"{host.rstrip('/')}/api/generate",
+                urljoin(host, "/api/generate"),
                 json=payload,
                 timeout=timeout,
             )

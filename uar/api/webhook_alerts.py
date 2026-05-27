@@ -56,7 +56,7 @@ class WebhookAlerter:
             )
             with urlopen(req, timeout=10) as resp:
                 return resp.status == 200
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.error(f"Failed to send webhook alert to {endpoint}: {e}")
             return False
 

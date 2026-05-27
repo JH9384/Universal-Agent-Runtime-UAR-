@@ -247,3 +247,31 @@ class TestWebSocketMaxConnectionsNonNegative:
         from uar.api.server import _ws_conn_counter
 
         assert _ws_conn_counter.max_connections >= 0
+
+
+class TestOllamaGenerateTimeoutClamp:
+    """OLLAMA_TIMEOUT_SECONDS must be clamped to safe bounds."""
+
+    def test_timeout_clamped_high(self):
+        raw = 999999999.0
+        clamped = max(1.0, min(raw, 600.0))
+        assert clamped == 600.0
+
+    def test_timeout_clamped_low(self):
+        raw = -10.0
+        clamped = max(1.0, min(raw, 600.0))
+        assert clamped == 1.0
+
+
+class TestJsonUtilsNarrowExceptions:
+    """json_utils must not swallow MemoryError / SystemExit."""
+
+    def test_json_loads_safely_returns_default_on_bad_input(self):
+        from uar.core.json_utils import json_loads_safely
+
+        assert json_loads_safely("not json", default=[]) == []
+
+    def test_json_dumps_safely_returns_none_on_unserializable(self):
+        from uar.core.json_utils import json_dumps_safely
+
+        assert json_dumps_safely(object()) is None
