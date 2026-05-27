@@ -31,7 +31,10 @@ from ..api.metrics import get_metrics_collector
 
 # GC hint threshold: trigger gc.collect() after runs with many events
 # to reduce memory pressure from accumulated intermediate objects.
-GC_EVENT_THRESHOLD = int(os.getenv("UAR_GC_THRESHOLD", "50"))
+GC_EVENT_THRESHOLD = max(
+    1,
+    int(os.getenv("UAR_GC_THRESHOLD", "50").strip() or "50"),
+)
 
 
 @functools.lru_cache(maxsize=100)
@@ -56,7 +59,10 @@ def _cached_expand_execution_order(
 
 
 # Recipe-level context-mutation cache limits.
-_MAX_RECIPE_CACHE_SIZE = int(os.getenv("UAR_RECIPE_CACHE_SIZE", "50"))
+_MAX_RECIPE_CACHE_SIZE = max(
+    1,
+    int(os.getenv("UAR_RECIPE_CACHE_SIZE", "50").strip() or "50"),
+)
 
 # Shared thread pool for _run_with_timeout to avoid per-skill churn.
 # Adaptive sizing: UAR_TIMEOUT_POOL_MAX controls max workers.
@@ -82,7 +88,10 @@ _COALESCE_ENABLED = (
     os.getenv("UAR_COALESCE", "true").lower() == "true"
 )
 # Bounded to prevent unbounded memory growth on long-running servers.
-_COALESCE_MAX_ENTRIES = int(os.getenv("UAR_COALESCE_MAX", "256"))
+_COALESCE_MAX_ENTRIES = max(
+    1,
+    int(os.getenv("UAR_COALESCE_MAX", "256").strip() or "256"),
+)
 _coalesce_locks: Dict[str, threading.Lock] = {}
 _coalesce_results: Dict[str, Any] = {}
 _coalesce_meta_lock = threading.Lock()
@@ -364,7 +373,10 @@ logger = logging.getLogger(__name__)
 
 # Sampled logging: log only 1/N debug messages on hot paths
 # to reduce I/O overhead.  UAR_LOG_SAMPLE_RATE=0 disables sampling.
-_LOG_SAMPLE_RATE = int(os.getenv("UAR_LOG_SAMPLE_RATE", "1"))
+_LOG_SAMPLE_RATE = max(
+    0,
+    int(os.getenv("UAR_LOG_SAMPLE_RATE", "1").strip() or "1"),
+)
 _log_counter = 0
 _log_counter_lock = threading.Lock()
 
@@ -382,7 +394,10 @@ def _sampled_log(level: str, msg: str, *args: Any, **kwargs: Any) -> None:
 
 
 # Retry configuration per skill (max retries)
-DEFAULT_MAX_RETRIES = int(os.getenv("UAR_MAX_RETRIES", "2"))
+DEFAULT_MAX_RETRIES = max(
+    0,
+    int(os.getenv("UAR_MAX_RETRIES", "2").strip() or "2"),
+)
 SKILL_RETRY_POLICIES = {
     "default": DEFAULT_MAX_RETRIES,
     "ollama_generate": 3,  # More retries for external service

@@ -36,14 +36,20 @@ else:
 logger = logging.getLogger(__name__)
 
 # Streaming bounds (module defaults; overridable per-instance)
-_MAX_STREAM_EVENTS = int(os.getenv("MAX_STREAM_EVENTS", "5000"))
-_EVENT_BUFFER_SIZE = int(os.getenv("EVENT_BUFFER_SIZE", "200"))
+_MAX_STREAM_EVENTS = max(
+    1, int(os.getenv("MAX_STREAM_EVENTS", "5000").strip() or "5000")
+)
+_EVENT_BUFFER_SIZE = max(
+    1, int(os.getenv("EVENT_BUFFER_SIZE", "200").strip() or "200")
+)
 BACKPRESSURE_ENABLED = (
     os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
 )
 
 # Hard backpressure: limit in-flight events to prevent OOM on slow consumers
-_BACKPRESSURE_LIMIT = int(os.getenv("UAR_BACKPRESSURE_LIMIT", "1000"))
+_BACKPRESSURE_LIMIT = max(
+    1, int(os.getenv("UAR_BACKPRESSURE_LIMIT", "1000").strip() or "1000")
+)
 _backpressure_sem = asyncio.Semaphore(_BACKPRESSURE_LIMIT)
 
 
