@@ -43,9 +43,12 @@ class Config:
             )
         self.api_workers = max(
             1,
-            int(
-                os.getenv("API_WORKERS", str(DEFAULT_API_WORKERS)).strip()
-                or str(DEFAULT_API_WORKERS)
+            min(
+                64,
+                int(
+                    os.getenv("API_WORKERS", str(DEFAULT_API_WORKERS)).strip()
+                    or str(DEFAULT_API_WORKERS)
+                ),
             ),
         )
 
@@ -72,42 +75,74 @@ class Config:
         self.rate_limit_enabled = (
             os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
         )
-        self.rate_limit_anonymous = int(
-            os.getenv(
-                "RATE_LIMIT_ANONYMOUS", str(DEFAULT_RATE_LIMIT_ANONYMOUS)
-            )
+        self.rate_limit_anonymous = max(
+            1,
+            min(
+                100000,
+                int(
+                    os.getenv(
+                        "RATE_LIMIT_ANONYMOUS",
+                        str(DEFAULT_RATE_LIMIT_ANONYMOUS),
+                    )
+                ),
+            ),
         )
-        self.rate_limit_authenticated = int(
-            os.getenv(
-                "RATE_LIMIT_AUTHENTICATED",
-                str(DEFAULT_RATE_LIMIT_AUTHENTICATED),
-            )
+        self.rate_limit_authenticated = max(
+            1,
+            min(
+                100000,
+                int(
+                    os.getenv(
+                        "RATE_LIMIT_AUTHENTICATED",
+                        str(DEFAULT_RATE_LIMIT_AUTHENTICATED),
+                    )
+                ),
+            ),
         )
-        self.rate_limit_window = int(
-            os.getenv("RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW))
+        self.rate_limit_window = max(
+            1,
+            min(
+                3600,
+                int(
+                    os.getenv(
+                        "RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW)
+                    )
+                ),
+            ),
         )
 
         # File Storage
         self.runs_dir = Path(os.getenv("RUNS_DIR", "runs"))
         self.max_file_size = max(
             1,
-            int(
-                os.getenv("MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE)).strip()
-                or str(DEFAULT_MAX_FILE_SIZE)
+            min(
+                100 * 1024 * 1024,
+                int(
+                    os.getenv(
+                        "MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE)
+                    ).strip()
+                    or str(DEFAULT_MAX_FILE_SIZE)
+                ),
             ),
         )  # 10MB
         self.max_files = max(
             1,
-            int(
-                os.getenv("MAX_FILES", str(DEFAULT_MAX_FILES)).strip()
-                or str(DEFAULT_MAX_FILES)
+            min(
+                100000,
+                int(
+                    os.getenv("MAX_FILES", str(DEFAULT_MAX_FILES)).strip()
+                    or str(DEFAULT_MAX_FILES)
+                ),
             ),
         )
 
         # Data retention: 0 disables automatic purging
         self.run_retention_days = max(
             0,
-            int(os.getenv("RUN_RETENTION_DAYS", "0").strip() or "0"),
+            min(
+                36500,
+                int(os.getenv("RUN_RETENTION_DAYS", "0").strip() or "0"),
+            ),
         )
 
         # Ollama Configuration
@@ -115,11 +150,14 @@ class Config:
         self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
         self.ollama_timeout = max(
             1,
-            int(
-                os.getenv(
-                    "OLLAMA_TIMEOUT_SECONDS", str(DEFAULT_OLLAMA_TIMEOUT)
-                ).strip()
-                or str(DEFAULT_OLLAMA_TIMEOUT)
+            min(
+                300,
+                int(
+                    os.getenv(
+                        "OLLAMA_TIMEOUT_SECONDS", str(DEFAULT_OLLAMA_TIMEOUT)
+                    ).strip()
+                    or str(DEFAULT_OLLAMA_TIMEOUT)
+                ),
             ),
         )
 
@@ -134,20 +172,26 @@ class Config:
         ]
         self.max_request_size = max(
             1,
-            int(
-                os.getenv(
-                    "MAX_REQUEST_SIZE", str(DEFAULT_MAX_FILE_SIZE)
-                ).strip()
-                or str(DEFAULT_MAX_FILE_SIZE)
+            min(
+                100 * 1024 * 1024,
+                int(
+                    os.getenv(
+                        "MAX_REQUEST_SIZE", str(DEFAULT_MAX_FILE_SIZE)
+                    ).strip()
+                    or str(DEFAULT_MAX_FILE_SIZE)
+                ),
             ),
         )  # 10MB
         self.max_request_body_bytes = max(
             1,
-            int(
-                os.getenv(
-                    "MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_FILE_SIZE)
-                ).strip()
-                or str(DEFAULT_MAX_FILE_SIZE)
+            min(
+                100 * 1024 * 1024,
+                int(
+                    os.getenv(
+                        "MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_FILE_SIZE)
+                    ).strip()
+                    or str(DEFAULT_MAX_FILE_SIZE)
+                ),
             ),
         )  # 10MB
 
