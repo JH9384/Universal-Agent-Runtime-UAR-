@@ -137,11 +137,11 @@ class DigestValidator:
                     is_valid=False,
                     error="Canonical form mismatch",
                 )
-        except Exception as e:
-            logger.error(f"Canonicalization validation failed: {e}")
+        except Exception:
+            logger.exception("Canonicalization validation failed")
             return ValidationResult(
                 is_valid=False,
-                error=f"Validation error: {e}",
+                error="Validation error",
             )
 
     def batch_validate(
@@ -214,15 +214,14 @@ class DigestVerifier:
             return False, [
                 (
                     0,
-                    f"Chain length mismatch: {len(objects)} objects, "
-                    f"{len(chain)} expected digests",
+                    "Chain length mismatch",
                 )
             ]
 
         for i, (obj, expected) in enumerate(zip(objects, chain)):
             result = self.validator.validate_object(obj, expected)
             if not result.is_valid:
-                err_msg = result.error or f"Validation failed at index {i}"
+                err_msg = result.error or "Validation failed"
                 errors.append((i, err_msg))
 
         return len(errors) == 0, errors
