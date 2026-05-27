@@ -54,7 +54,7 @@ def _make_cache_key(skill_name: str, ctx: Dict[str, Any], goal: str) -> str:
             item_hash = hash(frozenset((k, str(v)) for k, v in ctx.items()))
             fallback += ":" + str(item_hash)
         except Exception:
-            pass
+            logger.exception("Hash fallback failed")
         return hashlib.sha256(fallback.encode()).hexdigest()
 
 
