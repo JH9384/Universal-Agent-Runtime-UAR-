@@ -2917,7 +2917,7 @@ async def docs_browse(
                 if entry.is_symlink():
                     continue
                 try:
-                    is_dir = entry.is_dir(follow_symlinks=False)
+                    is_dir = entry.is_dir()
                     st = entry.stat(follow_symlinks=False)
                     entries.append(
                         {
