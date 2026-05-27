@@ -1582,27 +1582,27 @@ class Executor:
                             )
                         except (TimeoutError, SkillExecutionError) as exc:
                             logger.warning(
-                                f"Skill {skill_name} failed: {exc}"
+                                "Skill %s failed: %s", skill_name, exc
                             )
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
                                 error="Skill execution failed",
                             )
-                            _add_error(f"{skill_name}: execution failed")
+                            _add_error("Skill execution failed")
                             any_failed = True
                             if fail_fast:
                                 break
                         except Exception as exc:
                             logger.warning(
-                                f"Skill {skill_name} failed: {exc}"
+                                "Skill %s failed: %s", skill_name, exc
                             )
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
                                 error="Skill execution failed",
                             )
-                            _add_error(f"{skill_name}: execution failed")
+                            _add_error("Skill execution failed")
                             any_failed = True
                             if fail_fast:
                                 break
