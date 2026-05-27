@@ -144,7 +144,7 @@ class UORSchemaValidator:
             Tuple of (is_valid, error_messages)
         """
         if schema_name not in self.schemas:
-            return False, [f"Schema not found: {schema_name}"]
+            return False, ["Schema not found"]
 
         schema = self.schemas[schema_name]
         errors = []
@@ -153,7 +153,7 @@ class UORSchemaValidator:
         if "required" in schema:
             for field in schema["required"]:
                 if field not in obj:
-                    errors.append(f"Missing required field: {field}")
+                    errors.append("Missing required field")
 
         if "properties" in schema:
             for field, field_schema in schema["properties"].items():
@@ -162,27 +162,17 @@ class UORSchemaValidator:
                     if "type" in field_schema:
                         expected_type = field_schema["type"]
                         if not self._check_type(value, expected_type):
-                            errors.append(
-                                f"Field '{field}' has wrong type: "
-                                f"expected {expected_type}, got {type(value).__name__}"  # noqa: E501
-                            )
+                            errors.append("Field has wrong type")
 
                     if "pattern" in field_schema and isinstance(value, str):
                         import re
 
                         if not re.match(field_schema["pattern"], value):
-                            errors.append(
-                                f"Field '{field}' does not match pattern: "
-                                f"{field_schema['pattern']}"
-                            )
+                            errors.append("Field does not match pattern")
 
                     if "enum" in field_schema:
                         if value not in field_schema["enum"]:
-                            enum_vals = field_schema["enum"]
-                            errors.append(
-                                f"Field '{field}' has invalid value: "
-                                f"{value} not in {enum_vals}"
-                            )
+                            errors.append("Field has invalid value")
 
         return len(errors) == 0, errors
 
