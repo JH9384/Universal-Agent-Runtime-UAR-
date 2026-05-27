@@ -2209,9 +2209,13 @@ async def sandbox_eval_endpoint(
         result = sandbox_eval(expression)
         return {"status": "completed", "result": result}
     except Exception as exc:
+        logger.warning("sandbox_eval failed: %s", exc)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"status": "failed", "error": str(exc)},
+            content={
+                "status": "failed",
+                "error": "Expression evaluation failed",
+            },
         )
 
 

@@ -27,7 +27,7 @@ async def get_orchestrator_status() -> Dict[str, Any]:
         return orchestrator.get_status()  # type: ignore[attr-defined,return-value]
     except Exception as e:
         logger.error(f"Failed to get orchestrator status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/governance/status")
@@ -40,7 +40,7 @@ async def get_governance_status() -> Dict[str, Any]:
         return governance.get_system_status()
     except Exception as e:
         logger.error(f"Failed to get governance status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/governance/budget")
@@ -66,7 +66,7 @@ async def create_agent_budget(
         return budget.to_dict()
     except Exception as e:
         logger.error(f"Failed to create budget: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/governance/budget/{agent_id}")
@@ -84,7 +84,7 @@ async def get_agent_budget(agent_id: str) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Failed to get budget: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/governance/violations")
@@ -120,7 +120,7 @@ async def get_violations(
         }
     except Exception as e:
         logger.error(f"Failed to get violations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/dagster/status")
@@ -133,7 +133,7 @@ async def get_dagster_status() -> Dict[str, Any]:
         return orchestrator.get_orchestrator_status()
     except Exception as e:
         logger.error(f"Failed to get Dagster status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/dagster/pipeline")
@@ -153,7 +153,7 @@ async def execute_dagster_pipeline(
         return execution.to_dict()
     except Exception as e:
         logger.error(f"Failed to execute pipeline: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/graphrag/status")
@@ -166,7 +166,7 @@ async def get_graphrag_status() -> Dict[str, Any]:
         return graphrag.get_graph_stats()
     except Exception as e:
         logger.error(f"Failed to get GraphRAG status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/graphrag/query")
@@ -197,7 +197,7 @@ async def query_graphrag(
         return result
     except Exception as e:
         logger.error(f"Failed to query graph: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/crewai/status")
@@ -210,7 +210,7 @@ async def get_crewai_status() -> Dict[str, Any]:
         return orchestrator.get_orchestrator_status()
     except Exception as e:
         logger.error(f"Failed to get CrewAI status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/crewai/agent")
@@ -258,7 +258,7 @@ async def create_crewai_agent(
         }
     except Exception as e:
         logger.error(f"Failed to create agent: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/crewai/workflow")
@@ -277,4 +277,4 @@ async def execute_crewai_workflow(
         return result  # type: ignore[return-value]
     except Exception as e:
         logger.error(f"Failed to execute workflow: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
