@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import atexit
 import importlib.util
+import logging
 import threading
 from typing import Any, Callable, Dict, List
 from functools import wraps
 
 from .exceptions import SkillNotFoundError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class _SkillTrie:
@@ -124,7 +127,7 @@ class SkillRegistry:
 
             load_plugins()
         except Exception:
-            pass
+            logger.exception("Failed to load plugins")
 
     def _get_session(self) -> Any:
         """Lazy shared HTTP session with connection pooling."""
@@ -139,6 +142,7 @@ class SkillRegistry:
                 self._session = requests.Session()
                 atexit.register(self._close_session)
             except Exception:
+                logger.exception("Failed to create requests session")
                 self._session = None
             return self._session
 
@@ -147,7 +151,7 @@ class SkillRegistry:
             try:
                 self._session.close()
             except Exception:
-                pass
+                logger.exception("Failed to close requests session")
             self._session = None
 
     def _resolve_lazy(self, name: str) -> None:
@@ -181,7 +185,7 @@ class SkillRegistry:
                 _compiled_skill_cache.set(path, fn)
             del self._lazy[name]
         except Exception:
-            pass
+            logger.exception("Failed to resolve lazy skill %s", name)
 
     def get(self, name: str) -> Callable:
         """Look up a registered skill by name."""
