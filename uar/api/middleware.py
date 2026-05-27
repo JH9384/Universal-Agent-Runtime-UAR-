@@ -821,9 +821,7 @@ def apply_middleware(app):
                         content={
                             "error": "Request body too large",
                             "error_code": "BODY_TOO_LARGE",
-                            "message": (
-                                f"Maximum body size is {max_body_size} bytes"
-                            ),
+                            "message": "Request body exceeds maximum size",
                         },
                     )
             except ValueError:
