@@ -166,10 +166,10 @@ def _safe_child_exec(
             code, {"__builtins__": ALLOWED_BUILTINS}, local_scope
         )
         result_queue.put({"ok": True, "result": result})
-    except BaseException as exc:  # noqa: BLE001 - report all failures
+    except BaseException:  # noqa: BLE001 - report all failures
         # Child must never leak exceptions outward.
         result_queue.put(
-            {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            {"ok": False, "error": "Execution failed"}
         )
 
 
