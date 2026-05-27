@@ -107,9 +107,8 @@ class BatchProcessor:
                 result.successful += 1
             except Exception as e:
                 result.failed += 1
-                result.errors.append((idx, str(e)))
-                err_msg = f"Failed to compute digest for object {idx}: {e}"
-                logger.error(err_msg)
+                result.errors.append((idx, "Digest computation failed"))
+                logger.error(f"Failed to compute digest for object {idx}: {e}")
 
         return result
 
@@ -175,7 +174,7 @@ class BatchProcessor:
                     result.failed += 1
             except Exception as e:
                 result.failed += 1
-                result.errors.append((idx, str(e)))
+                result.errors.append((idx, "Validation failed"))
                 logger.error(f"Failed to validate object {idx}: {e}")
 
         return result
@@ -236,9 +235,8 @@ class BatchProcessor:
                 result.successful += 1
             except Exception as e:
                 result.failed += 1
-                result.errors.append((idx, str(e)))
-                err_msg = f"Failed to transform object {idx}: {e}"
-                logger.error(err_msg)
+                result.errors.append((idx, "Transformation failed"))
+                logger.error(f"Failed to transform object {idx}: {e}")
 
         return result
 
@@ -291,9 +289,8 @@ class BatchProcessor:
                 result.successful += 1
             except Exception as e:
                 result.failed += 1
-                result.errors.append((idx, str(e)))
-                err_msg = f"Failed to canonicalize object {idx}: {e}"
-                logger.error(err_msg)
+                result.errors.append((idx, "Canonicalization failed"))
+                logger.error(f"Failed to canonicalize object {idx}: {e}")
 
         return result
 
