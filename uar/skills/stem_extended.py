@@ -293,7 +293,7 @@ def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
     try:
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
-            return {"status": "failed", "error": f"Invalid SMILES: {smiles}"}
+            return {"status": "failed", "error": "Invalid SMILES provided"}
 
         if operation == "descriptors":
             return {
