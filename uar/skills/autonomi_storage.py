@@ -196,11 +196,11 @@ def autonomi_upload(ctx):
             "network": network_name,
             "has_wallet": bool(private_key),
         }
-    except (ValueError, TypeError, OSError) as exc:
+    except (ValueError, TypeError, OSError):
         logger.exception("autonomi_upload failed")
         return {
             "status": "failed",
-            "error": str(exc),
+            "error": "Upload failed",
             "file_path": str(src),
             "network": network_name,
             "public": public,
@@ -298,11 +298,11 @@ def autonomi_download(ctx):
             "public": public,
             "network": network_name,
         }
-    except (ValueError, TypeError, OSError) as exc:
+    except (ValueError, TypeError, OSError):
         logger.exception("autonomi_download failed")
         return {
             "status": "failed",
-            "error": str(exc),
+            "error": "Download failed",
             "address": address,
             "network": network_name,
             "public": public,
@@ -358,8 +358,8 @@ def autonomi_status(ctx):
             )
             # Redact private key from result
             result["has_wallet"] = True
-        except Exception as exc:
-            result["wallet_error"] = str(exc)
+        except Exception:
+            result["wallet_error"] = "Wallet check failed"
             result["has_wallet"] = False
     else:
         result["has_wallet"] = False
