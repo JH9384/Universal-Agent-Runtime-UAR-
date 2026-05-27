@@ -319,10 +319,10 @@ class AtomicLanguageModelSkill:
             return response.json()
         except httpx.HTTPError as e:
             logger.error(f"HTTP error calling ALM /predict: {e}")
-            return {"error": str(e), "prediction": None}
+            return {"error": "ALM request failed", "prediction": None}
         except Exception as e:
             logger.error(f"Unexpected error calling ALM /predict: {e}")
-            return {"error": str(e), "prediction": None}
+            return {"error": "ALM request failed", "prediction": None}
 
     def validate_sentences(self, sentences: List[str]) -> Dict[str, Any]:
         """
@@ -349,10 +349,10 @@ class AtomicLanguageModelSkill:
             return response.json()
         except httpx.HTTPError as e:
             logger.error(f"HTTP error calling ALM /validate: {e}")
-            return {"error": str(e), "results": []}
+            return {"error": "ALM request failed", "results": []}
         except Exception as e:
             logger.error(f"Unexpected error calling ALM /validate: {e}")
-            return {"error": str(e), "results": []}
+            return {"error": "ALM request failed", "results": []}
 
     def generate_sentences(self, count: int = 5) -> List[str]:
         """

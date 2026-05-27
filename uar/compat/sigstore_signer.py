@@ -141,7 +141,9 @@ class SigstoreSigner:
 
         except Exception as e:
             logger.error(f"Python API signing failed: {e}")
-            return SigstoreSigningResult(success=False, error=str(e))
+            return SigstoreSigningResult(
+                success=False, error="Signing failed"
+            )
 
     def _sign_with_cosign_cli(
         self,
@@ -267,7 +269,8 @@ class SigstoreVerifier:
                 return self._verify_with_cli(artifact_path, bundle_path)
 
         except Exception as e:
-            return {"valid": False, "error": str(e)}
+            logger.warning(f"Verification failed: {e}")
+            return {"valid": False, "error": "Verification failed"}
 
     def _verify_with_api(
         self,
@@ -332,7 +335,8 @@ class SigstoreVerifier:
         except FileNotFoundError:
             return {"valid": False, "error": "cosign CLI not found"}
         except Exception as e:
-            return {"valid": False, "error": str(e)}
+            logger.warning(f"CLI verification failed: {e}")
+            return {"valid": False, "error": "Verification failed"}
 
 
 def sign_artifact(

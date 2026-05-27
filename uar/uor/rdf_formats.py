@@ -132,7 +132,7 @@ class RDFConverter:
             return RDFConversionResult(success=True, data=graph, format="rdf")
         except Exception as e:
             logger.error(f"JSON-LD to RDF conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")
 
     def rdf_to_jsonld(
         self, graph: Graph, context: Optional[Dict[str, Any]] = None
@@ -160,7 +160,7 @@ class RDFConverter:
             )
         except Exception as e:
             logger.error(f"RDF to JSON-LD conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")
 
     def rdf_to_turtle(self, graph: Graph) -> RDFConversionResult:
         """Convert RDF graph to Turtle format.
@@ -185,7 +185,7 @@ class RDFConverter:
             )
         except Exception as e:
             logger.error(f"RDF to Turtle conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")
 
     def turtle_to_rdf(self, turtle_data: str) -> RDFConversionResult:
         """Convert Turtle format to RDF graph.
@@ -209,7 +209,7 @@ class RDFConverter:
             return RDFConversionResult(success=True, data=graph, format="rdf")
         except Exception as e:
             logger.error(f"Turtle to RDF conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")
 
     def uor_envelope_to_rdf(
         self, envelope: Dict[str, Any], envelope_uri: Optional[str] = None
@@ -259,7 +259,7 @@ class RDFConverter:
             return RDFConversionResult(success=True, data=graph, format="rdf")
         except Exception as e:
             logger.error(f"UOR envelope to RDF conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")
 
     def _add_property_to_graph(
         self, graph: Graph, subject: URIRef, key: str, value: Any
@@ -352,7 +352,7 @@ class RDFConverter:
             )
         except Exception as e:
             logger.error(f"RDF to UOR envelope conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")
 
     def _extract_content_from_graph(
         self, graph: Graph, content_uri: Any
@@ -437,7 +437,7 @@ class OWLConverter:
             return RDFConversionResult(success=True, data=graph, format="owl")
         except Exception as e:
             logger.error(f"Schema to OWL conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")
 
     def _convert_schema_to_owl(
         self, graph: Graph, schema: Dict[str, Any], namespace: Namespace
@@ -502,4 +502,4 @@ class OWLConverter:
             )
         except Exception as e:
             logger.error(f"OWL to Turtle conversion failed: {e}")
-            return RDFConversionResult(success=False, error=str(e))
+            return RDFConversionResult(success=False, error="Conversion failed")

@@ -275,7 +275,12 @@ class HologramClient:
                 "status_code": resp.status_code,
             }
         except Exception as exc:
-            return {"status": "error", "reachable": False, "error": str(exc)}
+            logger.warning(f"Health check failed: {exc}")
+            return {
+                "status": "error",
+                "reachable": False,
+                "error": "Health check failed",
+            }
 
 
 # ---------------------------------------------------------------------------
