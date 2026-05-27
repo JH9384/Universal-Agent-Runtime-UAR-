@@ -61,14 +61,14 @@ def _discover_pypi_plugins() -> List[Any]:
             group = eps.select(group=_PLUGIN_ENTRY_GROUP)
         else:
             # Legacy API
-            group = eps.get(_PLUGIN_ENTRY_GROUP) or []  # type: ignore[attr-defined,assignment]
+            group = eps.get(_PLUGIN_ENTRY_GROUP) or []  # type: ignore
         for ep in group:
             try:
                 modules.append(ep.load())
             except Exception as exc:
                 logger.warning(f"Failed to load plugin {ep.name}: {exc}")
     except Exception:
-        pass
+        logger.exception("Plugin discovery failed")
     return modules
 
 
