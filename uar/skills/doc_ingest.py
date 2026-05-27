@@ -216,8 +216,8 @@ def _extract_ipynb(file_path: Path) -> str:
                 nb = json.load(f)
             cells = nb.get("cells", [])
             lang = "python"
-        except Exception as e:
-            return f"[ipynb parse failed: {e}]"
+        except Exception:
+            return "[ipynb parse failed]"
     parts = []
     for cell in cells:
         ctype = cell.get("cell_type", "")
