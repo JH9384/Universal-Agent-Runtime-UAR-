@@ -1142,15 +1142,16 @@ class Executor:
                         input_violations
                     )
                     logger.warning(
-                        f"Input guardrails failed for {skill_name}: "
-                        f"{error_msg}"
+                        "Input guardrails failed for %s: %s",
+                        skill_name,
+                        error_msg,
                     )
                     yield _ev(
                         "skill_failed",
                         skill=skill_name,
                         error=error_msg,
                     )
-                    _add_error(f"{skill_name}: {error_msg}")
+                    _add_error("Skill execution failed")
                     if (
                         active_recipe_stack
                         and recipe_retry_remaining.get(
@@ -1387,7 +1388,7 @@ class Executor:
                                     error=True,
                                 )
                                 _release_coalesce_lock()
-                                _add_error(f"{skill_name}: {str(last_error)}")
+                                _add_error("Skill execution failed")
                                 if (
                                     active_recipe_stack
                                     and recipe_retry_remaining.get(
