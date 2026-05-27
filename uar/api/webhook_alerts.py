@@ -10,6 +10,7 @@ import logging
 import os
 import time
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,17 @@ class WebhookAlerter:
         endpoints = os.getenv("UOR_WEBHOOK_ENDPOINTS", "")
         if not endpoints:
             return []
-        return [e.strip() for e in endpoints.split(",") if e.strip()]
+        valid = []
+        for e in endpoints.split(","):
+            e = e.strip()
+            if not e:
+                continue
+            parsed = urlparse(e)
+            if parsed.scheme not in ("http", "https"):
+                logger.warning("Ignoring invalid webhook endpoint: %s", e)
+                continue
+            valid.append(e)
+        return valid
 
     def _send_alert(
         self,
