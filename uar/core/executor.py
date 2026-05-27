@@ -1400,13 +1400,16 @@ class Executor:
                                 else:
                                     execution_broken = True
                         except Exception as exc:
+                            logger.warning(
+                                f"Skill {skill_name} failed: {exc}"
+                            )
                             _release_coalesce_lock()
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
-                                error=str(exc),
+                                error="Skill execution failed",
                             )
-                            _add_error(f"{skill_name}: {str(exc)}")
+                            _add_error(f"{skill_name}: execution failed")
                             if (
                                 active_recipe_stack
                                 and recipe_retry_remaining.get(
@@ -1578,22 +1581,28 @@ class Executor:
                                 payload={"result": result},
                             )
                         except (TimeoutError, SkillExecutionError) as exc:
+                            logger.warning(
+                                f"Skill {skill_name} failed: {exc}"
+                            )
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
-                                error=str(exc),
+                                error="Skill execution failed",
                             )
-                            _add_error(f"{skill_name}: {str(exc)}")
+                            _add_error(f"{skill_name}: execution failed")
                             any_failed = True
                             if fail_fast:
                                 break
                         except Exception as exc:
+                            logger.warning(
+                                f"Skill {skill_name} failed: {exc}"
+                            )
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
-                                error=str(exc),
+                                error="Skill execution failed",
                             )
-                            _add_error(f"{skill_name}: {str(exc)}")
+                            _add_error(f"{skill_name}: execution failed")
                             any_failed = True
                             if fail_fast:
                                 break
@@ -1784,11 +1793,12 @@ class Executor:
                     payload={"result": summary},
                 )
             except Exception as e:
+                logger.warning(f"Review {skill_name} failed: {e}")
                 get_metrics_collector().record_skill(
                     skill_name, time.time() - _s0, error=True
                 )
                 # Review failures don't fail the entire execution
-                errors.append(f"Review failed: {str(e)}")
+                errors.append("Review failed")
 
         if not _suppress_start_complete:
             # Emit execution metrics before completion
