@@ -16,9 +16,14 @@ export function getLocalStorage(): Storage | null {
   return null
 }
 
-/** Build Authorization header when API key is present in localStorage. */
+/** Build Authorization header when API key is present in localStorage.
+
+Init headers are merged but never override the Authorization key —
+the stored API key always wins.
+*/
 export function authHeaders(init?: Record<string, string>): Record<string, string> {
   const key = getLocalStorage()?.getItem('uar_api_key')
   if (!key) return init || {}
-  return { Authorization: `Bearer ${key}`, ...init }
+  const { Authorization: _, ...rest } = init || {}
+  return { Authorization: `Bearer ${key}`, ...rest }
 }

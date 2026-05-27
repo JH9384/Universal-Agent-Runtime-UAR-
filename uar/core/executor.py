@@ -1,3 +1,4 @@
+import atexit
 import collections
 import concurrent.futures
 import copy
@@ -64,6 +65,13 @@ _TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(
     max_workers=_TIMEOUT_POOL_MAX
 )
 _TIMEOUT_POOL_LOCK = threading.Lock()
+
+
+def _shutdown_timeout_pool():
+    _TIMEOUT_POOL.shutdown(wait=False)
+
+
+atexit.register(_shutdown_timeout_pool)
 
 # Request coalescing: dedup concurrent identical skill executions
 # Keyed by "skill_name:input_hash" — first caller executes,

@@ -387,6 +387,11 @@ async def lifespan(app: FastAPI):
             f"Shutdown grace period expired with "
             f"{_ws_conn_counter.count} active connection(s) remaining"
         )
+    # Shutdown metrics collector flush thread
+    try:
+        get_metrics_collector().shutdown()
+    except Exception:
+        pass
     logger.info("UAR API shutdown complete")
 
 

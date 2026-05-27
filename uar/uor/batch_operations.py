@@ -4,6 +4,7 @@ Provides efficient batch operations for processing multiple UOR objects,
 including validation, digest computation, and transformation.
 """
 
+import atexit
 import logging
 import os
 from typing import Any, Dict, List, Optional, Callable, Tuple
@@ -27,6 +28,14 @@ def _get_batch_pool() -> ThreadPoolExecutor:
             thread_name_prefix="uar-batch",
         )
     return _batch_pool
+
+
+def _shutdown_batch_pool():
+    if _batch_pool is not None:
+        _batch_pool.shutdown(wait=False)
+
+
+atexit.register(_shutdown_batch_pool)
 
 
 @dataclass
