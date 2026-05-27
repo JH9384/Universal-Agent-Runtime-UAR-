@@ -182,7 +182,7 @@ class TestValidatePathSecurity:
 
             with pytest.raises(Exception) as exc_info:
                 validate_path_security(outside_path, allowed_root)
-            assert "Path outside allowed root" in str(exc_info.value)
+            assert "Path security violation" in str(exc_info.value)
 
     def test_symlink_rejection(self):
         """Symlinks are rejected"""
@@ -199,7 +199,7 @@ class TestValidatePathSecurity:
             try:
                 with pytest.raises(Exception) as exc_info:
                     validate_path_security(symlink_path, allowed_root)
-                assert "Symlinks are not allowed" in str(exc_info.value)
+                assert "Path security violation" in str(exc_info.value)
             finally:
                 target_file.unlink()
                 symlink_path.unlink()

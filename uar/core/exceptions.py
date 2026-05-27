@@ -78,7 +78,7 @@ class PathSecurityError(UARError):
     def __init__(self, path: str, reason: str):
         self.path = path
         self.reason = reason
-        super().__init__(f"Path security violation for '{path}': {reason}")
+        super().__init__("Path security violation")
 
 
 class EventContractError(UARError):
