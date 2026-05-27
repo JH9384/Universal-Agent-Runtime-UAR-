@@ -1888,24 +1888,23 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.goalInputRow}>
-                <input
+                <textarea
                   value={goal}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGoal(e.target.value)}
-                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                    if (e.key === 'Enter' && canRun) {
-                      e.preventDefault()
-                      runStream()
-                    }
-                  }}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setGoal(e.target.value)}
                   placeholder="What do you want to accomplish?"
                   disabled={isRunning}
-                  className={`${styles.input} ${styles.widthFull}`}
+                  className={`${styles.input} ${styles.goalTextarea}`}
+                  rows={2}
                 />
                 <button
                   onClick={runStream}
                   disabled={!canRun}
                   className={styles.goalSubmitButton}
-                  title={isRunning ? 'Currently running' : 'Execute selected skills'}
+                  title={
+                    isRunning
+                      ? 'Currently running'
+                      : 'Execute selected skills (Ctrl+Enter)'
+                  }
                   aria-label="Run"
                 >
                   {isRunning ? '⏳' : '▶'}

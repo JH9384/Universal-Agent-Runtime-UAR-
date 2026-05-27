@@ -1548,7 +1548,8 @@ body {
 }
 
 :global(.dark) .input,
-:global(.dark) .textarea {
+:global(.dark) .textarea,
+:global(.dark) .goalTextarea {
   background-color: #1a1a1a;
   border-color: #404040;
   color: #e5e5e5;
@@ -1906,7 +1907,8 @@ body {
   }
 
   .input,
-  .textarea {
+  .textarea,
+  .goalTextarea {
     font-size: 14px;
   }
 
@@ -2063,8 +2065,15 @@ body {
 
 .goalInputRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+}
+
+.goalTextarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 40px;
+  max-height: 200px;
 }
 
 .goalSubmitButton {
