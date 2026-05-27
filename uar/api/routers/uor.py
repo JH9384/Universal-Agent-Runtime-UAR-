@@ -170,7 +170,9 @@ def post_runtimes_register(
             attributes=req.attributes,
         )
     except SandboxError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400, detail="Sandbox validation failed"
+        ) from exc
     return {
         "name": req.name,
         "runtimeObject": record["digest"],
@@ -322,12 +324,14 @@ def post_execution_run(
             inputs=req.inputs,
             parameters=req.parameters,
         )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Not found")
     except SandboxError as exc:
         msg = str(exc)
         status_code = 408 if "timed out" in msg.lower() else 400
-        raise HTTPException(status_code=status_code, detail=msg) from exc
+        raise HTTPException(
+            status_code=status_code, detail="Execution failed"
+        ) from exc
 
 
 @router.post("/agents/workflow/run")
@@ -352,12 +356,14 @@ def _run_workflow(req: WorkflowRunReq, store: ObjectStore) -> Dict[str, Any]:
             inputs=req.inputs,
             steps=[step.model_dump() for step in req.steps],
         )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Not found")
     except SandboxError as exc:
         msg = str(exc)
         status_code = 408 if "timed out" in msg.lower() else 400
-        raise HTTPException(status_code=status_code, detail=msg) from exc
+        raise HTTPException(
+            status_code=status_code, detail="Execution failed"
+        ) from exc
 
 
 # ----------------------------------------------------------------------

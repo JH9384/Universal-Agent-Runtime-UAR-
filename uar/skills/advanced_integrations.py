@@ -84,7 +84,7 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Agent workflow failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to execute agent workflow",
         }
 
@@ -159,7 +159,7 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"CrewAI task failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to execute CrewAI task",
         }
 
@@ -208,7 +208,7 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"CrewAI workflow failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to execute CrewAI workflow",
         }
 
@@ -299,7 +299,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"LlamaIndex RAG failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to execute LlamaIndex RAG",
         }
 
@@ -359,7 +359,7 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"LlamaIndex query failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to query LlamaIndex RAG",
         }
 
@@ -413,7 +413,7 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Dagster pipeline failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to execute Dagster pipeline",
         }
 
@@ -444,7 +444,7 @@ def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Dagster status check failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to get Dagster status",
         }
 
@@ -513,7 +513,7 @@ def guardrail_check(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Guardrail check failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to check guardrails",
         }
 
@@ -559,7 +559,7 @@ def budget_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Budget status check failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to get budget status",
         }
 
@@ -590,7 +590,7 @@ def blackboard_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Blackboard status check failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to get blackboard status",
         }
 
@@ -677,7 +677,7 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"Flexible GraphRAG failed: {e}")
         return {
             "status": "error",
-            "error": str(e),
+            "error": "Internal error",
             "message": "Failed to execute Flexible GraphRAG",
         }
 
