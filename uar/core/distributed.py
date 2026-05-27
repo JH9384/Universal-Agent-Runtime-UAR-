@@ -18,8 +18,13 @@ from .registry import registry
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_POOL_SIZE = int(os.getenv("UAR_DISTRIBUTED_POOL_SIZE", "4"))
-DEFAULT_TIMEOUT = float(os.getenv("UAR_DISTRIBUTED_TIMEOUT", "30.0"))
+DEFAULT_POOL_SIZE = max(
+    1, int(os.getenv("UAR_DISTRIBUTED_POOL_SIZE", "4").strip() or "4")
+)
+DEFAULT_TIMEOUT = max(
+    1.0,
+    float(os.getenv("UAR_DISTRIBUTED_TIMEOUT", "30.0").strip() or "30.0"),
+)
 
 
 @dataclass
