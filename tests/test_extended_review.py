@@ -154,3 +154,13 @@ class TestCoalesceLockEviction:
 
         assert key in _exec._coalesce_locks
         lock.release()
+
+
+class TestTimeoutPoolMaxValidation:
+    """UAR_TIMEOUT_POOL_MAX must be at least 1 to keep ThreadPoolExecutor
+    healthy."""
+
+    def test_pool_max_is_at_least_one(self):
+        from uar.core import executor as _exec
+
+        assert _exec._TIMEOUT_POOL_MAX >= 1
