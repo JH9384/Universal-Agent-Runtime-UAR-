@@ -113,7 +113,7 @@ def yolo_detect(ctx: PipelineContext) -> Dict[str, Any]:
     model_name = meta.get("cv_model", "yolov8n.pt")
 
     if not img_path or not Path(img_path).exists():
-        return {"status": "failed", "error": f"Image not found: {img_path}"}
+        return {"status": "failed", "error": "Image not found"}
 
     try:
         model = YOLO(model_name)

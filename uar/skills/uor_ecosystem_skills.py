@@ -75,7 +75,7 @@ def uor_addr_resolve(ctx: PipelineContext) -> Dict[str, Any]:
     eco = get_uor_ecosystem()
     obj = eco.uor_addr.resolve(digest)
     if obj is None:
-        return {"status": "failed", "error": f"digest not found: {digest}"}
+        return {"status": "failed", "error": "Digest not found"}
 
     return {
         "status": "completed",
