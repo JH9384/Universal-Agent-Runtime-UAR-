@@ -272,7 +272,8 @@ def _restricted_eval_in_subprocess(expression: str) -> Any:
 
 _sandbox_pool: List[WASMSandbox] = []
 _pool_size = max(
-    0, int(os.getenv("UAR_WASM_POOL_SIZE", "2").strip() or "2")
+    0,
+    min(32, int(os.getenv("UAR_WASM_POOL_SIZE", "2").strip() or "2")),
 )
 
 if _WASMTIME_AVAILABLE:

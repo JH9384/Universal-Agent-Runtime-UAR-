@@ -148,7 +148,10 @@ class MetricsCollector:
     _REDIS_KEY = "uar:metrics:totals"
     _FLUSH_INTERVAL = max(
         0.1,
-        float(os.getenv("UAR_METRICS_FLUSH_SEC", "5.0").strip() or "5.0"),
+        min(
+            300.0,
+            float(os.getenv("UAR_METRICS_FLUSH_SEC", "5.0").strip() or "5.0"),
+        ),
     )
     _WINDOW_ENABLED = (
         os.getenv("UAR_METRICS_WINDOW", "true").lower() == "true"
@@ -297,7 +300,7 @@ class MetricsCollector:
                     )
                 elif key.startswith("skill:") and ":" not in key[6:]:
                     skill_name = key[6:]
-                    metrics = self._skill_metrics[skill_name]  # type: ignore[assignment]
+                    metrics = self._skill_metrics[skill_name]  # type: ignore[assignment]  # noqa: E501
                     metrics.count += val
                     metrics.total_duration += self._window.pop(
                         f"{key}:dur", 0.0
