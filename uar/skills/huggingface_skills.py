@@ -50,7 +50,8 @@ def _get_client() -> Any:
 
     base_url = "https://api-inference.huggingface.co/v1"
     timeout = max(
-        1, int(os.getenv("HF_TIMEOUT_SEC", "30").strip() or "30")
+        1,
+        min(300, int(os.getenv("HF_TIMEOUT_SEC", "30").strip() or "30")),
     )
 
     return openai.OpenAI(
