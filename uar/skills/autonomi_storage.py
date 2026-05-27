@@ -162,7 +162,12 @@ def autonomi_upload(ctx):
         "AUTONOMI_PRIVATE_KEY"
     )
 
-    timeout = float(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))
+    timeout = max(
+        1.0,
+        float(
+            os.getenv("AUTONOMI_TIMEOUT_SEC", "300").strip() or "300"
+        ),
+    )
 
     # Async upload ---------------------------------------------------------
     async def _do():
@@ -263,7 +268,12 @@ def autonomi_download(ctx):
 
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    timeout = float(os.getenv("AUTONOMI_TIMEOUT_SEC", "300"))
+    timeout = max(
+        1.0,
+        float(
+            os.getenv("AUTONOMI_TIMEOUT_SEC", "300").strip() or "300"
+        ),
+    )
 
     # Async download --------------------------------------------------------
     async def _do():

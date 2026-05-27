@@ -32,9 +32,18 @@ _cipher_cb = CircuitBreaker(
 )
 
 # Configuration
-CIPHER_TIMEOUT = float(os.getenv("CIPHER_TIMEOUT_SECONDS", "30"))
-MAX_DATA_SIZE = int(
-    os.getenv("CIPHER_MAX_DATA_SIZE", "10485760")
+CIPHER_TIMEOUT = max(
+    1.0,
+    float(
+        os.getenv("CIPHER_TIMEOUT_SECONDS", "30").strip() or "30"
+    ),
+)
+MAX_DATA_SIZE = max(
+    1,
+    int(
+        os.getenv("CIPHER_MAX_DATA_SIZE", "10485760").strip()
+        or "10485760"
+    ),
 )  # 10MB default
 
 

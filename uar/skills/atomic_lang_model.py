@@ -45,7 +45,12 @@ def _get_http_client():
     if not HTTPX_AVAILABLE:
         return None
     if _http_client is None:
-        timeout = float(os.getenv("ALM_TIMEOUT_SEC", "30"))
+        timeout = max(
+            1.0,
+            float(
+                os.getenv("ALM_TIMEOUT_SEC", "30").strip() or "30"
+            ),
+        )
         limits = httpx.Limits(
             max_connections=10,
             max_keepalive_connections=5,
