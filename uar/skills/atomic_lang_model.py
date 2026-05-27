@@ -21,6 +21,7 @@ import atexit
 import logging
 import os
 from typing import Dict, Any
+from urllib.parse import urlparse
 
 try:
     import httpx
@@ -77,11 +78,15 @@ atexit.register(_close_http_client)
 
 def _get_service_url(ctx: PipelineContext | None = None) -> str:
     """Get ALM service URL from goal metadata override or environment."""
+    url = os.getenv("ALM_SERVICE_URL", "http://localhost:5001/api/v1")
     if ctx and ctx.goal.metadata:
         override_url = ctx.goal.metadata.get("alm_service_url")
         if override_url:
-            return override_url
-    return os.getenv("ALM_SERVICE_URL", "http://localhost:5001/api/v1")
+            url = override_url
+    if urlparse(url).scheme not in ("http", "https"):
+        logger.warning("Ignoring invalid ALM_SERVICE_URL scheme: %s", url)
+        url = "http://localhost:5001/api/v1"
+    return url
 
 
 def _call_alm(
