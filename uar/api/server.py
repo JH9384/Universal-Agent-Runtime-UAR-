@@ -413,6 +413,13 @@ async def lifespan(app: FastAPI):
         _shutdown_postgres_pool()
     except Exception:
         pass
+    # Close per-domain aiohttp sessions
+    try:
+        from uar.core.http_client import close_all_sessions
+
+        close_all_sessions()
+    except Exception:
+        pass
     logger.info("UAR API shutdown complete")
 
 
