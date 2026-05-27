@@ -123,11 +123,11 @@ class WASMSandbox:
         # Security: reject suspicious tokens before any eval
         _validate_expression(expression)
 
-        if _WASMTIME_AVAILABLE and self._instance is not None:
-            return self._eval_wasm(expression)
+        # WASM evaluator stub always returns 0.0 — use subprocess AST
+        # evaluator until a real compiled WASM evaluator is provided.
         return self._eval_subprocess(expression)
 
-    def _eval_wasm(self, expression: str) -> float:
+    def _eval_wasm(self, expression: str) -> float:  # pragma: no cover
         """Evaluate via wasmtime (placeholder — real evaluator in prod)."""
         # Write the expression into WASM linear memory
         assert self._memory is not None
@@ -151,6 +151,7 @@ class WASMSandbox:
         """Return sandbox health information."""
         return {
             "wasmtime_available": _WASMTIME_AVAILABLE,
+            "wasm_evaluator_active": False,
             "engine_initialized": self._engine is not None,
             "memory_pages": self._memory_pages,
         }

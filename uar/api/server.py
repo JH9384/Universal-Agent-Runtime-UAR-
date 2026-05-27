@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 import asyncio
@@ -135,9 +136,44 @@ _MAX_CONCURRENT_SSE_PER_IP = int(os.getenv("UAR_MAX_SSE_PER_IP", "5"))
 _sse_connections: Dict[str, int] = {}
 _sse_connections_lock = asyncio.Lock()
 
-# Idempotency key cache: key -> result (no TTL eviction for simplicity)
+# Idempotency cache: key -> (timestamp, result)
+# Bounded LRU with TTL — eviction runs on every write.
 _idempotency_cache: Dict[str, Any] = {}
 _IDEMPOTENCY_TTL = int(os.getenv("UAR_IDEMPOTENCY_TTL", "86400"))  # 24h
+_IDEMPOTENCY_MAX = int(os.getenv("UAR_IDEMPOTENCY_MAX", "1000"))
+_idempotency_lock = threading.Lock()
+
+
+def _idempotency_get(key: str) -> Any:
+    """Return cached result if key exists and has not expired, else None."""
+    with _idempotency_lock:
+        entry = _idempotency_cache.get(key)
+    if entry is None:
+        return None
+    ts, result = entry
+    if time.time() - ts > _IDEMPOTENCY_TTL:
+        with _idempotency_lock:
+            _idempotency_cache.pop(key, None)
+        return None
+    return result
+
+
+def _idempotency_set(key: str, result: Any) -> None:
+    """Store result under key, evicting expired and excess entries."""
+    now = time.time()
+    with _idempotency_lock:
+        _idempotency_cache[key] = (now, result)
+        # Evict expired entries first
+        expired = [
+            k for k, (ts, _) in _idempotency_cache.items()
+            if now - ts > _IDEMPOTENCY_TTL
+        ]
+        for k in expired:
+            _idempotency_cache.pop(k, None)
+        # If still over cap, drop oldest by insertion order (FIFO)
+        while len(_idempotency_cache) > _IDEMPOTENCY_MAX:
+            oldest = next(iter(_idempotency_cache))
+            _idempotency_cache.pop(oldest, None)
 
 
 class _WebSocketConnectionCounter:
@@ -153,27 +189,24 @@ class _WebSocketConnectionCounter:
         self.lock = asyncio.Lock()
 
     async def acquire(self) -> bool:
-        if self.max_connections <= 0:
-            from uar.api.metrics import get_metrics_collector
-
-            get_metrics_collector().record_connection(+1)
-            self.count += 1
-            return True
         async with self.lock:
-            if self.count >= self.max_connections:
+            if (
+                self.max_connections > 0
+                and self.count >= self.max_connections
+            ):
                 return False
             self.count += 1
             from uar.api.metrics import get_metrics_collector
-
             get_metrics_collector().record_connection(+1)
             return True
 
-    def release(self) -> None:
-        if self.count > 0:
-            self.count = max(0, self.count - 1)
-            from uar.api.metrics import get_metrics_collector
+    async def release(self) -> None:
+        async with self.lock:
+            if self.count > 0:
+                self.count = max(0, self.count - 1)
+                from uar.api.metrics import get_metrics_collector
 
-            get_metrics_collector().record_connection(-1)
+                get_metrics_collector().record_connection(-1)
 
 
 _ws_conn_counter = _WebSocketConnectionCounter(
@@ -186,11 +219,14 @@ SHUTDOWN_SLEEP = float(
     os.getenv("SHUTDOWN_GRACE_SECONDS", "30")
 )  # seconds to drain active requests
 
-# WebSocket robustness
-WS_HEARTBEAT_INTERVAL = 20.0  # seconds
+
+# WebSocket robustness constants (used by the batch+heartbeat WS handler)
+WS_HEARTBEAT_INTERVAL = float(
+    os.getenv("UAR_WS_HEARTBEAT_INTERVAL", "20")
+)
 WS_HEARTBEAT_TIMEOUT = 60.0  # seconds without pong before disconnect
-WS_BATCH_SIZE = 10  # max events per WebSocket send batch
-WS_BATCH_TIMEOUT = 0.05  # seconds to wait before flushing partial batch
+WS_BATCH_SIZE = int(os.getenv("UAR_WS_BATCH_SIZE", "10"))
+WS_BATCH_TIMEOUT = float(os.getenv("UAR_WS_BATCH_TIMEOUT", "0.05"))
 
 # Streaming bounds
 MAX_STREAM_EVENTS = 5000
@@ -373,7 +409,7 @@ app = FastAPI(
     title="UAR API",
     description="Universal Agent Runtime API with production security "
     "features",
-    version="1.0.0",
+    version=get_uar_version(),
     lifespan=lifespan,
 )
 
@@ -788,8 +824,8 @@ async def run_goal(
         try:
             # Idempotency: return cached result for duplicate keys
             if req.idempotency_key:
-                cached = _idempotency_cache.get(req.idempotency_key)
-                if cached:
+                cached = _idempotency_get(req.idempotency_key)
+                if cached is not None:
                     logger.info(
                         f"[{request_id}] Idempotency hit: "
                         f"{req.idempotency_key}"
@@ -809,7 +845,7 @@ async def run_goal(
 
             # Cache result for idempotency
             if req.idempotency_key:
-                _idempotency_cache[req.idempotency_key] = result
+                _idempotency_set(req.idempotency_key, result)
 
             store.append(result)
             logger.info(
@@ -938,8 +974,10 @@ async def stream_goal_ws(
     rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
     limit = RATE_LIMITS.get(tier, RATE_LIMITS["default"])["requests"]
     window = RATE_LIMITS.get(tier, RATE_LIMITS["default"])["window"]
-    allowed, _ = rate_limiter.is_allowed(rate_limit_key, limit, window)
-    if not allowed:
+    _ws_pre_allowed, _ws_pre_remaining = rate_limiter.is_allowed(
+        rate_limit_key, limit, window
+    )
+    if not _ws_pre_allowed:
         await websocket.close(code=1008, reason="Rate limit exceeded")
         return
 
@@ -951,7 +989,7 @@ async def stream_goal_ws(
     try:
         await websocket.accept()
     except Exception:
-        _ws_conn_counter.release()
+        await _ws_conn_counter.release()
         raise
 
     websocket.state.correlation_id = correlation_id
@@ -1072,49 +1110,51 @@ async def stream_goal_ws(
             await websocket.close()
             return
 
-        # Apply rate limiting with skill extraction
+        # Skill-specific rate limiting (post-parse, reuses pre-connect
+        # token — connection-level check already consumed one token above).
         from uar.api.middleware import check_rate_limit
 
-        # Generate rate limit key using shared function
-        client_ip = websocket.client.host if websocket.client else "unknown"
-        rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
-
-        # Extract first skill for skill-specific rate limiting
         skill_name = _extract_skill_from_request_data(
             req.skills, req.execution_order
         )
 
-        # Check for skill-specific rate limits
         limit, window, rate_limit_type = check_rate_limit(
             rate_limit_key, tier, skill_name
         )
 
-        try:
-            allowed, remaining = rate_limiter.is_allowed(
-                rate_limit_key, limit, window
-            )
-        except Exception as rate_limit_error:
-            logger.error(
-                f"[{request_id}] Rate limit check failed: "
-                f"{str(rate_limit_error)}"
-            )
-            await websocket.send_json(
-                create_event(
-                    "error",
-                    run_id="unknown",
-                    error="Rate limit check failed",
-                    payload={
-                        "message": "Internal error checking rate limit",
-                        "request_id": request_id,
-                        "code": "RATE_LIMIT_ERROR",
-                    },
-                )
-            )
+        # Only re-check when the skill has a tighter limit than the tier.
+        # Avoids double-consuming tokens on the default tier limit.
+        allowed = _ws_pre_allowed
+        remaining = _ws_pre_remaining
+        if rate_limit_type == "skill":
             try:
-                await websocket.close(code=1008, reason="Rate limit error")
-            except Exception:
-                pass
-            return
+                allowed, remaining = rate_limiter.is_allowed(
+                    rate_limit_key, limit, window
+                )
+            except Exception as rate_limit_error:
+                logger.error(
+                    f"[{request_id}] Rate limit check failed: "
+                    f"{str(rate_limit_error)}"
+                )
+                await websocket.send_json(
+                    create_event(
+                        "error",
+                        run_id="unknown",
+                        error="Rate limit check failed",
+                        payload={
+                            "message": "Internal error checking rate limit",
+                            "request_id": request_id,
+                            "code": "RATE_LIMIT_ERROR",
+                        },
+                    )
+                )
+                try:
+                    await websocket.close(
+                        code=1008, reason="Rate limit error"
+                    )
+                except Exception:
+                    pass
+                return
 
         if not allowed:
             logger.warning(
@@ -1167,9 +1207,7 @@ async def stream_goal_ws(
 
             # WebSocket heartbeat with coalescing
             last_hb = time.time()
-            hb_interval = float(
-                os.getenv("UAR_WS_HEARTBEAT_INTERVAL", "30")
-            )
+            hb_interval = WS_HEARTBEAT_INTERVAL
             async for event in _exec_svc.stream_goal(
                 goal, request_id, user_str, correlation_id,
                 yield_persisted=True,
@@ -1243,7 +1281,7 @@ async def stream_goal_ws(
             },
         )
     finally:
-        _ws_conn_counter.release()
+        await _ws_conn_counter.release()
         try:
             await websocket.close()
         except Exception:
@@ -1453,15 +1491,15 @@ async def stream_goal(
                         _sse_connections.pop(client_ip, None)
 
         try:
-            goal = _build_goal(req)
             cid = getattr(request.state, "correlation_id", "")
 
             _sse_emit = _event_svc.emit_sse
 
             async def _generate():
                 try:
+                    goal = _build_goal(req)
                     last_hb = time.time()
-                    hb_interval = 30
+                    hb_interval = WS_HEARTBEAT_INTERVAL
                     stream = _exec_svc.stream_goal(
                         goal, request_id, user_id, cid
                     )
@@ -1513,7 +1551,6 @@ async def stream_goal(
             )
 
         except ValidationError as e:
-            await _release_sse_connection()
             logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
             # Provide user-friendly error messages based on field
             user_message = str(e)
@@ -1561,7 +1598,6 @@ async def stream_goal(
                 },
             )
         except UARError as e:
-            await _release_sse_connection()
             logger.error(f"[{request_id}] Stream UAR error: {str(e)}")
             # Provide more context for UARError types
             error_type = type(e).__name__
@@ -1647,7 +1683,7 @@ async def websocket_run(websocket: WebSocket):
     try:
         await websocket.accept()
     except Exception:
-        _ws_conn_counter.release()
+        await _ws_conn_counter.release()
         raise
 
     heartbeat_task = None
@@ -1820,7 +1856,7 @@ async def websocket_run(websocket: WebSocket):
             except Exception:
                 pass
     finally:
-        _ws_conn_counter.release()
+        await _ws_conn_counter.release()
         heartbeat_stop.set()
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()
@@ -1992,8 +2028,8 @@ async def health_circuit_breakers(
             "state": state,
             "failure_threshold": cb.failure_threshold,
             "recovery_timeout": cb.recovery_timeout,
-            "failures": cb._failures,
-            "pending_calls": cb._pending_calls,
+            "failures": getattr(cb, "_failures", 0),
+            "pending_calls": getattr(cb, "_pending_calls", 0),
         }
 
     status_code = 200 if not any_open else 503
@@ -2007,7 +2043,9 @@ async def health_circuit_breakers(
 
 
 @app.get("/api/health/dashboard")
-async def health_dashboard():
+async def health_dashboard(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Comprehensive health dashboard data for the web UI."""
     from uar.core.registry import registry
     from uar.core.circuit_breaker_decorator import (
@@ -2035,7 +2073,7 @@ async def health_dashboard():
         circuit_breakers.append({
             "name": name,
             "state": cb_states.get(name, "unknown"),
-            "failures": cb._failures,
+            "failures": getattr(cb, "_failures", 0),
             "threshold": cb.failure_threshold,
         })
 
@@ -2043,7 +2081,7 @@ async def health_dashboard():
         "skills": skill_health,
         "circuit_breakers": circuit_breakers,
         "recent_errors": [],
-        "server_version": "1.1.0",
+        "server_version": get_uar_version(),
         "uptime_seconds": int(time.time() - _uar_start_time),
     }
 
@@ -2134,7 +2172,13 @@ async def readiness_probe():
         import httpx
 
         ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-        r = httpx.get(f"{ollama_host.rstrip('/')}/api/tags", timeout=2.0)
+        loop = asyncio.get_event_loop()
+        r = await loop.run_in_executor(
+            None,
+            lambda: httpx.get(
+                f"{ollama_host.rstrip('/')}/api/tags", timeout=2.0
+            ),
+        )
         checks["ollama_reachable"] = r.is_success
     except Exception:
         checks["ollama_reachable"] = False
@@ -2217,12 +2261,11 @@ async def get_provenance(
     # Load from store
     from uar.memory.sqlite_store import SqliteRunStore
 
-    store_path = store.path.parent / "runs.db"
-    if not store_path.exists():
-        raise HTTPException(status_code=404, detail="Run store not found")
-
-    run_store = SqliteRunStore(str(store_path))
-    record = run_store.get_by_run_id(run_id)
+    run_store = SqliteRunStore()
+    try:
+        record = run_store.get_by_run_id(run_id)
+    finally:
+        run_store.close()
 
     if not record:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")

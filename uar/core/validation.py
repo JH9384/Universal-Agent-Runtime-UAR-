@@ -25,9 +25,6 @@ _DANGEROUS_PATTERNS = [
     re.compile(r"eval\s*\(", re.IGNORECASE),
 ]
 _SKILL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
-_PATH_DANGEROUS_RE = [re.compile(p) for p in [
-    r"~/", r"^/", r"\|", r";", r"&",
-]]
 
 
 def validate_goal(goal: str) -> str:
@@ -160,11 +157,11 @@ def validate_input_path(
     # Check for dangerous shell/path characters
     # Note: Parent directory traversal (..) is already checked above
     dangerous_patterns = [
-        r"~/",  # Home directory
-        r"^/",  # Root directory
-        r"\|",  # Pipe character
-        r";",  # Command separator
-        r"&",  # Background process
+        r"^~/",  # Home directory expansion (anchored at start)
+        r"^/",   # Root directory (anchored at start)
+        r"\|",   # Pipe character
+        r";",    # Command separator
+        r"&",    # Background process
     ]
 
     for pattern in dangerous_patterns:

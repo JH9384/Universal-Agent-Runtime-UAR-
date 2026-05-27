@@ -259,29 +259,45 @@ class RedisRateLimiter:
 
         self._redis = redis.from_url(redis_url, decode_responses=True)
 
+    # Lua script: atomic sliding-window check-and-increment.
+    # Returns [current_count_after_add, was_allowed] where was_allowed
+    # is 1 if the request is within the limit, 0 otherwise.
+    # The entry is only added when the request is allowed.
+    _LUA_RATE_LIMIT = """
+        local key      = KEYS[1]
+        local now      = tonumber(ARGV[1])
+        local window   = tonumber(ARGV[2])
+        local limit    = tonumber(ARGV[3])
+        local win_start = now - window
+        redis.call('zremrangebyscore', key, 0, win_start)
+        local count = redis.call('zcard', key)
+        if count >= limit then
+            return {count, 0}
+        end
+        redis.call('zadd', key, now, tostring(now))
+        redis.call('expire', key, window)
+        return {count + 1, 1}
+    """
+
     def is_allowed(
         self, key: str, limit: int, window: int
     ) -> tuple[bool, int]:
         import redis
 
         now = time.time()
-        window_start = now - window
-        pipe = self._redis.pipeline()
         zset_key = f"uar:ratelimit:{key}"
-        pipe.zremrangebyscore(zset_key, 0, window_start)
-        pipe.zcard(zset_key)
-        pipe.zadd(zset_key, {str(now): now})
-        pipe.expire(zset_key, window)
         try:
-            _, current_count, _, _ = pipe.execute()
+            result = self._redis.eval(
+                self._LUA_RATE_LIMIT, 1, zset_key,
+                now, window, limit,
+            )
+            count_after, allowed_flag = int(result[0]), int(result[1])
         except redis.RedisError:
             # Redis unavailable: permissive fallback
             return True, limit - 1
-        if current_count >= limit:
-            # Roll back the just-added entry
-            self._redis.zrem(zset_key, str(now))
+        if not allowed_flag:
             return False, 0
-        remaining = max(0, limit - current_count - 1)
+        remaining = max(0, limit - count_after)
         return True, remaining
 
     def get_remaining(self, key: str, limit: int, window: int) -> int:
@@ -436,19 +452,6 @@ def get_rate_limit_for_tier(tier: str) -> tuple[int, int]:
     return config["requests"], config["window"]
 
 
-def _extract_skill_from_request(request: Request) -> Optional[str]:
-    """Extract skill name from request if available.
-
-    For run/stream endpoints, extracts the first skill from the skills list.
-    Returns None if no skill can be determined.
-
-    Note: Body parsing was removed from middleware to avoid consuming
-    the ASGI stream. Skill-based rate limiting now relies on
-    endpoint-level data via _extract_skill_from_request_data.
-    """
-    return None
-
-
 def _extract_skill_from_request_data(
     skills: Optional[List[str]],
     execution_order: Optional[List[Dict[str, Any]]],
@@ -553,7 +556,8 @@ def rate_limit_middleware(
     rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
 
     # Check for skill-specific rate limits
-    skill_name = first_skill or _extract_skill_from_request(request)
+    # Body extraction was removed; callers supply first_skill directly.
+    skill_name = first_skill
     if skill_name and skill_name in SKILL_RATE_LIMITS:
         limit = SKILL_RATE_LIMITS[skill_name]["requests"]
         window = SKILL_RATE_LIMITS[skill_name]["window"]

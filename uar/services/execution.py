@@ -6,6 +6,7 @@ both WebSocket handlers.
 """
 
 import asyncio
+import collections
 import importlib.util
 import json
 import logging
@@ -18,8 +19,6 @@ from uar.core.contracts import GoalSpec
 from uar.core.executor import Executor
 from uar.core.planner import SimplePlanner
 from uar.core.orchestrator import build_orchestration_plan
-from uar.core.replay import run_record_from_events
-from uar.core.exceptions import EventContractError
 from uar.memory.json_store import JsonRunStore
 from .base import BaseService
 from .events import EventService
@@ -28,7 +27,7 @@ from .events import EventService
 if importlib.util.find_spec("orjson") is not None:
     import orjson  # type: ignore[import-untyped]
 
-    def _fast_dumps(obj: Any) -> str:
+    def _fast_dumps(obj: Any) -> str:  # type: ignore[misc]
         return orjson.dumps(obj).decode("utf-8")
 else:
     _fast_dumps = json.dumps
@@ -161,7 +160,9 @@ class GoalExecutionService(BaseService):
         )
 
         bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
-        events: list[dict] = []
+        events: collections.deque = collections.deque(
+            maxlen=self.event_buffer_size
+        )
         persisted = False
         event_count = 0
 
@@ -229,15 +230,12 @@ class GoalExecutionService(BaseService):
                     yield comp
                     break
 
-                # Ring buffer eviction
-                if len(events) >= self.event_buffer_size:
-                    events.pop(0)
                 events.append(raw_event)
                 _write_buf.append(_fast_dumps(raw_event) + "\n")
                 if len(_write_buf) >= _write_buf_size:
                     _flush_write_buf()
 
-                await bp.apply()
+                await bp.apply()  # type: ignore[attr-defined]
                 _yield_counter += 1
                 if _yield_counter >= _yield_batch:
                     _yield_counter = 0
@@ -303,41 +301,6 @@ class GoalExecutionService(BaseService):
                 os.unlink(tmp_path.name)
             except Exception:
                 pass
-
-    def _persist(
-        self,
-        events: list[dict],
-        strategy: Any,
-        user_id: Optional[str],
-        request_id: str,
-    ) -> Any:
-        """Persist run record from events. Returns the record or None."""
-        try:
-            record = run_record_from_events(
-                events, strategy.ordered_skills, user_id
-            )
-            self._store.append(record)
-            self._log(
-                "info",
-                f"Stream persisted: {record.run_id}",
-                request_id,
-            )
-            return record
-        except EventContractError:
-            # Deterministic errors shouldn't trigger retry
-            self._log(
-                "warning",
-                "Persistence skipped: contract error",
-                request_id,
-            )
-            return None
-        except Exception as persist_error:
-            self._log(
-                "error",
-                f"Failed to persist: {persist_error}",
-                request_id,
-            )
-            return None
 
     async def _persist_async(
         self,
@@ -416,7 +379,9 @@ class GoalExecutionService(BaseService):
                             if hasattr(mm, "madvise"):
                                 mm.madvise(mmap.MADV_SEQUENTIAL)
                             for line in iter(mm.readline, b""):
-                                line_s = line.decode("utf-8").strip()
+                                line_s = line.decode(
+                                    "utf-8", errors="replace"
+                                ).strip()
                                 if line_s:
                                     event = json.loads(line_s)
                                     if _filter_types:
@@ -456,7 +421,33 @@ class GoalExecutionService(BaseService):
                 request_id,
             )
             return None
-        return self._persist(events, strategy, user_id, request_id)
+        try:
+            from uar.core.replay import run_record_from_events
+            from uar.core.exceptions import EventContractError
+            record = run_record_from_events(
+                events, strategy.ordered_skills, user_id
+            )
+            self._store.append(record)
+            self._log(
+                "info",
+                f"Stream persisted: {record.run_id}",
+                request_id,
+            )
+            return record
+        except EventContractError:
+            self._log(
+                "warning",
+                "Persistence skipped: contract error",
+                request_id,
+            )
+            return None
+        except Exception as persist_error:
+            self._log(
+                "error",
+                f"Failed to persist: {persist_error}",
+                request_id,
+            )
+            return None
 
     async def _iter_events(
         self,
@@ -493,5 +484,8 @@ class GoalExecutionService(BaseService):
             for event in batch:
                 if event is None:
                     return
-                async with _backpressure_sem:
+                await _backpressure_sem.acquire()
+                try:
                     yield event
+                finally:
+                    _backpressure_sem.release()

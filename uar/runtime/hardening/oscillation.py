@@ -33,7 +33,13 @@ class OscillationScore:
         if len(self.samples) < 2:
             return 0.0
         baseline = max(abs(mean(self.samples)), 1.0)
-        raw = (self.amplitude() / baseline) + (self.direction_changes() / len(self.samples))
+        amp_ratio = self.amplitude() / baseline
+        # Weight direction-change term by relative amplitude so that
+        # micro-oscillations (e.g. 1.0/1.01) do not score as unstable.
+        direction_term = (
+            (self.direction_changes() / len(self.samples)) * amp_ratio
+        )
+        raw = amp_ratio + direction_term
         return max(0.0, min(1.0, raw))
 
     def stable(self, *, threshold: float = 0.25) -> bool:

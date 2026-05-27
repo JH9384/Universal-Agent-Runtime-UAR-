@@ -191,6 +191,7 @@ class SqliteRunStore:
             conn = self._get_conn()
             conn.execute("BEGIN IMMEDIATE")
             conn.executemany(sql, rows)
+            conn.execute("COMMIT")
 
     def _get_read_conn(self) -> sqlite3.Connection:
         """Borrow a reader connection from the pool."""

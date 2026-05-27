@@ -1,3 +1,4 @@
+import collections
 import concurrent.futures
 import copy
 import functools
@@ -69,9 +70,12 @@ _TIMEOUT_POOL_LOCK = threading.Lock()
 _COALESCE_ENABLED = (
     os.getenv("UAR_COALESCE", "true").lower() == "true"
 )
+# Bounded to prevent unbounded memory growth on long-running servers.
+_COALESCE_MAX_ENTRIES = int(os.getenv("UAR_COALESCE_MAX", "256"))
 _coalesce_locks: Dict[str, threading.Lock] = {}
 _coalesce_results: Dict[str, Any] = {}
 _coalesce_meta_lock = threading.Lock()
+_coalesce_lru: "collections.OrderedDict[str, None]" = collections.OrderedDict()
 
 # Pickle-based snapshot is 3-10x faster than copy.deepcopy for large dicts
 _USE_PICKLE_SNAPSHOT = (
@@ -132,34 +136,25 @@ def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
     """Fast snapshot of context data for retry / parallel isolation.
 
     Uses ``pickle`` (3-10x faster than ``copy.deepcopy`` for large dicts)
-    and falls back to ``copy.deepcopy`` if pickle fails.
+    and falls back to ``copy.deepcopy`` if pickle fails.  Always returns
+    a plain dict so callers can safely assign to ``ctx.data``.
     """
+    if data is None:
+        return {}
     if not _USE_PICKLE_SNAPSHOT:
-        return copy.deepcopy(data)
+        try:
+            return copy.deepcopy(data)
+        except Exception:
+            return {}
     try:
         import io
         serialized = pickle.dumps(data, protocol=_PICKLE_PROTOCOL)
         return RestrictedUnpickler(io.BytesIO(serialized)).load()
     except Exception:
-        return copy.deepcopy(data)
-
-
-def _zero_copy_serialize(data: Dict[str, Any]) -> bytes:
-    """Serialize data with pickle protocol 5 for zero-copy deserialization.
-
-    Uses out-of-band buffers to avoid extra copies during deserialization
-    when the consumer also supports protocol 5.
-    """
-    try:
-        import pickle
-        if hasattr(pickle, "Protocol") and _PICKLE_PROTOCOL >= 5:
-            buffers: List[Any] = []
-            return pickle.dumps(
-                data, protocol=_PICKLE_PROTOCOL, buffer_callback=buffers.append
-            )
-        return pickle.dumps(data, protocol=_PICKLE_PROTOCOL)
-    except Exception:
-        return pickle.dumps(data)
+        try:
+            return copy.deepcopy(data)
+        except Exception:
+            return {}
 
 
 def _estimate_size(obj, max_depth=3, current_depth=0):
@@ -204,7 +199,7 @@ def _validate_input_guardrails(
         List of violation messages (empty if no violations)
     """
     # Per-context cache: all skills in a parallel wave share ctx.data
-    cache_key = "_guardrail_cache"
+    cache_key = "__guardrail_cache"
     cached = ctx.data.get(cache_key)
     if cached is not None:
         return cached
@@ -667,9 +662,29 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
     # Validate timeout to prevent negative or zero values
     timeout_seconds = max(0.1, timeout_seconds)
 
-    # Async skill: run in event loop, not a thread pool
+    # Async skill: run in an event loop.
+    # Prefer asyncio.run() (creates a fresh loop) which is safe when called
+    # from a worker thread (the normal executor path).  If there is already
+    # a running loop in this thread (e.g. direct call from async test code),
+    # fall back to run_until_complete on a brand-new loop so we never hit
+    # "This event loop is already running".
     if inspect.iscoroutinefunction(fn):
         try:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None and loop.is_running():
+                new_loop = asyncio.new_event_loop()
+                try:
+                    fut = new_loop.run_until_complete(
+                        asyncio.wait_for(fn(ctx), timeout=timeout_seconds)
+                    )
+                    return fut
+                except asyncio.TimeoutError as exc:
+                    raise TimeoutError(timeout_seconds) from exc
+                finally:
+                    new_loop.close()
             return asyncio.run(
                 asyncio.wait_for(fn(ctx), timeout=timeout_seconds)
             )
@@ -967,7 +982,10 @@ class Executor:
                     "status": "completed" if not errors else "failed",
                     "outputs": outputs,
                     "errors": errors,
-                    "final_context": ctx.data,
+                    "final_context": {
+                        k: v for k, v in ctx.data.items()
+                        if not k.startswith("__")
+                    },
                 },
             )
             if _metrics_event_count > GC_EVENT_THRESHOLD:
@@ -1038,20 +1056,6 @@ class Executor:
                 recipe_error_lists[active_recipe_stack[-1]].append(error_str)
             else:
                 errors.append(error_str)
-
-        def _eval_condition(condition: Any, data: Dict[str, Any]) -> bool:
-            if not condition or not isinstance(condition, dict):
-                return True
-            key = condition.get("key", "")
-            if not key:
-                return True
-            if "exists" in condition:
-                return key in data
-            if "equals" in condition:
-                return data.get(key) == condition["equals"]
-            if "not_equals" in condition:
-                return data.get(key) != condition["not_equals"]
-            return True
 
         # Map flat skill index -> group index for rewinding on retry.
         # Every flat index that falls inside a group maps to that group.
@@ -1310,7 +1314,23 @@ class Executor:
                                 )
                             # Publish coalesced result for waiters
                             if _COALESCE_ENABLED and _coalesce_key:
-                                _coalesce_results[_coalesce_key] = result
+                                with _coalesce_meta_lock:
+                                    _coalesce_results[_coalesce_key] = result
+                                    _coalesce_lru[_coalesce_key] = None
+                                    _coalesce_lru.move_to_end(_coalesce_key)
+                                    while (
+                                        len(_coalesce_lru)
+                                        > _COALESCE_MAX_ENTRIES
+                                    ):
+                                        evict_key, _ = (
+                                            _coalesce_lru.popitem(last=False)
+                                        )
+                                        _coalesce_results.pop(
+                                            evict_key, None
+                                        )
+                                        _coalesce_locks.pop(
+                                            evict_key, None
+                                        )
 
                             _release_coalesce_lock()
                             yield _ev(
@@ -1784,7 +1804,10 @@ class Executor:
                     "status": "completed" if not errors else "failed",
                     "outputs": outputs,
                     "errors": errors,
-                    "final_context": ctx.data,
+                    "final_context": {
+                        k: v for k, v in ctx.data.items()
+                        if not k.startswith("__")
+                    },
                 },
             )
 
@@ -2055,7 +2078,7 @@ class Executor:
 
                 while True:
                     if attempt > 0:
-                        ctx.data = _snapshot_context(snapshot)
+                        ctx.data = snapshot
                         recipe_errors = []
                         yield _event(
                             "recipe_retry",

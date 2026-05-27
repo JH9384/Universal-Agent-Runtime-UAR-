@@ -1672,7 +1672,7 @@ export function UARPanel() {
           className={styles.skillGuideButton}
           title="Toggle quick start tips"
           aria-label="Toggle quick start tips"
-          aria-pressed={showHelp}
+          aria-pressed={showHelp ? 'true' : 'false'}
         >
           💡
         </button>
@@ -1997,7 +1997,7 @@ export function UARPanel() {
                     const isCollapsed = collapsedGroups[group.name]
                     return (
                       <div key={group.name} className={styles.skillGroup}>
-                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
+                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed ? 'true' : 'false'} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
                           <span className={styles.skillGroupIcon}>{group.icon}</span>
                           <span className={styles.skillGroupName}>{group.name}</span>
                           <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
@@ -2416,7 +2416,7 @@ export function UARPanel() {
             className={`${styles.runButton} ${styles.smallButton}`}
             title={useWebSocket ? 'Using WebSocket transport' : 'Using SSE transport (click to switch)'}
             aria-label={useWebSocket ? 'Switch to SSE transport' : 'Switch to WebSocket transport'}
-            aria-pressed={useWebSocket}
+            aria-pressed={useWebSocket ? 'true' : 'false'}
           >
             {useWebSocket ? '⚡ WS' : '⬡ SSE'}
           </button>
@@ -2430,7 +2430,7 @@ export function UARPanel() {
                 : 'Flat execution: recipes expand into a single skill list (click to switch)'
             }
             aria-label={useHierarchical ? 'Switch to flat execution' : 'Switch to hierarchical execution'}
-            aria-pressed={useHierarchical}
+            aria-pressed={useHierarchical ? 'true' : 'false'}
           >
             {useHierarchical ? '🔀 Nested' : '➡ Flat'}
           </button>
@@ -2988,7 +2988,7 @@ export function UARPanel() {
               data-section="Documents"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Documents']}
+              aria-expanded={expandedTipSections['Documents'] ? 'true' : 'false'}
             >
               <span className={styles.tipsPopupSectionTitle}>Documents</span>
               <span>{expandedTipSections['Documents'] ? '▼' : '▶'}</span>
@@ -3020,7 +3020,7 @@ export function UARPanel() {
               data-section="Goal"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Goal']}
+              aria-expanded={expandedTipSections['Goal'] ? 'true' : 'false'}
             >
               <span className={styles.tipsPopupSectionTitle}>Goal</span>
               <span>{expandedTipSections['Goal'] ? '▼' : '▶'}</span>
@@ -3050,7 +3050,7 @@ export function UARPanel() {
               data-section="Skills"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Skills']}
+              aria-expanded={expandedTipSections['Skills'] ? 'true' : 'false'}
             >
               <span className={styles.tipsPopupSectionTitle}>Skills</span>
               <span>{expandedTipSections['Skills'] ? '▼' : '▶'}</span>
@@ -3085,7 +3085,7 @@ export function UARPanel() {
                 data-section={group.name}
                 tabIndex={0}
                 role="button"
-                aria-expanded={expandedTipSections[group.name]}
+                aria-expanded={expandedTipSections[group.name] ? 'true' : 'false'}
               >
                 <span className={styles.tipsPopupSectionTitle}>{group.name}</span>
                 <span>{expandedTipSections[group.name] ? '▼' : '▶'}</span>
@@ -3312,7 +3312,7 @@ export function UARPanel() {
               data-section="Run"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Run']}
+              aria-expanded={expandedTipSections['Run'] ? 'true' : 'false'}
             >
               <span className={styles.tipsPopupSectionTitle}>Run</span>
               <span>{expandedTipSections['Run'] ? '▼' : '▶'}</span>
@@ -3347,7 +3347,7 @@ export function UARPanel() {
               data-section="Events"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Events']}
+              aria-expanded={expandedTipSections['Events'] ? 'true' : 'false'}
             >
               <span className={styles.tipsPopupSectionTitle}>Events</span>
               <span>{expandedTipSections['Events'] ? '▼' : '▶'}</span>
@@ -3383,7 +3383,7 @@ export function UARPanel() {
               data-section="Graph"
               tabIndex={0}
               role="button"
-              aria-expanded={expandedTipSections['Graph']}
+              aria-expanded={expandedTipSections['Graph'] ? 'true' : 'false'}
             >
               <span className={styles.tipsPopupSectionTitle}>Dependency Graph</span>
               <span>{expandedTipSections['Graph'] ? '▼' : '▶'}</span>
@@ -3754,7 +3754,7 @@ export function UARPanel() {
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setOpenRecipeSkillsDropdown(openRecipeSkillsDropdown === r.id ? null : r.id) } }}
                             tabIndex={0}
                             role="button"
-                            aria-expanded={openRecipeSkillsDropdown === r.id}
+                            aria-expanded={openRecipeSkillsDropdown === r.id ? 'true' : 'false'}
                             aria-label={`${openRecipeSkillsDropdown === r.id ? 'Collapse' : 'Expand'} skills for recipe ${r.label}`}
                           >
                             {r.skills.length} skills {openRecipeSkillsDropdown === r.id ? '▼' : '▶'}
@@ -3785,7 +3785,7 @@ export function UARPanel() {
                                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setCollapsedRecipeSections(prev => ({ ...prev, [group.name]: !prev[group.name] })) } }}
                                   tabIndex={0}
                                   role="button"
-                                  aria-expanded={!isCollapsed}
+                                  aria-expanded={!isCollapsed ? 'true' : 'false'}
                                 >
                                   <span>{group.icon} {group.name}</span>
                                   <span>{isCollapsed ? '▶' : '▼'}</span>

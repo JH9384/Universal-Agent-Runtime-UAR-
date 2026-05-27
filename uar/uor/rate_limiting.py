@@ -249,10 +249,11 @@ class UORAPIClient:
             )
             return None
 
-        # Simulate API call (in real implementation, use requests/httpx)
         logger.info(f"Fetching object: {digest}")
-        # TODO: Implement actual HTTP request
-        return None
+        raise NotImplementedError(
+            "get_object HTTP request is not implemented. "
+            "Provide a concrete subclass or HTTP client."
+        )
 
     def put_object(self, obj: Dict[str, Any]) -> Optional[str]:
         """Store object with rate limiting.
@@ -271,7 +272,8 @@ class UORAPIClient:
             )
             return None
 
-        # Simulate API call
         logger.info("Storing object")
-        # TODO: Implement actual HTTP request
-        return None
+        raise NotImplementedError(
+            "put_object HTTP request is not implemented. "
+            "Provide a concrete subclass or HTTP client."
+        )
