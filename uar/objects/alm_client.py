@@ -69,7 +69,12 @@ class AtomicLanguageModelSkill:
 
         if HTTPX_AVAILABLE:
             try:
-                timeout = float(os.getenv("ALM_TIMEOUT_SEC", "30"))
+                timeout = max(
+                    1.0,
+                    float(
+                        os.getenv("ALM_TIMEOUT_SEC", "30").strip() or "30"
+                    ),
+                )
                 limits = httpx.Limits(
                     max_connections=10,
                     max_keepalive_connections=5,
