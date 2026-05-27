@@ -49,7 +49,9 @@ def _get_client() -> Any:
         logger.warning("HF_API_KEY not set (may be required for some models)")
 
     base_url = "https://api-inference.huggingface.co/v1"
-    timeout = int(os.getenv("HF_TIMEOUT_SEC", "30"))
+    timeout = max(
+        1, int(os.getenv("HF_TIMEOUT_SEC", "30").strip() or "30")
+    )
 
     return openai.OpenAI(
         base_url=base_url,

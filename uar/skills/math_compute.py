@@ -31,8 +31,13 @@ _math_cb = CircuitBreaker(
 )
 
 # Configuration
-MATH_TIMEOUT = float(os.getenv("MATH_TIMEOUT_SECONDS", "30"))
-MAX_EXPRESSION_SIZE = int(os.getenv("MATH_MAX_EXPRESSION_SIZE", "10000"))
+MATH_TIMEOUT = max(
+    1.0,
+    float(os.getenv("MATH_TIMEOUT_SECONDS", "30").strip() or "30"),
+)
+MAX_EXPRESSION_SIZE = max(
+    1, int(os.getenv("MATH_MAX_EXPRESSION_SIZE", "10000").strip() or "10000")
+)
 
 
 def _check_sympy_available() -> bool:

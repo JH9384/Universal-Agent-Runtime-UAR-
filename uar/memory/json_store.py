@@ -19,7 +19,9 @@ class JsonRunStore:
     Uses file locking for basic concurrency safety.
     """
 
-    _BATCH_SIZE = int(os.getenv("UAR_JSON_BATCH_SIZE", "1"))
+    _BATCH_SIZE = max(
+        1, int(os.getenv("UAR_JSON_BATCH_SIZE", "1").strip() or "1")
+    )
 
     def __init__(self, path: Optional[str] = None):
         # Use absolute path from environment or default to runs/ in project root  # noqa: E501

@@ -32,8 +32,16 @@ _physics_cb = CircuitBreaker(
 )
 
 # Configuration
-PHYSICS_TIMEOUT = float(os.getenv("PHYSICS_TIMEOUT_SECONDS", "30"))
-MAX_DATA_SIZE = int(os.getenv("PHYSICS_MAX_DATA_SIZE", "10485760"))
+PHYSICS_TIMEOUT = max(
+    1.0,
+    float(os.getenv("PHYSICS_TIMEOUT_SECONDS", "30").strip() or "30"),
+)
+MAX_DATA_SIZE = max(
+    1,
+    int(
+        os.getenv("PHYSICS_MAX_DATA_SIZE", "10485760").strip() or "10485760"
+    ),
+)
 
 
 def _check_astropy_available() -> bool:

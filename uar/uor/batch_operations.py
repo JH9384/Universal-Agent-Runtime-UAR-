@@ -16,7 +16,9 @@ from .schema_validation import UORSchemaValidator
 logger = logging.getLogger(__name__)
 
 # Module-level shared pool to avoid per-batch thread churn
-_BATCH_POOL_MAX = int(os.getenv("UOR_BATCH_POOL_SIZE", "8"))
+_BATCH_POOL_MAX = max(
+    1, int(os.getenv("UOR_BATCH_POOL_SIZE", "8").strip() or "8")
+)
 _batch_pool: Optional[ThreadPoolExecutor] = None
 
 

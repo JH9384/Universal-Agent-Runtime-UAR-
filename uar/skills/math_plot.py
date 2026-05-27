@@ -38,10 +38,15 @@ from uar.core.safe_eval import safe_eval
 logger = logging.getLogger(__name__)
 
 # Configuration
-DEFAULT_DPI = int(os.getenv("MATH_PLOT_DPI", "150"))
-DEFAULT_FIGSIZE = tuple(
-    float(x) for x in os.getenv("MATH_PLOT_FIGSIZE", "8,6").split(",")
+DEFAULT_DPI = max(
+    1, int(os.getenv("MATH_PLOT_DPI", "150").strip() or "150")
 )
+_figsize_raw = os.getenv("MATH_PLOT_FIGSIZE", "8,6").strip() or "8,6"
+_figsize_parts = [p.strip() for p in _figsize_raw.split(",") if p.strip()]
+try:
+    DEFAULT_FIGSIZE = tuple(float(x) for x in _figsize_parts[:2])
+except (ValueError, TypeError):
+    DEFAULT_FIGSIZE = (8.0, 6.0)
 
 
 def _check_matplotlib_available() -> bool:

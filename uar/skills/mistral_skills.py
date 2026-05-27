@@ -49,7 +49,9 @@ def _get_client() -> Any:
         logger.warning("MISTRAL_API_KEY not set")
         return None
 
-    timeout = int(os.getenv("MISTRAL_TIMEOUT_SEC", "30"))
+    timeout = max(
+        1, int(os.getenv("MISTRAL_TIMEOUT_SEC", "30").strip() or "30")
+    )
     return openai.OpenAI(
         base_url="https://api.mistral.ai/v1",
         api_key=api_key,

@@ -47,7 +47,9 @@ def _get_client() -> Any:
         logger.warning("ANTHROPIC_API_KEY not set")
         return None
 
-    timeout = int(os.getenv("ANTHROPIC_TIMEOUT_SEC", "30"))
+    timeout = max(
+        1, int(os.getenv("ANTHROPIC_TIMEOUT_SEC", "30").strip() or "30")
+    )
     return anthropic.Anthropic(api_key=api_key, timeout=timeout)
 
 

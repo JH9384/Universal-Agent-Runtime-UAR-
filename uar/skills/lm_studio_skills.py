@@ -49,7 +49,9 @@ def _get_client() -> Any:
     port = os.getenv("LM_STUDIO_PORT", "1234")
     base_url = f"http://{host}:{port}/v1"
 
-    timeout = int(os.getenv("LM_STUDIO_TIMEOUT_SEC", "30"))
+    timeout = max(
+        1, int(os.getenv("LM_STUDIO_TIMEOUT_SEC", "30").strip() or "30")
+    )
     return openai.OpenAI(
         base_url=base_url,
         api_key="not-needed",  # LM Studio doesn't require API key

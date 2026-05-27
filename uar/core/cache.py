@@ -33,18 +33,34 @@ def get_cache() -> ResultCache:
             if _global_cache is None:
                 cache_dir = os.getenv("UAR_CACHE_DIR")
                 try:
-                    ttl = int(os.getenv("UAR_CACHE_TTL", "3600"))
+                    ttl = max(
+                        0,
+                        int(
+                            os.getenv("UAR_CACHE_TTL", "3600").strip()
+                            or "3600"
+                        ),
+                    )
                 except (ValueError, TypeError):
                     ttl = 3600
                 try:
-                    max_entries = int(
-                        os.getenv("UAR_CACHE_MAX_ENTRIES", "1000")
+                    max_entries = max(
+                        1,
+                        int(
+                            os.getenv("UAR_CACHE_MAX_ENTRIES", "1000").strip()
+                            or "1000"
+                        ),
                     )
                 except (ValueError, TypeError):
                     max_entries = 1000
                 try:
-                    max_size = int(
-                        os.getenv("UAR_CACHE_MAX_SIZE", str(100 * 1024 * 1024))
+                    max_size = max(
+                        1,
+                        int(
+                            os.getenv(
+                                "UAR_CACHE_MAX_SIZE", str(100 * 1024 * 1024)
+                            ).strip()
+                            or str(100 * 1024 * 1024)
+                        ),
                     )
                 except (ValueError, TypeError):
                     max_size = 100 * 1024 * 1024

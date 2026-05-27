@@ -50,7 +50,9 @@ def _get_client() -> Any:
         logger.warning("GROQ_API_KEY not set")
         return None
 
-    timeout = int(os.getenv("GROQ_TIMEOUT_SEC", "30"))
+    timeout = max(
+        1, int(os.getenv("GROQ_TIMEOUT_SEC", "30").strip() or "30")
+    )
     return openai.OpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=api_key,

@@ -47,7 +47,9 @@ def _get_client() -> Any:
         logger.warning("OPENAI_API_KEY not set")
         return None
 
-    timeout = int(os.getenv("OPENAI_TIMEOUT_SEC", "30"))
+    timeout = max(
+        1, int(os.getenv("OPENAI_TIMEOUT_SEC", "30").strip() or "30")
+    )
     return openai.OpenAI(api_key=api_key, timeout=timeout)
 
 
