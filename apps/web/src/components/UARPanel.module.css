@@ -557,6 +557,27 @@ body {
   margin-top: 6px;
 }
 
+.presetRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.addPresetForm {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.addPresetInput {
+  width: 100px;
+}
+
+.addPresetInputPath {
+  width: 180px;
+}
+
 .recentContainer {
   margin-bottom: 8px;
 }
