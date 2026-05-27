@@ -109,7 +109,7 @@ def _transform_coordinate(
         if from_frame not in frames or to_frame not in frames:
             return {
                 "success": False,
-                "error": f"Unsupported frame. Available: {list(frames.keys())}",  # noqa: E501
+                "error": "Unsupported frame",
             }
 
         c = SkyCoord(ra, dec, unit="deg", frame=frames[from_frame])

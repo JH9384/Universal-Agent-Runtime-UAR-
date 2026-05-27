@@ -275,10 +275,10 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
     if key_b64:
         try:
             key = _decode_base64(key_b64)
-        except Exception as exc:
+        except Exception:
             return {
                 "status": "failed",
-                "error": f"Invalid cipher_key: {exc}",
+                "error": "Invalid cipher_key",
                 "operation": operation,
             }
 
@@ -287,10 +287,10 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
     if iv_b64:
         try:
             iv = _decode_base64(iv_b64)
-        except Exception as exc:
+        except Exception:
             return {
                 "status": "failed",
-                "error": f"Invalid cipher_iv: {exc}",
+                "error": "Invalid cipher_iv",
                 "operation": operation,
             }
 
