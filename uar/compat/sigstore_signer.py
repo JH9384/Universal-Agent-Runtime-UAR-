@@ -193,13 +193,14 @@ class SigstoreSigner:
             else:
                 return SigstoreSigningResult(
                     success=False,
-                    error=f"cosign failed: {result.stderr}",
+                    error="cosign failed",
                 )
 
-        except Exception as e:
+        except Exception:
+            logger.exception("cosign execution failed")
             return SigstoreSigningResult(
                 success=False,
-                error=f"cosign execution failed: {e}"
+                error="cosign execution failed"
             )
 
     def _get_oidc_token(self, identity: str) -> Optional[str]:
