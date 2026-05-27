@@ -1,0 +1,39 @@
+name: burnin-hardening
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  hardening:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest
+
+      - name: Run hardening tests
+        run: |
+          pytest tests/hardening -q
+
+      - name: Run burn-in probe
+        run: |
+          python scripts/hardening/burnin_probe.py
+
+      - name: Upload burn-in artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: burnin-artifacts
+          path: artifacts/hardening
