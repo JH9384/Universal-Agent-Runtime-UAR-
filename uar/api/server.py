@@ -6,6 +6,7 @@ import time
 import uuid
 import asyncio
 from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin
 
 from contextlib import asynccontextmanager
 
@@ -133,15 +134,22 @@ def _setup_tracing(app: FastAPI) -> None:
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
 
 # SSE connection limit
-_MAX_CONCURRENT_SSE_PER_IP = int(os.getenv("UAR_MAX_SSE_PER_IP", "5"))
+_MAX_CONCURRENT_SSE_PER_IP = max(
+    0, int(os.getenv("UAR_MAX_SSE_PER_IP", "5").strip() or "5")
+)
 _sse_connections: Dict[str, int] = {}
 _sse_connections_lock = asyncio.Lock()
 
 # Idempotency cache: key -> (timestamp, result)
 # Bounded LRU with TTL — eviction runs on every write.
 _idempotency_cache: Dict[str, Any] = {}
-_IDEMPOTENCY_TTL = int(os.getenv("UAR_IDEMPOTENCY_TTL", "86400"))  # 24h
-_IDEMPOTENCY_MAX = int(os.getenv("UAR_IDEMPOTENCY_MAX", "1000"))
+_IDEMPOTENCY_TTL = max(
+    0,
+    int(os.getenv("UAR_IDEMPOTENCY_TTL", "86400").strip() or "86400"),
+)  # 24h
+_IDEMPOTENCY_MAX = max(
+    1, int(os.getenv("UAR_IDEMPOTENCY_MAX", "1000").strip() or "1000")
+)
 _idempotency_lock = threading.Lock()
 
 
@@ -216,18 +224,31 @@ _ws_conn_counter = _WebSocketConnectionCounter(
 CHUNK_SIZE = 1024 * 64  # 64KB
 DEFAULT_BROWSE_LIMIT = 200
 BACKPRESSURE_DELAY = 0.1  # seconds
-SHUTDOWN_SLEEP = float(
-    os.getenv("SHUTDOWN_GRACE_SECONDS", "30")
+SHUTDOWN_SLEEP = max(
+    0.0,
+    float(
+        os.getenv("SHUTDOWN_GRACE_SECONDS", "30").strip() or "30"
+    ),
 )  # seconds to drain active requests
 
 
 # WebSocket robustness constants (used by the batch+heartbeat WS handler)
-WS_HEARTBEAT_INTERVAL = float(
-    os.getenv("UAR_WS_HEARTBEAT_INTERVAL", "20")
+WS_HEARTBEAT_INTERVAL = max(
+    1.0,
+    float(
+        os.getenv("UAR_WS_HEARTBEAT_INTERVAL", "20").strip() or "20"
+    ),
 )
 WS_HEARTBEAT_TIMEOUT = 60.0  # seconds without pong before disconnect
-WS_BATCH_SIZE = int(os.getenv("UAR_WS_BATCH_SIZE", "10"))
-WS_BATCH_TIMEOUT = float(os.getenv("UAR_WS_BATCH_TIMEOUT", "0.05"))
+WS_BATCH_SIZE = max(
+    1, int(os.getenv("UAR_WS_BATCH_SIZE", "10").strip() or "10")
+)
+WS_BATCH_TIMEOUT = max(
+    0.001,
+    float(
+        os.getenv("UAR_WS_BATCH_TIMEOUT", "0.05").strip() or "0.05"
+    ),
+)
 
 # Streaming bounds
 MAX_STREAM_EVENTS = 5000
@@ -2225,11 +2246,14 @@ async def readiness_probe():
     try:
         import httpx
 
-        ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+        ollama_host = os.getenv(
+            "OLLAMA_HOST", "http://127.0.0.1:11434"
+        )
         r = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: httpx.get(
-                f"{ollama_host.rstrip('/')}/api/tags", timeout=2.0
+                urljoin(ollama_host, "/api/tags"),
+                timeout=2.0,
             ),
         )
         checks["ollama_reachable"] = r.is_success
@@ -2394,8 +2418,14 @@ def _cleanup_orphaned_temp_files(library) -> int:
 
 # Upload limits
 DEFAULT_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
-MAX_UPLOAD_BYTES = int(
-    os.getenv("UAR_MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES))
+MAX_UPLOAD_BYTES = max(
+    1,
+    int(
+        os.getenv(
+            "UAR_MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES)
+        ).strip()
+        or str(DEFAULT_MAX_UPLOAD_BYTES)
+    ),
 )  # 50MB
 ALLOWED_UPLOAD_EXTS = {
     ".pdf",
