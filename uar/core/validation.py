@@ -239,7 +239,7 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
         raise
     except Exception as e:
         raise PathSecurityError(
-            str(path), f"Path validation failed: {str(e)}"
+            str(path), "Path validation failed"
         ) from e
 
 
