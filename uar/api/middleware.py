@@ -618,13 +618,18 @@ def rate_limit_middleware(
 
     allowed, remaining = rate_limiter.is_allowed(rate_limit_key, limit, window)
     if not allowed:
-        logger.warning(f"Rate limit exceeded for {rate_limit_key}")
+        logger.warning(
+            "Rate limit exceeded for %s (limit=%s, window=%s)",
+            rate_limit_key,
+            limit,
+            window,
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "error": "Rate limit exceeded",
                 "error_code": "RATE_LIMIT_EXCEEDED",
-                "message": f"{limit} requests per {window} seconds allowed.",
+                "message": "Too many requests. Please try again later.",
                 "request_id": getattr(request.state, "request_id", "unknown"),
                 "skill": skill_name if skill_name else None,
                 "rate_limit_type": rate_limit_type,
