@@ -1557,14 +1557,19 @@ async def stream_goal(
         async with _sse_connections_lock:
             current_conns = _sse_connections.get(client_ip, 0)
             if current_conns >= _MAX_CONCURRENT_SSE_PER_IP:
+                logger.warning(
+                    "SSE rate limit exceeded for IP %s "
+                    "(limit: %s)",
+                    client_ip,
+                    _MAX_CONCURRENT_SSE_PER_IP,
+                )
                 raise HTTPException(
                     status_code=429,
                     detail={
                         "error": "rate_limit_exceeded",
                         "message": (
-                            "Too many concurrent streaming connections from "
-                            f"IP {client_ip} "
-                            f"(limit: {_MAX_CONCURRENT_SSE_PER_IP})"
+                            "Too many concurrent streaming connections. "
+                            "Please try again later."
                         ),
                     },
                 )
