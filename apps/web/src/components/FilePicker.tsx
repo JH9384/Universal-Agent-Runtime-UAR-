@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { authHeaders } from '../utils/auth'
 import styles from './UARPanel.module.css'
 
 export type Preset = { name: string; path: string }
@@ -63,7 +64,7 @@ export function FilePicker(props: FilePickerProps) {
     try {
       const r = await fetch(
         `/api/uar/docs/browse?path=${encodeURIComponent(p)}&limit=500&recursive=${recursive}`,
-        { signal: ctrl.signal },
+        { signal: ctrl.signal, headers: authHeaders() },
       )
       const j = await r.json()
       if (ctrl.signal.aborted) return

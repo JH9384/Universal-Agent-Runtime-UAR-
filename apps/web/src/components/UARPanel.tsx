@@ -6,33 +6,10 @@ import { SkillGuide } from './SkillGuide'
 import { useDarkMode } from '../hooks/useDarkMode'
 import { usePreload } from '../hooks/usePreload'
 import { generateUniqueId } from '../utils/idGenerator'
+import { authHeaders, getLocalStorage } from '../utils/auth'
 import RecipeTimeline from './RecipeTimeline'
 import { HealthDashboard } from './HealthDashboard'
 import styles from './UARPanel.module.css'
-
-function getLocalStorage(): Storage | null {
-  try {
-    const storage = globalThis.localStorage
-    if (
-      storage &&
-      typeof storage.getItem === 'function' &&
-      typeof storage.setItem === 'function' &&
-      typeof storage.removeItem === 'function'
-    ) {
-      return storage
-    }
-  } catch {
-    // localStorage can be unavailable in tests, SSR, or privacy modes.
-  }
-  return null
-}
-
-// Helper to build Authorization header when API key is present
-function authHeaders(init?: Record<string, string>): Record<string, string> {
-  const key = getLocalStorage()?.getItem('uar_api_key')
-  if (!key) return init || {}
-  return { Authorization: `Bearer ${key}`, ...init }
-}
 
 // Lazy-loaded visualizers — only fetched when their skill data arrives
 const GraphVisualizer = lazy(() =>

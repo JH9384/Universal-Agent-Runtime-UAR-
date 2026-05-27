@@ -1,12 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { authHeaders } from '../utils/auth'
 import styles from './UARSimplePanel.module.css'
-
-// Helper to build Authorization header when API key is present
-function authHeaders(init?: Record<string, string>): Record<string, string> {
-  const key = localStorage.getItem('uar_api_key')
-  if (!key) return init || {}
-  return { Authorization: `Bearer ${key}`, ...init }
-}
 
 const MAX_EVENTS = 500
 const RECENT_KEY = 'uar.simple.recent'
@@ -98,7 +92,7 @@ export function UARSimplePanel() {
     try {
       const res = await fetch('/api/uar/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
         signal: abortControllerRef.current.signal,
       })

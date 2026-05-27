@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { authHeaders } from '../utils/auth'
 import styles from './UARPanel.module.css'
 
 interface SkillHealth {
@@ -30,7 +31,7 @@ export function HealthDashboard() {
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const res = await fetch('/api/health/dashboard')
+        const res = await fetch('/api/health/dashboard', { headers: authHeaders() })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
         setHealth(data)
