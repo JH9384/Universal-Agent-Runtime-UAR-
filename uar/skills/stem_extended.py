@@ -119,7 +119,7 @@ def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
         else:
             return {
                 "status": "failed",
-                "error": f"Unknown operation: {operation}",
+                "error": "Unknown operation",
             }
     except Exception as exc:
         logger.warning(f"Operation failed: {exc}")
@@ -341,7 +341,7 @@ def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
         else:
             return {
                 "status": "failed",
-                "error": f"Unknown operation: {operation}",
+                "error": "Unknown operation",
             }
     except Exception as exc:
         logger.warning(f"Operation failed: {exc}")
@@ -411,7 +411,7 @@ def bio_compute(ctx: PipelineContext) -> Dict[str, Any]:
         else:
             return {
                 "status": "failed",
-                "error": f"Unknown operation: {operation}",
+                "error": "Unknown operation",
             }
     except Exception as exc:
         logger.warning(f"Operation failed: {exc}")
@@ -504,7 +504,7 @@ def relativity(ctx: PipelineContext) -> Dict[str, Any]:
         else:
             return {
                 "status": "failed",
-                "error": f"Unknown operation: {operation}",
+                "error": "Unknown operation",
             }
     except Exception as exc:
         logger.warning(f"Operation failed: {exc}")
