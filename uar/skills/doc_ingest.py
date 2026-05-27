@@ -374,7 +374,7 @@ def _read_file_safely(file_path: Path, allowed_root: Path) -> dict[str, Any]:
             "size": 0,
             "error": "Permission denied",
         }
-    except Exception as e:
+    except Exception:
         return {
             "path": str(file_path.relative_to(allowed_root))
             if _is_relative_to(file_path, allowed_root)
@@ -406,7 +406,7 @@ def _yield_documents(
                 else str(path),
                 "text": "",
                 "size": 0,
-                "error": f"Unsupported file type: {path.suffix}",
+                "error": "Unsupported file type",
             }
     elif path.is_dir():
         # Stream entries lazily; do not materialize the full tree via sorted().
@@ -440,7 +440,7 @@ def _yield_documents(
                             else str(entry),
                             "text": "",
                             "size": 0,
-                            "error": f"File too large: {entry_size} bytes",
+                            "error": "File too large",
                         }
                         file_count += 1
                         continue
@@ -463,7 +463,7 @@ def _yield_documents(
             "path": str(path),
             "text": "",
             "size": 0,
-            "error": f"Input path not found: {path}",
+            "error": "Input path not found",
         }
 
 

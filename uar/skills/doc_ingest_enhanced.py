@@ -357,7 +357,7 @@ def _read_file_enhanced(
                 "path": str(file_path.relative_to(allowed_root)),
                 "text": "",
                 "size": 0,
-                "error": f"File too large: {file_size} bytes (max {MAX_FILE_SIZE})",  # noqa: E501
+                "error": "File too large",
             }
 
         suffix = file_path.suffix.lower()
@@ -367,7 +367,7 @@ def _read_file_enhanced(
                 "path": str(file_path.relative_to(allowed_root)),
                 "text": "",
                 "size": 0,
-                "error": f"Unsupported file type: {suffix}",
+                "error": "Unsupported file type",
             }
 
         # Extract document elements
@@ -472,7 +472,7 @@ def _yield_documents_enhanced(
                 else str(path),
                 "text": "",
                 "size": 0,
-                "error": f"Unsupported file type: {path.suffix}",
+                "error": "Unsupported file type",
             }
     elif path.is_dir():
         for entry in path.rglob("*"):
@@ -504,7 +504,7 @@ def _yield_documents_enhanced(
                             else str(entry),
                             "text": "",
                             "size": 0,
-                            "error": f"File too large: {entry_size} bytes",
+                            "error": "File too large",
                         }
                         file_count += 1
                         continue
@@ -525,7 +525,7 @@ def _yield_documents_enhanced(
             "path": str(path),
             "text": "",
             "size": 0,
-            "error": f"Input path not found: {path}",
+            "error": "Input path not found",
         }
 
 
