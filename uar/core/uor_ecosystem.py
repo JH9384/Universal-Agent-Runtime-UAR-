@@ -21,6 +21,7 @@ ecosystem partner is offline.
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import logging
@@ -70,6 +71,19 @@ def _get_http_client() -> Any:
     if _http_client is None:
         _http_client = httpx.Client(timeout=30.0)
     return _http_client
+
+
+def _close_http_client() -> None:
+    global _http_client
+    if _http_client is not None:
+        try:
+            _http_client.close()
+        except Exception:
+            pass
+        _http_client = None
+
+
+atexit.register(_close_http_client)
 
 
 def _is_url_safe(url: str) -> bool:
