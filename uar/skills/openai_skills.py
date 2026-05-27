@@ -48,7 +48,8 @@ def _get_client() -> Any:
         return None
 
     timeout = max(
-        1, int(os.getenv("OPENAI_TIMEOUT_SEC", "30").strip() or "30")
+        1,
+        min(300, int(os.getenv("OPENAI_TIMEOUT_SEC", "30").strip() or "30")),
     )
     return openai.OpenAI(api_key=api_key, timeout=timeout)
 

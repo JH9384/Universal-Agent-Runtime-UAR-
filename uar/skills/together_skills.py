@@ -50,7 +50,8 @@ def _get_client() -> Any:
         return None
 
     timeout = max(
-        1, int(os.getenv("TOGETHER_TIMEOUT_SEC", "30").strip() or "30")
+        1,
+        min(300, int(os.getenv("TOGETHER_TIMEOUT_SEC", "30").strip() or "30")),
     )
     return openai.OpenAI(
         base_url="https://api.together.xyz/v1",

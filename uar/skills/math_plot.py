@@ -39,7 +39,8 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 DEFAULT_DPI = max(
-    1, int(os.getenv("MATH_PLOT_DPI", "150").strip() or "150")
+    1,
+    min(600, int(os.getenv("MATH_PLOT_DPI", "150").strip() or "150")),
 )
 _figsize_raw = os.getenv("MATH_PLOT_FIGSIZE", "8,6").strip() or "8,6"
 _figsize_parts = [p.strip() for p in _figsize_raw.split(",") if p.strip()]
@@ -97,7 +98,9 @@ def _plot_function(
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
 
     x = np.linspace(x_range[0], x_range[1], 1000)
-    colors = getattr(plt.cm, "tab10")(np.linspace(0, 1, max(len(expressions), 1)))
+    colors = getattr(plt.cm, "tab10")(
+        np.linspace(0, 1, max(len(expressions), 1))
+    )
 
     for idx, expr in enumerate(expressions):
         expr = expr.strip()
