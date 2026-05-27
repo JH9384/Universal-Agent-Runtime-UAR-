@@ -56,7 +56,7 @@ def _cached_expand_execution_order(
 
 
 # Recipe-level context-mutation cache limits.
-_MAX_RECIPE_CACHE_SIZE = 50
+_MAX_RECIPE_CACHE_SIZE = int(os.getenv("UAR_RECIPE_CACHE_SIZE", "50"))
 
 # Shared thread pool for _run_with_timeout to avoid per-skill churn.
 # Adaptive sizing: UAR_TIMEOUT_POOL_MAX controls max workers.

@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
+import { ErrorBoundary } from './ErrorBoundary'
 import { MetricsDashboard } from './MetricsDashboard'
 import { FilePicker } from './FilePicker'
 import type { Preset } from './FilePicker'
@@ -2652,9 +2653,11 @@ export function UARPanel() {
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             <div className={styles.graphContainer}>
-              <Suspense fallback={<div className={styles.loadingFallback}>Loading graph...</div>}>
-                <GraphVisualizer graph={graph} darkMode={darkMode} />
-              </Suspense>
+              <ErrorBoundary>
+                <Suspense fallback={<div className={styles.loadingFallback}>Loading graph...</div>}>
+                  <GraphVisualizer graph={graph} darkMode={darkMode} />
+                </Suspense>
+              </ErrorBoundary>
             </div>
           </div>
         </div>
@@ -2669,9 +2672,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading 3D simulation...</div>}>
-                  <TrefoilKnotVisualizer data={trefoilData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading 3D simulation...</div>}>
+                    <TrefoilKnotVisualizer data={trefoilData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2687,9 +2692,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading molecule...</div>}>
-                  <MolecularVisualizer data={molecularData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading molecule...</div>}>
+                    <MolecularVisualizer data={molecularData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2705,9 +2712,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading quantum circuit...</div>}>
-                  <QuantumCircuitVisualizer data={quantumData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading quantum circuit...</div>}>
+                    <QuantumCircuitVisualizer data={quantumData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2723,9 +2732,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading physics results...</div>}>
-                  <PhysicsVisualizer data={physicsData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading physics results...</div>}>
+                    <PhysicsVisualizer data={physicsData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2741,9 +2752,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading math results...</div>}>
-                  <MathVisualizer data={mathData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading math results...</div>}>
+                    <MathVisualizer data={mathData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2759,9 +2772,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading plot...</div>}>
-                  <MathPlotVisualizer data={mathPlotData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading plot...</div>}>
+                    <MathPlotVisualizer data={mathPlotData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2777,9 +2792,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading RISC-V simulation...</div>}>
-                  <RiscvVisualizer data={riscvData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading RISC-V simulation...</div>}>
+                    <RiscvVisualizer data={riscvData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2795,9 +2812,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading Verilog...</div>}>
-                  <VerilogVisualizer data={verilogData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading Verilog...</div>}>
+                    <VerilogVisualizer data={verilogData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2813,9 +2832,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading FPGA results...</div>}>
-                  <FpgaVisualizer data={fpgaData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading FPGA results...</div>}>
+                    <FpgaVisualizer data={fpgaData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2831,9 +2852,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading crypto results...</div>}>
-                  <CipherDashboard data={cipherData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading crypto results...</div>}>
+                    <CipherDashboard data={cipherData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2849,9 +2872,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading ecosystem status...</div>}>
-                  <EcosystemDashboard data={ecosystemData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading ecosystem status...</div>}>
+                    <EcosystemDashboard data={ecosystemData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2867,9 +2892,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading document list...</div>}>
-                  <DocIngestDashboard data={docIngestData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading document list...</div>}>
+                    <DocIngestDashboard data={docIngestData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2885,9 +2912,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading Autonomi status...</div>}>
-                  <AutonomiDashboard data={autonomiData} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading Autonomi status...</div>}>
+                    <AutonomiDashboard data={autonomiData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -2903,9 +2932,11 @@ export function UARPanel() {
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
               <div className={styles.graphContainer}>
-                <Suspense fallback={<div className={styles.loadingFallback}>Loading 3D mesh...</div>}>
-                  <DataViz3D data={dataViz3D} darkMode={darkMode} />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading 3D mesh...</div>}>
+                    <DataViz3D data={dataViz3D} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
           </div>

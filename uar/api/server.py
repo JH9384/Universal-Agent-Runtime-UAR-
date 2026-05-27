@@ -346,6 +346,20 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # noqa: BLE001 - non-fatal at startup
         logger.warning("Plugin loading skipped: %s", exc)
 
+    # Production security checks
+    if _is_production:
+        if not CORS_ORIGINS or CORS_ORIGINS == [""]:
+            logger.warning(
+                "CORS_ORIGINS is not configured in production. "
+                "All cross-origin requests will be blocked."
+            )
+        sec_headers = os.getenv("SECURITY_HEADERS", "").lower()
+        if sec_headers != "enabled":
+            logger.warning(
+                "SECURITY_HEADERS not enabled in production. "
+                "Consider setting SECURITY_HEADERS=enabled."
+            )
+
     # Initialize optional OpenTelemetry tracing
     _setup_tracing(app)
 
@@ -390,6 +404,13 @@ async def lifespan(app: FastAPI):
     # Shutdown metrics collector flush thread
     try:
         get_metrics_collector().shutdown()
+    except Exception:
+        pass
+    # Shutdown Postgres connection pool if active
+    try:
+        from uar.memory.postgres_store import _shutdown_postgres_pool
+
+        _shutdown_postgres_pool()
     except Exception:
         pass
     logger.info("UAR API shutdown complete")
@@ -1227,8 +1248,11 @@ async def stream_goal_ws(
                         await _stream_binary_visualization(
                             websocket, event
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "[%s] Binary visualization stream failed: %s",
+                            request_id, exc,
+                        )
 
                 # Coalesced heartbeat: only emit if idle > interval
                 now = time.time()
@@ -1819,16 +1843,22 @@ async def websocket_run(websocket: WebSocket):
                 for ev in batch:
                     try:
                         await websocket.send_json(ev)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "[%s] WebSocket send_json dropped event: %s",
+                            request_id, exc,
+                        )
                     # Stream binary visualization data for 3D skills
                     if ev.get("type") == "skill_complete":
                         try:
                             await _stream_binary_visualization(
                                 websocket, ev
                             )
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.warning(
+                                "[%s] Batch binary visualization failed: %s",
+                                request_id, exc,
+                            )
                 batch = []
                 batch_deadline = None
 
@@ -1857,8 +1887,11 @@ async def websocket_run(websocket: WebSocket):
         if websocket.client_state == WebSocketState.CONNECTED:
             try:
                 await websocket.send_json({"type": "error", "error": str(e)})
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "[%s] Failed to send error frame to client: %s",
+                    request_id, exc,
+                )
     finally:
         await _ws_conn_counter.release()
         heartbeat_stop.set()
@@ -2764,9 +2797,12 @@ async def docs_browse(
                 if count >= limit:
                     truncated = True
                     break
+                # Skip symlinks to prevent traversal outside PROJECT_ROOT
+                if entry.is_symlink():
+                    continue
                 try:
-                    is_dir = entry.is_dir()
-                    st = entry.stat()
+                    is_dir = entry.is_dir(follow_symlinks=False)
+                    st = entry.stat(follow_symlinks=False)
                     entries.append(
                         {
                             "name": entry.name,

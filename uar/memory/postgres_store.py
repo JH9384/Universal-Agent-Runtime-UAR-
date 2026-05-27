@@ -67,6 +67,19 @@ def _get_sync_pool(db_url: str):
         return _db_pool
 
 
+def _shutdown_postgres_pool() -> None:
+    """Close the module-level connection pool on application shutdown."""
+    global _db_pool
+    with _pool_lock:
+        if _db_pool is None:
+            return
+        try:
+            _db_pool.close()
+        except Exception:
+            pass
+        _db_pool = None
+
+
 class PostgresRunStore:
     """PostgreSQL run store with automatic table creation.
 
