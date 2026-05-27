@@ -634,6 +634,8 @@ export function UARPanel() {
   const abortControllerRef = useRef<AbortController | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const eventCountRef = useRef(0)
+  const eventsContainerRef = useRef<HTMLDivElement | null>(null)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const cleanup = useCallback(() => {
     if (abortControllerRef.current) {
@@ -1596,6 +1598,26 @@ export function UARPanel() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [setPickerOpen, setTipsPopupOpen, setSkillGuideOpen, setLibraryPopupOpen, setRecipesPopupOpen, isRunning, runStream])
+
+  // Auto-scroll events container to bottom as new events arrive
+  useEffect(() => {
+    const el = eventsContainerRef.current
+    if (el && events.length > 0) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [events])
+
+  // Auto-dismiss non-critical errors after 8 seconds
+  useEffect(() => {
+    if (!error) return
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    errorTimerRef.current = setTimeout(() => {
+      setError(null)
+    }, 8000)
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
+  }, [error])
 
   // Graph rendering is delegated to GraphVisualizer component
 
@@ -2590,7 +2612,7 @@ export function UARPanel() {
         </div>
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
-            <div className={styles.eventsContainer} aria-live="polite" aria-atomic="false">
+            <div ref={eventsContainerRef} className={styles.eventsContainer} aria-live="polite" aria-atomic="false">
               {(() => {
                 const filtered = events.filter((e) => {
                   if (eventFilter === 'all') return true
