@@ -103,7 +103,8 @@ def _aes_encrypt(
             "algorithm": "AES-CBC",
         }
     except (ValueError, TypeError) as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"AES encrypt failed: {exc}")
+        return {"success": False, "error": "Encryption failed"}
 
 
 def _aes_decrypt(
@@ -138,7 +139,8 @@ def _aes_decrypt(
             "algorithm": "AES-CBC",
         }
     except (ValueError, TypeError) as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"AES decrypt failed: {exc}")
+        return {"success": False, "error": "Decryption failed"}
 
 
 def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
@@ -165,7 +167,8 @@ def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
             "algorithm": algorithm,
         }
     except (ValueError, TypeError) as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"Hash failed: {exc}")
+        return {"success": False, "error": "Hash failed"}
 
 
 def _sign_data(data: bytes, private_key: bytes) -> Dict[str, Any]:
@@ -182,7 +185,8 @@ def _sign_data(data: bytes, private_key: bytes) -> Dict[str, Any]:
             "algorithm": "Ed25519",
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"Sign failed: {exc}")
+        return {"success": False, "error": "Signing failed"}
 
 
 def _verify_signature(
@@ -297,7 +301,11 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
         )
     except Exception as exc:
         logger.warning(f"cipher_ops failed: {exc}")
-        return {"status": "failed", "error": str(exc), "operation": operation}
+        return {
+            "status": "failed",
+            "error": "Operation failed",
+            "operation": operation,
+        }
 
     # Add metadata to result
     result["operation"] = operation

@@ -102,7 +102,8 @@ def _solve_equation(expr: str, variable: str = "x") -> Dict[str, Any]:
             "variable": variable,
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_solve failed: {exc}")
+        return {"success": False, "error": "Solve failed"}
 
 
 def _differentiate(expr: str, variable: str = "x") -> Dict[str, Any]:
@@ -121,7 +122,8 @@ def _differentiate(expr: str, variable: str = "x") -> Dict[str, Any]:
             "variable": variable,
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_differentiate failed: {exc}")
+        return {"success": False, "error": "Differentiation failed"}
 
 
 def _integrate(expr: str, variable: str = "x") -> Dict[str, Any]:
@@ -140,7 +142,8 @@ def _integrate(expr: str, variable: str = "x") -> Dict[str, Any]:
             "variable": variable,
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_integrate failed: {exc}")
+        return {"success": False, "error": "Integration failed"}
 
 
 def _simplify(expr: str) -> Dict[str, Any]:
@@ -158,7 +161,8 @@ def _simplify(expr: str) -> Dict[str, Any]:
             "simplified_latex": sympy.latex(simplified),
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_simplify failed: {exc}")
+        return {"success": False, "error": "Simplification failed"}
 
 
 @register_skill("math_compute")
@@ -218,7 +222,11 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
         )
     except Exception as exc:
         logger.warning(f"math_compute failed: {exc}")
-        return {"status": "failed", "error": str(exc), "operation": operation}
+        return {
+            "status": "failed",
+            "error": "Operation failed",
+            "operation": operation,
+        }
 
     # Add metadata to result
     result["operation"] = operation

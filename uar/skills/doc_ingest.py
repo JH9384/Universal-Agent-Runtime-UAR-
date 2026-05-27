@@ -530,7 +530,7 @@ def doc_ingest(ctx):
 
     except PathSecurityError as e:
         logger.error(f"Path security error: {e}")
-        return {"documents": [], "error": str(e)}
+        return {"documents": [], "error": "Path security error"}
     except Exception as e:
         logger.error(f"Unexpected error in doc_ingest: {e}", exc_info=True)
-        return {"documents": [], "error": f"Unexpected error: {str(e)}"}
+        return {"documents": [], "error": "Unexpected error"}

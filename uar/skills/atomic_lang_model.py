@@ -310,6 +310,10 @@ def alm_verify(ctx: PipelineContext) -> Dict[str, Any]:
             "error": result.get("error"),
             "details": result.get("details"),
         }
-    except Exception as e:
+    except Exception:
         logger.exception("alm_verify failed")
-        return {"status": "failed", "error": str(e), "text": text}
+        return {
+            "status": "failed",
+            "error": "Verification failed",
+            "text": text,
+        }

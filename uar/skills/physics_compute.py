@@ -68,7 +68,8 @@ def _convert_units(value: str, from_unit: str, to_unit: str) -> Dict[str, Any]:
             "numerical_value": float(converted.value),
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_unit_convert failed: {exc}")
+        return {"success": False, "error": "Unit conversion failed"}
 
 
 def _calculate_distance(
@@ -91,7 +92,8 @@ def _calculate_distance(
             "angular_distance_arcsec": separation.arcsecond,
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_calculate_distance failed: {exc}")
+        return {"success": False, "error": "Distance calculation failed"}
 
 
 def _transform_coordinate(
@@ -123,7 +125,8 @@ def _transform_coordinate(
             "transformed_dec": str(transformed.dec),
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_transform_coordinate failed: {exc}")
+        return {"success": False, "error": "Coordinate transformation failed"}
 
 
 def _calculate_energy(wavelength: str) -> Dict[str, Any]:
@@ -142,7 +145,8 @@ def _calculate_energy(wavelength: str) -> Dict[str, Any]:
             "energy_eV": energy.value,
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_calculate_energy failed: {exc}")
+        return {"success": False, "error": "Energy calculation failed"}
 
 
 def _calculate_redshift(z: str) -> Dict[str, Any]:
@@ -161,7 +165,8 @@ def _calculate_redshift(z: str) -> Dict[str, Any]:
             "luminosity_distance_Mpc": distance.value,
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_calculate_redshift failed: {exc}")
+        return {"success": False, "error": "Redshift calculation failed"}
 
 
 @register_skill("physics_compute")
@@ -218,7 +223,11 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
         )
     except Exception as exc:
         logger.warning(f"physics_compute failed: {exc}")
-        return {"status": "failed", "error": str(exc), "operation": operation}
+        return {
+            "status": "failed",
+            "error": "Physics operation failed",
+            "operation": operation,
+        }
 
     # Add metadata to result
     result["operation"] = operation
@@ -296,4 +305,5 @@ def _calculate_distance_from_value(value: str) -> Dict[str, Any]:
             }
         return _calculate_distance(parts[0], parts[1], parts[2], parts[3])
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        logger.warning(f"_execute_operation failed: {exc}")
+        return {"success": False, "error": "Operation failed"}

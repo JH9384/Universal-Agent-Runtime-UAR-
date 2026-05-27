@@ -84,7 +84,8 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
             "output_shape": list(out.shape),
         }
     except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+        logger.warning(f"cv_inference failed: {exc}")
+        return {"status": "failed", "error": "Inference failed"}
 
 
 @register_skill("yolo_detect")
@@ -134,4 +135,5 @@ def yolo_detect(ctx: PipelineContext) -> Dict[str, Any]:
             "count": len(detections),
         }
     except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+        logger.warning(f"yolo_detect failed: {exc}")
+        return {"status": "failed", "error": "Detection failed"}

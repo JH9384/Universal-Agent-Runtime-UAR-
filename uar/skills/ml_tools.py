@@ -73,7 +73,8 @@ def optuna_tune(ctx: PipelineContext) -> Dict[str, Any]:
             "direction": direction,
         }
     except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+        logger.warning(f"detect_trend failed: {exc}")
+        return {"status": "failed", "error": "Trend detection failed"}
 
 
 @register_skill("chromadb_store")
@@ -157,4 +158,5 @@ def chromadb_store(ctx: PipelineContext) -> Dict[str, Any]:
                 "error": f"Unknown operation: {operation}",
             }
     except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+        logger.warning(f"chromadb_store failed: {exc}")
+        return {"status": "failed", "error": "ChromaDB operation failed"}

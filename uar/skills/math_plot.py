@@ -407,4 +407,8 @@ def math_plot(ctx: PipelineContext) -> Dict[str, Any]:
 
     except Exception as exc:
         logger.warning(f"math_plot failed: {exc}")
-        return {"status": "failed", "error": str(exc), "plot_type": plot_type}
+        return {
+            "status": "failed",
+            "error": "Plot generation failed",
+            "plot_type": plot_type,
+        }
