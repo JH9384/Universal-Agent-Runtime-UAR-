@@ -379,7 +379,9 @@ def warm_skill_cache(
         except Exception:
             pass
 
-    pool_size = int(os.getenv("UOR_BATCH_POOL_SIZE", "8"))
+    pool_size = max(
+        1, int(os.getenv("UOR_BATCH_POOL_SIZE", "8").strip() or "8")
+    )
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=min(len(metadata_list), pool_size)
     ) as pool:
