@@ -979,7 +979,7 @@ async def run_goal(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "UAR error",
-                    "message": str(e),
+                    "message": "Request processing failed",
                     "error_type": error_type,
                     "request_id": request_id,
                     "suggestion": suggestion,
@@ -1302,11 +1302,11 @@ async def stream_goal_ws(
                     )
                     last_hb = now
 
-        except ValidationError as e:
+        except ValidationError:
             await websocket.send_json(
                 {
                     "type": "error",
-                    "error": str(e),
+                    "error": "Invalid input",
                     "error_type": "ValidationError",
                     "request_id": request_id,
                 }
@@ -2148,11 +2148,11 @@ async def health_dashboard(
         try:
             registry.get(name)
             skill_health.append({"name": name, "available": True})
-        except Exception as exc:
+        except Exception:
             skill_health.append({
                 "name": name,
                 "available": False,
-                "last_error": str(exc)[:100],
+                "last_error": "Skill unavailable",
             })
 
     # Circuit breaker states
