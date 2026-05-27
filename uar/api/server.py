@@ -1097,8 +1097,9 @@ async def stream_goal_ws(
             )
         except asyncio.TimeoutError:
             logger.warning(
-                f"[{request_id}] WebSocket receive timeout after "
-                f"{websocket_timeout}s"
+                "[%s] WebSocket receive timeout after %ss",
+                request_id,
+                websocket_timeout,
             )
             await websocket.send_json(
                 create_event(
@@ -1106,10 +1107,7 @@ async def stream_goal_ws(
                     run_id="unknown",
                     error="Receive timeout",
                     payload={
-                        "message": (
-                            f"No data received within {websocket_timeout} "
-                            f"seconds"
-                        ),
+                        "message": "No data received within timeout",
                         "request_id": request_id,
                         "code": "RECEIVE_TIMEOUT",
                     },
@@ -1840,15 +1838,18 @@ async def websocket_run(websocket: WebSocket):
                 timeout=websocket_timeout,
             )
         except asyncio.TimeoutError:
+            logger.warning(
+                "[%s] WebSocket receive timeout after %ss",
+                request_id,
+                websocket_timeout,
+            )
             await websocket.send_json(
                 create_event(
                     "error",
                     run_id="unknown",
                     error="Receive timeout",
                     payload={
-                        "message": (
-                            f"No data received within {websocket_timeout}s"
-                        ),
+                        "message": "No data received within timeout",
                         "request_id": request_id,
                     },
                 )
