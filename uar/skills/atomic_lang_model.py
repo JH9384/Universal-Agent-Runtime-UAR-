@@ -121,7 +121,7 @@ def _call_alm(
         try:
             error_detail = e.response.json()
         except (ValueError, OSError):
-            error_detail = {"error": str(e)}
+            error_detail = {"error": "Failed to parse error response"}
         return {
             "status": "error",
             "error": f"HTTP {e.response.status_code}",
@@ -141,12 +141,12 @@ def _call_alm(
             "error": "Connection failed",
             "details": f"Could not connect to {base_url}",
         }
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error calling ALM service")
         return {
             "status": "error",
             "error": "Unexpected error",
-            "details": str(e),
+            "details": "ALM request failed",
         }
 
 
@@ -227,11 +227,11 @@ def alm_analyze(ctx: PipelineContext) -> Dict[str, Any]:
     try:
         result = _call_alm("analyze", {"grammar_spec": grammar_spec}, ctx)
         return {"status": "completed", "grammar_spec": grammar_spec, **result}
-    except Exception as e:
+    except Exception:
         logger.exception("alm_analyze failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "ALM analysis failed",
             "grammar_spec": grammar_spec,
         }
 
@@ -267,11 +267,11 @@ def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
             "count": count,
             "tokens": result.get("tokens", []),
         }
-    except Exception as e:
+    except Exception:
         logger.exception("alm_generate failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "ALM generation failed",
             "prefix": prefix,
             "count": count,
         }

@@ -7,11 +7,14 @@ No external dependencies — pure Python implementation.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Dict, List
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+
+logger = logging.getLogger(__name__)
 
 
 # RV32I opcodes
@@ -530,10 +533,11 @@ def riscv_simulation(ctx: PipelineContext) -> Dict[str, Any]:
                 "memory_size": memory_size,
             },
         }
-    except Exception as exc:
+    except Exception:
+        logger.exception("riscv_sim failed")
         return {
             "status": "failed",
-            "error": str(exc),
+            "error": "RISC-V simulation failed",
         }
 
 

@@ -7,11 +7,14 @@ dependencies required.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Dict, List
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_modules(source: str) -> List[Dict[str, Any]]:
@@ -172,10 +175,11 @@ def verilog_parse(ctx: PipelineContext) -> Dict[str, Any]:
                 "signals": total_signals,
             },
         }
-    except Exception as exc:
+    except Exception:
+        logger.exception("verilog_parse failed")
         return {
             "status": "failed",
-            "error": str(exc),
+            "error": "Verilog parsing failed",
         }
 
 
