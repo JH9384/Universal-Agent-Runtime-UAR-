@@ -15,8 +15,12 @@ _ollama_cb = CircuitBreaker(
 
 # Limit on how much document context we send to the model (chars).
 # Defaults to ~12k chars (~3k tokens) — safe for most local models.
-MAX_DOC_CONTEXT_CHARS = int(os.getenv("OLLAMA_DOC_CONTEXT_CHARS", "12000"))
-PER_DOC_CHAR_LIMIT = int(os.getenv("OLLAMA_PER_DOC_CHARS", "3000"))
+MAX_DOC_CONTEXT_CHARS = max(
+    0, int(os.getenv("OLLAMA_DOC_CONTEXT_CHARS", "12000").strip() or "12000")
+)
+PER_DOC_CHAR_LIMIT = max(
+    0, int(os.getenv("OLLAMA_PER_DOC_CHARS", "3000").strip() or "3000")
+)
 
 
 def _gather_documents(ctx) -> list:

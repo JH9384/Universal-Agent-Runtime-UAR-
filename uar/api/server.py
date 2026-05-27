@@ -219,7 +219,7 @@ class _WebSocketConnectionCounter:
 
 
 _ws_conn_counter = _WebSocketConnectionCounter(
-    max(0, int(os.getenv("WEBSOCKET_MAX_CONNECTIONS", "0")))
+    max(0, int(os.getenv("WEBSOCKET_MAX_CONNECTIONS", "0").strip() or "0"))
 )
 CHUNK_SIZE = 1024 * 64  # 64KB
 DEFAULT_BROWSE_LIMIT = 200
@@ -483,7 +483,9 @@ apply_middleware(app)
 # Response compression for large JSON/SSE payloads
 app.add_middleware(
     GZipMiddleware,
-    minimum_size=int(os.getenv("UAR_GZIP_MIN_SIZE", "1024")),
+    minimum_size=max(
+        0, int(os.getenv("UAR_GZIP_MIN_SIZE", "1024").strip() or "1024")
+    ),
 )
 
 # Universal request-timing middleware (records every HTTP endpoint)
@@ -1072,7 +1074,13 @@ async def stream_goal_ws(
         # Receive the run request from WebSocket with timeout
         # to prevent malicious clients from holding connections open
         # indefinitely
-        websocket_timeout = int(os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30"))
+        websocket_timeout = max(
+            1,
+            int(
+                os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30").strip()
+                or "30"
+            ),
+        )
         try:
             data = await asyncio.wait_for(
                 websocket.receive_json(), timeout=websocket_timeout
@@ -1799,7 +1807,13 @@ async def websocket_run(websocket: WebSocket):
             await websocket.close(code=1008)
             return
 
-        websocket_timeout = int(os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30"))
+        websocket_timeout = max(
+            1,
+            int(
+                os.getenv("WEBSOCKET_RECEIVE_TIMEOUT", "30").strip()
+                or "30"
+            ),
+        )
         try:
             data = await asyncio.wait_for(
                 websocket.receive_json(),

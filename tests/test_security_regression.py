@@ -376,11 +376,11 @@ def test_gzip_minimum_size_honors_env_var():
     import uar.api.server as server_mod
 
     # The middleware is registered at module import time with
-    # minimum_size=int(os.getenv("UAR_GZIP_MIN_SIZE", "1024"))
+    # minimum_size=max(0, int(os.getenv(...)))
     # We verify the env var is read by checking the constant source.
     src = open(server_mod.__file__).read()
     assert "UAR_GZIP_MIN_SIZE" in src
-    assert 'int(os.getenv("UAR_GZIP_MIN_SIZE", "1024"))' in src
+    assert 'int(os.getenv("UAR_GZIP_MIN_SIZE", "1024")' in src
 
 
 # ---------------------------------------------------------------------------

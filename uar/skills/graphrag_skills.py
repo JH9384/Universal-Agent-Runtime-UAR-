@@ -53,9 +53,21 @@ _graphrag_cb = CircuitBreaker(
 )
 
 # Graph size limits to prevent unbounded growth
-MAX_NODES = int(os.getenv("GRAPHRAG_MAX_NODES", str(DEFAULT_MAX_NODES)))
-MAX_EDGES = int(os.getenv("GRAPHRAG_MAX_EDGES", "50000"))
-MAX_ENTITY_LIMIT = int(os.getenv("GRAPHRAG_MAX_ENTITY_LIMIT", "5000"))
+MAX_NODES = max(
+    1,
+    int(
+        os.getenv("GRAPHRAG_MAX_NODES", str(DEFAULT_MAX_NODES)).strip()
+        or str(DEFAULT_MAX_NODES)
+    ),
+)
+MAX_EDGES = max(
+    1,
+    int(os.getenv("GRAPHRAG_MAX_EDGES", "50000").strip() or "50000"),
+)
+MAX_ENTITY_LIMIT = max(
+    1,
+    int(os.getenv("GRAPHRAG_MAX_ENTITY_LIMIT", "5000").strip() or "5000"),
+)
 
 # Schema versioning for graph data
 GRAPH_SCHEMA_VERSION = "v1"  # Current graph schema version
