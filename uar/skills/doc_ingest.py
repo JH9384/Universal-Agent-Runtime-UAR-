@@ -337,11 +337,12 @@ def _read_file_safely(file_path: Path, allowed_root: Path) -> dict[str, Any]:
                     "type": kind,
                 }
             except Exception as e:
+                logger.warning(f"{kind} extraction failed: {e}")
                 return {
                     "path": str(file_path.relative_to(allowed_root)),
                     "text": "",
                     "size": 0,
-                    "error": f"{kind} extraction failed: {e}",
+                    "error": f"{kind} extraction failed",
                 }
 
         # Plain text path - use errors="replace" for better compatibility

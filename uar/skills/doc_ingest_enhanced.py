@@ -407,24 +407,29 @@ def _read_file_enhanced(
                     "text": content,
                     "size": len(content),
                     "type": suffix.lstrip("."),
-                    "warning": f"Advanced extraction failed, used fallback: {e}",  # noqa: E501
+                    "warning": "Advanced extraction failed, used fallback",
                 }
             except Exception as fallback_error:
+                logger.error(
+                    f"Both advanced and fallback extraction failed for "
+                    f"{file_path}: {e}, {fallback_error}"
+                )
                 return {
                     "path": str(file_path.relative_to(allowed_root)),
                     "text": "",
                     "size": 0,
-                    "error": f"Both advanced and fallback extraction failed: {e}, {fallback_error}",  # noqa: E501
+                    "error": "Extraction failed",
                 }
 
     except PathSecurityError as e:
+        logger.warning(f"Path security error: {e}")
         return {
             "path": str(file_path.relative_to(allowed_root))
             if file_path.is_relative_to(allowed_root)
             else str(file_path),
             "text": "",
             "size": 0,
-            "error": f"Path security error: {e}",
+            "error": "Path security error",
         }
     except Exception as e:
         logger.error(f"Unexpected error reading {file_path}: {e}")
@@ -434,7 +439,7 @@ def _read_file_enhanced(
             else str(file_path),
             "text": "",
             "size": 0,
-            "error": f"Read error: {str(e)}",
+            "error": "Read error",
         }
 
 
