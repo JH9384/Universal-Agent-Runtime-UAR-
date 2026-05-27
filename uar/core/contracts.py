@@ -49,13 +49,14 @@ class PipelineContext:
     def emit(self, event_type: str, payload: Dict[str, Any]) -> None:
         import json as _json
         event = {"type": event_type, "payload": payload}
-        # When overflow is enabled, write evicted events to disk before
-        # the deque drops them (deque evicts oldest automatically via maxlen).
+        # When overflow is enabled, write the oldest event to disk
+        # before the deque drops it (deque evicts oldest automatically).
         if (
             self._overflow_file is not None
             and len(self.events) >= self._max_events
         ):
-            self._overflow_file.write(_json.dumps(event, default=str))
+            oldest = self.events[0]
+            self._overflow_file.write(_json.dumps(oldest, default=str))
             self._overflow_file.write("\n")
         # deque with maxlen evicts the oldest entry automatically — O(1).
         self.events.append(event)  # type: ignore[union-attr]

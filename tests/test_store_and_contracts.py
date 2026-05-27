@@ -9,6 +9,7 @@ Covers:
 """
 import asyncio
 import collections
+import os
 
 import pytest
 
@@ -199,3 +200,36 @@ def test_run_sync_safe_closes_coro_on_exception():
 
     with pytest.raises(ValueError, match="intentional"):
         run_sync_safe(_bad())
+
+
+def test_pipeline_context_overflow_writes_oldest_event():
+    """When deque is at capacity, overflow must persist the oldest event,
+    not the newest one."""
+    import tempfile
+    import json
+
+    ctx = PipelineContext(
+        goal=GoalSpec(
+            id="g1", user_intent="test", objective="test"
+        ),
+        _max_events=2,
+    )
+    fd, path = tempfile.mkstemp(suffix=".jsonl")
+    os.close(fd)
+    overflow = open(path, "a")
+    object.__setattr__(ctx, "_overflow_file", overflow)
+
+    ctx.emit("event_a", {"n": 1})
+    ctx.emit("event_b", {"n": 2})
+    # deque is now at capacity; next emit should overflow oldest
+    ctx.emit("event_c", {"n": 3})
+
+    overflow.close()
+    with open(path) as f:
+        lines = [json.loads(line) for line in f]
+    os.unlink(path)
+
+    assert len(lines) == 1
+    assert lines[0]["type"] == "event_a"
+    # In-memory deque should have the two newest events
+    assert [e["type"] for e in ctx.events] == ["event_b", "event_c"]
