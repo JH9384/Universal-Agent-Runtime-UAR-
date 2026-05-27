@@ -381,17 +381,17 @@ def _run_cli_impl(
             "stdout": proc.stdout[-20000:],
             "stderr": proc.stderr[-20000:],
         }
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         return {
             "returncode": -1,
             "stdout": "",
-            "stderr": f"timeout after {timeout}s: {e}",
+            "stderr": "CLI timeout",
         }
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         return {
             "returncode": -1,
             "stdout": "",
-            "stderr": f"graphrag CLI not found: {e}",
+            "stderr": "graphrag CLI not found",
         }
 
 

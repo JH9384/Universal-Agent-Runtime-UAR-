@@ -6,12 +6,15 @@ returns compilation metadata for SystemVerilog sources.
 
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+
+logger = logging.getLogger(__name__)
 
 
 def _check_verilator() -> Dict[str, Any]:
@@ -29,10 +32,9 @@ def _check_verilator() -> Dict[str, Any]:
             parts = result.stdout.strip().split()
             version = parts[-1] if parts else "unknown"
         except Exception:
-            pass
+            logger.exception("verilator version check failed")
     return {
         "available": path is not None,
-        "path": path,
         "version": version,
     }
 
