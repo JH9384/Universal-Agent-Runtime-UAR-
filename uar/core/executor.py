@@ -909,7 +909,7 @@ class Executor:
 
         if missing_skills:
             # Return failed run instead of raising
-            error_msg = f"Skill(s) not found: {', '.join(missing_skills)}"
+            error_msg = "Skill(s) not found"
             if not _suppress_start_complete:
                 yield _ev(
                     "start",

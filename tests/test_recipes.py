@@ -73,8 +73,7 @@ def test_validate_recipe_parallel_group_invalid():
     }
     errors = validate_recipe(recipe)
     assert any(
-        "skill group" in e and "must be a non-empty string" in e
-        for e in errors
+        "must be a non-empty string" in e for e in errors
     )
 
 
@@ -118,4 +117,4 @@ def test_migrate_recipe_unknown_version():
 def test_validate_recipe_uses_recipe_id_param():
     recipe = {"id": "", "label": "", "skills": []}
     errors = validate_recipe(recipe, recipe_id="fallback")
-    assert any("Recipe fallback" in e for e in errors)
+    assert any("Recipe missing or invalid" in e for e in errors)

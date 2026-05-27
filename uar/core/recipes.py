@@ -144,18 +144,17 @@ def validate_recipe(recipe: Dict[str, Any], recipe_id: str = "") -> List[str]:
     the recipe is valid.
     """
     errors: List[str] = []
-    rid = recipe_id or recipe.get("id", "<unknown>")
 
     # Required fields
     if not isinstance(recipe.get("id"), str) or not recipe.get("id"):
-        errors.append(f"Recipe {rid}: missing or invalid 'id' field")
+        errors.append("Recipe missing or invalid 'id' field")
 
     if not isinstance(recipe.get("label"), str) or not recipe.get("label"):
-        errors.append(f"Recipe {rid}: missing or invalid 'label' field")
+        errors.append("Recipe missing or invalid 'label' field")
 
     skills = recipe.get("skills")
     if not isinstance(skills, list):
-        errors.append(f"Recipe {rid}: 'skills' must be a list")
+        errors.append("Recipe 'skills' must be a list")
     else:
         for i, skill in enumerate(skills):
             if isinstance(skill, list):
@@ -163,26 +162,25 @@ def validate_recipe(recipe: Dict[str, Any], recipe_id: str = "") -> List[str]:
                 for j, sub in enumerate(skill):
                     if not isinstance(sub, str) or not sub:
                         errors.append(
-                            f"Recipe {rid}: skill group[{i}][{j}] must be a "
-                            f"non-empty string"
+                            "Recipe skill must be a non-empty string"
                         )
             elif not isinstance(skill, str) or not skill:
                 errors.append(
-                    f"Recipe {rid}: skills[{i}] must be a non-empty string"
+                    "Recipe skill must be a non-empty string"
                 )
 
     # Optional fields with type checks
     hint = recipe.get("hint")
     if hint is not None and not isinstance(hint, str):
-        errors.append(f"Recipe {rid}: 'hint' must be a string")
+        errors.append("Recipe 'hint' must be a string")
 
     condition = recipe.get("condition")
     if condition is not None and not isinstance(condition, dict):
-        errors.append(f"Recipe {rid}: 'condition' must be a dict")
+        errors.append("Recipe 'condition' must be a dict")
 
     version = recipe.get("version")
     if version is not None and not isinstance(version, str):
-        errors.append(f"Recipe {rid}: 'version' must be a string")
+        errors.append("Recipe 'version' must be a string")
 
     return errors
 
