@@ -2611,12 +2611,14 @@ async def docs_upload(
         # Sanitize: keep only the basename, strip null bytes / path separators
         safe_name = Path(original).name.replace("\x00", "")
         if not safe_name or safe_name in (".", ".."):
-            rejected.append({"name": original, "reason": "invalid filename"})
+            rejected.append(
+                {"name": safe_name, "reason": "Invalid filename"}
+            )
             continue
         ext = Path(safe_name).suffix.lower()
         if ext and ext not in ALLOWED_UPLOAD_EXTS:
             rejected.append(
-                {"name": safe_name, "reason": f"extension not allowed: {ext}"}
+                {"name": safe_name, "reason": "Extension not allowed"}
             )
             continue
 
@@ -2725,16 +2727,16 @@ async def docs_upload(
                         "ext": ext,
                     }
                 )
-            except OSError as e:
+            except OSError:
                 logger.exception(
-                    f"[{request_id}] rename failed for {safe_name}"
+                    "[%s] rename failed for %s", request_id, safe_name
                 )
                 try:
                     temp_dest.unlink()
                 except OSError:
                     pass
                 rejected.append(
-                    {"name": safe_name, "reason": f"Rename failed: {e}"}
+                    {"name": safe_name, "reason": "Rename failed"}
                 )
         else:
             # File too large - clean up temp and placeholder
