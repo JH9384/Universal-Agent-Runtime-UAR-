@@ -135,7 +135,9 @@ class UARPipelineOrchestrator:
             metadata=metadata or {},
         )
         self.assets[key] = asset
-        logger.info(f"Registered asset: {key} ({asset_type.value})")
+        logger.info(
+            "Registered asset: %s (%s)", key, asset_type.value
+        )
         return asset
 
     def get_asset(self, key: str) -> Optional[AssetDefinition]:
@@ -182,23 +184,27 @@ class UARPipelineOrchestrator:
                         )
 
                     # Execute the asset (in production, this would call the actual op)  # noqa: E501
-                    logger.info(f"Executing asset: {asset_key}")
+                    logger.info(
+                        "Executing asset: %s", asset_key
+                    )
                     execution.assets_produced.append(asset_key)
                     executed.append(asset_key)
 
                 execution.status = PipelineStatus.SUCCESS
                 execution.end_time = datetime.utcnow()
 
-            except Exception as e:
+            except Exception:
                 execution.status = PipelineStatus.FAILED
                 execution.error = "Pipeline failed"
                 execution.end_time = datetime.utcnow()
-                logger.error(f"Pipeline {name} failed: {e}")
+                logger.exception("Pipeline %s failed", name)
 
             return execution.to_dict()
 
         self.pipelines[name] = pipeline_fn
-        logger.info(f"Created pipeline: {name} with assets: {asset_keys}")
+        logger.info(
+            "Created pipeline: %s with assets: %s", name, asset_keys
+        )
         return pipeline_fn
 
     def execute_pipeline(

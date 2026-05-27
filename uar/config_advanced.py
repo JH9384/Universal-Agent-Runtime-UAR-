@@ -169,10 +169,14 @@ def log_validation_results(results: Dict[str, Any]) -> None:
     if results["valid"]:
         logger.info("Advanced configuration validation passed")
     else:
-        logger.warning(f"Advanced configuration issues: {results['issues']}")
+        logger.warning(
+            "Advanced configuration issues: %s", results["issues"]
+        )
 
     if results["warnings"]:
-        logger.info(f"Advanced configuration warnings: {results['warnings']}")
+        logger.info(
+            "Advanced configuration warnings: %s", results["warnings"]
+        )
 
 
 def setup_default_budget_config() -> None:

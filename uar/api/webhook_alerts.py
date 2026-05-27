@@ -67,8 +67,8 @@ class WebhookAlerter:
             )
             with urlopen(req, timeout=10) as resp:
                 return resp.status == 200
-        except (OSError, ValueError) as e:
-            logger.error(f"Failed to send webhook alert to {endpoint}: {e}")
+        except (OSError, ValueError):
+            logger.exception("Failed to send webhook alert to %s", endpoint)
             return False
 
     def alert_alignment_drift(

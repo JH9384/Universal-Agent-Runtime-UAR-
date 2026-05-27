@@ -41,8 +41,8 @@ class AsyncObjectResolver:
                 loop = asyncio.get_running_loop()
                 obj = await loop.run_in_executor(None, fetch_func, digest)
                 return obj
-            except Exception as e:
-                logger.error(f"Failed to fetch object {digest}: {e}")
+            except Exception:
+                logger.exception("Failed to fetch object %s", digest)
                 return None
 
     async def fetch_objects(
@@ -131,8 +131,8 @@ class AsyncObjectProcessor:
                 loop = asyncio.get_running_loop()
                 result = await loop.run_in_executor(None, process_func, obj)
                 return result
-            except Exception as e:
-                logger.error(f"Failed to process object: {e}")
+            except Exception:
+                logger.exception("Failed to process object")
                 raise
 
     async def process_objects(

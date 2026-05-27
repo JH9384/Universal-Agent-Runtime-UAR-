@@ -32,14 +32,14 @@ class SignedManifest:
     def load(self) -> bool:
         """Load and validate manifest structure."""
         if not self.manifest_path.exists():
-            logger.warning(f"Manifest not found: {self.manifest_path}")
+            logger.warning("Manifest not found: %s", self.manifest_path)
             return False
 
         try:
             self._data = json.loads(self.manifest_path.read_text())
             return self._validate_structure()
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in manifest: {e}")
+        except json.JSONDecodeError:
+            logger.exception("Invalid JSON in manifest")
             return False
 
     def _validate_structure(self) -> bool:
@@ -50,7 +50,9 @@ class SignedManifest:
         required = ["version", "artifacts", "signatures"]
         for field in required:
             if field not in self._data:
-                logger.error(f"Manifest missing required field: {field}")
+                logger.error(
+                    "Manifest missing required field: %s", field
+                )
                 return False
 
         return True
@@ -75,13 +77,16 @@ class SignedManifest:
             return True  # Unsigned manifest is valid but warned
 
         # Placeholder: In future, verify each signature
-        logger.info(f"Found {len(signatures)} signatures (verification pending)")
+        logger.info(
+            "Found %s signatures (verification pending)",
+            len(signatures),
+        )
         return True
 
     def verify_artifact(self, artifact_path: Path, expected_digest: str) -> bool:
         """Verify artifact matches expected digest."""
         if not artifact_path.exists():
-            logger.error(f"Artifact not found: {artifact_path}")
+            logger.error("Artifact not found: %s", artifact_path)
             return False
 
         sha256 = hashlib.sha256()
@@ -90,8 +95,9 @@ class SignedManifest:
 
         if actual_digest != expected_digest:
             logger.error(
-                f"Digest mismatch for {artifact_path.name}: "
-                f"expected {expected_digest[:16]}..."
+                "Digest mismatch for %s: expected %s...",
+                artifact_path.name,
+                expected_digest[:16],
             )
             return False
 
@@ -135,7 +141,7 @@ class ManifestVerifier:
             if not manifest.verify_artifact(artifact_path, expected_digest):
                 return False
 
-        logger.info(f"Manifest verified: {manifest_path.name}")
+        logger.info("Manifest verified: %s", manifest_path.name)
         return True
 
 
@@ -161,4 +167,4 @@ def create_placeholder_manifest(
     }
 
     output_path.write_text(json.dumps(manifest, indent=2))
-    logger.info(f"Created placeholder manifest: {output_path}")
+    logger.info("Created placeholder manifest: %s", output_path)

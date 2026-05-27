@@ -50,8 +50,8 @@ try:
         compute_identity_chain,
         UORIdentityVerifier,
     )
-except ImportError as e:
-    logger.warning(f"UOR identity module not available: {e}")
+except ImportError:
+    logger.exception("UOR identity module not available")
     bnot = neg = succ = None  # type: ignore
     verify_critical_identity = None  # type: ignore
     compute_identity_chain = None  # type: ignore

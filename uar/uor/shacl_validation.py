@@ -106,10 +106,10 @@ class SHACLValidator:
         try:
             self.shapes_graph = Graph()
             self.shapes_graph.parse(data=shapes_data, format=format)
-            logger.info(f"Loaded SHACL shapes from {format} format")
+            logger.info("Loaded SHACL shapes from %s format", format)
             return True
-        except Exception as e:
-            logger.error(f"Failed to load SHACL shapes: {e}")
+        except Exception:
+            logger.exception("Failed to load SHACL shapes")
             return False
 
     def load_shacl_from_file(self, file_path: str) -> bool:
@@ -128,10 +128,10 @@ class SHACLValidator:
         try:
             self.shapes_graph = Graph()
             self.shapes_graph.parse(file_path, format="turtle")
-            logger.info(f"Loaded SHACL shapes from {file_path}")
+            logger.info("Loaded SHACL shapes from %s", file_path)
             return True
-        except Exception as e:
-            logger.error(f"Failed to load SHACL shapes from file: {e}")
+        except Exception:
+            logger.exception("Failed to load SHACL shapes from file")
             return False
 
     def create_simple_shape(
@@ -230,10 +230,12 @@ class SHACLValidator:
                         )
 
             turtle_data = g.serialize(format="turtle")
-            return turtle_data if isinstance(turtle_data, str) else turtle_data.decode("utf-8")  # type: ignore[union-attr]
+            if isinstance(turtle_data, str):
+                return turtle_data
+            return turtle_data.decode("utf-8")  # type: ignore[union-attr]
 
-        except Exception as e:
-            logger.error(f"Failed to create SHACL shape: {e}")
+        except Exception:
+            logger.exception("Failed to create SHACL shape")
             return ""
 
     def validate_object(
@@ -310,8 +312,8 @@ class SHACLValidator:
                 conforms=conforms, violations=violations
             )
 
-        except Exception as e:
-            logger.error(f"SHACL validation failed: {e}")
+        except Exception:
+            logger.exception("SHACL validation failed")
             return SHACLValidationResult(
                 conforms=False,
                 violations=[
@@ -319,7 +321,7 @@ class SHACLValidator:
                         constraint="validation_error",
                         path="root",
                         value=object_data,
-                        message=f"Validation error: {e}",
+                        message="Validation failed",
                         severity="error",
                     )
                 ],

@@ -50,7 +50,9 @@ class CircuitBreaker:
             if time.time() - self._last_failure_time >= self.recovery_timeout:
                 self._state = State.HALF_OPEN
                 self._half_open_count = 0
-                logger.info(f"CircuitBreaker[{self.name}]: open → half_open")
+                logger.info(
+                    "CircuitBreaker[%s]: open → half_open", self.name
+                )
 
     def call(self, fn, *args, **kwargs):
         # Reserve slot under lock, execute outside lock, update atomically

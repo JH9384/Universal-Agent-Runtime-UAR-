@@ -121,8 +121,8 @@ def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
                 "status": "failed",
                 "error": "Unknown operation",
             }
-    except Exception as exc:
-        logger.warning(f"Operation failed: {exc}")
+    except Exception:
+        logger.exception("Operation failed")
         return {"status": "failed", "error": "Operation failed"}
 
 
@@ -177,8 +177,8 @@ def diff_eq_solve(ctx: PipelineContext) -> Dict[str, Any]:
             "nfev": int(sol.nfev),
             "message": sol.message,
         }
-    except Exception as exc:
-        logger.warning(f"Operation failed: {exc}")
+    except Exception:
+        logger.exception("Operation failed")
         return {"status": "failed", "error": "Operation failed"}
 
 
@@ -258,8 +258,8 @@ def quantum_circuit(ctx: PipelineContext) -> Dict[str, Any]:
             "circuit_depth": qc.depth(),
             "total_ops": qc.size(),
         }
-    except Exception as exc:
-        logger.warning(f"Operation failed: {exc}")
+    except Exception:
+        logger.exception("Operation failed")
         return {"status": "failed", "error": "Operation failed"}
 
 
@@ -343,8 +343,8 @@ def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
                 "status": "failed",
                 "error": "Unknown operation",
             }
-    except Exception as exc:
-        logger.warning(f"Operation failed: {exc}")
+    except Exception:
+        logger.exception("Operation failed")
         return {"status": "failed", "error": "Operation failed"}
 
 
@@ -413,8 +413,8 @@ def bio_compute(ctx: PipelineContext) -> Dict[str, Any]:
                 "status": "failed",
                 "error": "Unknown operation",
             }
-    except Exception as exc:
-        logger.warning(f"Operation failed: {exc}")
+    except Exception:
+        logger.exception("Operation failed")
         return {"status": "failed", "error": "Operation failed"}
 
 
@@ -506,6 +506,6 @@ def relativity(ctx: PipelineContext) -> Dict[str, Any]:
                 "status": "failed",
                 "error": "Unknown operation",
             }
-    except Exception as exc:
-        logger.warning(f"Operation failed: {exc}")
+    except Exception:
+        logger.exception("Operation failed")
         return {"status": "failed", "error": "Operation failed"}

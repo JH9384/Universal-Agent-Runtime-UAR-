@@ -93,8 +93,8 @@ class UORObject:
             hash_obj = hashlib.sha256(data_str.encode())
             self.digest = f"{self.digest_algorithm}:{hash_obj.hexdigest()}"
             return self.digest
-        except Exception as e:
-            logger.warning(f"Failed to compute digest: {e}")
+        except Exception:
+            logger.exception("Failed to compute digest")
             hash_obj = hashlib.sha256(str(self.data).encode())
             self.digest = f"{self.digest_algorithm}:{hash_obj.hexdigest()}"
             return self.digest

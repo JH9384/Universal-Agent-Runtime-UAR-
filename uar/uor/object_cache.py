@@ -71,7 +71,7 @@ class UORObjectCache:
         if entry.is_expired():
             del self.cache[key]
             self.misses += 1
-            logger.debug(f"Cache entry expired: {key}")
+            logger.debug("Cache entry expired: %s", key)
             return None
 
         # Move to end (most recently used)
@@ -79,7 +79,9 @@ class UORObjectCache:
         entry.touch()
         self.hits += 1
 
-        logger.debug(f"Cache hit: {key} (hits: {entry.hits})")
+        logger.debug(
+            "Cache hit: %s (hits: %s)", key, entry.hits
+        )
         return entry.value
 
     def set(self, key: str, value: Any, ttl: Optional[float] = None) -> None:
@@ -99,7 +101,7 @@ class UORObjectCache:
 
         self.cache[key] = entry
         self.cache.move_to_end(key)
-        logger.debug(f"Cache set: {key}")
+        logger.debug("Cache set: %s", key)
 
     def delete(self, key: str) -> bool:
         """Delete value from cache.
@@ -112,7 +114,7 @@ class UORObjectCache:
         """
         if key in self.cache:
             del self.cache[key]
-            logger.debug(f"Cache delete: {key}")
+            logger.debug("Cache delete: %s", key)
             return True
         return False
 
@@ -126,7 +128,7 @@ class UORObjectCache:
         if self.cache:
             oldest_key = next(iter(self.cache))
             del self.cache[oldest_key]
-            logger.debug(f"Cache evicted: {oldest_key}")
+            logger.debug("Cache evicted: %s", oldest_key)
 
     def cleanup_expired(self) -> int:
         """Remove all expired entries from cache.
@@ -142,7 +144,9 @@ class UORObjectCache:
             del self.cache[key]
 
         if expired_keys:
-            logger.info(f"Cleaned up {len(expired_keys)} expired entries")
+            logger.info(
+                "Cleaned up %s expired entries", len(expired_keys)
+            )
 
         return len(expired_keys)
 

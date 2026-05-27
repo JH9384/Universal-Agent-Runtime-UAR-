@@ -89,7 +89,7 @@ class UORSchemaValidator:
         """
         schema_path = Path(schema_dir)
         if not schema_path.exists():
-            logger.warning(f"Schema directory not found: {schema_dir}")
+            logger.warning("Schema directory not found: %s", schema_dir)
             return
 
         for schema_file in schema_path.glob("*.json"):
@@ -98,9 +98,9 @@ class UORSchemaValidator:
                     schema = json.load(f)
                     schema_name = schema_file.stem
                     self.schemas[schema_name] = schema
-                    logger.info(f"Loaded schema from file: {schema_file}")
-            except Exception as e:
-                logger.error(f"Failed to load schema {schema_file}: {e}")
+                    logger.info("Loaded schema from file: %s", schema_file)
+            except Exception:
+                logger.exception("Failed to load schema %s", schema_file)
 
     def load_uor_foundation_schema(self):
         """Load UOR Foundation schema from remote repository.
@@ -117,8 +117,8 @@ class UORSchemaValidator:
                 self.schemas["uor.foundation.schema"] = schema
                 logger.info("Loaded UOR Foundation schema from remote")
                 return True
-        except Exception as e:
-            logger.warning(f"Failed to load UOR Foundation schema: {e}")
+        except Exception:
+            logger.exception("Failed to load UOR Foundation schema")
             return False
 
     def load_schema(self, schema_name: str, schema: Dict) -> None:
@@ -129,7 +129,7 @@ class UORSchemaValidator:
             schema: JSON Schema dictionary
         """
         self.schemas[schema_name] = schema
-        logger.info(f"Loaded schema: {schema_name}")
+        logger.info("Loaded schema: %s", schema_name)
 
     def validate(
         self, obj: Dict, schema_name: str = "uor.schema.object.v1"

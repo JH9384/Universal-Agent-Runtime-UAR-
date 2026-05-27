@@ -101,8 +101,8 @@ def _solve_equation(expr: str, variable: str = "x") -> Dict[str, Any]:
             "solution_count": len(solutions),
             "variable": variable,
         }
-    except Exception as exc:
-        logger.warning(f"_solve failed: {exc}")
+    except Exception:
+        logger.exception("_solve failed")
         return {"success": False, "error": "Solve failed"}
 
 
@@ -121,8 +121,8 @@ def _differentiate(expr: str, variable: str = "x") -> Dict[str, Any]:
             "derivative_latex": sympy.latex(df),
             "variable": variable,
         }
-    except Exception as exc:
-        logger.warning(f"_differentiate failed: {exc}")
+    except Exception:
+        logger.exception("_differentiate failed")
         return {"success": False, "error": "Differentiation failed"}
 
 
@@ -141,8 +141,8 @@ def _integrate(expr: str, variable: str = "x") -> Dict[str, Any]:
             "integral_latex": sympy.latex(integral),
             "variable": variable,
         }
-    except Exception as exc:
-        logger.warning(f"_integrate failed: {exc}")
+    except Exception:
+        logger.exception("_integrate failed")
         return {"success": False, "error": "Integration failed"}
 
 
@@ -160,8 +160,8 @@ def _simplify(expr: str) -> Dict[str, Any]:
             "simplified": str(simplified),
             "simplified_latex": sympy.latex(simplified),
         }
-    except Exception as exc:
-        logger.warning(f"_simplify failed: {exc}")
+    except Exception:
+        logger.exception("_simplify failed")
         return {"success": False, "error": "Simplification failed"}
 
 
@@ -220,8 +220,8 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
         result = _math_cb.call(
             lambda: _execute_operation(operation, expression, variable)
         )
-    except Exception as exc:
-        logger.warning(f"math_compute failed: {exc}")
+    except Exception:
+        logger.exception("math_compute failed")
         return {
             "status": "failed",
             "error": "Operation failed",

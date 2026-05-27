@@ -108,8 +108,8 @@ def _check_graph_size_limits(root: Path) -> tuple[bool, str]:
             )
 
         return True, ""
-    except Exception as e:
-        logger.warning(f"Failed to check graph size limits: {e}")
+    except Exception:
+        logger.exception("Failed to check graph size limits")
         return True, ""  # Allow continuation if check fails
 
 

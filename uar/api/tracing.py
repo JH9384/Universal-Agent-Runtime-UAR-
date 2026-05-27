@@ -52,15 +52,17 @@ def init_tracing() -> None:
         _tracer = trace.get_tracer(__name__)
 
         logger.info(
-            f"OpenTelemetry tracing initialized for {service_name} -> {otlp_endpoint}"  # noqa: E501
+            "OpenTelemetry tracing initialized for %s -> %s",
+            service_name,
+            otlp_endpoint,
         )
     except ImportError:
         logger.warning(
             "OpenTelemetry packages not installed. Install with: pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp"  # noqa: E501
         )
         _enabled = False
-    except Exception as e:
-        logger.error(f"Failed to initialize OpenTelemetry tracing: {e}")
+    except Exception:
+        logger.exception("Failed to initialize OpenTelemetry tracing")
         _enabled = False
 
 

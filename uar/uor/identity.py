@@ -160,7 +160,7 @@ class UORIdentityVerifier:
         """
         # Placeholder: Future implementation will extract value from digest
         # and apply ring operations to verify identity
-        logger.debug(f"Identity verification for digest: {digest}")
+        logger.debug("Identity verification for digest: %s", digest)
         return True
 
     def compute_ring_value(self, value: int) -> int:

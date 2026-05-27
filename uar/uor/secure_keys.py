@@ -56,7 +56,7 @@ class SecureKeyStore:
         """
         env_key = f"{self.prefix}{key_id.upper()}"
         os.environ[env_key] = key_value
-        logger.info(f"Key stored in environment: {env_key}")
+        logger.info("Key stored in environment: %s", env_key)
 
     def retrieve_key(self, key_id: str) -> Optional[str]:
         """Retrieve a key from environment.
@@ -70,7 +70,7 @@ class SecureKeyStore:
         env_key = f"{self.prefix}{key_id.upper()}"
         value = os.environ.get(env_key)
         if value:
-            logger.debug(f"Retrieved key from environment: {env_key}")
+            logger.debug("Retrieved key from environment: %s", env_key)
         return value
 
     def delete_key(self, key_id: str) -> bool:
@@ -85,7 +85,7 @@ class SecureKeyStore:
         env_key = f"{self.prefix}{key_id.upper()}"
         if env_key in os.environ:
             del os.environ[env_key]
-            logger.info(f"Key deleted from environment: {env_key}")
+            logger.info("Key deleted from environment: %s", env_key)
             return True
         return False
 
@@ -175,7 +175,7 @@ class KeyManager:
                     description=f"RSA {key_size}-bit key pair",
                 )
 
-                logger.info(f"Generated key pair: {key_id}")
+                logger.info("Generated key pair: %s", key_id)
                 return metadata
             else:
                 raise ValueError(f"Unsupported algorithm: {algorithm}")
@@ -208,7 +208,7 @@ class KeyManager:
 
             private_key_pem = self.key_store.retrieve_key(f"{key_id}_private")
             if not private_key_pem:
-                logger.error(f"Private key not found: {key_id}")
+                logger.error("Private key not found: %s", key_id)
                 return None
 
             private_key = load_pem_private_key(
@@ -231,8 +231,8 @@ class KeyManager:
         except ImportError:
             logger.error("cryptography library not available")
             return None
-        except Exception as e:
-            logger.error(f"Signing failed: {e}")
+        except Exception:
+            logger.exception("Signing failed")
             return None
 
     def verify_signature(
@@ -259,7 +259,7 @@ class KeyManager:
 
             public_key_pem = self.key_store.retrieve_key(f"{key_id}_public")
             if not public_key_pem:
-                logger.error(f"Public key not found: {key_id}")
+                logger.error("Public key not found: %s", key_id)
                 return False
 
             public_key = load_pem_public_key(
@@ -286,6 +286,6 @@ class KeyManager:
         except ImportError:
             logger.error("cryptography library not available")
             return False
-        except Exception as e:
-            logger.error(f"Verification failed: {e}")
+        except Exception:
+            logger.exception("Verification failed")
             return False

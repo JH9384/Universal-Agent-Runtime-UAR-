@@ -67,8 +67,8 @@ def _convert_units(value: str, from_unit: str, to_unit: str) -> Dict[str, Any]:
             "converted_unit": to_unit,
             "numerical_value": float(converted.value),
         }
-    except Exception as exc:
-        logger.warning(f"_unit_convert failed: {exc}")
+    except Exception:
+        logger.exception("_unit_convert failed")
         return {"success": False, "error": "Unit conversion failed"}
 
 
@@ -91,8 +91,8 @@ def _calculate_distance(
             "angular_distance_degrees": separation.degree,
             "angular_distance_arcsec": separation.arcsecond,
         }
-    except Exception as exc:
-        logger.warning(f"_calculate_distance failed: {exc}")
+    except Exception:
+        logger.exception("_calculate_distance failed")
         return {"success": False, "error": "Distance calculation failed"}
 
 
@@ -124,8 +124,8 @@ def _transform_coordinate(
             "transformed_ra": str(transformed.ra),
             "transformed_dec": str(transformed.dec),
         }
-    except Exception as exc:
-        logger.warning(f"_transform_coordinate failed: {exc}")
+    except Exception:
+        logger.exception("_transform_coordinate failed")
         return {"success": False, "error": "Coordinate transformation failed"}
 
 
@@ -144,8 +144,8 @@ def _calculate_energy(wavelength: str) -> Dict[str, Any]:
             "energy": str(energy),
             "energy_eV": energy.value,
         }
-    except Exception as exc:
-        logger.warning(f"_calculate_energy failed: {exc}")
+    except Exception:
+        logger.exception("_calculate_energy failed")
         return {"success": False, "error": "Energy calculation failed"}
 
 
@@ -164,8 +164,8 @@ def _calculate_redshift(z: str) -> Dict[str, Any]:
             "luminosity_distance": str(distance),
             "luminosity_distance_Mpc": distance.value,
         }
-    except Exception as exc:
-        logger.warning(f"_calculate_redshift failed: {exc}")
+    except Exception:
+        logger.exception("_calculate_redshift failed")
         return {"success": False, "error": "Redshift calculation failed"}
 
 
@@ -221,8 +221,8 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
                 operation, physics_type, value, from_unit, to_unit
             )
         )
-    except Exception as exc:
-        logger.warning(f"physics_compute failed: {exc}")
+    except Exception:
+        logger.exception("physics_compute failed")
         return {
             "status": "failed",
             "error": "Physics operation failed",
@@ -304,6 +304,6 @@ def _calculate_distance_from_value(value: str) -> Dict[str, Any]:
                 "error": "Format should be: ra1,dec1,ra2,dec2",
             }
         return _calculate_distance(parts[0], parts[1], parts[2], parts[3])
-    except Exception as exc:
-        logger.warning(f"_execute_operation failed: {exc}")
+    except Exception:
+        logger.exception("_execute_operation failed")
         return {"success": False, "error": "Operation failed"}

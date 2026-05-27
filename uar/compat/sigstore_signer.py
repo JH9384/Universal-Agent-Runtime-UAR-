@@ -72,8 +72,8 @@ class SigstoreSigner:
             try:
                 self._issuer = Issuer.production()
                 logger.info("Sigstore initialized with production issuer")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Sigstore: {e}")
+            except Exception:
+                logger.exception("Failed to initialize Sigstore")
                 self.use_cli_fallback = True
 
     def sign_file(
@@ -139,8 +139,8 @@ class SigstoreSigner:
                 log_index=result.log_entry.log_id if result.log_entry else None,
             )
 
-        except Exception as e:
-            logger.error(f"Python API signing failed: {e}")
+        except Exception:
+            logger.exception("Python API signing failed")
             return SigstoreSigningResult(
                 success=False, error="Signing failed"
             )
@@ -223,8 +223,8 @@ class SigstoreSigner:
                     )
                     resp.raise_for_status()
                     return resp.json()["value"]
-            except Exception as e:
-                logger.warning(f"Failed to get GitHub OIDC token: {e}")
+            except Exception:
+                logger.exception("Failed to get GitHub OIDC token")
 
         logger.warning("No CI OIDC token found. Local signing requires manual token.")
         return os.getenv("SIGSTORE_ID_TOKEN")
@@ -244,8 +244,8 @@ class SigstoreVerifier:
         if _HAS_SIGSTORE:
             try:
                 self._verifier = Verifier.production()
-            except Exception as e:
-                logger.warning(f"Failed to initialize Sigstore verifier: {e}")
+            except Exception:
+                logger.exception("Failed to initialize Sigstore verifier")
 
     def verify_bundle(
         self,
@@ -269,8 +269,8 @@ class SigstoreVerifier:
             else:
                 return self._verify_with_cli(artifact_path, bundle_path)
 
-        except Exception as e:
-            logger.warning(f"Verification failed: {e}")
+        except Exception:
+            logger.exception("Verification failed")
             return {"valid": False, "error": "Verification failed"}
 
     def _verify_with_api(
@@ -336,8 +336,8 @@ class SigstoreVerifier:
 
         except FileNotFoundError:
             return {"valid": False, "error": "cosign CLI not found"}
-        except Exception as e:
-            logger.warning(f"CLI verification failed: {e}")
+        except Exception:
+            logger.exception("CLI verification failed")
             return {"valid": False, "error": "Verification failed"}
 
 

@@ -130,9 +130,11 @@ class RDFConverter:
             graph.parse(data=json.dumps(jsonld_data), format="json-ld")
 
             return RDFConversionResult(success=True, data=graph, format="rdf")
-        except Exception as e:
-            logger.error(f"JSON-LD to RDF conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("JSON-LD to RDF conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )
 
     def rdf_to_jsonld(
         self, graph: Graph, context: Optional[Dict[str, Any]] = None
@@ -158,9 +160,11 @@ class RDFConverter:
             return RDFConversionResult(
                 success=True, data=jsonld_data, format="json-ld"
             )
-        except Exception as e:
-            logger.error(f"RDF to JSON-LD conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("RDF to JSON-LD conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )
 
     def rdf_to_turtle(self, graph: Graph) -> RDFConversionResult:
         """Convert RDF graph to Turtle format.
@@ -183,9 +187,11 @@ class RDFConverter:
             return RDFConversionResult(
                 success=True, data=turtle_data, format="turtle"
             )
-        except Exception as e:
-            logger.error(f"RDF to Turtle conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("RDF to Turtle conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )
 
     def turtle_to_rdf(self, turtle_data: str) -> RDFConversionResult:
         """Convert Turtle format to RDF graph.
@@ -207,9 +213,11 @@ class RDFConverter:
             graph.parse(data=turtle_data, format="turtle")
 
             return RDFConversionResult(success=True, data=graph, format="rdf")
-        except Exception as e:
-            logger.error(f"Turtle to RDF conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("Turtle to RDF conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )
 
     def uor_envelope_to_rdf(
         self, envelope: Dict[str, Any], envelope_uri: Optional[str] = None
@@ -257,9 +265,11 @@ class RDFConverter:
                     self._add_property_to_graph(graph, uri, key, value)
 
             return RDFConversionResult(success=True, data=graph, format="rdf")
-        except Exception as e:
-            logger.error(f"UOR envelope to RDF conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("UOR envelope to RDF conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )
 
     def _add_property_to_graph(
         self, graph: Graph, subject: URIRef, key: str, value: Any
@@ -272,7 +282,7 @@ class RDFConverter:
             key: Property key
             value: Property value
         """
-        predicate = self.uor_ns[key]
+        predicate = self.uor_ns[key]  # type: ignore[index]
 
         if isinstance(value, (str, int, float, bool)):
             obj = Literal(value)
@@ -282,8 +292,8 @@ class RDFConverter:
             bnode_obj = BNode()
             graph.add((subject, predicate, bnode_obj))
             for nested_key, nested_value in value.items():
-                self._add_property_to_graph(
-                    graph, bnode_obj, nested_key, nested_value  # type: ignore[arg-type]
+                self._add_property_to_graph(  # type: ignore[arg-type]
+                    graph, bnode_obj, nested_key, nested_value
                 )
 
     def _add_content_to_graph(
@@ -347,12 +357,14 @@ class RDFConverter:
                     elif isinstance(obj, URIRef):
                         envelope[predicate_name] = str(obj)
 
-            return RDFConversionResult(
-                success=True, data=envelope, format="envelope"  # type: ignore[arg-type]
+            return RDFConversionResult(  # type: ignore[arg-type]
+                success=True, data=envelope, format="envelope"
             )
-        except Exception as e:
-            logger.error(f"RDF to UOR envelope conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("RDF to UOR envelope conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )
 
     def _extract_content_from_graph(
         self, graph: Graph, content_uri: Any
@@ -435,9 +447,11 @@ class OWLConverter:
             self._convert_schema_to_owl(graph, schema, self.uor_ns)
 
             return RDFConversionResult(success=True, data=graph, format="owl")
-        except Exception as e:
-            logger.error(f"Schema to OWL conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("Schema to OWL conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )
 
     def _convert_schema_to_owl(
         self, graph: Graph, schema: Dict[str, Any], namespace: Namespace
@@ -500,6 +514,8 @@ class OWLConverter:
             return RDFConversionResult(
                 success=True, data=turtle_data, format="turtle"
             )
-        except Exception as e:
-            logger.error(f"OWL to Turtle conversion failed: {e}")
-            return RDFConversionResult(success=False, error="Conversion failed")
+        except Exception:
+            logger.exception("OWL to Turtle conversion failed")
+            return RDFConversionResult(
+                success=False, error="Conversion failed"
+            )

@@ -105,10 +105,12 @@ class BatchProcessor:
                 digest = future.result()
                 result.results.append({"index": idx, "digest": digest})
                 result.successful += 1
-            except Exception as e:
+            except Exception:
                 result.failed += 1
                 result.errors.append((idx, "Digest computation failed"))
-                logger.error(f"Failed to compute digest for object {idx}: {e}")
+                logger.exception(
+                    "Failed to compute digest for object %s", idx
+                )
 
         return result
 
@@ -172,10 +174,12 @@ class BatchProcessor:
                     result.successful += 1
                 else:
                     result.failed += 1
-            except Exception as e:
+            except Exception:
                 result.failed += 1
                 result.errors.append((idx, "Validation failed"))
-                logger.error(f"Failed to validate object {idx}: {e}")
+                logger.exception(
+                    "Failed to validate object %s", idx
+                )
 
         return result
 
@@ -233,10 +237,12 @@ class BatchProcessor:
                     {"index": idx, "object": transformed}
                 )
                 result.successful += 1
-            except Exception as e:
+            except Exception:
                 result.failed += 1
                 result.errors.append((idx, "Transformation failed"))
-                logger.error(f"Failed to transform object {idx}: {e}")
+                logger.exception(
+                    "Failed to transform object %s", idx
+                )
 
         return result
 
@@ -287,10 +293,12 @@ class BatchProcessor:
                     {"index": idx, "canonical": canonical}
                 )
                 result.successful += 1
-            except Exception as e:
+            except Exception:
                 result.failed += 1
                 result.errors.append((idx, "Canonicalization failed"))
-                logger.error(f"Failed to canonicalize object {idx}: {e}")
+                logger.exception(
+                    "Failed to canonicalize object %s", idx
+                )
 
         return result
 

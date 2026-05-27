@@ -175,9 +175,11 @@ class LlamaIndexRAG:
             self.storage_context = StorageContext.from_defaults(
                 persist_dir=self.storage_dir,
             )
-            logger.info(f"Storage context initialized at {self.storage_dir}")
-        except Exception as e:
-            logger.error(f"Failed to initialize storage: {e}")
+            logger.info(
+                "Storage context initialized at %s", self.storage_dir
+            )
+        except Exception:
+            logger.exception("Failed to initialize storage")
             self.storage_context = None
 
     def load_documents(
@@ -197,10 +199,12 @@ class LlamaIndexRAG:
                 recursive=recursive,
             )
             self.documents = reader.load_data()
-            logger.info(f"Loaded {len(self.documents)} documents")
+            logger.info(
+                "Loaded %s documents", len(self.documents)
+            )
             return self.documents
-        except Exception as e:
-            logger.error(f"Failed to load documents: {e}")
+        except Exception:
+            logger.exception("Failed to load documents")
             return []
 
     def add_documents(self, documents: List[Document]):
@@ -209,7 +213,7 @@ class LlamaIndexRAG:
             return
 
         self.documents.extend(documents)
-        logger.info(f"Added {len(documents)} documents")
+        logger.info("Added %s documents", len(documents))
 
     def create_index(self, documents: Optional[List[Document]] = None):
         """Create a vector index from documents."""
@@ -256,8 +260,8 @@ class LlamaIndexRAG:
 
             logger.info("Index created successfully")
 
-        except Exception as e:
-            logger.error(f"Failed to create index: {e}")
+        except Exception:
+            logger.exception("Failed to create index")
 
     def load_index(self):
         """Load an existing index from storage."""
@@ -270,8 +274,8 @@ class LlamaIndexRAG:
                 persist_dir=self.storage_dir,
             )
             logger.info("Index loaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to load index: {e}")
+        except Exception:
+            logger.exception("Failed to load index")
 
     def create_knowledge_graph_index(
         self, documents: Optional[List[Document]] = None
@@ -290,8 +294,8 @@ class LlamaIndexRAG:
             # like NebulaGraph or Neo4j
             self.kg_index = KGIndex.from_documents(docs)
             logger.info("Knowledge graph index created")
-        except Exception as e:
-            logger.error(f"Failed to create knowledge graph: {e}")
+        except Exception:
+            logger.exception("Failed to create knowledge graph")
 
     def setup_query_engine(self):
         """Setup the query engine with configured strategies."""
@@ -342,8 +346,8 @@ class LlamaIndexRAG:
 
             logger.info("Query engine setup successfully")
 
-        except Exception as e:
-            logger.error(f"Failed to setup query engine: {e}")
+        except Exception:
+            logger.exception("Failed to setup query engine")
 
     def query(
         self,
@@ -408,11 +412,11 @@ class LlamaIndexRAG:
                 latency_ms=latency_ms,
             )
 
-        except Exception as e:
-            logger.error(f"Query failed: {e}")
+        except Exception as exc:
+            logger.exception("Query failed")
             return RAGResult(
                 query=query_text,
-                response=f"Query failed: {e}",
+                response=f"Query failed: {exc}",
                 confidence=0.0,
             )
 
@@ -461,8 +465,8 @@ class LlamaIndexRAG:
                 response=str(response),
                 confidence=0.85,
             )
-        except Exception as e:
-            logger.error(f"Knowledge graph query failed: {e}")
+        except Exception:
+            logger.exception("Knowledge graph query failed")
             return self.query(query_text)
 
     def get_index_stats(self) -> Dict[str, Any]:

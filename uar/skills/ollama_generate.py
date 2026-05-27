@@ -149,8 +149,8 @@ def ollama_generate(ctx):
         )
         response.raise_for_status()
         data = response.json()
-    except Exception as exc:
-        logger.warning(f"ollama_generate request failed: {exc}")
+    except Exception:
+        logger.exception("ollama_generate request failed")
         return {
             "status": "failed",
             "model": model,

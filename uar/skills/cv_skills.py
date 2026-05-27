@@ -83,8 +83,8 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
             "output_path": out_path,
             "output_shape": list(out.shape),
         }
-    except Exception as exc:
-        logger.warning(f"cv_inference failed: {exc}")
+    except Exception:
+        logger.exception("cv_inference failed")
         return {"status": "failed", "error": "Inference failed"}
 
 
@@ -134,6 +134,6 @@ def yolo_detect(ctx: PipelineContext) -> Dict[str, Any]:
             "detections": detections,
             "count": len(detections),
         }
-    except Exception as exc:
-        logger.warning(f"yolo_detect failed: {exc}")
+    except Exception:
+        logger.exception("yolo_detect failed")
         return {"status": "failed", "error": "Detection failed"}

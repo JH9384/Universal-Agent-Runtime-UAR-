@@ -175,15 +175,15 @@ class FlexibleGraphRAG:
         if backend == GraphBackend.NEO4J and NEO4J_AVAILABLE:
             try:
                 self.driver = GraphDatabase.driver(connection_string)
-                logger.info(f"Connected to Neo4j: {connection_string}")
-            except Exception as e:
-                logger.error(f"Failed to connect to Neo4j: {e}")
+                logger.info("Connected to Neo4j")
+            except Exception:
+                logger.exception("Failed to connect to Neo4j")
         elif backend == GraphBackend.MEMGRAPH and MEMGRAPH_AVAILABLE:
             try:
                 self.driver = GraphDatabase.driver(connection_string)
-                logger.info(f"Connected to Memgraph: {connection_string}")
-            except Exception as e:
-                logger.error(f"Failed to connect to Memgraph: {e}")
+                logger.info("Connected to Memgraph")
+            except Exception:
+                logger.exception("Failed to connect to Memgraph")
 
     def close(self):
         """Close database connection."""
@@ -216,7 +216,9 @@ class FlexibleGraphRAG:
         ):
             self._add_entity_to_graph(entity)
 
-        logger.info(f"Added entity: {entity_id} ({entity_type})")
+        logger.info(
+            "Added entity: %s (%s)", entity_id, entity_type
+        )
         return entity
 
     def add_relation(
@@ -249,7 +251,9 @@ class FlexibleGraphRAG:
         ):
             self._add_relation_to_graph(relation)
 
-        logger.info(f"Added relation: {relation_id} ({relation_type})")
+        logger.info(
+            "Added relation: %s (%s)", relation_id, relation_type
+        )
         return relation
 
     def _add_entity_to_graph(self, entity: GraphEntity):
@@ -301,7 +305,9 @@ class FlexibleGraphRAG:
         llm_provider: str = "openai",
     ):
         """Build knowledge graph from documents using LLM."""
-        logger.info(f"Building graph from {len(documents)} documents")
+        logger.info(
+            "Building graph from %s documents", len(documents)
+        )
 
         # This is a simplified version - in production, you'd use an LLM
         # to extract entities and relations from documents

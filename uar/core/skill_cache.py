@@ -106,7 +106,9 @@ class SkillCache:
             # Touch for LRU
             self._order.pop(key, None)
             self._order[key] = None
-            logger.debug(f"Cache hit: {skill_name} ({key[:8]}...)")
+            logger.debug(
+                "Cache hit: %s (%s...)", skill_name, key[:8]
+            )
             return entry["value"]
 
     def set(
@@ -132,7 +134,9 @@ class SkillCache:
             }
             self._order.pop(key, None)
             self._order[key] = None
-            logger.debug(f"Cache set: {skill_name} ({key[:8]}...)")
+            logger.debug(
+                "Cache set: %s (%s...)", skill_name, key[:8]
+            )
 
     def invalidate(
         self, skill_name: Optional[str] = None
@@ -239,9 +243,9 @@ class RedisSkillCache:
             self._r.setex(key, int(ttl_seconds), payload)
             if _bloom_filter:
                 _bloom_filter.add(self._make_key(skill_name, metadata))
-            logger.debug(f"Redis cache set: {skill_name}")
-        except Exception as exc:
-            logger.warning(f"Redis cache set failed: {exc}")
+            logger.debug("Redis cache set: %s", skill_name)
+        except Exception:
+            logger.exception("Redis cache set failed")
 
     def invalidate(self, skill_name: Optional[str] = None) -> int:
         """Remove entries from Redis.

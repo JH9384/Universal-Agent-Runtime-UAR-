@@ -202,13 +202,15 @@ class AgentOrchestrator:
     def register_agent(self, agent: Agent):
         """Register an agent with the orchestrator."""
         self.agents[agent.agent_id] = agent
-        logger.info(f"Registered agent: {agent.agent_id} ({agent.name})")
+        logger.info(
+            "Registered agent: %s (%s)", agent.agent_id, agent.name
+        )
 
     def unregister_agent(self, agent_id: str):
         """Unregister an agent."""
         if agent_id in self.agents:
             del self.agents[agent_id]
-            logger.info(f"Unregistered agent: {agent_id}")
+            logger.info("Unregistered agent: %s", agent_id)
 
     def get_agent(self, agent_id: str) -> Optional[Agent]:
         """Get an agent by ID."""
@@ -239,13 +241,15 @@ class AgentOrchestrator:
     def start_workflow(self, workflow_id: str, agent_ids: List[str]):
         """Start a multi-agent workflow."""
         self.active_workflows[workflow_id] = agent_ids
-        logger.info(f"Started workflow {workflow_id} with agents: {agent_ids}")
+        logger.info(
+            "Started workflow %s with agents: %s", workflow_id, agent_ids
+        )
 
     def end_workflow(self, workflow_id: str):
         """End a workflow."""
         if workflow_id in self.active_workflows:
             del self.active_workflows[workflow_id]
-            logger.info(f"Ended workflow {workflow_id}")
+            logger.info("Ended workflow %s", workflow_id)
 
     def get_workflow_status(self, workflow_id: str) -> Dict[str, Any]:
         """Get status of a workflow."""
@@ -297,8 +301,8 @@ class AutoGenAdapter:
             )
             self.autogen_agents[agent_id] = agent
             return agent
-        except Exception as e:
-            logger.error(f"Failed to create AutoGen agent: {e}")
+        except Exception:
+            logger.exception("Failed to create AutoGen agent")
             return None
 
     def create_user_proxy_agent(
@@ -319,8 +323,8 @@ class AutoGenAdapter:
             )
             self.autogen_agents[agent_id] = agent
             return agent
-        except Exception as e:
-            logger.error(f"Failed to create UserProxy agent: {e}")
+        except Exception:
+            logger.exception("Failed to create UserProxy agent")
             return None
 
     def get_agent(self, agent_id: str) -> Optional[Any]:
@@ -400,7 +404,7 @@ async def execute_agent_workflow(
     for agent_id in agent_sequence:
         agent = orchestrator.get_agent(agent_id)
         if not agent:
-            logger.error(f"Agent not found: {agent_id}")
+            logger.error("Agent not found: %s", agent_id)
             results.append(
                 {
                     "agent_id": agent_id,

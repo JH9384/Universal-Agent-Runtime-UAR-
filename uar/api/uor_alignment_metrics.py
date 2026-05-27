@@ -39,14 +39,15 @@ class UORAlignmentMetrics:
 
         if self._drift_detected:
             logger.warning(
-                f"UOR alignment drift detected: "
-                f"local={local_version}, upstream={upstream_version}"
+                "UOR alignment drift detected: local=%s, upstream=%s",
+                local_version,
+                upstream_version,
             )
 
     def record_validation_failure(self, error: str) -> None:
         """Record a validation failure."""
         self._validation_status = f"error: {error}"
-        logger.error(f"UOR validation failed: {error}")
+        logger.error("UOR validation failed: %s", error)
 
     def get_prometheus_metrics(self) -> str:
         """Export UOR alignment metrics in Prometheus format."""

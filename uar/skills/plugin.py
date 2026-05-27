@@ -65,8 +65,8 @@ def _discover_pypi_plugins() -> List[Any]:
         for ep in group:
             try:
                 modules.append(ep.load())
-            except Exception as exc:
-                logger.warning(f"Failed to load plugin {ep.name}: {exc}")
+            except Exception:
+                logger.exception("Failed to load plugin %s", ep.name)
     except Exception:
         logger.exception("Plugin discovery failed")
     return modules
@@ -83,8 +83,8 @@ def _register_skills_from_module(module: Any) -> int:
             result = module.register_skills(registry)
             if isinstance(result, int):
                 count += result
-        except Exception as exc:
-            logger.warning(f"register_skills() failed in {module}: {exc}")
+        except Exception:
+            logger.exception("register_skills() failed in %s", module)
 
     # Also accept a module-level ``__uar_skills__`` dict:
     #   __uar_skills__ = {"my_skill": my_skill_fn}
@@ -93,8 +93,8 @@ def _register_skills_from_module(module: Any) -> int:
         try:
             registry.register(name, fn)
             count += 1
-        except Exception as exc:
-            logger.warning(f"Failed to register skill {name}: {exc}")
+        except Exception:
+            logger.exception("Failed to register skill %s", name)
 
     return count
 
@@ -124,8 +124,8 @@ def load_plugins(
             count = _register_skills_from_module(mod)
             if count:
                 results[str(path.relative_to(skill_dir))] = count
-        except Exception as exc:
-            logger.warning(f"Failed to load user skill {path}: {exc}")
+        except Exception:
+            logger.exception("Failed to load user skill %s", path)
 
     # 2. PyPI packages
     if pypi:
@@ -135,14 +135,15 @@ def load_plugins(
                 if count:
                     name = getattr(mod, "__name__", str(mod))
                     results[name] = count
-            except Exception as exc:
-                logger.warning(f"Failed to load PyPI plugin {mod}: {exc}")
+            except Exception:
+                logger.exception("Failed to load PyPI plugin %s", mod)
 
     total = sum(results.values())
     if total:
         logger.info(
-            f"Loaded {total} external skill(s) from "
-            f"{len(results)} source(s)"
+            "Loaded %s external skill(s) from %s source(s)",
+            total,
+            len(results),
         )
     return results
 

@@ -109,7 +109,7 @@ def _handle_tools_list() -> List[Dict[str, Any]]:
             fn = registry.get(name)
             tools.append(_build_tool(name, fn))
         except Exception:
-            logger.warning(f"Skipping skill {name}: not callable")
+            logger.warning("Skipping skill %s: not callable", name)
     return tools
 
 
@@ -118,6 +118,7 @@ def _handle_tool_call(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     try:
         fn = registry.get(name)
     except Exception as exc:
+        logger.exception("Skill lookup failed")
         return {
             "content": [{"type": "text", "text": f"Skill error: {exc}"}],
             "isError": True,

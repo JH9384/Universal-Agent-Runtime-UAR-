@@ -102,8 +102,8 @@ def _aes_encrypt(
             "iv": _encode_base64(iv),
             "algorithm": "AES-CBC",
         }
-    except (ValueError, TypeError) as exc:
-        logger.warning(f"AES encrypt failed: {exc}")
+    except (ValueError, TypeError):
+        logger.exception("AES encrypt failed")
         return {"success": False, "error": "Encryption failed"}
 
 
@@ -138,8 +138,8 @@ def _aes_decrypt(
             "decrypted_data": _encode_base64(unpadded),
             "algorithm": "AES-CBC",
         }
-    except (ValueError, TypeError) as exc:
-        logger.warning(f"AES decrypt failed: {exc}")
+    except (ValueError, TypeError):
+        logger.exception("AES decrypt failed")
         return {"success": False, "error": "Decryption failed"}
 
 
@@ -166,8 +166,8 @@ def _hash_data(data: bytes, algorithm: str = "SHA256") -> Dict[str, Any]:
             "hash": _encode_base64(digest),
             "algorithm": algorithm,
         }
-    except (ValueError, TypeError) as exc:
-        logger.warning(f"Hash failed: {exc}")
+    except (ValueError, TypeError):
+        logger.exception("Hash failed")
         return {"success": False, "error": "Hash failed"}
 
 
@@ -184,8 +184,8 @@ def _sign_data(data: bytes, private_key: bytes) -> Dict[str, Any]:
             "signature": _encode_base64(signature),
             "algorithm": "Ed25519",
         }
-    except Exception as exc:
-        logger.warning(f"Sign failed: {exc}")
+    except Exception:
+        logger.exception("Sign failed")
         return {"success": False, "error": "Signing failed"}
 
 
@@ -299,8 +299,8 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
         result = _cipher_cb.call(
             lambda: _execute_operation(operation, algorithm, data, key, iv)
         )
-    except Exception as exc:
-        logger.warning(f"cipher_ops failed: {exc}")
+    except Exception:
+        logger.exception("cipher_ops failed")
         return {
             "status": "failed",
             "error": "Operation failed",

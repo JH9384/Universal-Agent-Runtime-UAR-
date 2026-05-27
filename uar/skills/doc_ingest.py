@@ -453,10 +453,10 @@ def _yield_documents(
 
                     yield doc
 
-                except OSError as e:
+                except OSError:
                     # Handle race conditions where file is deleted
                     # between check and read
-                    logger.warning(f"File access error for {entry}: {e}")
+                    logger.warning("File access error for %s", entry)
                     continue
     else:
         yield {
@@ -529,9 +529,9 @@ def doc_ingest(ctx):
             ],
         }
 
-    except PathSecurityError as e:
-        logger.error(f"Path security error: {e}")
+    except PathSecurityError:
+        logger.exception("Path security error")
         return {"documents": [], "error": "Path security error"}
-    except Exception as e:
-        logger.error(f"Unexpected error in doc_ingest: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Unexpected error in doc_ingest")
         return {"documents": [], "error": "Unexpected error"}

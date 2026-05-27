@@ -26,17 +26,17 @@ def json_load_safely(
         Parsed JSON data or default value
     """
     if not file_path.exists():
-        logger.warning(f"JSON file not found: {file_path}")
+        logger.warning("JSON file not found: %s", file_path)
         return default
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in {file_path}: {e}")
+    except json.JSONDecodeError:
+        logger.exception("Invalid JSON in %s", file_path)
         return default
-    except (OSError, TypeError) as e:
-        logger.error(f"Error reading JSON from {file_path}: {e}")
+    except (OSError, TypeError):
+        logger.exception("Error reading JSON from %s", file_path)
         return default
 
 
@@ -64,11 +64,11 @@ def json_dump_safely(
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, sort_keys=sort_keys, indent=indent)
         return True
-    except TypeError as e:
-        logger.error(f"Data not JSON serializable: {e}")
+    except TypeError:
+        logger.exception("Data not JSON serializable")
         return False
-    except (OSError, TypeError) as e:
-        logger.error(f"Error writing JSON to {file_path}: {e}")
+    except OSError:
+        logger.exception("Error writing JSON to %s", file_path)
         return False
 
 
@@ -87,11 +87,11 @@ def json_loads_safely(
     """
     try:
         return json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON string: {e}")
+    except json.JSONDecodeError:
+        logger.exception("Invalid JSON string")
         return default
-    except (TypeError, ValueError) as e:
-        logger.error(f"Error parsing JSON string: {e}")
+    except (TypeError, ValueError):
+        logger.exception("Error parsing JSON string")
         return default
 
 
@@ -112,11 +112,8 @@ def json_dumps_safely(
     """
     try:
         return json.dumps(data, sort_keys=sort_keys, indent=indent)
-    except TypeError as e:
-        logger.error(f"Data not JSON serializable: {e}")
-        return None
-    except (TypeError, ValueError) as e:
-        logger.error(f"Error serializing to JSON: {e}")
+    except (TypeError, ValueError):
+        logger.exception("Error serializing to JSON")
         return None
 
 
@@ -141,15 +138,17 @@ def validate_json_structure(
     if required_keys:
         for key in required_keys:
             if key not in data:
-                logger.warning(f"Missing required key: {key}")
+                logger.warning("Missing required key: %s", key)
                 return False
 
     if key_types:
         for key, expected_type in key_types.items():
             if key in data and not isinstance(data[key], expected_type):
                 logger.warning(
-                    f"Key '{key}' has wrong type: "
-                    f"expected {expected_type}, got {type(data[key])}"
+                    "Key '%s' has wrong type: expected %s, got %s",
+                    key,
+                    expected_type,
+                    type(data[key]),
                 )
                 return False
 

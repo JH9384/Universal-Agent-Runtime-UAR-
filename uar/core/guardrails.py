@@ -213,7 +213,9 @@ class SharedBlackboard:
                 agent_id=agent_id,
             )
             self.entries[entry_id] = entry
-            logger.info(f"Agent {agent_id} proposed entry {entry_id}")
+            logger.info(
+                "Agent %s proposed entry %s", agent_id, entry_id
+            )
             return entry_id
 
     def validate(
@@ -228,10 +230,14 @@ class SharedBlackboard:
                 return False
             try:
                 is_valid = validator(entry.value)
-                logger.info(f"Entry {entry_id} validation: {is_valid}")
+                logger.info(
+                    "Entry %s validation: %s", entry_id, is_valid
+                )
                 return is_valid
-            except Exception as e:
-                logger.error(f"Validation failed for {entry_id}: {e}")
+            except Exception:
+                logger.exception(
+                    "Validation failed for %s", entry_id
+                )
                 return False
 
     def commit(
@@ -246,13 +252,16 @@ class SharedBlackboard:
                 return False
             if entry.agent_id != agent_id:
                 logger.warning(
-                    f"Agent {agent_id} cannot commit entry from "
-                    f"{entry.agent_id}"
+                    "Agent %s cannot commit entry from %s",
+                    agent_id,
+                    entry.agent_id,
                 )
                 return False
 
             # Entry is already in the blackboard, mark as committed
-            logger.info(f"Agent {agent_id} committed entry {entry_id}")
+            logger.info(
+                "Agent %s committed entry %s", agent_id, entry_id
+            )
             return True
 
     def get(self, key: str) -> Optional[Any]:
@@ -329,8 +338,8 @@ class GuardrailChecker:
                 if violation:
                     violation.agent_id = agent_id
                     violations.append(violation)
-            except Exception as e:
-                logger.error(f"Guardrail checker failed: {e}")
+            except Exception:
+                logger.exception("Guardrail checker failed")
 
         with self.lock:
             self.violations.extend(violations)
@@ -401,7 +410,7 @@ class GovernanceSystem:
             max_duration_seconds=max_duration_seconds,
         )
         self.budgets[agent_id] = budget
-        logger.info(f"Created budget for agent {agent_id}")
+        logger.info("Created budget for agent %s", agent_id)
         return budget
 
     def get_budget(self, agent_id: str) -> Optional[Budget]:
@@ -444,7 +453,7 @@ class GovernanceSystem:
     ):
         """Register a governance policy."""
         self.policies[policy_name] = policy
-        logger.info(f"Registered policy: {policy_name}")
+        logger.info("Registered policy: %s", policy_name)
 
     def check_policy(
         self,
@@ -457,8 +466,8 @@ class GovernanceSystem:
             return True  # No policy means allowed
         try:
             return policy(context)
-        except Exception as e:
-            logger.error(f"Policy check failed for {policy_name}: {e}")
+        except Exception:
+            logger.exception("Policy check failed for %s", policy_name)
             return False
 
     def get_system_status(self) -> Dict[str, Any]:

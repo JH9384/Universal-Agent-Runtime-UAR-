@@ -76,8 +76,10 @@ def _resolve_input_path(ctx) -> Path | None:
         try:
             validate_path_security(p, ALLOWED_ROOT)
             return p if p.exists() else None
-        except Exception as e:
-            logger.warning(f"Path security validation failed for {raw}: {e}")
+        except Exception:
+            logger.warning(
+                "Path security validation failed for %s", raw
+            )
             return None
 
     data = getattr(ctx, "data", None) or {}

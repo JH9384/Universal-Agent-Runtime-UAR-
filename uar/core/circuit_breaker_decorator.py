@@ -99,7 +99,7 @@ def reset_circuit_breaker(service_name: str) -> None:
     """
     if service_name in _circuit_breakers:
         _circuit_breakers[service_name].reset()
-        logger.info(f"Reset circuit breaker for {service_name}")
+        logger.info("Reset circuit breaker for %s", service_name)
 
 
 def get_circuit_breaker_states() -> dict[str, str]:

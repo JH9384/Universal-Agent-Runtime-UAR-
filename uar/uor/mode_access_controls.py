@@ -133,7 +133,7 @@ class ModeAccessController:
         rule = self.rules.get(obj.mode)
 
         if not rule:
-            logger.warning(f"No access rule for mode: {obj.mode}")
+            logger.warning("No access rule for mode: %s", obj.mode)
             return AccessDecision(
                 allowed=False,
                 action=action,
@@ -192,7 +192,7 @@ class ModeAccessController:
             allowed_actions=allowed,
             denied_actions=denied,
         )
-        logger.info(f"Added custom rule for mode: {mode}")
+        logger.info("Added custom rule for mode: %s", mode)
 
     def get_rule(self, mode: str) -> Optional[AccessRule]:
         """Get access rule for a mode.
@@ -269,7 +269,9 @@ class RoleBasedAccessController:
             permissions: Set of allowed actions
         """
         self.role_permissions[role] = permissions
-        logger.info(f"Added role: {role} with permissions: {permissions}")
+        logger.info(
+            "Added role: %s with permissions: %s", role, permissions
+        )
 
     def get_role_permissions(self, role: str) -> Set[AccessAction]:
         """Get permissions for a role.

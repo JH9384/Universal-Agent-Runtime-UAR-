@@ -121,8 +121,8 @@ def _plot_function(
             )
             label = expr.replace("**", "^")
             ax.plot(x, y, color=colors[idx], linewidth=2, label=label)
-        except Exception as exc:
-            logger.warning(f"Failed to evaluate expression '{expr}': {exc}")
+        except Exception:
+            logger.exception("Failed to evaluate expression")
             ax.text(
                 0.5, 0.5 - idx * 0.1, f"Error: {expr}",
                 transform=ax.transAxes, color="red",
@@ -189,7 +189,7 @@ def _plot_parametric(
         y = safe_eval(y_expr, safe_dict)
         ax.plot(x, y, color="#3b82f6", linewidth=2)
     except Exception as exc:
-        logger.warning(f"Parametric plot failed: {exc}")
+        logger.exception("Parametric plot failed")
         ax.text(0.5, 0.5, f"Error: {exc}", transform=ax.transAxes, color="red")
 
     if grid:
@@ -245,7 +245,7 @@ def _plot_polar(
         r = safe_eval(r_expr, safe_dict)
         ax.plot(theta, r, color="#10b981", linewidth=2)
     except Exception as exc:
-        logger.warning(f"Polar plot failed: {exc}")
+        logger.exception("Polar plot failed")
         ax.text(0.5, 0.5, f"Error: {exc}", transform=ax.transAxes, color="red")
 
     if grid:
@@ -408,8 +408,8 @@ def math_plot(ctx: PipelineContext) -> Dict[str, Any]:
         result["status"] = "completed" if result.get("success") else "failed"
         return result
 
-    except Exception as exc:
-        logger.warning(f"math_plot failed: {exc}")
+    except Exception:
+        logger.exception("math_plot failed")
         return {
             "status": "failed",
             "error": "Plot generation failed",

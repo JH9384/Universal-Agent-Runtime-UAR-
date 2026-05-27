@@ -116,7 +116,9 @@ class ActuarialCollector:
         )
 
         self._store_metrics(metrics)
-        logger.debug(f"Ingested actuarial metrics for run {metrics.run_id}")
+        logger.debug(
+            "Ingested actuarial metrics for run %s", metrics.run_id
+        )
 
     def _categorize_goal(self, goal: str) -> str:
         """Categorize goal text for risk analysis."""
@@ -263,7 +265,9 @@ class ActuarialCollector:
             }
 
             output_path.write_text(json.dumps(dataset, indent=2))
-            logger.info(f"Exported {len(rows)} records to {output_path}")
+            logger.info(
+                "Exported %s records to %s", len(rows), output_path
+            )
         finally:
             conn.close()
 

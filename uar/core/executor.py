@@ -1795,8 +1795,8 @@ class Executor:
                     skill=skill_name,
                     payload={"result": summary},
                 )
-            except Exception as e:
-                logger.warning(f"Review {skill_name} failed: {e}")
+            except Exception:
+                logger.exception("Review %s failed", skill_name)
                 get_metrics_collector().record_skill(
                     skill_name, time.time() - _s0, error=True
                 )

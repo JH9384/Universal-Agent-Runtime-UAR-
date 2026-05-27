@@ -72,8 +72,8 @@ def optuna_tune(ctx: PipelineContext) -> Dict[str, Any]:
             "n_trials": n_trials,
             "direction": direction,
         }
-    except Exception as exc:
-        logger.warning(f"detect_trend failed: {exc}")
+    except Exception:
+        logger.exception("detect_trend failed")
         return {"status": "failed", "error": "Trend detection failed"}
 
 

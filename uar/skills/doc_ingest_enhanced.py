@@ -211,12 +211,16 @@ def _extract_with_unstructured(
             elements.append(doc_el)
 
         logger.info(
-            f"Extracted {len(elements)} elements from {file_path} using Unstructured"  # noqa: E501
+            "Extracted %s elements from %s using Unstructured",
+            len(elements),
+            file_path,
         )
         return elements
 
-    except Exception as e:
-        logger.error(f"Unstructured extraction failed for {file_path}: {e}")
+    except Exception:
+        logger.exception(
+            "Unstructured extraction failed for %s", file_path
+        )
         raise
 
 
@@ -258,12 +262,14 @@ def _extract_with_docling(file_path: Path, **kwargs) -> List[DocumentElement]:
                 elements.append(doc_el)
 
         logger.info(
-            f"Extracted {len(elements)} elements from {file_path} using Docling"  # noqa: E501
+            "Extracted %s elements from %s using Docling",
+            len(elements),
+            file_path,
         )
         return elements
 
-    except Exception as e:
-        logger.error(f"Docling extraction failed for {file_path}: {e}")
+    except Exception:
+        logger.exception("Docling extraction failed for %s", file_path)
         raise
 
 
@@ -287,8 +293,8 @@ def _extract_with_fallback(file_path: Path) -> List[DocumentElement]:
                 metadata={"source": "fallback"},
             )
         ]
-    except Exception as e:
-        logger.error(f"Fallback extraction failed for {file_path}: {e}")
+    except Exception:
+        logger.exception("Fallback extraction failed for %s", file_path)
         raise
 
 
@@ -409,10 +415,10 @@ def _read_file_enhanced(
                     "type": suffix.lstrip("."),
                     "warning": "Advanced extraction failed, used fallback",
                 }
-            except Exception as fallback_error:
-                logger.error(
-                    f"Both advanced and fallback extraction failed for "
-                    f"{file_path}: {e}, {fallback_error}"
+            except Exception:
+                logger.exception(
+                    "Both advanced and fallback extraction failed for %s",
+                    file_path,
                 )
                 return {
                     "path": str(file_path.relative_to(allowed_root)),
@@ -421,8 +427,8 @@ def _read_file_enhanced(
                     "error": "Extraction failed",
                 }
 
-    except PathSecurityError as e:
-        logger.warning(f"Path security error: {e}")
+    except PathSecurityError:
+        logger.warning("Path security error")
         return {
             "path": str(file_path.relative_to(allowed_root))
             if file_path.is_relative_to(allowed_root)
@@ -431,8 +437,8 @@ def _read_file_enhanced(
             "size": 0,
             "error": "Path security error",
         }
-    except Exception as e:
-        logger.error(f"Unexpected error reading {file_path}: {e}")
+    except Exception:
+        logger.exception("Unexpected error reading %s", file_path)
         return {
             "path": str(file_path.relative_to(allowed_root))
             if file_path.is_relative_to(allowed_root)
@@ -517,8 +523,8 @@ def _yield_documents_enhanced(
 
                     yield doc
 
-                except OSError as e:
-                    logger.warning(f"File access error for {entry}: {e}")
+                except OSError:
+                    logger.warning("File access error for %s", entry)
                     continue
     else:
         yield {
@@ -558,7 +564,7 @@ def doc_ingest_enhanced(ctx):
         strategy = ProcessingStrategy(strategy_str)
     except ValueError:
         strategy = ProcessingStrategy.AUTO
-        logger.warning(f"Invalid strategy {strategy_str}, using AUTO")
+        logger.warning("Invalid strategy %s, using AUTO", strategy_str)
 
     try:
         path = Path(input_path).resolve()
@@ -613,11 +619,9 @@ def doc_ingest_enhanced(ctx):
             ],
         }
 
-    except PathSecurityError as e:
-        logger.error(f"Path security error: {e}")
+    except PathSecurityError:
+        logger.exception("Path security error")
         return {"documents": [], "error": "Path security error"}
-    except Exception as e:
-        logger.error(
-            f"Unexpected error in doc_ingest_enhanced: {e}", exc_info=True
-        )
+    except Exception:
+        logger.exception("Unexpected error in doc_ingest_enhanced")
         return {"documents": [], "error": "Unexpected error"}

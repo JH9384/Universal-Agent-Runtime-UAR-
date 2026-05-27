@@ -80,8 +80,8 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "status_code": result.get("status"),
         }
 
-    except Exception as e:
-        logger.error(f"Agent workflow failed: {e}")
+    except Exception:
+        logger.exception("Agent workflow failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -155,8 +155,8 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "task_description": task_description,
         }
 
-    except Exception as e:
-        logger.error(f"CrewAI task failed: {e}")
+    except Exception:
+        logger.exception("CrewAI task failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -204,8 +204,8 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "results": result.get("results", []),
         }
 
-    except Exception as e:
-        logger.error(f"CrewAI workflow failed: {e}")
+    except Exception:
+        logger.exception("CrewAI workflow failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -291,12 +291,14 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "status": "success",
             "query": query,
             "response": result.response,
-            "sources": [node.to_dict() for node in result.sources],  # type: ignore[attr-defined]
+            "sources": [
+                node.to_dict() for node in result.sources
+            ],  # type: ignore[attr-defined]
             "metadata": result.metadata,
         }
 
-    except Exception as e:
-        logger.error(f"LlamaIndex RAG failed: {e}")
+    except Exception:
+        logger.exception("LlamaIndex RAG failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -351,12 +353,14 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "status": "success",
             "query": query,
             "response": result.response,
-            "sources": [node.to_dict() for node in result.sources],  # type: ignore[attr-defined]
+            "sources": [
+                node.to_dict() for node in result.sources
+            ],  # type: ignore[attr-defined]
             "metadata": result.metadata,
         }
 
-    except Exception as e:
-        logger.error(f"LlamaIndex query failed: {e}")
+    except Exception:
+        logger.exception("LlamaIndex query failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -409,8 +413,8 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "metadata": execution.metadata,
         }
 
-    except Exception as e:
-        logger.error(f"Dagster pipeline failed: {e}")
+    except Exception:
+        logger.exception("Dagster pipeline failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -440,8 +444,8 @@ def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "orchestrator_status": status,
         }
 
-    except Exception as e:
-        logger.error(f"Dagster status check failed: {e}")
+    except Exception:
+        logger.exception("Dagster status check failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -509,8 +513,8 @@ def guardrail_check(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "passed": len(violations) == 0,
         }
 
-    except Exception as e:
-        logger.error(f"Guardrail check failed: {e}")
+    except Exception:
+        logger.exception("Guardrail check failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -555,8 +559,8 @@ def budget_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "budget": budget.to_dict(),
         }
 
-    except Exception as e:
-        logger.error(f"Budget status check failed: {e}")
+    except Exception:
+        logger.exception("Budget status check failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -586,8 +590,8 @@ def blackboard_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "blackboard_status": status,
         }
 
-    except Exception as e:
-        logger.error(f"Blackboard status check failed: {e}")
+    except Exception:
+        logger.exception("Blackboard status check failed")
         return {
             "status": "error",
             "error": "Internal error",
@@ -673,8 +677,8 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
             "result_count": result["result_count"],
         }
 
-    except Exception as e:
-        logger.error(f"Flexible GraphRAG failed: {e}")
+    except Exception:
+        logger.exception("Flexible GraphRAG failed")
         return {
             "status": "error",
             "error": "Internal error",

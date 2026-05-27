@@ -925,7 +925,7 @@ async def run_goal(
             return result
 
         except ValidationError as e:
-            logger.warning(f"[{request_id}] Validation error: {str(e)}")
+            logger.warning("[%s] Validation error: %s", request_id, e)
             # Provide user-friendly error messages based on field
             if e.field == "goal":
                 user_message = (
@@ -969,7 +969,7 @@ async def run_goal(
                 },
             )
         except UARError as e:
-            logger.error(f"[{request_id}] UAR error: {str(e)}")
+            logger.error("[%s] UAR error: %s", request_id, e)
             # Provide more context for UARError types
             error_type = type(e).__name__
             suggestion = "Please check your request and try again."
@@ -1277,7 +1277,9 @@ async def stream_goal_ws(
 
         # Log request (request_id generated at line 556)
         user_str = user_info["user"] if user_info else "anonymous"
-        logger.info(f"[{request_id}] WebSocket request from {user_str}")
+        logger.info(
+            "[%s] WebSocket request from %s", request_id, user_str
+        )
 
         try:
             goal = _build_goal(req)
@@ -1350,10 +1352,10 @@ async def stream_goal_ws(
             )
 
     except WebSocketDisconnect:
-        logger.info(f"[{request_id}] WebSocket disconnected")
-    except Exception as e:
-        logger.error(
-            f"[{request_id}] WebSocket connection error: {str(e)}",
+        logger.info("[%s] WebSocket disconnected", request_id)
+    except Exception:
+        logger.exception(
+            "[%s] WebSocket connection error", request_id,
             extra={
                 "request_id": request_id,
                 "client_host": (
@@ -1643,7 +1645,7 @@ async def stream_goal(
             )
 
         except ValidationError as e:
-            logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
+            logger.warning("[%s] Stream validation error: %s", request_id, e)
             # Provide user-friendly error messages based on field
             if e.field == "goal":
                 user_message = (
@@ -1687,7 +1689,7 @@ async def stream_goal(
                 },
             )
         except UARError as e:
-            logger.error(f"[{request_id}] Stream UAR error: {str(e)}")
+            logger.error("[%s] Stream UAR error: %s", request_id, e)
             # Provide more context for UARError types
             error_type = type(e).__name__
             suggestion = "Please check your request and try again."
@@ -1957,8 +1959,8 @@ async def websocket_run(websocket: WebSocket):
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
-    except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}", exc_info=True)
+    except Exception:
+        logger.exception("WebSocket error")
         if websocket.client_state == WebSocketState.CONNECTED:
             try:
                 safe_error = "Internal server error"
@@ -2463,13 +2465,17 @@ def _cleanup_orphaned_temp_files(library) -> int:
             if file_age > max_age_seconds:
                 tmp_file.unlink()
                 cleaned += 1
-                logger.info(f"Cleaned up orphaned temp file: {tmp_file.name}")
+                logger.info(
+                    "Cleaned up orphaned temp file: %s", tmp_file.name
+                )
         except (OSError, PermissionError):
             # Skip files that can't be accessed
             pass
 
     if cleaned > 0:
-        logger.info(f"Cleaned up {cleaned} orphaned temp file(s)")
+        logger.info(
+            "Cleaned up %s orphaned temp file(s)", cleaned
+        )
     return cleaned
 
 
@@ -2701,7 +2707,9 @@ async def docs_upload(
                         break
                     out.write(chunk)
         except Exception:
-            logger.exception(f"[{request_id}] upload failed for {safe_name}")
+            logger.exception(
+                "[%s] upload failed for %s", request_id, safe_name
+            )
             for p in (temp_dest, dest):
                 try:
                     p.unlink()
@@ -2955,7 +2963,7 @@ async def docs_browse(
             },
         )
     except Exception:
-        logger.exception(f"[{request_id}] docs_browse failed")
+        logger.exception("[%s] docs_browse failed", request_id)
         return JSONResponse(
             status_code=500,
             content={
@@ -3133,7 +3141,7 @@ async def docs_create_folder(
         )
     except Exception:
         logger.exception(
-            f"[{request_id}] docs_create_folder failed"
+            "[%s] docs_create_folder failed", request_id
         )
         return JSONResponse(
             status_code=500,
@@ -3190,8 +3198,8 @@ async def query_code(
                 "Run: pip install 'universal-agent-runtime[greptile]'",
             },
         )
-    except Exception as e:
-        logger.error(f"Greptile query failed: {e}")
+    except Exception:
+        logger.exception("Greptile query failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail={

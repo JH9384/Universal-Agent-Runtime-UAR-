@@ -149,15 +149,15 @@ class AtomicLanguageModelSkill:
                 )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error calling ALM service: {e}")
+        except httpx.HTTPError:
+            logger.exception("HTTP error calling ALM service")
             return {
                 "status": "error",
                 "error": "ALM request failed",
                 "details": "Failed to connect to ALM service",
             }
-        except Exception as e:
-            logger.error(f"Unexpected error calling ALM service: {e}")
+        except Exception:
+            logger.exception("Unexpected error calling ALM service")
             return {
                 "status": "error",
                 "error": "ALM request failed",
@@ -212,11 +212,11 @@ class AtomicLanguageModelSkill:
                 return result
             else:
                 return [f"token_{i}" for i in range(count)]
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error calling ALM service: {e}")
+        except httpx.HTTPError:
+            logger.exception("HTTP error calling ALM service")
             return [f"token_{i}" for i in range(count)]
-        except Exception as e:
-            logger.error(f"Unexpected error calling ALM service: {e}")
+        except Exception:
+            logger.exception("Unexpected error calling ALM service")
             return [f"token_{i}" for i in range(count)]
 
     def verify_syntax(self, text: str) -> Dict[str, Any]:
@@ -280,15 +280,15 @@ class AtomicLanguageModelSkill:
                 }
             else:
                 return {"valid": True, "result": result}
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error calling ALM service: {e}")
+        except httpx.HTTPError:
+            logger.exception("HTTP error calling ALM service")
             return {
                 "valid": False,
                 "error": "ALM validation failed",
                 "details": "Failed to connect to ALM service",
             }
-        except Exception as e:
-            logger.error(f"Unexpected error calling ALM service: {e}")
+        except Exception:
+            logger.exception("Unexpected error calling ALM service")
             return {
                 "valid": False,
                 "error": "ALM validation failed",
@@ -305,7 +305,9 @@ class AtomicLanguageModelSkill:
         :param prefix: The text prefix to predict from.
         :return: A dictionary with prediction results.
         """
-        logger.info(f"Calling ALM /predict with prefix: '{prefix[:50]}...'")
+        logger.info(
+            "Calling ALM /predict with prefix: '%s...'", prefix[:50]
+        )
         if self.client is None:
             logger.warning("httpx not available - using mock response")
             return {"prediction": "token_mock", "probability": 0.5}
@@ -317,11 +319,11 @@ class AtomicLanguageModelSkill:
             )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error calling ALM /predict: {e}")
+        except httpx.HTTPError:
+            logger.exception("HTTP error calling ALM /predict")
             return {"error": "ALM request failed", "prediction": None}
-        except Exception as e:
-            logger.error(f"Unexpected error calling ALM /predict: {e}")
+        except Exception:
+            logger.exception("Unexpected error calling ALM /predict")
             return {"error": "ALM request failed", "prediction": None}
 
     def validate_sentences(self, sentences: List[str]) -> Dict[str, Any]:
@@ -333,7 +335,9 @@ class AtomicLanguageModelSkill:
         :param sentences: List of sentences to validate.
         :return: A dictionary with validation results for each sentence.
         """
-        logger.info(f"Calling ALM /validate with {len(sentences)} sentences")
+        logger.info(
+            "Calling ALM /validate with %s sentences", len(sentences)
+        )
         if self.client is None:
             logger.warning("httpx not available - using mock response")
             return {
@@ -347,11 +351,11 @@ class AtomicLanguageModelSkill:
             )
             response.raise_for_status()
             return response.json()
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error calling ALM /validate: {e}")
+        except httpx.HTTPError:
+            logger.exception("HTTP error calling ALM /validate")
             return {"error": "ALM request failed", "results": []}
-        except Exception as e:
-            logger.error(f"Unexpected error calling ALM /validate: {e}")
+        except Exception:
+            logger.exception("Unexpected error calling ALM /validate")
             return {"error": "ALM request failed", "results": []}
 
     def generate_sentences(self, count: int = 5) -> List[str]:
@@ -363,7 +367,7 @@ class AtomicLanguageModelSkill:
         :param count: Number of sentences to generate.
         :return: A list of generated sentences.
         """
-        logger.info(f"Calling ALM /generate with count: {count}")
+        logger.info("Calling ALM /generate with count: %s", count)
         if self.client is None:
             logger.warning("httpx not available - using mock response")
             return [f"sentence_{i}" for i in range(count)]
@@ -381,11 +385,11 @@ class AtomicLanguageModelSkill:
                 return result
             else:
                 return [f"sentence_{i}" for i in range(count)]
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error calling ALM /generate: {e}")
+        except httpx.HTTPError:
+            logger.exception("HTTP error calling ALM /generate")
             return [f"sentence_{i}" for i in range(count)]
-        except Exception as e:
-            logger.error(f"Unexpected error calling ALM /generate: {e}")
+        except Exception:
+            logger.exception("Unexpected error calling ALM /generate")
             return [f"sentence_{i}" for i in range(count)]
 
 

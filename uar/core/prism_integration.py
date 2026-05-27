@@ -136,7 +136,7 @@ class PrismIntegrator:
     def refract_data(self, prism_id: str, data: Any) -> List[UORObject]:
         """Refract data through a prism."""
         if prism_id not in self.prisms:
-            logger.warning(f"Prism {prism_id} not found")
+            logger.warning("Prism %s not found", prism_id)
             return []
 
         prism = self.prisms[prism_id]

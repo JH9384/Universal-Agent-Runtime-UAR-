@@ -158,8 +158,8 @@ class PostgresRunStore:
                 cur.fetchone()
             self._release_conn(conn)
             return True
-        except Exception as e:
-            logger.error(f"Postgres health check failed: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Postgres health check failed")
             return False
 
     async def _connect_async(self):

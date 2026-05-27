@@ -226,7 +226,10 @@ class UORGraphMapper:
                     properties=relation.properties,
                 )
 
-        logger.info(f"Integrated {len(envelopes)} UOR objects with GraphRAG")
+        logger.info(
+            "Integrated %s UOR objects with GraphRAG",
+            len(envelopes),
+        )
         return self.graphrag
 
     def query_with_graphrag(

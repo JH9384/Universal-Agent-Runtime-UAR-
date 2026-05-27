@@ -114,12 +114,16 @@ class RoleBasedAgent(Agent):
         task.agent_id = self.agent_id
         task.status = "assigned"
         self.assigned_tasks.append(task)
-        logger.info(f"Task {task.id} assigned to agent {self.agent_id}")
+        logger.info(
+            "Task %s assigned to agent %s", task.id, self.agent_id
+        )
 
     async def execute_task(self, task: AgentTask) -> AgentTask:
         """Execute a task and return the result."""
         task.status = "in_progress"
-        logger.info(f"Agent {self.agent_id} executing task {task.id}")
+        logger.info(
+            "Agent %s executing task %s", self.agent_id, task.id
+        )
 
         try:
             # Execute the task based on the agent's capabilities
@@ -131,12 +135,16 @@ class RoleBasedAgent(Agent):
             self.assigned_tasks.remove(task)
             self.completed_tasks.append(task)
 
-            logger.info(f"Task {task.id} completed by agent {self.agent_id}")
+            logger.info(
+                "Task %s completed by agent %s",
+                task.id,
+                self.agent_id,
+            )
 
-        except Exception as e:
+        except Exception:
             task.status = "failed"
             task.result = {"error": "Task failed"}
-            logger.error(f"Task {task.id} failed: {e}")
+            logger.exception("Task %s failed", task.id)
 
         return task
 
@@ -177,14 +185,16 @@ class TaskOrchestrator:
         """Register a role-based agent."""
         self.agents[agent.agent_id] = agent
         logger.info(
-            f"Registered agent: {agent.agent_id} with role {agent.role.value}"
+            "Registered agent: %s with role %s",
+            agent.agent_id,
+            agent.role.value,
         )
 
     def unregister_agent(self, agent_id: str):
         """Unregister an agent."""
         if agent_id in self.agents:
             del self.agents[agent_id]
-            logger.info(f"Unregistered agent: {agent_id}")
+            logger.info("Unregistered agent: %s", agent_id)
 
     def create_task(
         self,
@@ -221,7 +231,10 @@ class TaskOrchestrator:
             if agent.role == role and agent.active:
                 agent.assign_task(task)
                 logger.info(
-                    f"Task {task_id} assigned to {agent.agent_id} (role: {role.value})"  # noqa: E501
+                    "Task %s assigned to %s (role: %s)",
+                    task_id,
+                    agent.agent_id,
+                    role.value,
                 )
                 return
 
@@ -238,7 +251,9 @@ class TaskOrchestrator:
             raise ValueError(f"Agent not found: {agent_id}")
 
         agent.assign_task(task)
-        logger.info(f"Task {task_id} assigned to agent {agent_id}")
+        logger.info(
+            "Task %s assigned to agent %s", task_id, agent_id
+        )
 
     async def execute_task(self, task_id: str) -> AgentTask:
         """Execute a specific task."""

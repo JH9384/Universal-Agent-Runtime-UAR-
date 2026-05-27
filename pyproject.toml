@@ -186,6 +186,14 @@ module = [
     "unstructured",
     "docling",
     "optuna",
+    "matplotlib",
+    "matplotlib.pyplot",
+    "matplotlib.backends.backend_agg",
+    "opentelemetry",
+    "opentelemetry.sdk.trace",
+    "opentelemetry.sdk.trace.export",
+    "opentelemetry.exporter.otlp.proto.grpc.trace_exporter",
+    "opentelemetry.sdk.resources",
 ]
 ignore_missing_imports = true
 

@@ -665,7 +665,7 @@ def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
             },
         )
 
-    logger.info(f"Authenticated user: {user_info['user']}")
+    logger.info("Authenticated user: %s", user_info["user"])
     return user_info
 
 

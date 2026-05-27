@@ -24,9 +24,9 @@ async def get_orchestrator_status() -> Dict[str, Any]:
         from uar.core.agent_framework import get_orchestrator
 
         orchestrator = get_orchestrator()
-        return orchestrator.get_status()  # type: ignore[attr-defined,return-value]
-    except Exception as e:
-        logger.error(f"Failed to get orchestrator status: {e}")
+        return orchestrator.get_status()  # type: ignore
+    except Exception:
+        logger.exception("Failed to get orchestrator status")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -38,8 +38,8 @@ async def get_governance_status() -> Dict[str, Any]:
 
         governance = get_governance_system()
         return governance.get_system_status()
-    except Exception as e:
-        logger.error(f"Failed to get governance status: {e}")
+    except Exception:
+        logger.exception("Failed to get governance status")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -64,8 +64,8 @@ async def create_agent_budget(
             max_duration_seconds=max_duration_seconds,
         )
         return budget.to_dict()
-    except Exception as e:
-        logger.error(f"Failed to create budget: {e}")
+    except Exception:
+        logger.exception("Failed to create budget")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -82,8 +82,8 @@ async def get_agent_budget(agent_id: str) -> Dict[str, Any]:
         return budget.to_dict()
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to get budget: {e}")
+    except Exception:
+        logger.exception("Failed to get budget")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -118,8 +118,8 @@ async def get_violations(
             "violations": [v.to_dict() for v in violations],
             "count": len(violations),
         }
-    except Exception as e:
-        logger.error(f"Failed to get violations: {e}")
+    except Exception:
+        logger.exception("Failed to get violations")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -131,8 +131,8 @@ async def get_dagster_status() -> Dict[str, Any]:
 
         orchestrator = get_orchestrator()
         return orchestrator.get_orchestrator_status()
-    except Exception as e:
-        logger.error(f"Failed to get Dagster status: {e}")
+    except Exception:
+        logger.exception("Failed to get Dagster status")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -151,8 +151,8 @@ async def execute_dagster_pipeline(
             context=context or {},
         )
         return execution.to_dict()
-    except Exception as e:
-        logger.error(f"Failed to execute pipeline: {e}")
+    except Exception:
+        logger.exception("Failed to execute pipeline")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -164,8 +164,8 @@ async def get_graphrag_status() -> Dict[str, Any]:
 
         graphrag = get_graphrag_instance()
         return graphrag.get_graph_stats()
-    except Exception as e:
-        logger.error(f"Failed to get GraphRAG status: {e}")
+    except Exception:
+        logger.exception("Failed to get GraphRAG status")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -195,8 +195,8 @@ async def query_graphrag(
 
         result = graphrag.query_graph(query, strategy_enum, top_k)
         return result
-    except Exception as e:
-        logger.error(f"Failed to query graph: {e}")
+    except Exception:
+        logger.exception("Failed to query graph")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -208,8 +208,8 @@ async def get_crewai_status() -> Dict[str, Any]:
 
         orchestrator = get_task_orchestrator()
         return orchestrator.get_orchestrator_status()
-    except Exception as e:
-        logger.error(f"Failed to get CrewAI status: {e}")
+    except Exception:
+        logger.exception("Failed to get CrewAI status")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -256,8 +256,8 @@ async def create_crewai_agent(
             "name": agent.name,
             "description": agent.description,
         }
-    except Exception as e:
-        logger.error(f"Failed to create agent: {e}")
+    except Exception:
+        logger.exception("Failed to create agent")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -275,6 +275,6 @@ async def execute_crewai_workflow(
             input_data=input_data,
         )
         return result  # type: ignore[return-value]
-    except Exception as e:
-        logger.error(f"Failed to execute workflow: {e}")
+    except Exception:
+        logger.exception("Failed to execute workflow")
         raise HTTPException(status_code=500, detail="Internal server error")

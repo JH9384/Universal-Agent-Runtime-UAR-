@@ -107,7 +107,7 @@ class RateLimiter:
         with self.lock:
             if identifier in self.requests:
                 del self.requests[identifier]
-                logger.info(f"Rate limit reset for: {identifier}")
+                logger.info("Rate limit reset for: %s", identifier)
 
     def get_stats(self, identifier: str) -> Dict[str, Any]:
         """Get rate limit statistics for identifier.
@@ -245,11 +245,12 @@ class UORAPIClient:
         rate_info = self.check_rate_limit(self.api_key or "default")
         if not rate_info.allowed:
             logger.warning(
-                f"Rate limit exceeded. Retry after: {rate_info.retry_after}"
+                "Rate limit exceeded. Retry after: %s",
+                rate_info.retry_after,
             )
             return None
 
-        logger.info(f"Fetching object: {digest}")
+        logger.info("Fetching object: %s", digest)
         raise NotImplementedError(
             "get_object HTTP request is not implemented. "
             "Provide a concrete subclass or HTTP client."
@@ -268,7 +269,8 @@ class UORAPIClient:
         rate_info = self.check_rate_limit(self.api_key or "default")
         if not rate_info.allowed:
             logger.warning(
-                f"Rate limit exceeded. Retry after: {rate_info.retry_after}"
+                "Rate limit exceeded. Retry after: %s",
+                rate_info.retry_after,
             )
             return None
 

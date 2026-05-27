@@ -118,15 +118,18 @@ class UORDNSResolver:
 
             if location:
                 self.cache[cache_key] = location
-                msg = f"Resolved object {digest} to {location.get_url()}"
-                logger.info(msg)
+                logger.info(
+                    "Resolved object %s to %s",
+                    digest,
+                    location.get_url(),
+                )
                 return location
             else:
-                logger.warning(f"Could not resolve object {digest}")
+                logger.warning("Could not resolve object %s", digest)
                 return None
 
-        except Exception as e:
-            logger.error(f"DNS resolution failed for {digest}: {e}")
+        except Exception:
+            logger.exception("DNS resolution failed for %s", digest)
             return None
 
     def _query_dns(
@@ -148,10 +151,10 @@ class UORDNSResolver:
             answer = self.resolver.resolve(record, record_type.value)
             return answer
         except dns.resolver.NXDOMAIN:
-            logger.debug(f"DNS record not found: {record}")
+            logger.debug("DNS record not found: %s", record)
             return None
-        except Exception as e:
-            logger.error(f"DNS query failed for {record}: {e}")
+        except Exception:
+            logger.exception("DNS query failed for %s", record)
             return None
 
     def _parse_dns_results(
@@ -277,16 +280,22 @@ class UORDNSResolver:
                     protocol="http",
                 )
                 self.cache[cache_key] = location
-                prefix = f"Resolved service {service_name} to"
-                msg = f"{prefix} {location.get_url()}"
-                logger.info(msg)
+                logger.info(
+                    "Resolved service %s to %s",
+                    service_name,
+                    location.get_url(),
+                )
                 return location
             else:
-                logger.warning(f"Could not resolve service {service_name}")
+                logger.warning(
+                    "Could not resolve service %s", service_name
+                )
                 return None
 
-        except Exception as e:
-            logger.error(f"Service resolution failed for {service_name}: {e}")
+        except Exception:
+            logger.exception(
+                "Service resolution failed for %s", service_name
+            )
             return None
 
     def clear_cache(self):
@@ -342,10 +351,14 @@ class DistributedObjectGraph:
             self.remote_locations[digest] = location
             # In a real implementation, this would fetch the object
             # from the remote location
-            logger.info(f"Object {digest} located at {location.get_url()}")
+            logger.info(
+                "Object %s located at %s",
+                digest,
+                location.get_url(),
+            )
             return {"location": location.to_dict()}
         else:
-            logger.warning(f"Could not locate object {digest}")
+            logger.warning("Could not locate object %s", digest)
             return None
 
     def get_service_endpoint(
