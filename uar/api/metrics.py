@@ -52,7 +52,10 @@ atexit.register(_close_redis)
 
 # DDSketch-style histogram: logarithmic buckets for sub-linear memory growth.
 # Relative accuracy ~1% by default (alpha=0.01).
-_LOG_ALPHA = float(os.getenv("UAR_METRIC_HISTOGRAM_ALPHA", "0.01"))
+try:
+    _LOG_ALPHA = float(os.getenv("UAR_METRIC_HISTOGRAM_ALPHA", "0.01"))
+except ValueError:
+    _LOG_ALPHA = 0.01
 
 
 def _log_bucket(value: float, alpha: float = _LOG_ALPHA) -> int:

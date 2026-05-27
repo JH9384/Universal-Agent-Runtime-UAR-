@@ -164,3 +164,14 @@ class TestTimeoutPoolMaxValidation:
         from uar.core import executor as _exec
 
         assert _exec._TIMEOUT_POOL_MAX >= 1
+
+
+class TestHistogramAlphaValidation:
+    """UAR_METRIC_HISTOGRAM_ALPHA must fall back to default on invalid
+    env values to prevent import-time crashes."""
+
+    def test_log_alpha_is_positive_float(self):
+        from uar.api import metrics
+
+        assert isinstance(metrics._LOG_ALPHA, float)
+        assert metrics._LOG_ALPHA > 0
