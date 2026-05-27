@@ -135,7 +135,7 @@ class RoleBasedAgent(Agent):
 
         except Exception as e:
             task.status = "failed"
-            task.result = {"error": str(e)}
+            task.result = {"error": "Task failed"}
             logger.error(f"Task {task.id} failed: {e}")
 
         return task

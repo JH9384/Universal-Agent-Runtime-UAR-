@@ -151,7 +151,7 @@ class WorkerPool:
                 task_id=task.task_id,
                 skill_name=task.skill_name,
                 success=False,
-                error=str(exc),
+                error="Execution failed",
                 duration_ms=duration,
             )
 

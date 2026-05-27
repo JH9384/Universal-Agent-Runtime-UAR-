@@ -204,7 +204,7 @@ def _verify_signature(
         return {
             "success": True,
             "valid": False,
-            "error": str(exc),
+            "error": "Signature verification failed",
             "algorithm": "Ed25519",
         }
 

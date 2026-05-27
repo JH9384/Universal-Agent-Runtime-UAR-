@@ -387,7 +387,7 @@ def health_server(
                         f"{r.status_code}",
                     )
             except Exception as exc:
-                table.add_row(label, "[red]✗[/red]", str(exc)[:40])
+                table.add_row(label, "[red]✗[/red]", "Error")
 
     console.print(table)
 

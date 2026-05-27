@@ -381,7 +381,7 @@ def _read_file_safely(file_path: Path, allowed_root: Path) -> dict[str, Any]:
             else str(file_path),
             "text": "",
             "size": 0,
-            "error": f"Read error: {str(e)}",
+            "error": "Read failed",
         }
 
 

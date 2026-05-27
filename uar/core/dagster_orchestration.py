@@ -191,7 +191,7 @@ class UARPipelineOrchestrator:
 
             except Exception as e:
                 execution.status = PipelineStatus.FAILED
-                execution.error = str(e)
+                execution.error = "Pipeline failed"
                 execution.end_time = datetime.utcnow()
                 logger.error(f"Pipeline {name} failed: {e}")
 

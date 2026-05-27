@@ -287,7 +287,7 @@ class GoalExecutionService(BaseService):
             self._log("error", f"Stream error: {exc}", request_id)
             err = self._event.error(
                 run_id="unknown",
-                error_msg=str(exc),
+                error_msg="Execution failed",
                 code="EXECUTION_ERROR",
                 request_id=request_id,
                 goal_id=gid,

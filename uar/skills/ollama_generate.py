@@ -143,7 +143,7 @@ def ollama_generate(ctx):
             "status": "failed",
             "model": model,
             "host": host,
-            "error": str(exc),
+            "error": "Generation failed",
             "documents_used": used_docs,
             "context_chars": context_chars,
         }
