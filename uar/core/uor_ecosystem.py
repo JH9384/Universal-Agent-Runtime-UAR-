@@ -119,7 +119,7 @@ def _http_post(
         return resp.json()
     except Exception as exc:
         logger.warning("HTTP POST to %s failed: %s", url, exc)
-        return {"status": "error", "error": str(exc), "url": url}
+        return {"status": "error", "error": "Request failed"}
 
 
 def _http_get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
@@ -136,7 +136,7 @@ def _http_get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
         return resp.json()
     except Exception as exc:
         logger.warning("HTTP GET to %s failed: %s", url, exc)
-        return {"status": "error", "error": str(exc), "url": url}
+        return {"status": "error", "error": "Request failed"}
 
 
 # ---------------------------------------------------------------------------
