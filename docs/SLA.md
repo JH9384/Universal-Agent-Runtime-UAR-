@@ -43,7 +43,7 @@ Downtime = any minute where `/api/health/live` returns non-200 or times out > 5s
 | `GET /api/uar/stream` (HTTP) | < 200ms | < 500ms | Time to first event |
 | `WS /api/uar/stream/ws` | < 100ms | < 500ms | Time to first event |
 | `GET /api/health/live` | < 10ms | < 50ms | Response time |
-| `GET /api/health/ready` | < 50ms | < 200ms | Response time |
+| `GET /api/health/ready` | < 50ms | < 200ms | Response time (Ollama check runs in thread pool, non-blocking) |
 
 **Exclusions:** Skill execution time is excluded from API latency; only framework overhead (auth, rate limiting, request parsing, response serialization) is measured.
 

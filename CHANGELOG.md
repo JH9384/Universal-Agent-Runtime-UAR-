@@ -37,7 +37,7 @@ This project uses semantic versioning for release tags.
 - Path traversal protection
 - Safe file handling with size limits and extension checks
 
-## [1.1.0] - 2026-05-22
+## [1.1.0] - 2026-05-27
 
 ### Added
 - Hierarchical recipe execution with discrete unit semantics
@@ -110,11 +110,50 @@ This project uses semantic versioning for release tags.
 - `uar/uor/object_cache.py`: `prefetch()` now correctly checks cache via `get()` instead of broken `in` operator
 - `uar/uor/rate_limiting.py`: fixed `min()` on empty list when `max_requests=0` in both `RateLimiter` and `SlidingWindowRateLimiter`
 
+### Bug Fixes — Session 2 (Resource Management & Concurrency)
+- `asyncio.run()` inside thread pool executor → safe fallback to new event loop when running loop is detected
+- Unbounded `_coalesce_locks`/`_coalesce_results` dicts → bounded LRU with `_COALESCE_MAX_ENTRIES=256` via `collections.OrderedDict`
+- Duplicate `_eval_condition` closure inside `iter_events` shadowing module-level function → removed closure
+- Dead `_zero_copy_serialize()` function → removed
+- `_idempotency_cache` unbounded, TTL declared but unused → `(timestamp, result)` tuples with TTL expiry + FIFO cap (`_IDEMPOTENCY_MAX=1000`), protected by `threading.Lock()`
+- `_WebSocketConnectionCounter.acquire()` bypassed `self.lock` on unlimited path → all paths route through `async with self.lock`
+- SSE per-IP counter double-decremented on `ValidationError`/`UARError` → generator `finally` is sole release point
+- WS endpoint consumed two rate-limit tokens per connection → pre-connect result reused for post-parse check
+- WS constants (`WS_HEARTBEAT_INTERVAL`, `WS_BATCH_SIZE`, `WS_BATCH_TIMEOUT`) hardcoded → read from env vars
+- `RedisRateLimiter.is_allowed()` non-atomic (add then rollback race) → Lua script for atomic sliding-window check-and-increment
+- Dead `_extract_skill_from_request()` stub always returning `None` → removed
+- `validation.py` dangerous path patterns not anchored (`~/`, `/`) → anchored to `^~/`, `^/`
+- Dead `_persist(events, ...)` method (never called) → removed
+
+### Bug Fixes — Session 3 (Production Review)
+- **C1 (Critical)** `sqlite_store.append_many`: missing `COMMIT` after `executemany` → silent data loss and exclusive lock held indefinitely
+- **C2 (Critical)** `WS_HEARTBEAT_INTERVAL` had three divergent defaults (20s, 30s, 30s hardcoded) → single constant used everywhere
+- **C3 (Critical)** `_WebSocketConnectionCounter.release()` not async-safe (no lock) → `async def` + `async with self.lock`; all 4 call sites updated to `await`
+- **H1 (High)** `sandbox.WASMSandbox.eval_expr` stub always returned `0.0` → WASM path gated off; subprocess AST evaluator always used; `health()` reports `wasm_evaluator_active: False`
+- **H2 (High)** `FastAPI(version="1.0.0")` and `"server_version": "1.1.0"` hardcoded → both use `get_uar_version()`
+- **H3 (High)** SSE connection counter leaked +1 on `_build_goal` `ValidationError` → `_build_goal` moved inside `_generate()` so `finally` always runs
+- **H4 (High)** `uor/rate_limiting.py` `get_object`/`put_object` TODO stubs returned `None` silently → `raise NotImplementedError`
+- **H5 (High)** Blocking `httpx.get()` in async `readiness_probe` → `loop.run_in_executor(None, lambda: httpx.get(...))`
+- **H6 (High)** `get_provenance` used wrong DB path; connection not closed → `SqliteRunStore()` default; `finally: run_store.close()`
+- **M1 (Medium)** Backpressure semaphore `async with _backpressure_sem: yield` was no-op → explicit `acquire/try/yield/finally/release`
+- **M2 (Medium)** FIFO eviction docstring mislabelled as LRU → corrected
+- **M4 (Medium)** Circuit breaker endpoint accessed `cb._failures` directly → `getattr(cb, "_failures", 0)`
+- **M5 (Medium)** `/api/health/dashboard` unauthenticated → `Depends(security)` added
+- **M7 (Medium)** `events.pop(0)` O(n) ring buffer in execution service → `collections.deque(maxlen=...)`
+- **M8 (Medium)** `_guardrail_cache` key in `ctx.data` leaked into `final_context` API response → renamed `__guardrail_cache`; `__`-prefixed keys stripped from both `complete` event emit sites
+- **L4 (Low)** 13 invalid ARIA attribute values (`aria-expanded={bool}`, `aria-pressed={bool}`) in `UARPanel.tsx` → ternary string literals
+- **L6 (Low)** `mmap` line decode could raise on malformed UTF-8 → `errors="replace"`
+- **L7 (Low)** Dead `_PATH_DANGEROUS_RE` compiled regex list in `validation.py` → removed
+
+### Dependencies
+- `vite`: `^6.0.1` → `7.3.3` (resolves GHSA-67mh-4wv8-2f99 esbuild dev-server CORS bypass)
+- `vitest`: `^1.1.0` → `3.2.4`
+- `@vitest/ui`: `^1.1.0` → `3.2.4`
+
 ### Planned / Deferred
 - Parallel executor expansion
 - Replay timeline UI
 - Dependency-aware scheduler
-- SQLite or Postgres run store
 - Production UI dependency pinning and blocking build gate
 
 ## [0.1.0] - Foundation Runtime Release

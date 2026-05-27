@@ -70,7 +70,7 @@ UAR offers multiple installation options depending on your use case. The base in
 
 ```bash
 # Clone repository
-`git clone https://github.com/JH9384/Universal-Agent-Runtime-UAR-.git`
+git clone https://github.com/JH9384/Universal-Agent-Runtime-UAR-.git
 cd Universal-Agent-Runtime-UAR-
 
 # Install base dependencies (core functionality only)
@@ -460,11 +460,13 @@ See [docs/USER_EXAMPLES.md](docs/USER_EXAMPLES.md) for the full walkthrough.
 UAR implements defense-in-depth at multiple layers:
 
 - **Input validation**: Path traversal checks (null bytes, hex encoding, symlink detection, cross-device hard links)
-- **Rate limiting**: Per-key token bucket with thread-safe deques and LRU eviction
-- **Authentication**: API key middleware with tier-based rate limits
+- **Rate limiting**: Sliding-window rate limiter — atomic Lua script in Redis (multi-worker) or thread-safe deque (single-process)
+- **Authentication**: API key middleware with tier-based rate limits; `/api/health/dashboard` requires auth
+- **Async-safe connection counters**: WebSocket connection counter uses `async with self.lock` for race-free acquire/release
 - **SSRF prevention**: URL scheme and host validation on external requests
 - **Resource limits**: 100MB total file size cap, max file count limits in document ingestion
 - **Secret management**: All secrets via environment variables (no hardcoded keys)
+- **Zero npm CVEs**: `vite` 7.3.3 + `vitest` 3.2.4 (esbuild CORS CVE GHSA-67mh-4wv8-2f99 resolved)
 
 ## Development
 
@@ -521,7 +523,7 @@ docker-compose -f docker-compose.prod.yml up --build
 | [SLA](docs/SLA.md) | Service objectives, monitoring gaps, SLO targets |
 | [Recipe Conditions](docs/RECIPE_CONDITIONS.md) | Conditional recipe execution with `exists`/`equals`/`not_equals` operators |
 | [Boot & Shutdown](docs/BOOT_AND_SHUTDOWN.md) | Startup/shutdown sequences per deployment mode |
-| [WebSocket Protocol](docs/WEBSOCKET_PROTOCOL.md) | Event schema, streaming semantics |
+| [WebSocket Protocol](docs/WEBSOCKET_PROTOCOL.md) | Event schema, heartbeat, batching, reconnect guide |
 | [API Reference](http://127.0.0.1:8000/docs) | Interactive OpenAPI docs (when running) |
 
 ## License

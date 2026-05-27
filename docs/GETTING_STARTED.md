@@ -11,8 +11,8 @@
 git clone https://github.com/JH9384/Universal-Agent-Runtime-UAR-.git
 cd Universal-Agent-Runtime-UAR-
 
-# 2. Configure
-cp .env.minimal .env
+# 2. Configure (use .env.example for full options, .env.minimal for bare minimum)
+cp .env.example .env
 
 # 3. Install
 pip install -e .
