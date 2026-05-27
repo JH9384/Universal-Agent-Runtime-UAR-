@@ -1400,13 +1400,20 @@ def _recipe_http_error(
             ),
             detail={
                 "error": "conflict" if creating else "forbidden",
-                "message": msg,
+                "message": (
+                    "Recipe already exists"
+                    if creating
+                    else "Recipe is canonical and cannot be modified"
+                ),
             },
         )
     if "skills must be" in msg.lower():
         return HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "invalid_skills", "message": msg},
+            detail={
+                "error": "invalid_skills",
+                "message": "Invalid skills in recipe",
+            },
         )
     if isinstance(exc, KeyError):
         return HTTPException(
@@ -1423,7 +1430,7 @@ def _recipe_http_error(
         )
     return HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail={"error": "internal", "message": msg},
+        detail={"error": "internal", "message": "Internal server error"},
     )
 
 
@@ -3133,6 +3140,6 @@ async def query_code(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail={
                 "error": "greptile_error",
-                "message": str(e),
+                "message": "Greptile query failed",
             },
         )
