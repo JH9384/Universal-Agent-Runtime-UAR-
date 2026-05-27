@@ -284,11 +284,19 @@ class SqliteRunStore:
                 self._conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
 
     def close(self) -> None:
-        """Close persistent connection."""
+        """Close persistent and pooled reader connections."""
         with self._lock:
             if self._conn:
                 self._conn.close()
                 self._conn = None
+        # Drain and close all reader pool connections
+        with self._read_pool_lock:
+            while not self._read_pool.empty():
+                try:
+                    conn = self._read_pool.get(block=False)
+                    conn.close()
+                except queue.Empty:
+                    break
 
 
 def _decode_row(row: Dict[str, Any]) -> Dict[str, Any]:

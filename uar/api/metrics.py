@@ -3,6 +3,7 @@ Metrics middleware and collection for UAR API.
 Provides Prometheus-compatible metrics and basic runtime statistics.
 """
 
+import atexit
 import logging
 import math
 import os
@@ -34,6 +35,19 @@ def _get_redis():
         return _redis_client
     except Exception:  # noqa: BLE001
         return None
+
+
+def _close_redis() -> None:
+    global _redis_client
+    if _redis_client is not None:
+        try:
+            _redis_client.close()
+        except Exception:
+            pass
+        _redis_client = None
+
+
+atexit.register(_close_redis)
 
 
 # DDSketch-style histogram: logarithmic buckets for sub-linear memory growth.
