@@ -160,6 +160,35 @@ Client Request
 └─────────────────┘
 ```
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant R as FastAPI Router
+    participant M as Middleware
+    participant P as SimplePlanner
+    participant E as Executor
+    participant S as JSONL Store
+
+    C->>R: POST /api/uar/run (RunRequest)
+    R->>M: Pydantic validation
+    M->>M: Rate limit check
+    M->>M: Auth + request logging
+    M->>P: _build_goal() (execution_order)
+    P->>P: Plan → StrategySpec
+    P->>E: iter_events(strategy, goal)
+    loop For each skill
+        E->>E: Cache lookup
+        alt Cache miss
+            E->>E: Skill execution
+            E->>E: Retry / circuit breaker
+        end
+        E-->>R: event (skill_start / skill_complete)
+    end
+    E->>S: Persist RunRecord
+    R-->>C: RunResponse
+```
+
 ### 4.2 WebSocket Stream (`/api/uar/stream/ws`)
 
 ```
