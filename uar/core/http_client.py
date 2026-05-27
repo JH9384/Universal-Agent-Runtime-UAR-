@@ -154,5 +154,5 @@ def close_all_sessions() -> None:
         try:
             run_sync_safe(sess.close())
         except Exception:
-            pass
+            logger.exception("Session close failed for %s", domain)
         del _sessions[domain]

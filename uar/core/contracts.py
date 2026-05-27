@@ -1,7 +1,10 @@
 import collections
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -71,7 +74,7 @@ class PipelineContext:
         try:
             self.close()
         except Exception:
-            pass
+            logger.warning("PipelineContext cleanup failed", exc_info=True)
 
 
 @dataclass(slots=True)

@@ -281,7 +281,7 @@ if _WASMTIME_AVAILABLE:
         for _ in range(_pool_size):
             _sandbox_pool.append(WASMSandbox())
     except Exception:
-        pass
+        logger.exception("WASM sandbox pool init failed")
 
 _pool_idx = 0
 

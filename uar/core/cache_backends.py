@@ -407,7 +407,7 @@ class RedisCacheBackend(CacheBackend):
                             if data.get("skill") == skill_name:
                                 self._client.delete(k)
                     except Exception:
-                        pass
+                        logger.exception("Redis key delete failed")
             else:
                 for k in self._client.scan_iter(match=f"{self.key_prefix}*"):
                     self._client.delete(k)
