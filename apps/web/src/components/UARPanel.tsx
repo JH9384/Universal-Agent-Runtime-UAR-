@@ -577,6 +577,18 @@ export function UARPanel() {
   })
   const [tipsTargetSection, setTipsTargetSection] = useState<string | null>(null)
   const [uorImageError, setUorImageError] = useState(false)
+  const [openRecipeSkillsDropdown, setOpenRecipeSkillsDropdown] = useState<string | null>(null)
+  const [collapsedRecipeSections, setCollapsedRecipeSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    SKILL_GROUPS.forEach(g => initial[g.name] = false)
+    return initial
+  })
+  const [skillsDisplayMode, setSkillsDisplayMode] = useState<'dropdown' | 'list'>('dropdown')
+
+  // Reset recipe skills dropdown when display mode changes
+  useEffect(() => {
+    setOpenRecipeSkillsDropdown(null)
+  }, [skillsDisplayMode])
 
   // Expand target section when tips popup opens, collapse others
   useEffect(() => {
@@ -1940,6 +1952,13 @@ export function UARPanel() {
             <button onClick={redoSkills} className={styles.collapseAllButton} disabled={isRunning || skillHistoryIndex === skillHistory.length - 1} title="Redo" aria-label="Redo skill selection">
               ↷
             </button>
+            <button
+              className={styles.collapseAllButton}
+              onClick={() => setSkillsDisplayMode(skillsDisplayMode === 'dropdown' ? 'list' : 'dropdown')}
+              title="Toggle skills display mode"
+            >
+              {skillsDisplayMode === 'dropdown' ? '📋' : '📂'}
+            </button>
           </label>
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
@@ -1963,7 +1982,7 @@ export function UARPanel() {
                 )}
               </div>
               <div className={styles.skillsContainer}>
-                {(() => {
+                {skillsDisplayMode === 'dropdown' ? (() => {
                   const query = debouncedSkillSearch.trim().toLowerCase()
                   const groups = query
                     ? SKILL_GROUPS.map(g => ({
@@ -1998,7 +2017,18 @@ export function UARPanel() {
                       </div>
                     )
                   })
-                })()}
+                })() : (
+                  <div className={styles.skillGroupSkills}>
+                    {AVAILABLE_SKILLS.map((s) => {
+                      const count = unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length
+                      return (
+                        <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(count > 0, isRunning)}>
+                          {count > 0 ? `✓ (${count}) ` : ''}{s.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
               <div className={styles.orderText} title="Skills execute in this order">
                 <strong>Order of Operation:</strong>
@@ -3714,10 +3744,66 @@ export function UARPanel() {
                         <span className={styles.libraryItemName}>
                           {recipes.some(recipe => recipe.id === r.id) ? '✓ ' : ''}{r.label}
                         </span>
-                        <span className={styles.libraryItemSize}>
-                          {r.skills.join(', ')}
-                        </span>
+                        {skillsDisplayMode === 'dropdown' ? (
+                          <span
+                            className={`${styles.libraryItemSize} ${styles.clickable}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenRecipeSkillsDropdown(openRecipeSkillsDropdown === r.id ? null : r.id)
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setOpenRecipeSkillsDropdown(openRecipeSkillsDropdown === r.id ? null : r.id) } }}
+                            tabIndex={0}
+                            role="button"
+                            aria-expanded={openRecipeSkillsDropdown === r.id}
+                            aria-label={`${openRecipeSkillsDropdown === r.id ? 'Collapse' : 'Expand'} skills for recipe ${r.label}`}
+                          >
+                            {r.skills.length} skills {openRecipeSkillsDropdown === r.id ? '▼' : '▶'}
+                          </span>
+                        ) : (
+                          <span className={styles.libraryItemSize}>
+                            {r.skills.join(', ')}
+                          </span>
+                        )}
                       </div>
+                      {skillsDisplayMode === 'dropdown' && openRecipeSkillsDropdown === r.id && (
+                        <div className={styles.skillsDropdown}>
+                          {SKILL_GROUPS.map((group) => {
+                            const groupSkills = group.skills.filter(skill => r.skills.includes(skill.id))
+                            if (groupSkills.length === 0) return null
+                            const isCollapsed = collapsedRecipeSections[group.name]
+                            return (
+                              <div key={group.name} className={styles.recipeSkillGroup}>
+                                <div
+                                  className={styles.recipeSkillGroupHeader}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setCollapsedRecipeSections(prev => ({
+                                      ...prev,
+                                      [group.name]: !prev[group.name]
+                                    }))
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setCollapsedRecipeSections(prev => ({ ...prev, [group.name]: !prev[group.name] })) } }}
+                                  tabIndex={0}
+                                  role="button"
+                                  aria-expanded={!isCollapsed}
+                                >
+                                  <span>{group.icon} {group.name}</span>
+                                  <span>{isCollapsed ? '▶' : '▼'}</span>
+                                </div>
+                                {!isCollapsed && (
+                                  <div className={styles.recipeSkillGroupSkills}>
+                                    {groupSkills.map(skill => (
+                                      <div key={skill.id} className={styles.recipeSkillItem}>
+                                        {skill.label}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                       <button
                         className={styles.deleteButton}
                         onClick={(e) => {

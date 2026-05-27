@@ -458,6 +458,60 @@ body {
   color: #888;
 }
 
+.libraryItemSize.clickable {
+  cursor: pointer;
+}
+
+.skillsDropdown {
+  margin-top: 8px;
+  margin-left: 24px;
+  padding: 8px;
+  background: #f8f9fa;
+  border: 1px solid #e3e5e8;
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.recipeSkillGroup {
+  margin-bottom: 8px;
+}
+
+.recipeSkillGroup:last-child {
+  margin-bottom: 0;
+}
+
+.recipeSkillGroupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  cursor: pointer;
+  background: #fff;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.recipeSkillGroupHeader:hover {
+  background: #f0f0f0;
+}
+
+.recipeSkillGroupSkills {
+  margin-top: 4px;
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recipeSkillItem {
+  font-size: 11px;
+  color: #555;
+  padding: 2px 4px;
+}
+
 .deleteButton {
   padding: 0 6px;
   font-size: 11px;
