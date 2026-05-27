@@ -80,7 +80,7 @@ class AtomicLanguageModelSkill:
                     max_keepalive_connections=5,
                 )
                 self.client = httpx.Client(timeout=timeout, limits=limits)
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 logger.warning(
                     f"Failed to create httpx client: {e}. "
                     "Falling back to mock responses."

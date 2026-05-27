@@ -115,7 +115,7 @@ def _call_alm(
         logger.error("ALM service returned error: %s", e.response.status_code)
         try:
             error_detail = e.response.json()
-        except Exception:
+        except (ValueError, OSError):
             error_detail = {"error": str(e)}
         return {
             "status": "error",
