@@ -1396,7 +1396,7 @@ async def get_run_timeline(
             return timeline_from_record(rr)
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail={"error": "not_found", "message": f"Run '{run_id}' not found"},
+        detail={"error": "not_found", "message": "Run not found"},
     )
 
 
