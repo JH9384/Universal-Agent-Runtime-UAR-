@@ -2531,54 +2531,58 @@ async def docs_upload(
             continue
 
         # Resolve dest with collision-free unique naming
-        # (UUID-based with retry)
+        # (UUID-based with retry) unless overwrite=True
         # Use retry loop to handle race conditions from concurrent uploads
         dest = library / safe_name
-        max_attempts = 5
-        for attempt in range(max_attempts):
-            if not dest.exists():
-                # Try atomic file creation with exclusive access
-                try:
-                    import os
-
-                    fd = os.open(
-                        dest,
-                        os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-                        0o644,
-                    )
-                    # Successfully created exclusively - close fd properly
-                    # Use os.fdopen to wrap in file object for proper cleanup
-                    try:
-                        with os.fdopen(fd, "wb") as _:
-                            pass  # Just create empty file as placeholder
-                    except OSError:
-                        # If fdopen or close fails, try to unlink the file
-                        try:
-                            os.close(fd)  # Ensure fd is closed first
-                        except OSError:
-                            pass
-                        try:
-                            dest.unlink()
-                        except OSError:
-                            pass
-                        raise
-                    break
-                except FileExistsError:
-                    # Race condition - another process created it
-                    pass
-            # File exists or race occurred, generate unique name
-            stem = Path(safe_name).stem
-            unique_id = str(uuid.uuid4())[:8]
-            dest = library / f"{stem}.{unique_id}{ext}"
+        if overwrite:
+            # Overwrite: skip placeholder creation, stream directly to temp
+            pass
         else:
-            # Max attempts reached - reject this upload
-            rejected.append(
-                {
-                    "name": safe_name,
-                    "reason": "Could not generate unique filename",
-                }
-            )
-            continue
+            max_attempts = 5
+            for attempt in range(max_attempts):
+                if not dest.exists():
+                    # Try atomic file creation with exclusive access
+                    try:
+                        import os
+
+                        fd = os.open(
+                            dest,
+                            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                            0o644,
+                        )
+                        # Successfully created exclusively - close fd properly
+                        # Use os.fdopen to wrap in file object for proper cleanup
+                        try:
+                            with os.fdopen(fd, "wb") as _:
+                                pass  # Just create empty file as placeholder
+                        except OSError:
+                            # If fdopen or close fails, try to unlink the file
+                            try:
+                                os.close(fd)  # Ensure fd is closed first
+                            except OSError:
+                                pass
+                            try:
+                                dest.unlink()
+                            except OSError:
+                                pass
+                            raise
+                        break
+                    except FileExistsError:
+                        # Race condition - another process created it
+                        pass
+                # File exists or race occurred, generate unique name
+                stem = Path(safe_name).stem
+                unique_id = str(uuid.uuid4())[:8]
+                dest = library / f"{stem}.{unique_id}{ext}"
+            else:
+                # Max attempts reached - reject this upload
+                rejected.append(
+                    {
+                        "name": safe_name,
+                        "reason": "Could not generate unique filename",
+                    }
+                )
+                continue
 
         # Stream-copy with size cap using temp file for atomic rename
         size = 0
