@@ -299,10 +299,10 @@ class PostgresRunStore:
         return results
 
     def list_all(
-        self, user_id: Optional[str] = None
+        self, user_id: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Alias for list_records — satisfies RunStoreProtocol."""
-        return self.list_records(user_id=user_id)
+        return self.list_records(user_id=user_id, limit=limit)
 
     def flush(self) -> None:
         """No-op for API compatibility; Postgres commits are immediate."""

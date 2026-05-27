@@ -87,6 +87,10 @@ def test_run_and_stream_final_output_parity():
 
 
 def test_stream_persists_without_duplicate_execution():
+    # Clear store to avoid limit masking the new record
+    from uar.api.server import store
+
+    store.path.write_text("")
     before = client.get("/api/uar/runs").json()
 
     with client.stream(

@@ -54,11 +54,11 @@ class RunStoreProtocol(Protocol):
     def append(self, record: RunRecord) -> None: ...
 
     def list_records(
-        self, user_id: Optional[str] = None
+        self, user_id: Optional[str] = None, limit: int = 1000
     ) -> List[Dict[str, Any]]: ...
 
     def list_all(
-        self, user_id: Optional[str] = None
+        self, user_id: Optional[str] = None, limit: int = 1000
     ) -> List[Dict[str, Any]]: ...
 
     def get_by_run_id(self, run_id: str) -> Optional[Dict[str, Any]]: ...

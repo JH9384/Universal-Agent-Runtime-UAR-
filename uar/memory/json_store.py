@@ -78,7 +78,9 @@ class JsonRunStore:
         except Exception:
             pass
 
-    def list_records(self, user_id: Optional[str] = None) -> List[dict]:
+    def list_records(
+        self, user_id: Optional[str] = None, limit: int = 1000
+    ) -> List[dict]:
         """List records with shared lock for consistency.
 
         If user_id is provided, only return records owned by that user.
@@ -99,6 +101,8 @@ class JsonRunStore:
                                 owner = record.get("user_id")
                                 if user_id is None or owner == user_id:
                                     records.append(record)
+                                    if len(records) >= limit:
+                                        break
                             except json.JSONDecodeError:
                                 # Skip corrupted lines
                                 continue

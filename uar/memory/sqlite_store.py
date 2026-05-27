@@ -260,9 +260,11 @@ class SqliteRunStore:
                 self._hot_cache.popitem(last=False)
         return record
 
-    def list_all(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_all(
+        self, user_id: Optional[str] = None, limit: int = 1000
+    ) -> List[Dict[str, Any]]:
         """Alias for list_records — satisfies RunStoreProtocol."""
-        return self.list_records(user_id=user_id)
+        return self.list_records(user_id=user_id, limit=limit)
 
     def purge_old_records(self, retention_days: int) -> int:
         if retention_days <= 0:
