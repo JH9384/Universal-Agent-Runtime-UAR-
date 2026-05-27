@@ -2392,7 +2392,7 @@ async def get_provenance(
     record = store.get_by_run_id(run_id)
 
     if not record:
-        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        raise HTTPException(status_code=404, detail="Run not found")
 
     # Verify ownership if not admin
     if record.get("user_id") != user and user != "admin":
@@ -3057,9 +3057,7 @@ async def docs_create_folder(
                 status_code=400,
                 content={
                     "error": "Invalid folder name",
-                    "message": (
-                        f"'{folder_name}' is a reserved Windows name"
-                    ),
+                    "message": "Folder name is a reserved Windows name",
                     "request_id": request_id,
                 },
             )

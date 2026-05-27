@@ -84,7 +84,7 @@ def _require_object(store: ObjectStore, digest: str) -> Dict[str, Any]:
         return store.get_object(digest)
     except KeyError as exc:
         raise HTTPException(
-            status_code=404, detail=f"Object not found: {digest}"
+            status_code=404, detail="Object not found"
         ) from exc
 
 
@@ -140,7 +140,7 @@ def get_object_download(
     blob = store.get_content(digest)
     if blob is None:
         raise HTTPException(
-            status_code=404, detail=f"No content for object: {digest}"
+            status_code=404, detail="No content for object"
         )
     return Response(
         content=blob["content_bytes"],
@@ -203,7 +203,7 @@ def get_runtime(
     digest = store.get_runtime_digest(name)
     if digest is None:
         raise HTTPException(
-            status_code=404, detail=f"Runtime not registered: {name}"
+            status_code=404, detail="Runtime not registered"
         )
     return {
         "name": name,
