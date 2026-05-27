@@ -153,14 +153,14 @@ class AtomicLanguageModelSkill:
             logger.error(f"HTTP error calling ALM service: {e}")
             return {
                 "status": "error",
-                "error": f"HTTP error: {str(e)}",
+                "error": "ALM request failed",
                 "details": "Failed to connect to ALM service",
             }
         except Exception as e:
             logger.error(f"Unexpected error calling ALM service: {e}")
             return {
                 "status": "error",
-                "error": str(e),
+                "error": "ALM request failed",
                 "details": "Unexpected error",
             }
 
@@ -284,14 +284,14 @@ class AtomicLanguageModelSkill:
             logger.error(f"HTTP error calling ALM service: {e}")
             return {
                 "valid": False,
-                "error": f"HTTP error: {str(e)}",
+                "error": "ALM validation failed",
                 "details": "Failed to connect to ALM service",
             }
         except Exception as e:
             logger.error(f"Unexpected error calling ALM service: {e}")
             return {
                 "valid": False,
-                "error": str(e),
+                "error": "ALM validation failed",
                 "details": "Unexpected error",
             }
 
