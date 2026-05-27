@@ -99,3 +99,34 @@ class TestSqliteStoreReadPoolCleanup:
         # Connection should be closed (any operation would raise)
         with pytest.raises(sqlite3.ProgrammingError):
             fake_conn.execute("SELECT 1")
+
+
+class TestBackgroundPersistenceCleanup:
+    """_persist_async must own temp file cleanup to avoid races."""
+
+    def test_persist_async_unlinks_after_read(self, tmp_path):
+        from uar.services.execution import GoalExecutionService
+
+        svc = GoalExecutionService()
+        # Create a dummy file to simulate temp file
+        dummy = tmp_path / "dummy.jsonl"
+        dummy.write_text('{}\n')
+
+        # _persist_async should unlink the file after (mock) reading
+        import asyncio
+
+        async def _run():
+            # Mock _persist_from_file to do nothing (simulate success)
+            orig = svc._persist_from_file
+            svc._persist_from_file = (
+                lambda *a, **k: None  # type: ignore[method-assign]
+            )
+            try:
+                await svc._persist_async(
+                    str(dummy), None, None, "req-1"  # type: ignore[arg-type]
+                )
+            finally:
+                svc._persist_from_file = orig  # type: ignore[method-assign]
+
+        asyncio.run(_run())
+        assert not dummy.exists()

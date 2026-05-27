@@ -298,10 +298,13 @@ class GoalExecutionService(BaseService):
                         f"Fallback persistence failed: {persist_err}",
                         request_id,
                     )
-            try:
-                os.unlink(tmp_path.name)
-            except Exception:
-                pass
+            # Only unlink when persistence is synchronous; background
+            # persistence owns cleanup via _persist_async.
+            if not _bg_persist:
+                try:
+                    os.unlink(tmp_path.name)
+                except Exception:
+                    pass
 
     async def _persist_async(
         self,
@@ -311,14 +314,20 @@ class GoalExecutionService(BaseService):
         request_id: str,
     ) -> None:
         """Background persistence coroutine."""
-        await asyncio.get_running_loop().run_in_executor(
-            None,
-            self._persist_from_file,
-            file_path,
-            strategy,
-            user_id,
-            request_id,
-        )
+        try:
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                self._persist_from_file,
+                file_path,
+                strategy,
+                user_id,
+                request_id,
+            )
+        finally:
+            try:
+                os.unlink(file_path)
+            except Exception:
+                pass
 
     def _persist_from_file(
         self,
