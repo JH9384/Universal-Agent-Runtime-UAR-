@@ -88,7 +88,7 @@ class SigstoreSigner:
         if not file_path.exists():
             return SigstoreSigningResult(
                 success=False,
-                error=f"File not found: {file_path}"
+                error="File not found"
             )
 
         if self.use_cli_fallback:
