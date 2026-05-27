@@ -18,9 +18,15 @@ _sessions: Dict[str, Any] = {}
 _session_lock = asyncio.Lock()
 
 # Retry configuration
-_MAX_RETRIES = int(os.getenv("UAR_HTTP_MAX_RETRIES", "3"))
-_BASE_DELAY = float(os.getenv("UAR_HTTP_BASE_DELAY", "0.5"))
-_MAX_DELAY = float(os.getenv("UAR_HTTP_MAX_DELAY", "8.0"))
+_MAX_RETRIES = max(
+    0, int(os.getenv("UAR_HTTP_MAX_RETRIES", "3").strip() or "3")
+)
+_BASE_DELAY = max(
+    0.0, float(os.getenv("UAR_HTTP_BASE_DELAY", "0.5").strip() or "0.5")
+)
+_MAX_DELAY = max(
+    0.0, float(os.getenv("UAR_HTTP_MAX_DELAY", "8.0").strip() or "8.0")
+)
 
 
 async def _get_session(url: str):
@@ -36,11 +42,23 @@ async def _get_session(url: str):
         except ImportError:
             return None
         timeout = aiohttp.ClientTimeout(
-            total=float(os.getenv("UAR_HTTP_TIMEOUT", "30.0"))
+            total=max(
+                1.0,
+                float(
+                    os.getenv("UAR_HTTP_TIMEOUT", "30.0").strip() or "30.0"
+                ),
+            )
         )
         conn = aiohttp.TCPConnector(
-            limit=int(os.getenv("UAR_HTTP_POOL_LIMIT", "10")),
-            limit_per_host=int(os.getenv("UAR_HTTP_POOL_PER_HOST", "5")),
+            limit=max(
+                1, int(os.getenv("UAR_HTTP_POOL_LIMIT", "10").strip() or "10")
+            ),
+            limit_per_host=max(
+                1,
+                int(
+                    os.getenv("UAR_HTTP_POOL_PER_HOST", "5").strip() or "5"
+                ),
+            ),
             ttl_dns_cache=300,
             enable_cleanup_closed=True,
             force_close=False,
