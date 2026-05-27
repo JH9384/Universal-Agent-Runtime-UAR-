@@ -50,7 +50,12 @@ def _get_sync_pool(db_url: str):
             _db_pool = ConnectionPool(
                 db_url,
                 min_size=1,
-                max_size=int(os.getenv("UAR_PG_POOL_SIZE", "10")),
+                max_size=max(
+                    1,
+                    int(
+                        os.getenv("UAR_PG_POOL_SIZE", "10").strip() or "10"
+                    ),
+                ),
                 open=False,
             )
             _db_pool.open()
@@ -59,7 +64,12 @@ def _get_sync_pool(db_url: str):
 
             _db_pool = pool.ThreadedConnectionPool(
                 1,
-                int(os.getenv("UAR_PG_POOL_SIZE", "10")),
+                max(
+                    1,
+                    int(
+                        os.getenv("UAR_PG_POOL_SIZE", "10").strip() or "10"
+                    ),
+                ),
                 db_url,
             )
         else:

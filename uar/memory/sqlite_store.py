@@ -37,11 +37,17 @@ class SqliteRunStore:
         self._lock = threading.Lock()
         self._conn: Optional[sqlite3.Connection] = None
         # Reader pool for concurrent reads under WAL
-        self._read_pool_size = int(os.getenv("UAR_SQLITE_READ_POOL", "4"))
+        self._read_pool_size = max(
+            1,
+            int(os.getenv("UAR_SQLITE_READ_POOL", "4").strip() or "4"),
+        )
         self._read_pool: queue.Queue = queue.Queue()
         self._read_pool_lock = threading.Lock()
         # Hot data tiering: in-memory LRU for recent runs
-        self._hot_cache_size = int(os.getenv("UAR_HOT_CACHE", "100"))
+        self._hot_cache_size = max(
+            1,
+            int(os.getenv("UAR_HOT_CACHE", "100").strip() or "100"),
+        )
         self._hot_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
         self._hot_cache_lock = threading.Lock()
         self._ensure_table()

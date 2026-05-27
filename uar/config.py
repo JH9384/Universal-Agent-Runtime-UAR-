@@ -41,8 +41,12 @@ class Config:
                 f"API_PORT must be between 1 and {MAX_PORT_NUMBER}, "
                 f"got {self.api_port}"
             )
-        self.api_workers = int(
-            os.getenv("API_WORKERS", str(DEFAULT_API_WORKERS))
+        self.api_workers = max(
+            1,
+            int(
+                os.getenv("API_WORKERS", str(DEFAULT_API_WORKERS)).strip()
+                or str(DEFAULT_API_WORKERS)
+            ),
         )
 
         # Debug flag must be set before is_production check
@@ -85,21 +89,38 @@ class Config:
 
         # File Storage
         self.runs_dir = Path(os.getenv("RUNS_DIR", "runs"))
-        self.max_file_size = int(
-            os.getenv("MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE))
+        self.max_file_size = max(
+            1,
+            int(
+                os.getenv("MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE)).strip()
+                or str(DEFAULT_MAX_FILE_SIZE)
+            ),
         )  # 10MB
-        self.max_files = int(os.getenv("MAX_FILES", str(DEFAULT_MAX_FILES)))
+        self.max_files = max(
+            1,
+            int(
+                os.getenv("MAX_FILES", str(DEFAULT_MAX_FILES)).strip()
+                or str(DEFAULT_MAX_FILES)
+            ),
+        )
 
         # Data retention: 0 disables automatic purging
-        self.run_retention_days = int(
-            os.getenv("RUN_RETENTION_DAYS", "0")
+        self.run_retention_days = max(
+            0,
+            int(os.getenv("RUN_RETENTION_DAYS", "0").strip() or "0"),
         )
 
         # Ollama Configuration
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
         self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-        self.ollama_timeout = int(
-            os.getenv("OLLAMA_TIMEOUT_SECONDS", str(DEFAULT_OLLAMA_TIMEOUT))
+        self.ollama_timeout = max(
+            1,
+            int(
+                os.getenv(
+                    "OLLAMA_TIMEOUT_SECONDS", str(DEFAULT_OLLAMA_TIMEOUT)
+                ).strip()
+                or str(DEFAULT_OLLAMA_TIMEOUT)
+            ),
         )
 
         # Production Settings
@@ -111,11 +132,23 @@ class Config:
             for origin in cors_origins_str.split(",")
             if origin.strip()
         ]
-        self.max_request_size = int(
-            os.getenv("MAX_REQUEST_SIZE", str(DEFAULT_MAX_FILE_SIZE))
+        self.max_request_size = max(
+            1,
+            int(
+                os.getenv(
+                    "MAX_REQUEST_SIZE", str(DEFAULT_MAX_FILE_SIZE)
+                ).strip()
+                or str(DEFAULT_MAX_FILE_SIZE)
+            ),
         )  # 10MB
-        self.max_request_body_bytes = int(
-            os.getenv("MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_FILE_SIZE))
+        self.max_request_body_bytes = max(
+            1,
+            int(
+                os.getenv(
+                    "MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_FILE_SIZE)
+                ).strip()
+                or str(DEFAULT_MAX_FILE_SIZE)
+            ),
         )  # 10MB
 
         # Library and storage paths
