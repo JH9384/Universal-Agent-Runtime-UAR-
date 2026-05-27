@@ -1446,7 +1446,7 @@ def _recipe_http_error(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
                 "error": "not_found",
-                "message": f"Recipe '{recipe_id}' not found",
+                "message": "Recipe not found",
             },
         )
     if isinstance(exc, PermissionError):
