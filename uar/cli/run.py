@@ -1,10 +1,9 @@
 import argparse
 
 from uar.core.contracts import GoalSpec
-from uar.memory.base_store import run_record_from_dict
+from uar.memory.base_store import get_store, run_record_from_dict
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
-from uar.memory.json_store import JsonRunStore
 from uar.core.replay import replay_summary
 
 # ensure skills are registered
@@ -37,8 +36,9 @@ def cmd_run(args):
     executor = Executor()
     result = executor.run(strategy, goal)
 
-    store = JsonRunStore()
+    store = get_store()
     store.append(result)
+    store.flush()
 
     print("Run status:", result.status)
     print("Outputs:", result.outputs)
@@ -46,7 +46,7 @@ def cmd_run(args):
 
 def cmd_list(args):
     """List stored runs."""
-    store = JsonRunStore()
+    store = get_store()
     records = store.list_all()
 
     if not records:
@@ -68,7 +68,7 @@ def cmd_list(args):
 
 def cmd_replay(args):
     """Replay a stored run."""
-    store = JsonRunStore()
+    store = get_store()
     records = store.list_all()
 
     if not records:

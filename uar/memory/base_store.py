@@ -12,6 +12,7 @@ when different backends return different column sets.
 """
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 from uar.core.contracts import RunRecord
@@ -63,3 +64,31 @@ class RunStoreProtocol(Protocol):
     def get_by_run_id(self, run_id: str) -> Optional[Dict[str, Any]]: ...
 
     def flush(self) -> None: ...
+
+
+def get_store() -> RunStoreProtocol:
+    """Return a concrete store matching the current environment.
+
+    Selection order:
+      1. ``UAR_DATABASE_URL`` set → ``PostgresRunStore``
+      2. ``UAR_SQLITE_PATH`` set  → ``SqliteRunStore``
+      3. Otherwise                → ``JsonRunStore``
+
+    All three satisfy :class:`RunStoreProtocol` so callers work
+    transparently across backends.
+    """
+    db_url = os.getenv("UAR_DATABASE_URL", "").strip()
+    if db_url:
+        from uar.memory.postgres_store import PostgresRunStore
+
+        return PostgresRunStore(db_url)
+
+    sqlite_path = os.getenv("UAR_SQLITE_PATH", "").strip()
+    if sqlite_path:
+        from uar.memory.sqlite_store import SqliteRunStore
+
+        return SqliteRunStore(path=sqlite_path)
+
+    from uar.memory.json_store import JsonRunStore
+
+    return JsonRunStore()

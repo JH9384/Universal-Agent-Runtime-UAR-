@@ -12,12 +12,11 @@ from rich.panel import Panel
 from rich import box
 
 from uar.core.contracts import GoalSpec
-from uar.memory.base_store import run_record_from_dict
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
 from uar.core.registry import registry
 from uar.core.recipes import DEFAULT_RECIPES
-from uar.memory.json_store import JsonRunStore
+from uar.memory.base_store import get_store, run_record_from_dict
 from uar.core.replay import replay_summary
 from uar.core.timeline import timeline_from_record
 
@@ -188,8 +187,9 @@ def run_goal(
     executor = Executor()
     result = executor.run(strategy, goal_spec)
 
-    store = JsonRunStore()
+    store = get_store()
     store.append(result)
+    store.flush()
 
     if json_output:
         console.print_json(data={
@@ -256,7 +256,7 @@ def history_list(
     limit: int = typer.Option(20, "--limit", "-n", help="Max records"),
 ) -> None:
     """List stored run records."""
-    store = JsonRunStore()
+    store = get_store()
     records = store.list_all()
 
     if not records:
@@ -297,7 +297,7 @@ def history_show(
     ),
 ) -> None:
     """Show details for a stored run."""
-    store = JsonRunStore()
+    store = get_store()
     records = store.list_all()
 
     if index < 1 or index > len(records):

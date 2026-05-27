@@ -297,7 +297,7 @@ validate_recipes()
 
 async def _retention_purge_loop() -> None:
     """Background task: purge old run records periodically."""
-    from uar.memory.json_store import JsonRunStore
+    from uar.memory.base_store import get_store
     from uar.config import config
 
     if config.run_retention_days <= 0:
@@ -305,7 +305,7 @@ async def _retention_purge_loop() -> None:
 
     import asyncio
 
-    store = JsonRunStore()
+    store = get_store()
     while True:
         try:
             await asyncio.sleep(3600)  # Check every hour
@@ -2178,8 +2178,7 @@ async def readiness_probe():
         import httpx
 
         ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-        loop = asyncio.get_event_loop()
-        r = await loop.run_in_executor(
+        r = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: httpx.get(
                 f"{ollama_host.rstrip('/')}/api/tags", timeout=2.0
