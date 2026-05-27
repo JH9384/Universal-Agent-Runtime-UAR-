@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UARRuntimeHealth",
+  "type": "object",
+  "properties": {
+    "pressure": {
+      "type": "number"
+    },
+    "oscillation": {
+      "type": "number"
+    },
+    "replay_confidence": {
+      "type": "number"
+    },
+    "starvation": {
+      "type": "boolean"
+    },
+    "healthy": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "pressure",
+    "oscillation",
+    "replay_confidence",
+    "healthy"
+  ]
+}
