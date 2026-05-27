@@ -167,7 +167,7 @@ def validate_input_path(
     for pattern in dangerous_patterns:
         if re.search(pattern, input_path):
             raise ValidationError(
-                f"Invalid path pattern detected: {pattern}", field="input_path"
+                "Invalid path pattern detected", field="input_path"
             )
 
     # Additional security check: validate against allowed root if provided

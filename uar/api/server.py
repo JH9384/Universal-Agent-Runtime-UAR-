@@ -2870,13 +2870,12 @@ async def docs_browse(
     request_id = str(uuid.uuid4())
     try:
         p = _resolve_docs_path(path)
-        safe_path = str(p)
         if not p.exists():
             return JSONResponse(
                 status_code=404,
                 content={
                     "error": "Path not found",
-                    "message": safe_path,
+                    "message": "Path not found",
                     "request_id": request_id,
                 },
             )
@@ -2932,7 +2931,7 @@ async def docs_browse(
                     by_ext.get(e["ext"] or "(none)", 0) + 1
                 )
         return {
-            "path": safe_path,
+            "path": str(p),
             "parent": parent,
             "is_dir": p.is_dir(),
             "recursive": recursive,

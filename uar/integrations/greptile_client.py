@@ -8,12 +8,14 @@ Docs: https://docs.greptile.com
 """
 
 import os
+import logging
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from .base import BaseIntegration
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
 
-logger = __import__("logging").getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class GreptileClient(BaseIntegration):
@@ -28,9 +30,15 @@ class GreptileClient(BaseIntegration):
 
     def __init__(self) -> None:
         self.api_key = os.getenv("GREPTILE_API_KEY", "")
-        self.base_url = os.getenv(
+        base_url = os.getenv(
             "GREPTILE_API_URL", "https://api.greptile.com/v1"
         )
+        if urlparse(base_url).scheme not in ("http", "https"):
+            logger.warning(
+                "Ignoring invalid GREPTILE_API_URL scheme: %s", base_url
+            )
+            base_url = "https://api.greptile.com/v1"
+        self.base_url = base_url
         self.repo = os.getenv("GREPTILE_REPO", "")
         self._client: Optional[Any] = None
 
