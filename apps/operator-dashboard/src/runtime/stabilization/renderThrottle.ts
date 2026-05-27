@@ -1,6 +1,8 @@
 export interface RenderThrottleState {
   lastFrameAt: number;
   pendingMutations: number;
+  renderedFrames: number;
+  bufferedFrames: number;
 }
 
 export class RenderThrottle {
@@ -11,6 +13,8 @@ export class RenderThrottle {
   private state: RenderThrottleState = {
     lastFrameAt: 0,
     pendingMutations: 0,
+    renderedFrames: 0,
+    bufferedFrames: 0,
   };
 
   shouldRender(now: number = Date.now()): boolean {
@@ -19,10 +23,12 @@ export class RenderThrottle {
     if (now - this.state.lastFrameAt >= minimumDelta) {
       this.state.lastFrameAt = now;
       this.state.pendingMutations = 0;
+      this.state.renderedFrames += 1;
       return true;
     }
 
     this.state.pendingMutations += 1;
+    this.state.bufferedFrames += 1;
     return false;
   }
 
