@@ -464,7 +464,7 @@ def relativity(ctx: PipelineContext) -> Dict[str, Any]:
         else:
             return {
                 "status": "failed",
-                "error": f"Unknown metric: {metric_name}",
+                "error": "Unknown metric",
             }
 
         g_inv = g.inv()

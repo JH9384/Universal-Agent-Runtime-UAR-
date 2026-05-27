@@ -68,7 +68,7 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
         else:
             return {
                 "status": "failed",
-                "error": f"Unknown operation: {operation}",
+                "error": "Unknown operation",
             }
 
         out_path = params.get(
