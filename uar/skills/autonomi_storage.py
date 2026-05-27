@@ -259,10 +259,11 @@ def autonomi_download(ctx):
     # Validate destination path security
     try:
         validate_path_security(dest, ALLOWED_ROOT)
-    except (PathSecurityError, ValueError, OSError) as e:
+    except (PathSecurityError, ValueError, OSError):
+        logger.exception("Destination path security validation failed")
         return {
             "status": "failed",
-            "error": f"Destination path security violation: {e}",
+            "error": "Destination path security violation",
             "address": address,
         }
 

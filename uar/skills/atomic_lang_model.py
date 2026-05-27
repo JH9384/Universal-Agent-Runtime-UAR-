@@ -129,7 +129,7 @@ def _call_alm(
             error_detail = {"error": "Failed to parse error response"}
         return {
             "status": "error",
-            "error": f"HTTP {e.response.status_code}",
+            "error": "ALM service request failed",
             "details": error_detail,
         }
     except httpx.TimeoutException:

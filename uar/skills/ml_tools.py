@@ -155,8 +155,8 @@ def chromadb_store(ctx: PipelineContext) -> Dict[str, Any]:
         else:
             return {
                 "status": "failed",
-                "error": f"Unknown operation: {operation}",
+                "error": "Unknown operation",
             }
     except Exception as exc:
-        logger.warning(f"chromadb_store failed: {exc}")
+        logger.warning("chromadb_store failed: %s", exc)
         return {"status": "failed", "error": "ChromaDB operation failed"}

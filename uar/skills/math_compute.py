@@ -211,7 +211,7 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
     if len(expression) > MAX_EXPRESSION_SIZE:
         return {
             "status": "failed",
-            "error": f"Expression too large (max {MAX_EXPRESSION_SIZE} chars)",
+            "error": "Expression too large",
             "operation": operation,
         }
 
