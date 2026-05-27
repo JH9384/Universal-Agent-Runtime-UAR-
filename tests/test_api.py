@@ -84,7 +84,7 @@ def test_run_with_unknown_user_recipe_raises():
     response = client.post("/api/uar/run", json=payload)
     assert response.status_code == 400
     data = response.json()
-    assert "unknown_xyz" in str(data)
+    assert "Invalid execution order" in str(data)
 
 
 AUTH_HEADERS = {"Authorization": "Bearer dev-key-12345"}

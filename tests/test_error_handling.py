@@ -349,10 +349,7 @@ class TestSecurityEdgeCases:
         assert response.status_code == 400
         data = response.json()
         error_detail = data["detail"]["message"]
-        assert (
-            "cannot exceed" in error_detail
-            or "too long" in error_detail.lower()
-        )
+        assert "Invalid goal provided" in error_detail
 
 
 class TestMemoryAndResourceLimits:

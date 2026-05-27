@@ -566,14 +566,27 @@ _uar_start_time = time.time()
 # Custom exception handlers for UAR exceptions
 @app.exception_handler(ValidationError)
 async def validation_error_handler(request, exc):
+    field = getattr(exc, "field", None)
+    if field == "input_path":
+        message = "Invalid path provided"
+    elif field == "goal":
+        message = "Invalid goal provided"
+    elif field == "skills":
+        message = "Invalid skills provided"
+    elif field == "timeout_seconds":
+        message = "Invalid timeout provided"
+    elif field == "execution_order":
+        message = "Invalid execution order provided"
+    else:
+        message = "Invalid input provided"
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={
             "detail": {
                 "error": "Validation error",
                 "code": exc.code.value,
-                "message": str(exc),
-                "field": getattr(exc, "field", None),
+                "message": message,
+                "field": field,
             }
         },
     )
@@ -587,7 +600,7 @@ async def path_security_error_handler(request, exc):
             "detail": {
                 "error": "Path security violation",
                 "code": exc.code.value,
-                "message": str(exc),
+                "message": "Invalid path provided",
                 "field": "input_path",
             }
         },
@@ -914,36 +927,33 @@ async def run_goal(
         except ValidationError as e:
             logger.warning(f"[{request_id}] Validation error: {str(e)}")
             # Provide user-friendly error messages based on field
-            user_message = str(e)
             if e.field == "goal":
                 user_message = (
-                    f"Invalid goal: {str(e)}. "
-                    "Please provide a clear goal description "
-                    "(3-10,000 characters)."
+                    "Invalid goal. Please provide a clear goal "
+                    "description (3-10,000 characters)."
                 )
             elif e.field == "skills":
                 user_message = (
-                    f"Invalid skills: {str(e)}. "
-                    "Please check that the skills are available "
-                    "in the system."
+                    "Invalid skills. Please check that the skills "
+                    "are available in the system."
                 )
             elif e.field == "input_path":
                 user_message = (
-                    f"Invalid input path: {str(e)}. "
-                    "Please provide a valid path within the "
-                    "project directory."
+                    "Invalid input path. Please provide a valid "
+                    "path within the project directory."
                 )
             elif e.field == "timeout_seconds":
                 user_message = (
-                    f"Invalid timeout: {str(e)}. "
-                    "Please provide a timeout between 1 and "
-                    "300 seconds."
+                    "Invalid timeout. Please provide a timeout "
+                    "between 1 and 300 seconds."
                 )
             elif e.field == "execution_order":
                 user_message = (
-                    f"Invalid execution order: {str(e)}. "
-                    "Please check that all skills and recipes are valid."
+                    "Invalid execution order. Please check that "
+                    "all skills and recipes are valid."
                 )
+            else:
+                user_message = "Invalid input provided"
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1143,13 +1153,16 @@ async def stream_goal_ws(
         try:
             req = RunRequest(**data)
         except ValidationError as e:
+            logger.warning(
+                "[%s] WebSocket validation error: %s", request_id, str(e)
+            )
             await websocket.send_json(
                 create_event(
                     "error",
                     run_id="unknown",
                     error="Validation error",
                     payload={
-                        "message": str(e),
+                        "message": "Invalid input provided",
                         "request_id": request_id,
                         "code": "VALIDATION_ERROR",
                     },
@@ -1158,13 +1171,18 @@ async def stream_goal_ws(
             await websocket.close()
             return
         except PydanticValidationError as e:
+            logger.warning(
+                "[%s] WebSocket pydantic validation error: %s",
+                request_id,
+                str(e),
+            )
             await websocket.send_json(
                 create_event(
                     "error",
                     run_id="unknown",
                     error="Validation error",
                     payload={
-                        "message": str(e),
+                        "message": "Invalid input provided",
                         "request_id": request_id,
                         "code": "VALIDATION_ERROR",
                     },
@@ -1624,36 +1642,33 @@ async def stream_goal(
         except ValidationError as e:
             logger.warning(f"[{request_id}] Stream validation error: {str(e)}")
             # Provide user-friendly error messages based on field
-            user_message = str(e)
             if e.field == "goal":
                 user_message = (
-                    f"Invalid goal: {str(e)}. "
-                    "Please provide a clear goal description "
-                    "(3-10,000 characters)."
+                    "Invalid goal. Please provide a clear goal "
+                    "description (3-10,000 characters)."
                 )
             elif e.field == "skills":
                 user_message = (
-                    f"Invalid skills: {str(e)}. "
-                    "Please check that the skills are available "
-                    "in the system."
+                    "Invalid skills. Please check that the skills "
+                    "are available in the system."
                 )
             elif e.field == "input_path":
                 user_message = (
-                    f"Invalid input path: {str(e)}. "
-                    "Please provide a valid path within the "
-                    "project directory."
+                    "Invalid input path. Please provide a valid "
+                    "path within the project directory."
                 )
             elif e.field == "timeout_seconds":
                 user_message = (
-                    f"Invalid timeout: {str(e)}. "
-                    "Please provide a timeout between 1 and "
-                    "300 seconds."
+                    "Invalid timeout. Please provide a timeout "
+                    "between 1 and 300 seconds."
                 )
             elif e.field == "execution_order":
                 user_message = (
-                    f"Invalid execution order: {str(e)}. "
-                    "Please check that all skills and recipes are valid."
+                    "Invalid execution order. Please check that "
+                    "all skills and recipes are valid."
                 )
+            else:
+                user_message = "Invalid input provided"
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1838,13 +1853,18 @@ async def websocket_run(websocket: WebSocket):
         try:
             req = RunRequest(**data)
         except PydanticValidationError as e:
+            logger.warning(
+                "[%s] WebSocket pydantic validation error: %s",
+                request_id,
+                str(e),
+            )
             await websocket.send_json(
                 create_event(
                     "error",
                     run_id="unknown",
                     error="Validation error",
                     payload={
-                        "message": str(e),
+                        "message": "Invalid input provided",
                         "request_id": request_id,
                         "code": "VALIDATION_ERROR",
                     },
@@ -2610,7 +2630,8 @@ async def docs_upload(
                             0o644,
                         )
                         # Successfully created exclusively - close fd properly
-                        # Use os.fdopen to wrap in file object for proper cleanup
+                        # Use os.fdopen to wrap in file object for
+                        # proper cleanup
                         try:
                             with os.fdopen(fd, "wb") as _:
                                 pass  # Just create empty file as placeholder
@@ -3067,12 +3088,12 @@ async def docs_create_folder(
         new_folder = target_parent / folder_name
         try:
             new_folder.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
+        except OSError:
+            logger.exception("[%s] Folder creation failed", request_id)
             return JSONResponse(
                 status_code=500,
                 content={
                     "error": "Folder creation failed",
-                    "message": str(e),
                     "request_id": request_id,
                 },
             )
@@ -3085,11 +3106,16 @@ async def docs_create_folder(
         }
 
     except (ValidationError, PathSecurityError) as e:
+        logger.warning(
+            "[%s] docs_create_folder validation error: %s",
+            request_id,
+            str(e),
+        )
         return JSONResponse(
             status_code=400,
             content={
                 "error": "Invalid path",
-                "message": str(e),
+                "message": "Invalid path provided",
                 "request_id": request_id,
             },
         )
