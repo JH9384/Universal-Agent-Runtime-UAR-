@@ -59,7 +59,7 @@ def _recv() -> Dict[str, Any]:
         return {}
     _MAX_MCP_PAYLOAD = 10_000_000  # 10 MB safety cap
     if length > _MAX_MCP_PAYLOAD:
-        raise ValueError(f"MCP payload too large: {length} bytes")
+        raise ValueError("MCP payload too large")
 
     raw = sys.stdin.read(length)
     return json.loads(raw)
