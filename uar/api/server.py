@@ -1367,7 +1367,7 @@ async def stream_goal_ws(
         try:
             await websocket.close()
         except Exception:
-            pass
+            logger.warning("WebSocket close failed", exc_info=True)
 
 
 @app.get("/api/uar/skills")
@@ -1982,7 +1982,7 @@ async def websocket_run(websocket: WebSocket):
         try:
             await websocket.close()
         except Exception:
-            pass
+            logger.warning("WebSocket close failed", exc_info=True)
 
 
 @app.get(

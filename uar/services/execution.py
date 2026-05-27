@@ -162,7 +162,7 @@ class GoalExecutionService(BaseService):
                         if hasattr(cache, "_redis"):
                             cache._redis.exists(cache_key)
             except Exception:
-                pass
+                logger.exception("Predictive cache warm failed")
 
         # Emit orchestration plan first
         yield self._event.orchestration_plan(
@@ -325,7 +325,7 @@ class GoalExecutionService(BaseService):
                 try:
                     os.unlink(tmp_path.name)
                 except Exception:
-                    pass
+                    logger.exception("Temp file cleanup failed")
 
     async def _persist_async(
         self,
@@ -348,7 +348,7 @@ class GoalExecutionService(BaseService):
             try:
                 os.unlink(file_path)
             except Exception:
-                pass
+                logger.exception("Temp file cleanup failed")
 
     def _persist_from_file(
         self,
