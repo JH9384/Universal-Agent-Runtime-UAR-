@@ -50,7 +50,11 @@ def _get_client() -> Any:
     base_url = f"http://{host}:{port}/v1"
 
     timeout = max(
-        1, int(os.getenv("LM_STUDIO_TIMEOUT_SEC", "30").strip() or "30")
+        1,
+        min(
+            300,
+            int(os.getenv("LM_STUDIO_TIMEOUT_SEC", "30").strip() or "30"),
+        ),
     )
     return openai.OpenAI(
         base_url=base_url,
