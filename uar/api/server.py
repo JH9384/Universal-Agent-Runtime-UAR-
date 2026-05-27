@@ -2717,7 +2717,7 @@ async def docs_library_delete(
         )
     from pathlib import Path
 
-    library = _library_dir()
+    library = _library_dir().resolve()
     safe_name = Path(name).name
     if not safe_name or safe_name in (".", ".."):
         return JSONResponse(
