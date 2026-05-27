@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 # Constants
 DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
 DEFAULT_CLEANUP_THRESHOLD = 1024  # number of entries
-DEFAULT_CLEANUP_INTERVAL = int(
-    os.getenv("RATE_LIMIT_CLEANUP_INTERVAL", "100")
+DEFAULT_CLEANUP_INTERVAL = max(
+    1,
+    min(10000, int(os.getenv("RATE_LIMIT_CLEANUP_INTERVAL", "100"))),
 )  # number of requests between cleanups
 DEFAULT_MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 DEFAULT_MAX_ENTRIES = (
@@ -35,35 +36,50 @@ def _load_rate_limits() -> Dict[str, Dict[str, int]]:
         "default": {
             "requests": max(
                 1,
-                int(
-                    os.getenv("RATE_LIMIT_ANONYMOUS", "10").strip() or "10"
+                min(
+                    100000,
+                    int(
+                        os.getenv("RATE_LIMIT_ANONYMOUS", "10").strip()
+                        or "10"
+                    ),
                 ),
             ),
             "window": max(
                 1,
-                int(
-                    os.getenv(
-                        "RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW)
-                    ).strip()
-                    or str(DEFAULT_RATE_LIMIT_WINDOW)
+                min(
+                    3600,
+                    int(
+                        os.getenv(
+                            "RATE_LIMIT_WINDOW",
+                            str(DEFAULT_RATE_LIMIT_WINDOW),
+                        ).strip()
+                        or str(DEFAULT_RATE_LIMIT_WINDOW)
+                    ),
                 ),
             ),
         },
         "authenticated": {
             "requests": max(
                 1,
-                int(
-                    os.getenv("RATE_LIMIT_AUTHENTICATED", "100").strip()
-                    or "100"
+                min(
+                    100000,
+                    int(
+                        os.getenv("RATE_LIMIT_AUTHENTICATED", "100").strip()
+                        or "100"
+                    ),
                 ),
             ),
             "window": max(
                 1,
-                int(
-                    os.getenv(
-                        "RATE_LIMIT_WINDOW", str(DEFAULT_RATE_LIMIT_WINDOW)
-                    ).strip()
-                    or str(DEFAULT_RATE_LIMIT_WINDOW)
+                min(
+                    3600,
+                    int(
+                        os.getenv(
+                            "RATE_LIMIT_WINDOW",
+                            str(DEFAULT_RATE_LIMIT_WINDOW),
+                        ).strip()
+                        or str(DEFAULT_RATE_LIMIT_WINDOW)
+                    ),
                 ),
             ),
         },
@@ -331,7 +347,9 @@ class RedisRateLimiter:
             self._redis.zremrangebyscore(
                 f"uar:ratelimit:{key}", 0, window_start
             )
-            current = int(self._redis.zcard(f"uar:ratelimit:{key}"))  # type: ignore[arg-type]
+            current = int(  # type: ignore[arg-type]
+                self._redis.zcard(f"uar:ratelimit:{key}")
+            )
         except redis.RedisError:
             return limit
         return max(0, limit - current)
@@ -769,11 +787,18 @@ def apply_middleware(app):
     """
     # Request body size limiter
     # Runs last (innermost) - first @app.middleware registered
-    max_body_size = int(
-        os.getenv(
-            "MAX_REQUEST_BODY_BYTES", str(DEFAULT_MAX_REQUEST_BODY_BYTES)
-        )
-    )  # 10MB default
+    max_body_size = max(
+        1024,
+        min(
+            100 * 1024 * 1024,
+            int(
+                os.getenv(
+                    "MAX_REQUEST_BODY_BYTES",
+                    str(DEFAULT_MAX_REQUEST_BODY_BYTES),
+                )
+            ),
+        ),
+    )  # 10MB default, clamped to [1KB, 100MB]
 
     @app.middleware("http")
     async def limit_request_body(request: Request, call_next):
