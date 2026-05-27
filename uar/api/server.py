@@ -2299,7 +2299,8 @@ async def readiness_probe():
         except Exception:
             checks["redis_reachable"] = False
     else:
-        checks["redis_reachable"] = None  # type: ignore[assignment]  # not configured
+        # type: ignore[assignment]  # not configured
+        checks["redis_reachable"] = None
 
     # Check circuit breaker states (non-blocking, informational)
     try:
@@ -2665,14 +2666,14 @@ async def docs_upload(
                         size = -1
                         break
                     out.write(chunk)
-        except Exception as e:
+        except Exception:
             logger.exception(f"[{request_id}] upload failed for {safe_name}")
             for p in (temp_dest, dest):
                 try:
                     p.unlink()
                 except OSError:
                     pass
-            rejected.append({"name": safe_name, "reason": str(e)})
+            rejected.append({"name": safe_name, "reason": "Upload failed"})
             continue
         finally:
             await upload.close()
@@ -2795,10 +2796,13 @@ async def docs_library_delete(
         )
     try:
         target.unlink()
-    except OSError as e:
+    except OSError:
         return JSONResponse(
             status_code=500,
-            content={"error": "Delete failed", "message": str(e)},
+            content={
+                "error": "Delete failed",
+                "message": "File deletion failed",
+            },
         )
     return {"deleted": str(target)}
 
@@ -2906,22 +2910,22 @@ async def docs_browse(
             "by_extension": by_ext,
             "entries": entries,
         }
-    except (ValidationError, PathSecurityError) as e:
+    except (ValidationError, PathSecurityError):
         return JSONResponse(
             status_code=400,
             content={
                 "error": "Invalid path",
-                "message": str(e),
+                "message": "Path validation failed",
                 "request_id": request_id,
             },
         )
-    except Exception as e:
+    except Exception:
         logger.exception(f"[{request_id}] docs_browse failed")
         return JSONResponse(
             status_code=500,
             content={
                 "error": "Internal server error",
-                "message": str(e),
+                "message": "Browse request failed",
                 "request_id": request_id,
             },
         )
