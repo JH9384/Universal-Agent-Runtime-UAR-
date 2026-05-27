@@ -112,7 +112,7 @@ class UORSchemaValidator:
             import urllib.request
 
             url = self.UOR_FOUNDATION_SCHEMA_URL
-            with urllib.request.urlopen(url) as response:
+            with urllib.request.urlopen(url, timeout=10.0) as response:
                 schema = json.loads(response.read().decode())
                 self.schemas["uor.foundation.schema"] = schema
                 logger.info("Loaded UOR Foundation schema from remote")

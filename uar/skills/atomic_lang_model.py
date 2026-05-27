@@ -17,6 +17,7 @@ Goal metadata overrides:
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 from typing import Dict, Any
@@ -54,6 +55,19 @@ def _get_http_client():
             limits=limits,
         )
     return _http_client
+
+
+def _close_http_client() -> None:
+    global _http_client
+    if _http_client is not None:
+        try:
+            _http_client.close()
+        except Exception:
+            pass
+        _http_client = None
+
+
+atexit.register(_close_http_client)
 
 
 def _get_service_url(ctx: PipelineContext | None = None) -> str:

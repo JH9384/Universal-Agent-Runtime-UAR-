@@ -55,8 +55,11 @@ def _recv() -> Dict[str, Any]:
         headers[key.strip().lower()] = value.strip()
 
     length = int(headers.get("content-length", 0))
-    if length == 0:
+    if length <= 0:
         return {}
+    _MAX_MCP_PAYLOAD = 10_000_000  # 10 MB safety cap
+    if length > _MAX_MCP_PAYLOAD:
+        raise ValueError(f"MCP payload too large: {length} bytes")
 
     raw = sys.stdin.read(length)
     return json.loads(raw)
