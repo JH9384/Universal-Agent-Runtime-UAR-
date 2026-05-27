@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests]
+        args: [--ignore-missing-imports]
+        files: ^uar/
+
+  - repo: local
+    hooks:
+      - id: no-fstring-logging
+        name: Check for f-string in logging calls
+        entry: ./scripts/check_no_fstring_logging.sh
+        language: script
+        files: \.py$
+        pass_filenames: true
