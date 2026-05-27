@@ -61,7 +61,7 @@ def _close_redis() -> None:
         try:
             _redis_client.close()
         except Exception:
-            pass
+            logger.exception("Redis client close failed")
         _redis_client = None
 
 
@@ -274,7 +274,7 @@ class RedisSkillCache:
                         self._r.delete(key)
                         removed += 1
                 except Exception:
-                    pass
+                    logger.exception("Redis key delete failed")
             return removed
         except Exception:
             return 0
@@ -377,7 +377,7 @@ def warm_skill_cache(
                 cache.set(skill_name, meta, {"_warming": True}, ttl_seconds)
                 warmed += 1
         except Exception:
-            pass
+            logger.exception("Cache warm failed")
 
     pool_size = max(
         1,

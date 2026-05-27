@@ -79,7 +79,7 @@ def _close_http_client() -> None:
         try:
             _http_client.close()
         except Exception:
-            pass
+            logger.exception("HTTP client close failed")
         _http_client = None
 
 

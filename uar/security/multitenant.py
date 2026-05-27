@@ -106,7 +106,7 @@ class SecuritySandbox:
                 resource.getrlimit(resource.RLIMIT_NOFILE),
             )
         except Exception:
-            pass
+            logger.exception("Resource limit read failed")
 
     def _restore_limits(self) -> None:
         """Restore original resource limits."""
@@ -117,7 +117,7 @@ class SecuritySandbox:
                 resource.setrlimit(resource.RLIMIT_FSIZE, self._original_limits[2])
                 resource.setrlimit(resource.RLIMIT_NOFILE, self._original_limits[3])
             except Exception:
-                pass
+                logger.exception("Resource limit restore failed")
 
     def __enter__(self) -> "SecuritySandbox":
         """Enter sandbox context."""

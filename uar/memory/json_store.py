@@ -1,5 +1,6 @@
 import fcntl
 import json
+import logging
 import os
 import threading
 import time
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from uar.core.contracts import RunRecord
+
+logger = logging.getLogger(__name__)
 
 
 class JsonRunStore:
@@ -78,7 +81,7 @@ class JsonRunStore:
         try:
             self.flush()
         except Exception:
-            pass
+            logger.warning("JsonRunStore flush failed", exc_info=True)
 
     def list_records(
         self, user_id: Optional[str] = None, limit: int = 1000

@@ -86,7 +86,7 @@ def _shutdown_postgres_pool() -> None:
         try:
             _db_pool.close()
         except Exception:
-            pass
+            logger.exception("Database pool close failed")
         _db_pool = None
 
 
