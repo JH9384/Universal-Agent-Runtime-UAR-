@@ -295,7 +295,9 @@ class RedisCacheBackend(CacheBackend):
         try:
             import redis as redis_lib
 
-            self._client = redis_lib.from_url(url or "", decode_responses=True)  # type: ignore[assignment]
+            self._client = (  # type: ignore[assignment]
+                redis_lib.from_url(url or "", decode_responses=True)
+            )
             self._client.ping()
             self._available = True
         except Exception as exc:
@@ -423,9 +425,13 @@ class RedisCacheBackend(CacheBackend):
                 "circuit_tripped": self._circuit_tripped,
             }
         try:
-            info = self._client.info("keyspace")  # type: ignore[union-attr]
+            info = (  # type: ignore[union-attr]
+                self._client.info("keyspace")
+            )
             total_keys = sum(
-                v.get("keys", 0) for v in info.values() if isinstance(v, dict)  # type: ignore[union-attr]
+                v.get("keys", 0)
+                for v in info.values()
+                if isinstance(v, dict)  # type: ignore[union-attr]
             )
             self._record_success()
             return {

@@ -55,7 +55,9 @@ class SecuritySandbox:
             f"{self.tenant_id}:{self.run_id}".encode()
         ).hexdigest()[:16]
 
-        workspace = Path(tempfile.gettempdir()) / "uar_sandbox" / workspace_hash
+        workspace = Path(
+            tempfile.gettempdir()
+        ) / "uar_sandbox" / workspace_hash
         workspace.mkdir(parents=True, exist_ok=True)
 
         # Create subdirectories
@@ -77,13 +79,19 @@ class SecuritySandbox:
             # CPU time limit
             resource.setrlimit(
                 resource.RLIMIT_CPU,
-                (self.cpu_limit, self.cpu_limit + 5)  # hard limit slightly higher
+                (
+                    self.cpu_limit,
+                    self.cpu_limit + 5,
+                )  # hard limit slightly higher
             )
 
             # File size limit
             resource.setrlimit(
                 resource.RLIMIT_FSIZE,
-                (MAX_FILE_SIZE_MB * 1024 * 1024, MAX_FILE_SIZE_MB * 1024 * 1024)
+                (
+                    MAX_FILE_SIZE_MB * 1024 * 1024,
+                    MAX_FILE_SIZE_MB * 1024 * 1024,
+                )
             )
 
             # Open files limit
@@ -92,9 +100,13 @@ class SecuritySandbox:
                 (MAX_OPEN_FILES, MAX_OPEN_FILES)
             )
 
-            logger.debug(f"Applied resource limits for {self.run_id}")
+            logger.debug(
+                "Applied resource limits for %s", self.run_id
+            )
         except Exception as e:
-            logger.warning(f"Could not apply resource limits: {e}")
+            logger.warning(
+                "Could not apply resource limits: %s", e
+            )
 
     def _save_original_limits(self) -> None:
         """Save original resource limits."""
@@ -112,10 +124,22 @@ class SecuritySandbox:
         """Restore original resource limits."""
         if self._original_limits:
             try:
-                resource.setrlimit(resource.RLIMIT_AS, self._original_limits[0])
-                resource.setrlimit(resource.RLIMIT_CPU, self._original_limits[1])
-                resource.setrlimit(resource.RLIMIT_FSIZE, self._original_limits[2])
-                resource.setrlimit(resource.RLIMIT_NOFILE, self._original_limits[3])
+                resource.setrlimit(
+                    resource.RLIMIT_AS,
+                    self._original_limits[0],
+                )
+                resource.setrlimit(
+                    resource.RLIMIT_CPU,
+                    self._original_limits[1],
+                )
+                resource.setrlimit(
+                    resource.RLIMIT_FSIZE,
+                    self._original_limits[2],
+                )
+                resource.setrlimit(
+                    resource.RLIMIT_NOFILE,
+                    self._original_limits[3],
+                )
             except Exception:
                 logger.exception("Resource limit restore failed")
 
@@ -124,7 +148,11 @@ class SecuritySandbox:
         self.workspace = self._create_workspace()
         self._save_original_limits()
         self._apply_resource_limits()
-        logger.info(f"Sandbox created for tenant {self.tenant_id}, run {self.run_id}")
+        logger.info(
+            "Sandbox created for tenant %s, run %s",
+            self.tenant_id,
+            self.run_id,
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -136,9 +164,13 @@ class SecuritySandbox:
             try:
                 import shutil
                 shutil.rmtree(self.workspace, ignore_errors=True)
-                logger.debug(f"Cleaned up workspace {self.workspace}")
+                logger.debug(
+                    "Cleaned up workspace %s", self.workspace
+                )
             except Exception as e:
-                logger.warning(f"Failed to cleanup workspace: {e}")
+                logger.warning(
+                    "Failed to cleanup workspace: %s", e
+                )
 
     def get_working_directory(self) -> Path:
         """Get sandbox working directory."""
@@ -154,21 +186,32 @@ class SecuritySandbox:
             # Check blocked paths
             for blocked in BLOCKED_PATHS:
                 if blocked in str(resolved):
-                    logger.warning(f"Blocked access to {path} - matches {blocked}")
+                    logger.warning(
+                        "Blocked access to %s - matches %s",
+                        path,
+                        blocked,
+                    )
                     return False
 
             # Must be within sandbox or explicitly allowed
-            if self.workspace and str(resolved).startswith(str(self.workspace)):
+            if self.workspace and str(resolved).startswith(
+                str(self.workspace)
+            ):
                 return True
 
             # Check extension
             if resolved.suffix.lower() not in ALLOWED_FILE_EXTENSIONS:
-                logger.warning(f"Blocked file with extension {resolved.suffix}")
+                logger.warning(
+                    "Blocked file with extension %s",
+                    resolved.suffix,
+                )
                 return False
 
             return True
         except Exception as e:
-            logger.warning(f"File access validation error: {e}")
+            logger.warning(
+                "File access validation error: %s", e
+            )
             return False
 
 
@@ -211,15 +254,23 @@ class TenantIsolation:
         """Cleanup all workspaces for a tenant."""
         with self._get_tenant_lock(tenant_id):
             tenant_hash = hashlib.sha256(tenant_id.encode()).hexdigest()[:16]
-            tenant_dir = Path(tempfile.gettempdir()) / "uar_tenants" / tenant_hash
+            tenant_dir = Path(
+                tempfile.gettempdir()
+            ) / "uar_tenants" / tenant_hash
 
             if tenant_dir.exists():
                 try:
                     import shutil
                     shutil.rmtree(tenant_dir)
-                    logger.info(f"Cleaned up tenant {tenant_id}")
+                    logger.info(
+                        "Cleaned up tenant %s", tenant_id
+                    )
                 except Exception as e:
-                    logger.error(f"Failed to cleanup tenant {tenant_id}: {e}")
+                    logger.error(
+                        "Failed to cleanup tenant %s: %s",
+                        tenant_id,
+                        e,
+                    )
 
             # Remove from tracking
             keys_to_remove = [
@@ -305,7 +356,9 @@ def sandboxed_execution(
             # Execute untrusted code here
             result = run_agent_code(sandbox)
     """
-    sandbox = SecuritySandbox(tenant_id, run_id, memory_limit_mb, cpu_limit_seconds)
+    sandbox = SecuritySandbox(
+        tenant_id, run_id, memory_limit_mb, cpu_limit_seconds
+    )
     try:
         yield sandbox
     finally:
