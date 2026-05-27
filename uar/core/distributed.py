@@ -153,7 +153,8 @@ class WorkerPool:
     def submit(self, task: WorkerTask) -> concurrent.futures.Future:
         """Submit a task to the pool."""
         self._ensure_executor()
-        assert self._executor is not None
+        if self._executor is None:
+            raise RuntimeError("WorkerPool executor failed to initialize")
         return self._executor.submit(self._execute_task, task)
 
     def map_tasks(self, tasks: List[WorkerTask]) -> List[WorkerResult]:
@@ -161,7 +162,8 @@ class WorkerPool:
         if not tasks:
             return []
         self._ensure_executor()
-        assert self._executor is not None
+        if self._executor is None:
+            raise RuntimeError("WorkerPool executor failed to initialize")
 
         futures = {self.submit(t): t for t in tasks}
         results: List[WorkerResult] = []

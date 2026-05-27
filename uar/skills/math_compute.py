@@ -43,38 +43,40 @@ def _check_sympy_available() -> bool:
 
 
 def _safe_sympy_eval(expr: str, timeout: float) -> Dict[str, Any]:
-    """Safely evaluate SymPy expression with timeout."""
+    """Safely evaluate SymPy expression with timeout.
+
+    Uses ``threading.Thread`` with ``join(timeout)`` instead of
+    ``signal.SIGALRM`` so the timeout works on any thread (e.g.
+    inside a ``ThreadPoolExecutor``) and on Windows where SIGALRM
+    does not exist.
+    """
     import sympy  # type: ignore
-    import signal
+    import threading
 
-    class TimeoutError(Exception):
-        pass
+    _result: Dict[str, Any] = {}
+    _exc: Exception | None = None
 
-    def handler(signum, frame):
-        raise TimeoutError("Computation timed out")
+    def _target() -> None:
+        nonlocal _result, _exc
+        try:
+            result = sympy.sympify(expr)
+            _result = {
+                "success": True,
+                "result": str(result),
+                "result_latex": sympy.latex(result),
+                "result_type": str(type(result).__name__),
+            }
+        except Exception as e:
+            _exc = e
 
-    try:
-        # Set timeout signal
-        signal.signal(signal.SIGALRM, handler)
-        signal.alarm(int(timeout))
-
-        result = sympy.sympify(expr)
-
-        # Cancel alarm
-        signal.alarm(0)
-
-        return {
-            "success": True,
-            "result": str(result),
-            "result_latex": sympy.latex(result),
-            "result_type": str(type(result).__name__),
-        }
-    except TimeoutError:
-        signal.alarm(0)
+    t = threading.Thread(target=_target)
+    t.start()
+    t.join(timeout=timeout)
+    if t.is_alive():
         return {"success": False, "error": "Computation timed out"}
-    except Exception as exc:
-        signal.alarm(0)
-        return {"success": False, "error": str(exc)}
+    if _exc is not None:
+        return {"success": False, "error": str(_exc)}
+    return _result
 
 
 def _solve_equation(expr: str, variable: str = "x") -> Dict[str, Any]:
