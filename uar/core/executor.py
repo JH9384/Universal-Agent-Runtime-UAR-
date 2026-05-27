@@ -1322,9 +1322,9 @@ class Executor:
                                         _coalesce_results.pop(
                                             evict_key, None
                                         )
-                                        _coalesce_locks.pop(
-                                            evict_key, None
-                                        )
+                                        # NOTE: do NOT remove the lock
+                                        # from _coalesce_locks — another
+                                        # thread may be holding it.
 
                             _release_coalesce_lock()
                             yield _ev(

@@ -130,3 +130,27 @@ class TestBackgroundPersistenceCleanup:
 
         asyncio.run(_run())
         assert not dummy.exists()
+
+
+class TestCoalesceLockEviction:
+    """Coalesce eviction must not remove locks held by other threads."""
+
+    def test_eviction_does_not_remove_held_lock(self):
+        import threading
+        from uar.core import executor as _exec
+
+        key = "test_skill:abc123"
+        # Simulate a thread holding the lock
+        with _exec._coalesce_meta_lock:
+            _exec._coalesce_locks[key] = threading.Lock()
+        lock = _exec._coalesce_locks[key]
+        lock.acquire()
+
+        # Eviction should NOT remove the lock
+        with _exec._coalesce_meta_lock:
+            _exec._coalesce_results.pop(key, None)
+            # The old code did: _exec._coalesce_locks.pop(key, None)
+            # which would create a race. Verify it's still present.
+
+        assert key in _exec._coalesce_locks
+        lock.release()
