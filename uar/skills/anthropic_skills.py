@@ -158,11 +158,11 @@ def anthropic_chat(ctx: PipelineContext) -> Dict[str, Any]:
                 + response.usage.output_tokens,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("anthropic_chat failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Chat request failed",
             "model": _get_model(ctx),
         }
 
@@ -226,11 +226,11 @@ def anthropic_completion(ctx: PipelineContext) -> Dict[str, Any]:
                 + response.usage.output_tokens,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("anthropic_completion failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Completion request failed",
             "model": _get_model(ctx),
         }
 

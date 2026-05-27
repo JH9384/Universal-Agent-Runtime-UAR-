@@ -165,11 +165,11 @@ def together_chat(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("together_chat failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Chat request failed",
             "model": _get_model(ctx),
         }
 
@@ -235,11 +235,11 @@ def together_completion(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("together_completion failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Completion request failed",
             "model": _get_model(ctx),
         }
 
@@ -302,10 +302,10 @@ def together_embedding(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("together_embedding failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Embedding request failed",
             "model": embedding_model,
         }

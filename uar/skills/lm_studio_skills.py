@@ -169,11 +169,11 @@ def lm_studio_chat(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("lm_studio_chat failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Chat request failed",
             "model": _get_model(ctx),
         }
 
@@ -247,11 +247,11 @@ def lm_studio_completion(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("lm_studio_completion failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Completion request failed",
             "model": _get_model(ctx),
         }
 
@@ -314,10 +314,10 @@ def lm_studio_embedding(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("lm_studio_embedding failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Embedding request failed",
             "note": "Ensure the loaded LM Studio model supports embeddings",
         }

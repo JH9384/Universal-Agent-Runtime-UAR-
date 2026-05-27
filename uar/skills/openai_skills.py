@@ -155,11 +155,11 @@ def openai_chat(ctx: PipelineContext) -> Dict[str, Any]:
                 "total_tokens": response.usage.total_tokens,
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("openai_chat failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Chat request failed",
             "model": _get_model(ctx),
         }
 
@@ -221,11 +221,11 @@ def openai_completion(ctx: PipelineContext) -> Dict[str, Any]:
                 "total_tokens": response.usage.total_tokens,
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("openai_completion failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Completion request failed",
             "model": _get_model(ctx),
         }
 
@@ -281,10 +281,10 @@ def openai_embedding(ctx: PipelineContext) -> Dict[str, Any]:
                 "total_tokens": response.usage.total_tokens,
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("openai_embedding failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Embedding request failed",
             "model": embedding_model,
         }

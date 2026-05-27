@@ -164,11 +164,11 @@ def mistral_chat(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("mistral_chat failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Chat request failed",
             "model": _get_model(ctx),
         }
 
@@ -235,11 +235,11 @@ def mistral_completion(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("mistral_completion failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Completion request failed",
             "model": _get_model(ctx),
         }
 
@@ -299,10 +299,10 @@ def mistral_embedding(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("mistral_embedding failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Embedding request failed",
             "model": embedding_model,
         }

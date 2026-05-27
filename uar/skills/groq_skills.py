@@ -161,11 +161,11 @@ def groq_chat(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("groq_chat failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Chat request failed",
             "model": _get_model(ctx),
         }
 
@@ -232,11 +232,11 @@ def groq_completion(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("groq_completion failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Completion request failed",
             "model": _get_model(ctx),
         }
 
@@ -307,11 +307,11 @@ def groq_embedding(ctx: PipelineContext) -> Dict[str, Any]:
                 else 0,  # noqa
             },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("groq_embedding failed")
         return {
             "status": "failed",
-            "error": str(e),
+            "error": "Embedding request failed",
             "model": embedding_model,
             "note": "Ensure the selected Groq model supports embeddings",
         }
