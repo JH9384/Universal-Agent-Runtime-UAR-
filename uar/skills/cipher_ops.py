@@ -256,17 +256,17 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
 
     try:
         data = _decode_base64(data_b64)
-    except Exception as exc:
+    except Exception:
         return {
             "status": "failed",
-            "error": f"Invalid cipher_data: {exc}",
+            "error": "Invalid cipher_data",
             "operation": operation,
         }
 
     if len(data) > MAX_DATA_SIZE:
         return {
             "status": "failed",
-            "error": f"Data too large (max {MAX_DATA_SIZE} bytes)",
+            "error": "Data too large",
             "operation": operation,
         }
 
