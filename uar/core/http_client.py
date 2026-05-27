@@ -19,13 +19,15 @@ _session_lock = asyncio.Lock()
 
 # Retry configuration
 _MAX_RETRIES = max(
-    0, int(os.getenv("UAR_HTTP_MAX_RETRIES", "3").strip() or "3")
+    0, min(10, int(os.getenv("UAR_HTTP_MAX_RETRIES", "3").strip() or "3"))
 )
 _BASE_DELAY = max(
-    0.0, float(os.getenv("UAR_HTTP_BASE_DELAY", "0.5").strip() or "0.5")
+    0.0,
+    min(5.0, float(os.getenv("UAR_HTTP_BASE_DELAY", "0.5").strip() or "0.5")),
 )
 _MAX_DELAY = max(
-    0.0, float(os.getenv("UAR_HTTP_MAX_DELAY", "8.0").strip() or "8.0")
+    0.0,
+    min(60.0, float(os.getenv("UAR_HTTP_MAX_DELAY", "8.0").strip() or "8.0")),
 )
 
 
@@ -44,19 +46,34 @@ async def _get_session(url: str):
         timeout = aiohttp.ClientTimeout(
             total=max(
                 1.0,
-                float(
-                    os.getenv("UAR_HTTP_TIMEOUT", "30.0").strip() or "30.0"
+                min(
+                    300.0,
+                    float(
+                        os.getenv("UAR_HTTP_TIMEOUT", "30.0").strip()
+                        or "30.0"
+                    ),
                 ),
             )
         )
         conn = aiohttp.TCPConnector(
             limit=max(
-                1, int(os.getenv("UAR_HTTP_POOL_LIMIT", "10").strip() or "10")
+                1,
+                min(
+                    100,
+                    int(
+                        os.getenv("UAR_HTTP_POOL_LIMIT", "10").strip()
+                        or "10"
+                    ),
+                ),
             ),
             limit_per_host=max(
                 1,
-                int(
-                    os.getenv("UAR_HTTP_POOL_PER_HOST", "5").strip() or "5"
+                min(
+                    50,
+                    int(
+                        os.getenv("UAR_HTTP_POOL_PER_HOST", "5").strip()
+                        or "5"
+                    ),
                 ),
             ),
             ttl_dns_cache=300,
