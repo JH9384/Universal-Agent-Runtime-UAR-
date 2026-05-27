@@ -1751,7 +1751,7 @@ export function UARPanel() {
         >
           📘
         </button>
-        <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" onError={() => setUorImageError(true)} />}</a></span>
+        <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" className={styles.uorIcon} onError={() => setUorImageError(true)} />}</a></span>
       </div>
 
       <main id="main-content" className={styles.mainContent}>

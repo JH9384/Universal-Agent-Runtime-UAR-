@@ -64,6 +64,12 @@ body {
   vertical-align: middle;
 }
 
+.uorIcon {
+  border-radius: 4px;
+  padding: 2px;
+  background: transparent;
+}
+
 .skillGuideButton {
   margin-left: 8px;
   padding: 4px 10px;
@@ -1682,6 +1688,10 @@ body {
 
 :global(.dark) .projectRoot {
   color: #e5e5e5;
+}
+
+:global(.dark) .uorIcon {
+  background: #f0f0f0;
 }
 
 :global(.dark) .builderToggleButton {
