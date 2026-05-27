@@ -34,14 +34,14 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
     params = meta.get("cv_params", {})
 
     if not img_path or not Path(img_path).exists():
-        return {"status": "failed", "error": f"Image not found: {img_path}"}
+        return {"status": "failed", "error": "Image not found"}
 
     try:
         img = cv2.imread(img_path)
         if img is None:
             return {
                 "status": "failed",
-                "error": f"Could not read image: {img_path}",
+                "error": "Could not read image",
             }
 
         if operation == "grayscale":

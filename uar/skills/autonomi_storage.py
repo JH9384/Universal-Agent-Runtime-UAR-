@@ -92,9 +92,9 @@ def _resolve_input_path(ctx) -> Path | None:
                         validate_path_security(resolved, ALLOWED_ROOT)
                         if resolved.exists():
                             return resolved
-                    except Exception as e:
-                        logger.warning(
-                            f"Path security validation failed for {path_val}: {e}"
+                    except Exception:
+                        logger.exception(
+                            "Path security validation failed for %s", path_val
                         )
                         continue
     return None
@@ -143,15 +143,15 @@ def autonomi_upload(ctx):
     src = Path(source).resolve()
     try:
         validate_path_security(src, ALLOWED_ROOT)
-    except Exception as e:
-        logger.warning(f"Path security validation failed for {src}: {e}")
-        return {"status": "failed", "error": f"Path security violation: {e}"}
+    except Exception:
+        logger.exception("Path security validation failed for %s", src)
+        return {"status": "failed", "error": "Path security violation"}
 
     if not src.exists():
-        return {"status": "failed", "error": f"Source not found: {src}"}
+        return {"status": "failed", "error": "Source not found"}
 
     if not src.is_file():
-        raise ValueError(f"Path is neither file nor directory: {src}")
+        raise ValueError("Path is neither file nor directory")
 
     network_name = ctx.goal.metadata.get("autonomi_network") or os.getenv(
         "AUTONOMI_NETWORK", "testnet"
