@@ -48,13 +48,6 @@ MAX_DATA_SIZE = max(
 )  # 10MB default
 
 
-def _check_pycryptodome_available() -> bool:
-    """Check if PyCryptodome is available with graceful degradation."""
-    import importlib.util
-
-    return importlib.util.find_spec("Crypto") is not None
-
-
 def _decode_base64(data: str) -> bytes:
     """Safely decode base64 data."""
     try:
