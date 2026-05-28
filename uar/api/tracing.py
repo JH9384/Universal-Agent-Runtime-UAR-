@@ -114,5 +114,47 @@ class NoOpSpan:
         pass
 
 
+# Optional FastAPI instrumentation (separate from manual tracing)
+# Used by uar.api.server lifespan to auto-instrument HTTP routes.
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor,
+        ConsoleSpanExporter,
+    )
+    from opentelemetry import trace
+
+    _fastapi_tracing_available = True
+except ImportError:
+    _fastapi_tracing_available = False
+
+
+def setup_fastapi_tracing(app) -> None:
+    """Initialize OpenTelemetry FastAPI auto-instrumentation if enabled."""
+    if not _fastapi_tracing_available:
+        return
+    if os.getenv("UAR_ENABLE_TRACING", "").lower() != "true":
+        return
+
+    provider = TracerProvider()
+    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        try:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
+
+            exporter = OTLPSpanExporter()
+        except ImportError:
+            exporter = ConsoleSpanExporter()
+    else:
+        exporter = ConsoleSpanExporter()
+
+    provider.add_span_processor(BatchSpanProcessor(exporter))
+    trace.set_tracer_provider(provider)
+    FastAPIInstrumentor().instrument_app(app)
+    logger.info("OpenTelemetry FastAPI tracing initialized")
+
+
 # Initialize tracing on import
 init_tracing()

@@ -46,63 +46,6 @@ from uar.services import (
     GoalExecutionService,
 )
 
-# Optional OpenTelemetry tracing (no-op if not installed)
-try:
-    from opentelemetry import trace
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import (
-        BatchSpanProcessor,
-        ConsoleSpanExporter,
-    )
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
-    _tracing_available = True
-except ImportError:
-    _tracing_available = False
-
-    class _NoOpTracer:
-        """Fallback tracer when OpenTelemetry is not installed."""
-
-        def start_as_current_span(self, name, **_kwargs):
-            class _NoOpContextManager:
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *_exc):
-                    pass
-
-            return _NoOpContextManager()
-
-    trace = _NoOpTracer()
-
-
-def _setup_tracing(app: FastAPI) -> None:
-    """Initialize OpenTelemetry tracing if enabled and available."""
-    if not _tracing_available:
-        return
-    if os.getenv("UAR_ENABLE_TRACING", "").lower() != "true":
-        return
-
-    provider = TracerProvider()
-    # Console exporter for local dev; OTLP for production
-    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
-        try:
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-                OTLPSpanExporter,
-            )
-
-            exporter = OTLPSpanExporter()
-        except ImportError:
-            exporter = ConsoleSpanExporter()
-    else:
-        exporter = ConsoleSpanExporter()
-
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
-    FastAPIInstrumentor().instrument_app(app)
-    logger.info("OpenTelemetry tracing initialized")
-
-
 # Constants
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
 
@@ -355,7 +298,9 @@ async def lifespan(app: FastAPI):
             )
 
     # Initialize optional OpenTelemetry tracing
-    _setup_tracing(app)
+    from uar.api.tracing import setup_fastapi_tracing
+
+    setup_fastapi_tracing(app)
 
     # Start background data retention purge task
     purge_task = None
