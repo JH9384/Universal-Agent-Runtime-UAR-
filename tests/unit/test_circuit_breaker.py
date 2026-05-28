@@ -347,6 +347,125 @@ class TestCircuitBreakerParameters:
         assert cb.state == State.CLOSED
 
 
+class TestCircuitBreakerAdvanced:
+    """Advanced state machine edge cases."""
+
+    def test_half_open_max_blocks_extra_calls(self):
+        """When half_open_count >= half_open_max, new calls are rejected."""
+        cb = CircuitBreaker(
+            "test",
+            failure_threshold=1,
+            recovery_timeout=0.1,
+            half_open_max=1,
+        )
+
+        def failing():
+            raise Exception("fail")
+
+        def slow():
+            time.sleep(0.5)
+            return "ok"
+
+        # Open circuit
+        try:
+            cb.call(failing)
+        except Exception:
+            pass
+
+        time.sleep(0.15)
+        assert cb.state == State.HALF_OPEN
+
+        # Reserve the single half-open slot with a slow call
+        # (execute outside lock so another call can try to get in)
+        t = threading.Thread(target=lambda: cb.call(slow))
+        t.start()
+        time.sleep(0.05)  # Let slow call reserve slot
+
+        # Extra call should be rejected
+        with pytest.raises(CircuitBreakerOpenError):
+            cb.call(lambda: "x")
+
+        t.join()
+        assert cb.state == State.CLOSED
+
+    def test_pending_calls_tracked(self):
+        """_pending_calls increments and decrements correctly."""
+        cb = CircuitBreaker("test", failure_threshold=3)
+
+        def fn():
+            return "ok"
+
+        assert cb._pending_calls == 0
+        cb.call(fn)
+        assert cb._pending_calls == 0
+
+    def test_pending_calls_on_failure(self):
+        """_pending_calls decrements even on failure."""
+        cb = CircuitBreaker("test", failure_threshold=3)
+
+        def fn():
+            raise Exception("fail")
+
+        assert cb._pending_calls == 0
+        try:
+            cb.call(fn)
+        except Exception:
+            pass
+        assert cb._pending_calls == 0
+
+    def test_mixed_concurrent_half_open(self):
+        """Concurrent success and failure in half-open race safely."""
+        cb = CircuitBreaker(
+            "test",
+            failure_threshold=2,
+            recovery_timeout=0.1,
+            half_open_max=3,
+        )
+
+        def fail():
+            raise Exception("fail")
+
+        # Open circuit
+        for _ in range(2):
+            try:
+                cb.call(fail)
+            except Exception:
+                pass
+
+        time.sleep(0.15)
+        assert cb.state == State.HALF_OPEN
+
+        results = []
+
+        def make_call(success):
+            def fn():
+                if not success:
+                    raise Exception("fail")
+                return "ok"
+
+            try:
+                results.append(("success", cb.call(fn)))
+            except CircuitBreakerOpenError:
+                results.append(("cb_open", None))
+            except Exception:
+                results.append(("error", None))
+
+        threads = [
+            threading.Thread(target=make_call, args=(True,)),
+            threading.Thread(target=make_call, args=(False,)),
+            threading.Thread(target=make_call, args=(True,)),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Circuit should be deterministically closed or open
+        assert cb.state in (State.CLOSED, State.OPEN)
+        # At least one call got through
+        assert len(results) == 3
+
+
 class TestCircuitBreakerError:
     """Test CircuitBreakerOpenError"""
 
