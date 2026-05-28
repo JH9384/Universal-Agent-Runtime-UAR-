@@ -186,19 +186,11 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     # Execute operation with circuit breaker
-    try:
-        result = _physics_cb.call(
-            lambda: _execute_operation(
-                operation, physics_type, value, from_unit, to_unit
-            )
+    result = _physics_cb.call(
+        lambda: _execute_operation(
+            operation, physics_type, value, from_unit, to_unit
         )
-    except Exception:
-        logger.exception("physics_compute failed")
-        return {
-            "status": "failed",
-            "error": "Physics operation failed",
-            "operation": operation,
-        }
+    )
 
     # Add metadata to result
     result["operation"] = operation

@@ -191,17 +191,9 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     # Execute operation with circuit breaker
-    try:
-        result = _math_cb.call(
-            lambda: _execute_operation(operation, expression, variable)
-        )
-    except Exception:
-        logger.exception("math_compute failed")
-        return {
-            "status": "failed",
-            "error": "Operation failed",
-            "operation": operation,
-        }
+    result = _math_cb.call(
+        lambda: _execute_operation(operation, expression, variable)
+    )
 
     # Add metadata to result
     result["operation"] = operation
