@@ -2,7 +2,6 @@ import logging
 import os
 import threading
 import time
-import uuid
 import asyncio
 from typing import Any, Dict, Optional
 from contextlib import asynccontextmanager
@@ -12,18 +11,12 @@ from fastapi import (
     HTTPException,
     Depends,
     Request,
-    status,
 )
-from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from uar.api.models import RunRequest
-from uar.core.contracts import GoalSpec
 from uar.version import get_uar_version
 from uar.compat.uor_version import get_uor_version
-from uar.core.exceptions import UARError, ValidationError, PathSecurityError
-from uar.core.recipes import DEFAULT_RECIPES
 from uar.api.advanced_endpoints import router as advanced_router
 # Re-exported for backward compatibility with tests that patch them
 from uar.api.responses import error_response  # noqa: F401
@@ -42,6 +35,8 @@ from uar.api.routers.docs import (  # noqa: F401
     _library_dir,
     _cleanup_orphaned_temp_files,
 )
+from uar.api.exception_handlers import register_exception_handlers
+from uar.api.goal_builder import _build_goal  # noqa: F401
 from uar.memory.json_store import JsonRunStore
 from .middleware import auth_middleware, apply_middleware
 from uar.api.metrics import get_metrics_collector
@@ -564,142 +559,7 @@ else:
     store = JsonRunStore()  # type: ignore[assignment]
 
 
-# Custom exception handlers for UAR exceptions
-
-@app.exception_handler(ValidationError)
-async def validation_error_handler(request, exc):
-    field = getattr(exc, "field", None)
-    if field == "input_path":
-        message = "Invalid path provided"
-    elif field == "goal":
-        message = "Invalid goal provided"
-    elif field == "skills":
-        message = "Invalid skills provided"
-    elif field == "timeout_seconds":
-        message = "Invalid timeout provided"
-    elif field == "execution_order":
-        message = "Invalid execution order provided"
-    else:
-        message = "Invalid input provided"
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "detail": {
-                "error": "Validation error",
-                "code": exc.code.value,
-                "message": message,
-                "field": field,
-            }
-        },
-    )
-
-
-@app.exception_handler(PathSecurityError)
-async def path_security_error_handler(request, exc):
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "detail": {
-                "error": "Path security violation",
-                "code": exc.code.value,
-                "message": "Invalid path provided",
-                "field": "input_path",
-            }
-        },
-    )
-
-
-@app.exception_handler(UARError)
-async def uar_error_handler(request, exc):
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": {
-                "error": "Internal error",
-                "code": exc.code.value,
-                "message": "An internal error occurred",
-            }
-        },
-    )
-
-
-def _build_goal(req: RunRequest) -> GoalSpec:
-    """Build GoalSpec with proper validation and unique ID"""
-    goal_id = f"api-{uuid.uuid4().hex[:8]}"
-
-    metadata: dict[str, Any] = {}
-    if req.input_path:
-        metadata["input_path"] = req.input_path
-    if req.timeout_seconds:
-        metadata["timeout_seconds"] = req.timeout_seconds
-    if req.metadata:
-        # User-supplied extras (e.g. graphrag_method, ollama_model)
-        # Protected keys (input_path, timeout_seconds, execution_order) cannot
-        # be overridden by user-provided metadata. Other user-provided metadata
-        # keys will override any defaults with the same name.
-        extras = {
-            k: v
-            for k, v in req.metadata.items()
-            if k not in {"input_path", "timeout_seconds", "execution_order"}
-        }
-        metadata.update(extras)
-
-    # Build merged recipe map from canonical + user-provided definitions
-    # so user-created recipes sent in metadata are valid for execution.
-    recipe_definitions = metadata.pop("recipe_definitions", [])
-    merged_recipes: dict[str, dict[str, Any]] = dict(DEFAULT_RECIPES)
-    for recipe in recipe_definitions:
-        if (
-            isinstance(recipe, dict)
-            and "id" in recipe
-            and "skills" in recipe
-            and isinstance(recipe["skills"], list)
-        ):
-            merged_recipes[recipe["id"]] = recipe
-
-    # Validate execution_order recipe content against merged map
-    if req.execution_order:
-        for i, item in enumerate(req.execution_order):
-            if item.get("type") == "recipe":
-                content = item.get("content")
-                if content not in merged_recipes:
-                    raise ValidationError(
-                        f"execution_order[{i}] references unknown "
-                        f"recipe: {content}. "
-                        f"Available: {list(merged_recipes.keys())}",
-                        field="execution_order",
-                    )
-
-    # Handle execution_order with nested recipe structure
-    # Note: Recipe expansion is handled by the executor in
-    # _expand_execution_order() to ensure a single source of truth.
-    # We only store the execution_order here.
-    skills = req.skills or []
-    if req.execution_order:
-        # Store the execution order in metadata for the executor
-        metadata["execution_order"] = req.execution_order
-        # Pass merged recipe definitions so the executor can expand
-        # user-created recipes as well as canonical ones.
-        metadata["recipe_definitions"] = list(merged_recipes.values())
-        # For backward compatibility with old clients that don't use
-        # execution_order, if skills is empty but execution_order is
-        # provided, we don't expand here. The executor will handle
-        # expansion from execution_order. If both are provided,
-        # execution_order takes precedence.
-        if not skills:
-            # Empty skills list - executor will expand from execution_order
-            skills = []
-
-    if req.use_hierarchical is not None:
-        metadata["use_hierarchical"] = req.use_hierarchical
-
-    return GoalSpec(
-        id=goal_id,
-        user_intent=req.goal,
-        objective=req.goal,
-        required_skills=skills,
-        metadata=metadata,
-    )
+register_exception_handlers(app)
 
 
 # Service instances (stateless, safe to share across requests)
