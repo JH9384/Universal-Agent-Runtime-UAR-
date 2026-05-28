@@ -41,9 +41,11 @@ def _extract_frontend_api_endpoints(source: str) -> Set[str]:
 def _extract_backend_routes(source: str) -> Set[str]:
     """Extract all API routes defined in the backend."""
     routes: Set[str] = set()
-    # Match @app.get("/path") etc.
+    # Match @app.get("/path") and @router.get("/path") etc.
     for match in re.finditer(
-        r'@app\.(get|post|put|delete|websocket)\(\s*["\']([^"\']+)["\']',
+        r'@(?:app|router)\.'
+        r'(get|post|put|delete|websocket)'
+        r'\(\s*["\']([^"\']+)["\']',
         source,
     ):
         routes.add(match.group(2))
@@ -123,8 +125,16 @@ class TestApiEndpointAlignment:
         panel_src = _read_file(PANEL_PATH)
         server_src = _read_file(SERVER_PATH)
 
+        # Also scan router files for extracted endpoints
+        routers_dir = PROJECT_ROOT / "uar" / "api" / "routers"
+        router_src = ""
+        if routers_dir.exists():
+            for f in routers_dir.glob("*.py"):
+                router_src += _read_file(f)
+
         frontend_endpoints = _extract_frontend_api_endpoints(panel_src)
         backend_routes = _extract_backend_routes(server_src)
+        backend_routes |= _extract_backend_routes(router_src)
 
         # Normalize: strip query params and path params for matching
         missing = set()

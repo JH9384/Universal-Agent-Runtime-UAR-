@@ -14,7 +14,6 @@ from fastapi import (
     Depends,
     Request,
     status,
-    Response,
     UploadFile,
     File,
     WebSocket,
@@ -46,6 +45,11 @@ from uar.core.timeline import timeline_from_record
 from uar.api.advanced_endpoints import router as advanced_router
 from uar.api.responses import error_response
 from uar.api.routers.health import router as health_router
+from uar.api.routers.recipes import router as recipes_router
+from uar.api.routers.recipes import _recipe_svc, _recipe_http_error
+from uar.api.routers.cache_sandbox import router as cache_sandbox_router
+from uar.api.routers.metrics import router as metrics_router
+from uar.api.routers.metrics import _check_metrics_auth
 from uar.core.validation import (
     validate_goal,
     validate_skills,
@@ -68,7 +72,6 @@ from .tracing import trace_span
 from uar.api.metrics import get_metrics_collector
 from uar.services import (
     AuthService,
-    RecipeService,
     EventService,
     GoalExecutionService,
 )
@@ -549,6 +552,15 @@ app.include_router(advanced_router, dependencies=[Depends(require_auth)])
 
 # Include health / metrics / status router
 app.include_router(health_router)
+
+# Include recipe CRUD router (endpoints handle auth individually)
+app.include_router(recipes_router)
+
+# Include cache and sandbox router
+app.include_router(cache_sandbox_router, dependencies=[Depends(require_auth)])
+
+# Include metrics router (public /metrics, auth-protected /api/metrics)
+app.include_router(metrics_router)
 
 # Include consolidated UOR object/runtime/agent router (formerly
 # apps/api-python/main.py).
@@ -1403,7 +1415,6 @@ async def get_run_timeline(
 
 
 # Service instances (stateless, safe to share across requests)
-_recipe_svc = RecipeService()
 _auth_svc = AuthService()
 _event_svc = EventService()
 _exec_svc = GoalExecutionService(
@@ -1412,118 +1423,6 @@ _exec_svc = GoalExecutionService(
     max_stream_events=MAX_STREAM_EVENTS,
     event_buffer_size=EVENT_BUFFER_SIZE,
 )
-
-
-def _recipe_http_error(
-    exc: Exception, recipe_id: str, *, creating: bool = False
-) -> HTTPException:
-    """Map RecipeService exceptions to HTTP status codes."""
-    msg = str(exc)
-    if "canonical" in msg.lower():
-        return HTTPException(
-            status_code=(
-                status.HTTP_409_CONFLICT
-                if creating
-                else status.HTTP_403_FORBIDDEN
-            ),
-            detail={
-                "error": "conflict" if creating else "forbidden",
-                "message": (
-                    "Recipe already exists"
-                    if creating
-                    else "Recipe is canonical and cannot be modified"
-                ),
-            },
-        )
-    if "skills must be" in msg.lower():
-        return HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "invalid_skills",
-                "message": "Invalid skills in recipe",
-            },
-        )
-    if isinstance(exc, KeyError):
-        return HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "not_found",
-                "message": "Recipe not found",
-            },
-        )
-    if isinstance(exc, PermissionError):
-        return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"error": "forbidden", "message": "Not owner"},
-        )
-    return HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail={"error": "internal", "message": "Internal server error"},
-    )
-
-
-@app.get("/api/uar/recipes")
-async def get_recipes(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Return canonical + user-created recipe definitions."""
-    user_info = _auth_svc.authenticate(credentials)
-    recipes = _recipe_svc.list_all(
-        user_id=user_info["user"] if user_info else None
-    )
-    return {"recipes": recipes}
-
-
-@app.post("/api/uar/recipes")
-async def create_recipe(
-    recipe: dict[str, Any],
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Create a new user recipe."""
-    user = _auth_svc.require_user(credentials)
-    recipe_id = recipe.get("id")
-    if not recipe_id or not isinstance(recipe_id, str):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "missing_id",
-                "message": "Recipe must have an 'id' string",
-            },
-        )
-    try:
-        _recipe_svc.create(recipe_id, recipe, user["user"])
-    except (ValueError, KeyError, PermissionError) as exc:
-        raise _recipe_http_error(exc, recipe_id, creating=True) from exc
-    return {"created": recipe_id}
-
-
-@app.put("/api/uar/recipes/{recipe_id}")
-async def update_recipe(
-    recipe_id: str,
-    recipe: dict[str, Any],
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Update an existing user recipe."""
-    user = _auth_svc.require_user(credentials)
-    try:
-        _recipe_svc.update(recipe_id, recipe, user["user"])
-    except (ValueError, KeyError, PermissionError) as exc:
-        raise _recipe_http_error(exc, recipe_id) from exc
-    return {"updated": recipe_id}
-
-
-@app.delete("/api/uar/recipes/{recipe_id}")
-async def delete_recipe(
-    recipe_id: str,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Delete a user recipe."""
-    user = _auth_svc.require_user(credentials)
-    try:
-        _recipe_svc.delete(recipe_id, user["user"])
-    except (ValueError, KeyError, PermissionError) as exc:
-        raise _recipe_http_error(exc, recipe_id) from exc
-    return {"deleted": recipe_id}
 
 
 @app.post(
@@ -2032,143 +1931,6 @@ async def list_runs(
                 "request_id": request_id,
             },
         )
-
-
-@app.get("/api/metrics")
-async def metrics_endpoint(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Prometheus-compatible metrics endpoint.
-
-    Optionally protected by METRICS_API_KEY env var in production.
-    """
-    _check_metrics_auth(credentials)
-    metrics = get_metrics_collector()
-    return Response(
-        content=metrics.get_prometheus_format(),
-        media_type="text/plain; version=0.0.4; charset=utf-8",
-    )
-
-
-@app.get("/api/metrics/json")
-async def metrics_json_endpoint(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """JSON metrics endpoint for debugging.
-
-    Optionally protected by METRICS_API_KEY env var in production.
-    """
-    _check_metrics_auth(credentials)
-    metrics = get_metrics_collector()
-    return metrics.get_metrics()
-
-
-def _check_metrics_auth(
-    credentials: Optional[HTTPAuthorizationCredentials],
-) -> None:
-    """Require Bearer token if METRICS_API_KEY is configured."""
-    expected = os.getenv("METRICS_API_KEY", "").strip()
-    if not expected:
-        return
-    token = (
-        credentials.credentials
-        if credentials and credentials.scheme == "Bearer"
-        else ""
-    )
-    if token != expected:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "Unauthorized",
-                "message": "Valid metrics API key required",
-            },
-        )
-
-
-@app.get("/api/cache/stats")
-async def cache_stats_endpoint(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Return skill cache statistics."""
-    from uar.core.skill_cache import get_skill_cache
-
-    cache = get_skill_cache()
-    if cache is None:
-        return {
-            "hits": 0,
-            "misses": 0,
-            "size": 0,
-            "capacity": 0,
-        }
-    return cache.stats()
-
-
-@app.post("/api/cache/invalidate")
-async def cache_invalidate_endpoint(
-    body: dict[str, Any],
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Invalidate cache entries.  Omit 'skill' to clear all."""
-    from uar.core.skill_cache import get_skill_cache
-
-    cache = get_skill_cache()
-    skill = body.get("skill")
-    count = cache.invalidate(skill)
-    return {"invalidated": count, "skill": skill}
-
-
-@app.get("/api/sandbox/health")
-async def sandbox_health_endpoint(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Return WASM sandbox health."""
-    from uar.core.sandbox import WASMSandbox
-
-    return WASMSandbox().health()
-
-
-@app.post("/api/sandbox/eval")
-async def sandbox_eval_endpoint(
-    body: dict[str, Any],
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Safely evaluate an arithmetic expression in the WASM sandbox."""
-    from uar.core.sandbox import sandbox_eval
-
-    expression = body.get("expression", "")
-    try:
-        result = sandbox_eval(expression)
-        return {"status": "completed", "result": result}
-    except Exception as exc:
-        logger.warning("sandbox_eval failed: %s", exc)
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "status": "failed",
-                "error": "Expression evaluation failed",
-            },
-        )
-
-
-@app.get("/metrics")
-async def prometheus_metrics():
-    """Prometheus metrics endpoint for scraping.
-
-    Exposes uar_requests_total, uar_errors_total,
-    uar_request_duration_seconds histogram (by endpoint),
-    uar_skill_duration_seconds histogram (by skill),
-    and uor_alignment_* metrics for drift detection.
-    """
-    from uar.api.uor_alignment_metrics import get_uor_alignment_metrics
-
-    collector = get_metrics_collector()
-    body = collector.get_prometheus_format()
-
-    # Append UOR alignment metrics
-    uor_metrics = get_uor_alignment_metrics()
-    body += uor_metrics.get_prometheus_metrics()
-
-    return Response(content=body, media_type="text/plain")
 
 
 @app.get("/api/provenance/{run_id}")
