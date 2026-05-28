@@ -11,6 +11,8 @@ import { authHeaders, getLocalStorage } from '../utils/auth'
 import RecipeTimeline from './RecipeTimeline'
 import { HealthDashboard } from './HealthDashboard'
 import PresetsPanel from './PresetsPanel'
+import SkillSelector from './SkillSelector'
+import ExecutionOrder from './ExecutionOrder'
 import styles from './UARPanel.module.css'
 
 // Lazy-loaded visualizers — only fetched when their skill data arrives
@@ -1076,6 +1078,101 @@ export function UARPanel() {
     setCollapsedGroups(newState)
   }
 
+  const handleReorder = (fromId: string, toIndex: number) => {
+    setUnifiedOrder((prev) => {
+      const fromIndex = prev.findIndex((i) => i.id === fromId)
+      if (fromIndex === -1 || fromIndex === toIndex) return prev
+      const newOrder = [...prev]
+      const [moved] = newOrder.splice(fromIndex, 1)
+      newOrder.splice(toIndex, 0, moved)
+      setSkillLastPositions((prevPositions) => {
+        const newPositions = { ...prevPositions }
+        const minIndex = Math.min(fromIndex, toIndex)
+        const maxIndex = Math.max(fromIndex, toIndex)
+        for (let i = minIndex; i <= maxIndex; i++) {
+          if (newOrder[i].type === 'skill') {
+            newPositions[newOrder[i].content] = i
+          }
+        }
+        return newPositions
+      })
+      const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+      setSkillHistory((history) => {
+        const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
+        setSkillHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      setUnifiedOrderHistory((history) => {
+        const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
+        setUnifiedOrderHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      return newOrder
+    })
+  }
+
+  const handleDuplicate = (index: number) => {
+    setUnifiedOrder((prev) => {
+      const newOrder = [...prev]
+      const existingIds = new Set(prev.map(i => i.id))
+      const item = prev[index]
+      const newInstance = {
+        id: generateUniqueId(existingIds),
+        type: item.type,
+        content: item.content
+      }
+      newOrder.splice(index + 1, 0, newInstance)
+      setSkillLastPositions((prevPositions) => {
+        const newPositions = { ...prevPositions }
+        for (let i = index + 1; i < newOrder.length; i++) {
+          if (newOrder[i].type === 'skill') {
+            newPositions[newOrder[i].content] = i
+          }
+        }
+        return newPositions
+      })
+      const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+      setSkillHistory((history) => {
+        const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
+        setSkillHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      setUnifiedOrderHistory((history) => {
+        const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
+        setUnifiedOrderHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      return newOrder
+    })
+  }
+
+  const handleRemove = (index: number) => {
+    setUnifiedOrder((prev) => {
+      const newOrder = prev.filter((_, i) => i !== index)
+      setSkillLastPositions((prevPositions) => {
+        const newPositions = { ...prevPositions }
+        for (let i = index; i < newOrder.length; i++) {
+          if (newOrder[i].type === 'skill') {
+            newPositions[newOrder[i].content] = i
+          }
+        }
+        return newPositions
+      })
+      const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
+      setSkillHistory((history) => {
+        const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
+        setSkillHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      setUnifiedOrderHistory((history) => {
+        const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
+        setUnifiedOrderHistoryIndex((idx) => idx + 1)
+        return newHistory
+      })
+      return newOrder
+    })
+  }
+
   const onPick = useCallback((p: string) => {
     setInputPath(p)
     pushRecent(p)
@@ -2026,55 +2123,24 @@ export function UARPanel() {
                   </button>
                 )}
               </div>
-              <div className={styles.skillsContainer}>
-                {skillsDisplayMode === 'dropdown' ? (() => {
-                  const query = debouncedSkillSearch.trim().toLowerCase()
-                  const groups = query
-                    ? SKILL_GROUPS.map(g => ({
-                        ...g,
-                        skills: g.skills.filter(s =>
-                          s.label.toLowerCase().includes(query) ||
-                          s.desc.toLowerCase().includes(query)
-                        )
-                      })).filter(g => g.skills.length > 0)
-                    : SKILL_GROUPS
-                  return groups.map((group) => {
-                    const isCollapsed = collapsedGroups[group.name]
-                    return (
-                      <div key={group.name} className={styles.skillGroup}>
-                        <div className={styles.skillGroupHeader} onClick={() => toggleGroup(group.name)} onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleGroup(group.name) } }} tabIndex={0} role="button" aria-expanded={!isCollapsed ? 'true' : 'false'} title={`Click to ${isCollapsed ? 'expand' : 'collapse'} ${group.name} skills`}>
-                          <span className={styles.skillGroupIcon}>{group.icon}</span>
-                          <span className={styles.skillGroupName}>{group.name}</span>
-                          <span className={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</span>
-                        </div>
-                        {!isCollapsed && (
-                          <div className={styles.skillGroupSkills}>
-                            {group.skills.map((s) => {
-                              const count = unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length
-                              return (
-                                <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(count > 0, isRunning)}>
-                                  {count > 0 ? `✓ (${count}) ` : ''}{s.label}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })
-                })() : (
-                  <div className={styles.skillGroupSkills}>
-                    {AVAILABLE_SKILLS.map((s) => {
-                      const count = unifiedOrder.filter(i => i.type === 'skill' && i.content === s.id).length
-                      return (
-                        <button key={s.id} onClick={() => addSkill(s.id)} disabled={isRunning} title={s.desc} className={chip(count > 0, isRunning)}>
-                          {count > 0 ? `✓ (${count}) ` : ''}{s.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+              <SkillSelector
+                skillSearch={skillSearch}
+                debouncedSkillSearch={debouncedSkillSearch}
+                onSkillSearchChange={(value) => setSkillSearch(value)}
+                skillsDisplayMode={skillsDisplayMode}
+                onToggleDisplayMode={() =>
+                  setSkillsDisplayMode(
+                    skillsDisplayMode === 'dropdown' ? 'list' : 'dropdown'
+                  )
+                }
+                collapsedGroups={collapsedGroups}
+                onToggleGroup={toggleGroup}
+                unifiedOrder={unifiedOrder}
+                onAddSkill={addSkill}
+                isRunning={isRunning}
+                skillGroups={SKILL_GROUPS}
+                availableSkills={AVAILABLE_SKILLS}
+              />
               <div className={styles.orderText} title="Skills execute in this order">
                 <strong>Order of Operation:</strong>
                 {unifiedOrder.length > 0 && (
@@ -2094,146 +2160,22 @@ export function UARPanel() {
                     ✕
                   </button>
                 )}
-                {unifiedOrder.length === 0 ? (
-                  <span className={styles.orderEmpty}>No skills or recipes selected — click above to build your pipeline</span>
-                ) : (
-                  <div className={styles.orderChips}>
-                    {unifiedOrder.map((item, index) => {
-                      const hash = item.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-                      const colorClass = `color-${hash % 10}`
-                      const label = item.type === 'skill' ? item.content : recipes.find(r => r.id === item.content)?.label || item.content
-                      return (
-                        <div
-                          key={item.id}
-                          className={`${styles.orderChip} ${styles[colorClass]}`}
-                          draggable={!isRunning}
-                          aria-label={`${item.type === 'recipe' ? 'Recipe' : 'Skill'}: ${label} (position ${index + 1})`}
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/uar-order', item.id)
-                            e.dataTransfer.effectAllowed = 'move'
-                          }}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            if (!Array.from(e.dataTransfer.types).includes('text/uar-order')) return
-                            const fromId = e.dataTransfer.getData('text/uar-order')
-                            const toIndex = index
-                            setUnifiedOrder((prev) => {
-                              const fromIndex = prev.findIndex((i) => i.id === fromId)
-                              if (fromIndex === -1 || fromIndex === toIndex) return prev
-                              const newOrder = [...prev]
-                              const [moved] = newOrder.splice(fromIndex, 1)
-                              newOrder.splice(toIndex, 0, moved)
-                              // Update skillLastPositions for skills
-                              setSkillLastPositions((prevPositions) => {
-                                const newPositions = { ...prevPositions }
-                                const minIndex = Math.min(fromIndex, toIndex)
-                                const maxIndex = Math.max(fromIndex, toIndex)
-                                for (let i = minIndex; i <= maxIndex; i++) {
-                                  if (newOrder[i].type === 'skill') {
-                                    newPositions[newOrder[i].content] = i
-                                  }
-                                }
-                                return newPositions
-                              })
-                              const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
-                              setSkillHistory((history) => {
-                                const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
-                                setSkillHistoryIndex((idx) => idx + 1)
-                                return newHistory
-                              })
-                              setUnifiedOrderHistory((history) => {
-                                const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
-                                setUnifiedOrderHistoryIndex((idx) => idx + 1)
-                                return newHistory
-                              })
-                              return newOrder
-                            })
-                          }}
-                        >
-                          {item.type === 'recipe' ? '🍳 ' : ''}{label}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setUnifiedOrder((prev) => {
-                                const newOrder = [...prev]
-                                const existingIds = new Set(prev.map(i => i.id))
-                                const newInstance = {
-                                  id: generateUniqueId(existingIds),
-                                  type: item.type,
-                                  content: item.content
-                                }
-                                newOrder.splice(index + 1, 0, newInstance)
-                                setSkillLastPositions((prevPositions) => {
-                                  const newPositions = { ...prevPositions }
-                                  for (let i = index + 1; i < newOrder.length; i++) {
-                                    if (newOrder[i].type === 'skill') {
-                                      newPositions[newOrder[i].content] = i
-                                    }
-                                  }
-                                  return newPositions
-                                })
-                                const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
-                                setSkillHistory((history) => {
-                                  const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
-                                  setSkillHistoryIndex((idx) => idx + 1)
-                                  return newHistory
-                                })
-                                setUnifiedOrderHistory((history) => {
-                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
-                                  setUnifiedOrderHistoryIndex((idx) => idx + 1)
-                                  return newHistory
-                                })
-                                return newOrder
-                              })
-                            }}
-                            className={styles.orderChipAction}
-                            disabled={isRunning}
-                            title={`Duplicate ${label}`}
-                            aria-label={`Duplicate ${label}`}
-                          >
-                            +
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setUnifiedOrder((prev) => {
-                                const newOrder = prev.filter((_, i) => i !== index)
-                                setSkillLastPositions((prevPositions) => {
-                                  const newPositions = { ...prevPositions }
-                                  for (let i = index; i < newOrder.length; i++) {
-                                    if (newOrder[i].type === 'skill') {
-                                      newPositions[newOrder[i].content] = i
-                                    }
-                                  }
-                                  return newPositions
-                                })
-                                const newSkills = newOrder.filter(i => i.type === 'skill').map(i => i.content)
-                                setSkillHistory((history) => {
-                                  const newHistory = [...history.slice(0, skillHistoryIndexRef.current + 1), newSkills]
-                                  setSkillHistoryIndex((idx) => idx + 1)
-                                  return newHistory
-                                })
-                                setUnifiedOrderHistory((history) => {
-                                  const newHistory = [...history.slice(0, unifiedOrderHistoryIndexRef.current + 1), newOrder]
-                                  setUnifiedOrderHistoryIndex((idx) => idx + 1)
-                                  return newHistory
-                                })
-                                return newOrder
-                              })
-                            }}
-                            className={styles.orderChipAction}
-                            disabled={isRunning}
-                            title={`Remove ${label}`}
-                            aria-label={`Remove ${label}`}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                <ExecutionOrder
+                  items={unifiedOrder}
+                  recipes={recipes}
+                  isRunning={isRunning}
+                  onReorder={handleReorder}
+                  onDuplicate={handleDuplicate}
+                  onRemove={handleRemove}
+                  onClear={() => {
+                    setUnifiedOrder([])
+                    setUnifiedOrderHistory([[]])
+                    setUnifiedOrderHistoryIndex(0)
+                    setSkillLastPositions({})
+                    setSkillHistory([[]])
+                    setSkillHistoryIndex(0)
+                  }}
+                />
               </div>
 
               {/* Recipes */}
