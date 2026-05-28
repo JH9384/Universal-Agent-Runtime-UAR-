@@ -16,7 +16,7 @@ from uar.core.replay import (
 from uar.core.timeline import timeline_from_record
 
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures"
+FIXTURE_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 def _load_fixture(name: str) -> list:

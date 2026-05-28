@@ -21,7 +21,7 @@ import uar.skills  # noqa — registers all standard skills
 from uar.core.registry import registry
 
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 PANEL_PATH = (
     PROJECT_ROOT / "apps" / "web" / "src" / "components" / "UARPanel.tsx"
 )

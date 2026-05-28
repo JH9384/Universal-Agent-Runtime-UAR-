@@ -53,7 +53,7 @@ test-frontend:
 	cd $(WEB_DIR) && npm run test:run
 
 test-alignment: $(VENV_STAMP)
-	$(PYTEST) tests/test_skill_alignment.py tests/test_feature_alignment.py tests/test_tips_alignment.py -v --tb=short
+	$(PYTEST) tests/skills/test_skill_alignment.py tests/docs/test_feature_alignment.py tests/docs/test_tips_alignment.py -v --tb=short
 
 test-regression: test-backend test-frontend build-frontend lint
 	@echo "========================================"
@@ -65,9 +65,9 @@ gate: test-backend lint
 	@echo "  BURN-IN GATE"
 	@echo "========================================"
 	@echo "Running substrate validation..."
-	$(PYTEST) tests/test_runtime_*.py -q --tb=short
-	$(PYTEST) tests/test_replay_*.py -q --tb=short
-	$(PYTEST) tests/test_timeline.py -q --tb=short
+	$(PYTEST) tests/runtime/test_runtime_*.py -q --tb=short
+	$(PYTEST) tests/runtime/test_replay_*.py -q --tb=short
+	$(PYTEST) tests/runtime/test_timeline.py -q --tb=short
 	@echo "========================================"
 	@echo "  GATE PASSED"
 	@echo "========================================"

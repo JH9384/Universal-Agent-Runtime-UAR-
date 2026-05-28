@@ -7,7 +7,7 @@ but their tips content is forgotten in the Tips popup rendering.
 import re
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PANEL_PATH = (
     PROJECT_ROOT / "apps" / "web" / "src" / "components" / "UARPanel.tsx"
 )

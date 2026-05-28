@@ -24,7 +24,10 @@ import pytest
 
 def _read_frontend_file(filename: str) -> str:
     """Read a file from the web frontend src directory."""
-    base = Path(__file__).parent.parent / "apps" / "web" / "src" / "components"
+    base = (
+        Path(__file__).parent.parent.parent / "apps" / "web" / "src"
+        / "components"
+    )
     return (base / filename).read_text(encoding="utf-8")
 
 
@@ -354,16 +357,16 @@ class TestArchitectureDocs:
 
     @pytest.fixture(scope="class")
     def arch_text(self):
-        path = Path(__file__).parent.parent / "docs" / "ARCHITECTURE.md"
+        path = Path(__file__).parent.parent.parent / "docs" / "ARCHITECTURE.md"
         return path.read_text(encoding="utf-8")
 
     def test_architecture_references_core_files(self, arch_text):
         """ARCHITECTURE.md must reference files that exist."""
         # Extract file references like `executor.py`, `planner.py`
         files = set(re.findall(r"`(\w+\.py)`", arch_text))
-        core_dir = Path(__file__).parent.parent / "uar" / "core"
-        api_dir = Path(__file__).parent.parent / "uar" / "api"
-        mem_dir = Path(__file__).parent.parent / "uar" / "memory"
+        core_dir = Path(__file__).parent.parent.parent / "uar" / "core"
+        api_dir = Path(__file__).parent.parent.parent / "uar" / "api"
+        mem_dir = Path(__file__).parent.parent.parent / "uar" / "memory"
         for f in files:
             api_files = {
                 "server.py", "middleware.py", "metrics.py",
@@ -394,7 +397,9 @@ class TestArchitectureDocs:
         endpoints = {e for e in endpoints if e.startswith("/api/")}
 
         # Scan router files for actual endpoint definitions
-        routers_dir = Path(__file__).parent.parent / "uar" / "api" / "routers"
+        routers_dir = (
+            Path(__file__).parent.parent.parent / "uar" / "api" / "routers"
+        )
         actual_paths = set()
         for router_file in routers_dir.glob("*.py"):
             text = router_file.read_text(encoding="utf-8")
@@ -403,7 +408,7 @@ class TestArchitectureDocs:
 
         # Also check server.py for included routers
         server_file = (
-            Path(__file__).parent.parent / "uar" / "api" / "server.py"
+            Path(__file__).parent.parent.parent / "uar" / "api" / "server.py"
         )
         server_text = server_file.read_text(encoding="utf-8")
         actual_paths.update(re.findall(r'"(/api/[^"]+)"', server_text))
@@ -511,7 +516,9 @@ class TestGettingStartedDocs:
 
     def test_getting_started_references_valid_skills(self):
         """Skills in GETTING_STARTED examples must be registered."""
-        path = Path(__file__).parent.parent / "docs" / "GETTING_STARTED.md"
+        path = (
+            Path(__file__).parent.parent.parent / "docs" / "GETTING_STARTED.md"
+        )
         text = path.read_text(encoding="utf-8")
 
         import uar.skills  # noqa: F401
@@ -533,7 +540,7 @@ class TestGettingStartedDocs:
 
     def test_readme_exists_and_has_key_sections(self):
         """README.md must exist and contain key sections."""
-        path = Path(__file__).parent.parent / "README.md"
+        path = Path(__file__).parent.parent.parent / "README.md"
         assert path.exists(), "README.md is missing"
         text = path.read_text(encoding="utf-8")
         assert "# Universal Agent Runtime" in text

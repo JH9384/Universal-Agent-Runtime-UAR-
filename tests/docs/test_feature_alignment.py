@@ -15,7 +15,7 @@ from typing import Set
 
 import pytest  # noqa: F401
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 PANEL_PATH = (
     PROJECT_ROOT / "apps" / "web" / "src" / "components" / "UARPanel.tsx"
 )
