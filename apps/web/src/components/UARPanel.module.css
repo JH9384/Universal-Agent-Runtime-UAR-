@@ -273,6 +273,12 @@ body {
   background: #fff;
 }
 
+:global(.dark) .label {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #fff;
+}
+
 .label {
   display: block;
   font-size: 12px;
@@ -367,6 +373,25 @@ body {
 
 .dropZoneText {
   font-weight: 600;
+}
+
+:global(.dark) .dropZone {
+  background: #000;
+  border-color: #444;
+  color: #fff;
+}
+
+:global(.dark) .dropZoneText {
+  color: #fff;
+}
+
+:global(.dark) .dropZoneSubtext {
+  color: #aaa;
+}
+
+:global(.dark) .dropZoneActive {
+  background: #1a2a4a;
+  border-color: #0d6efd;
 }
 
 .dropZoneSubtext {
@@ -475,6 +500,28 @@ body {
   color: #888;
 }
 
+:global(.dark) .libraryItem {
+  background: #000;
+  color: #fff;
+  border-bottom-color: #333;
+}
+
+:global(.dark) .libraryItem:hover {
+  background: #1a1a1a;
+}
+
+:global(.dark) .libraryItemSelected {
+  background: #1a2a4a;
+}
+
+:global(.dark) .libraryItemName {
+  color: #fff;
+}
+
+:global(.dark) .libraryItemSize {
+  color: #aaa;
+}
+
 .libraryItemSize.clickable {
   cursor: pointer;
 }
@@ -543,6 +590,11 @@ body {
   cursor: not-allowed;
 }
 
+:global(.dark) .refreshButton,
+:global(.dark) .useAllButton {
+  color: #fff;
+}
+
 .refreshButton {
   margin-left: 8px;
   font-size: 11px;
@@ -597,6 +649,12 @@ body {
 
 .recentContainer {
   margin-bottom: 8px;
+}
+
+:global(.dark) .clearButton {
+  background-color: #2d2d2d;
+  border: 1px solid #404040;
+  color: #fff;
 }
 
 .clearButton {
@@ -707,6 +765,16 @@ body {
   cursor: pointer;
 }
 
+:global(.dark) .presetButton {
+  background-color: #3d3d3d;
+  color: #e5e5e5;
+  border-color: #505050;
+}
+
+:global(.dark) .presetButton:hover {
+  background-color: #4a4a4a;
+}
+
 .presetButton:hover {
   background: #f0f0f0;
 }
@@ -802,6 +870,18 @@ body {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 13px;
+}
+
+:global(.dark) .filterInput,
+:global(.dark) .pathInput {
+  background: #000;
+  color: #fff;
+  border-color: #444;
+}
+
+:global(.dark) .filterInput::placeholder,
+:global(.dark) .pathInput::placeholder {
+  color: #aaa;
 }
 
 .pathInput {
@@ -943,6 +1023,10 @@ body {
   cursor: not-allowed;
 }
 
+:global(.dark) .orderText {
+  color: #fff;
+}
+
 .orderText {
   font-size: 11px;
   color: #888;
@@ -1071,6 +1155,23 @@ body {
   background: #f5f6f7;
 }
 
+:global(.dark) .skillGroupHeader {
+  background-color: #3d3d3d;
+  border-bottom-color: #505050;
+}
+
+:global(.dark) .skillGroupHeader:hover {
+  background-color: #4a4a4a;
+}
+
+:global(.dark) .skillGroupName {
+  color: #e5e5e5;
+}
+
+:global(.dark) .collapseIcon {
+  color: #aaa;
+}
+
 .collapseIcon {
   margin-left: auto;
   font-size: 12px;
@@ -1186,6 +1287,12 @@ body {
 
 .orderChip.color-9 button {
   color: #00bcd4;
+}
+
+:global(.dark) .advancedOverrides {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #fff;
 }
 
 .advancedOverrides {
@@ -1435,6 +1542,11 @@ body {
   border-color: #0d6efd;
 }
 
+:global(.dark) .graphContainer {
+  background: #000;
+  border-color: #444;
+}
+
 .graphContainer {
   height: 400px;
   border: 1px solid #ddd;
@@ -1605,9 +1717,9 @@ body {
 :global(.dark) .input,
 :global(.dark) .textarea,
 :global(.dark) .goalTextarea {
-  background-color: #1a1a1a;
-  border-color: #404040;
-  color: #e5e5e5;
+  background-color: #000;
+  border-color: #444;
+  color: #fff;
 }
 
 :global(.dark) .chip {
@@ -1783,7 +1895,7 @@ body {
 :global(.dark) .collapsibleHeader {
   background-color: #2d2d2d;
   border-color: #404040;
-  color: #e5e5e5;
+  color: #fff;
 }
 
 :global(.dark) .collapsibleHeader:hover {
@@ -1947,6 +2059,10 @@ body {
 .builderCanvas {
   flex: 1;
   min-width: 0;
+}
+
+:global(.dark) .builderLabel {
+  color: #fff;
 }
 
 .builderLabel {
@@ -2362,6 +2478,20 @@ body {
 }
 
 .skillSearchInput:focus {
+  border-color: #00897b;
+}
+
+:global(.dark) .skillSearchInput {
+  background: #000;
+  color: #fff;
+  border-color: #444;
+}
+
+:global(.dark) .skillSearchInput::placeholder {
+  color: #aaa;
+}
+
+:global(.dark) .skillSearchInput:focus {
   border-color: #00897b;
 }
 
