@@ -8,6 +8,7 @@ from uar.core.validation import (
     validate_skills,
     validate_input_path,
     validate_path_security,
+    validate_timeout,
     ValidationError,
 )
 
@@ -214,3 +215,130 @@ class TestValidatePathSecurity:
 
             # Should not raise exception for nonexistent path
             validate_path_security(nonexistent, allowed_root)
+
+    def test_dangerous_pattern_dotdot(self):
+        """Paths containing '..' are rejected"""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            allowed_root = Path(tmpdir)
+            bad_path = allowed_root / "foo..bar"
+            with pytest.raises(Exception) as exc_info:
+                validate_path_security(bad_path, allowed_root)
+            assert "Path security violation" in str(exc_info.value)
+
+    def test_dangerous_pattern_tilde(self):
+        """Paths containing '~' are rejected"""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            allowed_root = Path(tmpdir)
+            bad_path = allowed_root / "file~name"
+            with pytest.raises(Exception) as exc_info:
+                validate_path_security(bad_path, allowed_root)
+            assert "Path security violation" in str(exc_info.value)
+
+
+class TestValidateTimeout:
+    """Test timeout validation"""
+
+    def test_none_returns_default(self):
+        result = validate_timeout(None)
+        assert result == 5.0
+
+    def test_valid_timeout(self):
+        result = validate_timeout(10.0)
+        assert result == 10.0
+
+    def test_int_accepted(self):
+        result = validate_timeout(10)
+        assert result == 10.0
+
+    def test_too_low_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_timeout(0.05)
+        assert "at least 0.1" in str(exc_info.value)
+
+    def test_too_high_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_timeout(301)
+        assert "cannot exceed 300" in str(exc_info.value)
+
+    def test_non_numeric_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_timeout("fast")
+        assert "must be a number" in str(exc_info.value)
+
+
+class TestValidateGoalEdgeCases:
+    """Additional goal validation edge cases"""
+
+    def test_non_string_goal_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_goal(123)
+        assert "must be a string" in str(exc_info.value)
+
+    def test_eval_pattern_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_goal("eval(alert('x'))")
+        assert "dangerous content" in str(exc_info.value)
+
+    def test_event_handler_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_goal("<img onerror=alert('x')>")
+        assert "dangerous content" in str(exc_info.value)
+
+
+class TestValidateInputPathEdgeCases:
+    """Additional input path validation edge cases"""
+
+    def test_none_returns_none(self):
+        result = validate_input_path(None)
+        assert result is None
+
+    def test_empty_string_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_input_path("")
+        assert "cannot be empty" in str(exc_info.value)
+
+    def test_whitespace_only_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_input_path("   ")
+        assert "cannot be empty" in str(exc_info.value)
+
+    def test_tilde_expansion_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_input_path("~/secret.txt")
+        assert "Invalid path pattern" in str(exc_info.value)
+
+    def test_pipe_character_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_input_path("file.txt | cat")
+        assert "Invalid path pattern" in str(exc_info.value)
+
+    def test_semicolon_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_input_path("file.txt; rm -rf /")
+        assert "Invalid path pattern" in str(exc_info.value)
+
+    def test_ampersand_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_input_path("file.txt & echo hack")
+        assert "Invalid path pattern" in str(exc_info.value)
+
+    def test_allowed_root_permits_valid_path(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result = validate_input_path("docs/file.txt", allowed_root=root)
+            assert result == "docs/file.txt"
+
+    def test_allowed_root_blocks_traversal(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            with pytest.raises(ValidationError) as exc_info:
+                validate_input_path("../outside.txt", allowed_root=root)
+            assert "Path traversal" in str(exc_info.value)
