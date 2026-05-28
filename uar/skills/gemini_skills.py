@@ -24,15 +24,13 @@ from typing import Dict, Any
 
 try:
     import google.generativeai as genai
-
-    GEMINI_AVAILABLE = True
 except ImportError:
-    GEMINI_AVAILABLE = False
     genai = None  # type: ignore
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
+from uar.core.skill_utils import require_package, skill_guard
 from uar.skills.llm_base import (
     make_model_getter,
     make_temperature_getter,
@@ -47,7 +45,7 @@ _gemini_configured_key: str | None = None
 
 def _get_client() -> Any:
     """Get or create Gemini client."""
-    if not GEMINI_AVAILABLE:
+    if genai is None:
         return None
 
     api_key = os.getenv("GEMINI_API_KEY")
@@ -77,6 +75,7 @@ _get_max_tokens = make_max_tokens_getter(prefix="gemini")
 
 
 @register_skill("gemini_chat")
+@skill_guard("Gemini chat", status="failed")
 @with_circuit_breaker("gemini", failure_threshold=5, recovery_timeout=60.0)
 def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with Google Gemini models.
@@ -90,13 +89,9 @@ def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with chat response and metadata
     """
-    if not GEMINI_AVAILABLE:
-        return {
-            "status": "failed",
-            "error": (  # noqa
-                "Gemini client not available (install google-generativeai package and set GEMINI_API_KEY)"  # noqa
-            ),
-        }
+    err = require_package("google.generativeai")
+    if err:
+        return err
 
     if not os.getenv("GEMINI_API_KEY"):
         return {"status": "failed", "error": "GEMINI_API_KEY not set"}
@@ -108,82 +103,75 @@ def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
     if not messages:
         messages = [ctx.goal.objective]
 
-    try:
-        model_name = _get_model(ctx)
-        temperature = _get_temperature(ctx)
-        max_tokens = _get_max_tokens(ctx)
+    model_name = _get_model(ctx)
+    temperature = _get_temperature(ctx)
+    max_tokens = _get_max_tokens(ctx)
 
-        logger.info("Calling Gemini with model %s", model_name)
+    logger.info("Calling Gemini with model %s", model_name)
 
-        model = genai.GenerativeModel(  # noqa
-            model_name=model_name,
-            system_instruction=system_instruction
-            if system_instruction
-            else None,  # noqa
-            generation_config=genai.GenerationConfig(  # noqa
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-            ),
-        )
+    model = genai.GenerativeModel(  # noqa
+        model_name=model_name,
+        system_instruction=system_instruction
+        if system_instruction
+        else None,  # noqa
+        generation_config=genai.GenerationConfig(  # noqa
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        ),
+    )
 
-        # Convert messages to Gemini format
-        gemini_messages = []  # noqa
-        for msg in messages:
-            if isinstance(msg, str):
-                gemini_messages.append({"role": "user", "parts": [msg]})
-            elif isinstance(msg, dict):
-                gemini_messages.append(msg)
+    # Convert messages to Gemini format
+    gemini_messages = []  # noqa
+    for msg in messages:
+        if isinstance(msg, str):
+            gemini_messages.append({"role": "user", "parts": [msg]})
+        elif isinstance(msg, dict):
+            gemini_messages.append(msg)
 
-        # Validate message format before accessing
-        if (
-            not gemini_messages
-            or not gemini_messages[-1].get("parts")
-            or not gemini_messages[-1]["parts"]
-        ):
-            return {
-                "status": "failed",
-                "error": (
-                    "Invalid message format: missing or empty parts array"
-                ),
-                "model": model_name,
-            }
-
-        chat = model.start_chat(history=gemini_messages[:-1])  # noqa
-        response = chat.send_message(gemini_messages[-1]["parts"][0])
-
-        if not response.text:
-            return {
-                "status": "failed",
-                "error": "API returned empty response text",
-                "model": model_name,
-            }
-
-        return {
-            "status": "completed",
-            "model": model_name,
-            "message": response.text,
-            "usage": {
-                "prompt_tokens": response.usage_metadata.prompt_token_count
-                if response.usage_metadata
-                else 0,  # noqa
-                "output_tokens": response.usage_metadata.candidates_token_count
-                if response.usage_metadata
-                else 0,  # noqa
-                "total_tokens": response.usage_metadata.total_token_count
-                if response.usage_metadata
-                else 0,  # noqa
-            },
-        }
-    except Exception:
-        logger.exception("gemini_chat failed")
+    # Validate message format before accessing
+    if (
+        not gemini_messages
+        or not gemini_messages[-1].get("parts")
+        or not gemini_messages[-1]["parts"]
+    ):
         return {
             "status": "failed",
-            "error": "Chat request failed",
-            "model": _get_model(ctx),
+            "error": (
+                "Invalid message format: missing or empty parts array"
+            ),
+            "model": model_name,
         }
+
+    chat = model.start_chat(history=gemini_messages[:-1])  # noqa
+    response = chat.send_message(gemini_messages[-1]["parts"][0])
+
+    if not response.text:
+        return {
+            "status": "failed",
+            "error": "API returned empty response text",
+            "model": model_name,
+        }
+
+    return {
+        "status": "completed",
+        "model": model_name,
+        "message": response.text,
+        "usage": {
+            "prompt_tokens": response.usage_metadata.prompt_token_count
+            if response.usage_metadata
+            else 0,  # noqa
+            "output_tokens": response.usage_metadata.candidates_token_count
+            if response.usage_metadata
+            else 0,  # noqa
+            "total_tokens": response.usage_metadata.total_token_count
+            if response.usage_metadata
+            else 0,  # noqa
+        },
+    }
 
 
 @register_skill("gemini_completion")
+@skill_guard("Gemini completion", status="failed")
 @with_circuit_breaker("gemini", failure_threshold=5, recovery_timeout=60.0)
 def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with Google Gemini models.
@@ -196,13 +184,9 @@ def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with completion text and metadata
     """
-    if not GEMINI_AVAILABLE:
-        return {
-            "status": "failed",
-            "error": (  # noqa
-                "Gemini client not available (install google-generativeai package and set GEMINI_API_KEY)"  # noqa
-            ),
-        }
+    err = require_package("google.generativeai")
+    if err:
+        return err
 
     if not os.getenv("GEMINI_API_KEY"):
         return {"status": "failed", "error": "GEMINI_API_KEY not set"}
@@ -210,56 +194,49 @@ def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
     meta = ctx.goal.metadata or {}
     prompt = meta.get("prompt", ctx.goal.objective)
 
-    try:
-        model_name = _get_model(ctx)
-        temperature = _get_temperature(ctx)
-        max_tokens = _get_max_tokens(ctx)
+    model_name = _get_model(ctx)
+    temperature = _get_temperature(ctx)
+    max_tokens = _get_max_tokens(ctx)
 
-        logger.info("Calling Gemini completion with model %s", model_name)
+    logger.info("Calling Gemini completion with model %s", model_name)
 
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config=genai.GenerationConfig(
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-            ),
-        )
+    model = genai.GenerativeModel(
+        model_name=model_name,
+        generation_config=genai.GenerationConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        ),
+    )
 
-        response = model.generate_content(prompt)
+    response = model.generate_content(prompt)
 
-        if not response.text:
-            return {
-                "status": "failed",
-                "error": "API returned empty response text",
-                "model": model_name,
-            }
-
-        return {
-            "status": "completed",
-            "model": model_name,
-            "text": response.text,
-            "usage": {
-                "prompt_tokens": response.usage_metadata.prompt_token_count
-                if response.usage_metadata
-                else 0,  # noqa
-                "output_tokens": response.usage_metadata.candidates_token_count
-                if response.usage_metadata
-                else 0,  # noqa
-                "total_tokens": response.usage_metadata.total_token_count
-                if response.usage_metadata
-                else 0,  # noqa
-            },
-        }
-    except Exception:
-        logger.exception("gemini_completion failed")
+    if not response.text:
         return {
             "status": "failed",
-            "error": "Completion request failed",
-            "model": _get_model(ctx),
+            "error": "API returned empty response text",
+            "model": model_name,
         }
+
+    return {
+        "status": "completed",
+        "model": model_name,
+        "text": response.text,
+        "usage": {
+            "prompt_tokens": response.usage_metadata.prompt_token_count
+            if response.usage_metadata
+            else 0,  # noqa
+            "output_tokens": response.usage_metadata.candidates_token_count
+            if response.usage_metadata
+            else 0,  # noqa
+            "total_tokens": response.usage_metadata.total_token_count
+            if response.usage_metadata
+            else 0,  # noqa
+        },
+    }
 
 
 @register_skill("gemini_embedding")
+@skill_guard("Gemini embedding", status="failed")
 @with_circuit_breaker("gemini", failure_threshold=5, recovery_timeout=60.0)
 def gemini_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings using Google Gemini.
@@ -273,13 +250,9 @@ def gemini_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with embedding vector and metadata
     """
-    if not GEMINI_AVAILABLE:
-        return {
-            "status": "failed",
-            "error": (  # noqa
-                "Gemini client not available (install google-generativeai package and set GEMINI_API_KEY)"  # noqa
-            ),
-        }
+    err = require_package("google.generativeai")
+    if err:
+        return err
 
     if not os.getenv("GEMINI_API_KEY"):
         return {"status": "failed", "error": "GEMINI_API_KEY not set"}
@@ -288,25 +261,17 @@ def gemini_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     text = meta.get("text", ctx.goal.objective)
     embedding_model = meta.get("embedding_model", "text-embedding-004")
 
-    try:
-        logger.info("Calling Gemini embedding with model %s", embedding_model)
+    logger.info("Calling Gemini embedding with model %s", embedding_model)
 
-        result = genai.embed_content(
-            model=f"models/{embedding_model}",
-            content=text,
-            task_type="retrieval_document",
-        )
+    result = genai.embed_content(
+        model=f"models/{embedding_model}",
+        content=text,
+        task_type="retrieval_document",
+    )
 
-        return {
-            "status": "completed",
-            "model": embedding_model,
-            "embedding": result.embedding,
-            "dimensions": len(result.embedding),
-        }
-    except Exception:
-        logger.exception("gemini_embedding failed")
-        return {
-            "status": "failed",
-            "error": "Embedding request failed",
-            "model": embedding_model,
-        }
+    return {
+        "status": "completed",
+        "model": embedding_model,
+        "embedding": result.embedding,
+        "dimensions": len(result.embedding),
+    }
