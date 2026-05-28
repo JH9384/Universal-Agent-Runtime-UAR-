@@ -111,3 +111,86 @@ class TestStableSummaryMetrics:
         result = timeline_from_record(record)
         assert result["summary"]["skill_count"] == 1
         assert result["summary"]["status"] == "completed"
+
+
+class TestRecipePhases:
+    def test_recipe_start_end_included(self):
+        evs = [
+            make_executor_event("start", "r1", "g1", timestamp=0.0),
+            make_executor_event(
+                "recipe_start", "r1", "g1",
+                payload={"recipe_id": "review"}, timestamp=0.1,
+            ),
+            make_executor_event(
+                "skill_start", "r1", "g1", skill="sum_review", timestamp=0.2,
+            ),
+            make_executor_event(
+                "skill_complete", "r1", "g1", skill="sum_review",
+                timestamp=0.5,
+            ),
+            make_executor_event(
+                "recipe_end", "r1", "g1",
+                payload={"recipe_id": "review"}, timestamp=0.6,
+            ),
+            make_executor_event(
+                "complete", "r1", "g1",
+                payload={"status": "completed"}, timestamp=1.0,
+            ),
+        ]
+        result = project_timeline(evs)
+        recipe_phases = [p for p in result["phases"] if p["type"] == "recipe"]
+        assert len(recipe_phases) == 1
+        assert recipe_phases[0]["name"] == "review"
+
+    def test_recipe_without_payload(self):
+        evs = [
+            make_executor_event("recipe_start", "r1", "g1", timestamp=0.0),
+        ]
+        result = project_timeline(evs)
+        recipe_phases = [p for p in result["phases"] if p["type"] == "recipe"]
+        assert len(recipe_phases) == 1
+        assert recipe_phases[0]["name"] == "unknown"
+
+
+class TestErrorEvents:
+    def test_error_collected(self):
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("error", "r1", "g1", error="disk full"),
+            make_executor_event(
+                "complete", "r1", "g1", payload={"status": "failed"},
+            ),
+        ]
+        result = project_timeline(evs)
+        assert "disk full" in result["errors"]
+        assert result["summary"]["error_count"] == 1
+        assert result["summary"]["status"] == "failed"
+
+    def test_error_without_message_ignored(self):
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("error", "r1", "g1"),
+        ]
+        result = project_timeline(evs)
+        assert result["errors"] == []
+
+
+class TestEdgeCases:
+    def test_non_dict_payload(self):
+        evs = [
+            make_executor_event("start", "r1", "g1", timestamp=0.0),
+            make_executor_event(
+                "complete", "r1", "g1", payload="completed", timestamp=1.0,
+            ),
+        ]
+        result = project_timeline(evs)
+        assert result["summary"]["status"] == "unknown"
+
+    def test_missing_timestamp_fallback(self):
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("skill_start", "r1", "g1", skill="a"),
+            make_executor_event("skill_complete", "r1", "g1", skill="a"),
+        ]
+        result = project_timeline(evs)
+        assert result["total_duration_sec"] == 0.0

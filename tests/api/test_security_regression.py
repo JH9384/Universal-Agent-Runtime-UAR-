@@ -195,6 +195,22 @@ def test_bulk_delete_admin_can_delete_any():
     assert data["deleted"] == 1
 
 
+# ── bulk_delete admin-only older_than_days ─────────────────────────────────
+
+
+def test_bulk_delete_older_than_days_admin_succeeds():
+    """Admin can trigger time-based purge."""
+    response = client.post(
+        "/api/uar/runs/bulk-delete",
+        json={"older_than_days": 0},
+        headers={"Authorization": "Bearer admin-key-67890"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filter"] == "older_than_0_days"
+    assert "deleted" in data
+
+
 # ── circuit breaker reset ────────────────────────────────────────────────────
 
 
@@ -215,6 +231,48 @@ def test_reset_circuit_breaker_invalid_auth_rejected():
         headers={"Authorization": "Bearer invalid-key"},
     )
     assert response.status_code == 401
+
+
+def test_reset_circuit_breaker_non_admin_rejected():
+    """Non-admin user should get 403 for circuit breaker reset.
+
+    In dev mode the endpoint allows anonymous access, so this
+    assertion only holds in production-like environments.
+    """
+    from uar.api.routers.health import _is_dev_mode
+    from uar.core.circuit_breaker_decorator import get_circuit_breaker
+
+    if _is_dev_mode():
+        pytest.skip("Dev mode allows anonymous circuit breaker reset")
+
+    # Pre-create the breaker so endpoint finds it (404 before admin check)
+    get_circuit_breaker("non_admin_test_svc")
+
+    response = client.post(
+        "/api/health/circuit-breakers/non_admin_test_svc/reset",
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["error"] == "forbidden"
+
+
+def test_reset_circuit_breaker_admin_succeeds():
+    """Admin can reset any existing circuit breaker."""
+    from uar.core.circuit_breaker_decorator import get_circuit_breaker
+    from uar.core.circuit_breaker import State
+
+    cb = get_circuit_breaker("admin_reset_svc")
+    cb._failures = 3
+    cb._state = State.OPEN
+
+    response = client.post(
+        "/api/health/circuit-breakers/admin_reset_svc/reset",
+        headers={"Authorization": "Bearer admin-key-67890"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "reset"
+    assert data["service"] == "admin_reset_svc"
 
 
 # ── rate limiting on new endpoints ───────────────────────────────────────────

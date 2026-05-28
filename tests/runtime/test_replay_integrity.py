@@ -153,3 +153,50 @@ class TestReplaySummary:
         assert summary["status"] == "completed"
         assert summary["skill_count"] == 1
         assert summary["event_count"] == 2
+
+
+class TestEventContractValidation:
+    def test_empty_stream_rejected(self):
+        with pytest.raises(EventContractError, match="empty"):
+            run_record_from_events([])
+
+    def test_missing_required_keys_rejected(self):
+        evs = [{"type": "start", "run_id": "r1", "goal_id": "g1"}]
+        with pytest.raises(EventContractError, match="missing keys"):
+            run_record_from_events(evs)
+
+    def test_wrong_schema_version_rejected(self):
+        ev = make_executor_event("start", "r1", "g1")
+        ev["schema_version"] = "wrong"
+        with pytest.raises(EventContractError, match="schema"):
+            run_record_from_events([ev])
+
+    def test_non_dict_payload_rejected(self):
+        ev = make_executor_event("start", "r1", "g1")
+        ev["payload"] = "not a dict"
+        with pytest.raises(EventContractError, match="payload"):
+            run_record_from_events([ev])
+
+    def test_multiple_run_ids_rejected(self):
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("complete", "r2", "g1"),
+        ]
+        with pytest.raises(EventContractError, match="multiple run_ids"):
+            run_record_from_events(evs)
+
+    def test_multiple_goal_ids_rejected(self):
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("complete", "r1", "g2"),
+        ]
+        with pytest.raises(EventContractError, match="multiple goal_ids"):
+            run_record_from_events(evs)
+
+    def test_user_id_passed_through(self):
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("complete", "r1", "g1"),
+        ]
+        record = run_record_from_events(evs, user_id="u42")
+        assert record.user_id == "u42"
