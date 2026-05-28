@@ -1,7 +1,10 @@
 """Rate limiting for remote UOR API calls.
 
-Provides rate limiting to prevent abuse and ensure fair usage
-when making remote UOR API calls.
+.. deprecated::
+    This module is superseded by :mod:`uar.api.middleware`.
+    Use :class:`uar.api.middleware.RateLimiter` for new code.
+    This file is kept for backward compatibility and will be
+    removed in a future release.
 """
 
 import logging
