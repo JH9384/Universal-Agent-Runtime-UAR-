@@ -21,26 +21,7 @@ from uar.memory.base_store import get_store, run_record_from_dict
 from uar.core.replay import replay_summary
 from uar.core.timeline import timeline_from_record
 
-# Ensure all skills are registered
-import uar.skills.section_sum  # noqa: F401
-import uar.skills.doc_ingest  # noqa: F401
-import uar.skills.dependency_map  # noqa: F401
-import uar.skills.sum_review  # noqa: F401
-import uar.skills.ollama_generate  # noqa: F401
-import uar.skills.graphrag_skills  # noqa: F401
-import uar.skills.autonomi_storage  # noqa: F401
-import uar.skills.atomic_lang_model  # noqa: F401
-import uar.skills.advanced_integrations  # noqa: F401
-import uar.skills.math_compute  # noqa: F401
-import uar.skills.math_plot  # noqa: F401
-import uar.skills.cipher_ops  # noqa: F401
-import uar.skills.stem_extended  # noqa: F401
-import uar.skills.physics_compute  # noqa: F401
-import uar.skills.uor_ecosystem_skills  # noqa: F401
-import uar.skills.quantum_ml  # noqa: F401
-import uar.skills.math_plot_3d  # noqa: F401
-import uar.skills.code_analysis  # noqa: F401
-import uar.skills.myhdl_design  # noqa: F401
+import uar.skills  # noqa: F401 — registers all standard skills
 
 app = typer.Typer(
     name="uar",

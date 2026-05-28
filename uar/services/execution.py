@@ -7,7 +7,6 @@ both WebSocket handlers.
 
 import asyncio
 import collections
-import importlib.util
 import json
 import logging
 import os
@@ -17,21 +16,13 @@ from typing import Any, AsyncIterator, List, Optional
 
 from uar.core.contracts import GoalSpec
 from uar.core.executor import Executor
+from uar.core.json_utils import fast_dumps
 from uar.core.planner import SimplePlanner
 from uar.core.orchestrator import build_orchestration_plan
 from uar.memory.base_store import RunStoreProtocol
 from uar.memory.json_store import JsonRunStore
 from .base import BaseService
 from .events import EventService
-
-# Fast serialization: orjson when available
-if importlib.util.find_spec("orjson") is not None:
-    import orjson  # type: ignore[import-untyped]
-
-    def _fast_dumps(obj: Any) -> str:  # type: ignore[misc]
-        return orjson.dumps(obj).decode("utf-8")
-else:
-    _fast_dumps = json.dumps
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +214,7 @@ class GoalExecutionService(BaseService):
             ):
                 event_count += 1
                 if event_count >= self.max_stream_events:
-                    _write_buf.append(_fast_dumps(raw_event) + "\n")
+                    _write_buf.append(fast_dumps(raw_event) + "\n")
                     _flush_write_buf()
                     err = self._event.error(
                         run_id="unknown",
@@ -235,7 +226,7 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    _write_buf.append(_fast_dumps(err) + "\n")
+                    _write_buf.append(fast_dumps(err) + "\n")
                     _flush_write_buf()
                     yield err
                     comp = self._event.complete(
@@ -247,13 +238,13 @@ class GoalExecutionService(BaseService):
                         goal_id=gid,
                         correlation_id=cid,
                     )
-                    _write_buf.append(_fast_dumps(comp) + "\n")
+                    _write_buf.append(fast_dumps(comp) + "\n")
                     _flush_write_buf()
                     yield comp
                     break
 
                 events.append(raw_event)
-                _write_buf.append(_fast_dumps(raw_event) + "\n")
+                _write_buf.append(fast_dumps(raw_event) + "\n")
                 if len(_write_buf) >= _write_buf_size:
                     _flush_write_buf()
 

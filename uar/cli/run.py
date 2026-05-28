@@ -6,20 +6,7 @@ from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
 from uar.core.replay import replay_summary
 
-# ensure skills are registered
-import uar.skills.section_sum  # noqa
-import uar.skills.doc_ingest  # noqa
-import uar.skills.dependency_map  # noqa
-import uar.skills.sum_review  # noqa
-import uar.skills.ollama_generate  # noqa
-import uar.skills.graphrag_skills  # noqa
-import uar.skills.autonomi_storage  # noqa
-import uar.skills.atomic_lang_model  # noqa
-import uar.skills.advanced_integrations  # noqa
-import uar.skills.quantum_ml  # noqa
-import uar.skills.math_plot_3d  # noqa
-import uar.skills.code_analysis  # noqa
-import uar.skills.myhdl_design  # noqa
+import uar.skills  # noqa — registers all standard skills
 
 
 def cmd_run(args):

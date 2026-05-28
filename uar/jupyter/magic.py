@@ -22,22 +22,7 @@ from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
 from uar.core.registry import registry
 
-# Ensure core skills are registered
-import uar.skills.section_sum  # noqa: F401
-import uar.skills.doc_ingest  # noqa: F401
-import uar.skills.dependency_map  # noqa: F401
-import uar.skills.sum_review  # noqa: F401
-import uar.skills.ollama_generate  # noqa: F401
-import uar.skills.math_compute  # noqa: F401
-import uar.skills.math_plot  # noqa: F401
-import uar.skills.advanced_integrations  # noqa: F401
-import uar.skills.cipher_ops  # noqa: F401
-import uar.skills.stem_extended  # noqa: F401
-import uar.skills.physics_compute  # noqa: F401
-import uar.skills.quantum_ml  # noqa: F401
-import uar.skills.math_plot_3d  # noqa: F401
-import uar.skills.code_analysis  # noqa: F401
-import uar.skills.myhdl_design  # noqa: F401
+import uar.skills  # noqa: F401 — registers all standard skills
 
 
 @magics_class

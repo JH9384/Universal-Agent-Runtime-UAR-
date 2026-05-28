@@ -15,17 +15,9 @@ import time
 import uuid
 from typing import Any, Optional
 
+from uar.core.json_utils import fast_dumps, fast_dumps_bytes
+
 from .base import BaseService
-
-# Use orjson when available (10-100x faster than stdlib json)
-_has_orjson = importlib.util.find_spec("orjson") is not None
-if _has_orjson:
-    import orjson  # type: ignore[import-untyped]
-
-    def _dumps(obj: Any) -> str:
-        return orjson.dumps(obj).decode("utf-8")
-else:
-    _dumps = json.dumps
 
 # Optional msgpack for binary event encoding
 _has_msgpack = importlib.util.find_spec("msgpack") is not None
@@ -89,7 +81,7 @@ class EventService(BaseService):
         unserializable values, ensuring the SSE stream never breaks.
         """
         try:
-            payload = _dumps(event)
+            payload = fast_dumps(event)
         except (TypeError, ValueError) as exc:
             self._log(
                 "warning",
@@ -105,9 +97,7 @@ class EventService(BaseService):
             import msgpack  # type: ignore[import-untyped]
 
             return msgpack.packb(event, use_bin_type=True)
-        return orjson.dumps(event) if _has_orjson else json.dumps(
-            event, default=str
-        ).encode("utf-8")
+        return fast_dumps_bytes(event)
 
     def error(
         self,

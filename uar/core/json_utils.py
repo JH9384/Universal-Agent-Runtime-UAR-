@@ -4,10 +4,31 @@ Provides consistent JSON serialization/deserialization with
 error handling and type safety across the codebase.
 """
 
+import importlib.util
 import json
 import logging
 from typing import Any, Dict, Optional
 from pathlib import Path
+
+# Fast serialization: orjson when available (10-100x faster than stdlib)
+if importlib.util.find_spec("orjson") is not None:
+    import orjson  # type: ignore[import-untyped]
+
+    def fast_dumps(obj: Any) -> str:
+        """Serialize to JSON string using orjson if available."""
+        return orjson.dumps(obj).decode("utf-8")
+
+    def fast_dumps_bytes(obj: Any) -> bytes:
+        """Serialize to JSON bytes using orjson if available."""
+        return orjson.dumps(obj)
+else:
+    def fast_dumps(obj: Any) -> str:
+        """Serialize to JSON string using stdlib json."""
+        return json.dumps(obj)
+
+    def fast_dumps_bytes(obj: Any) -> bytes:
+        """Serialize to JSON bytes using stdlib json."""
+        return json.dumps(obj).encode("utf-8")
 
 logger = logging.getLogger(__name__)
 

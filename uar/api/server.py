@@ -76,49 +76,7 @@ logger.info(
 )
 
 
-# register skills
-import uar.skills.section_sum  # noqa
-import uar.skills.doc_ingest  # noqa
-import uar.skills.dependency_map  # noqa
-import uar.skills.sum_review  # noqa
-import uar.skills.ollama_generate  # noqa
-import uar.skills.graphrag_skills  # noqa
-import uar.skills.autonomi_storage  # noqa
-import uar.skills.atomic_lang_model  # noqa
-import uar.skills.math_compute  # noqa
-import uar.skills.cipher_ops  # noqa
-import uar.skills.physics_compute  # noqa
-import uar.skills.openai_skills  # noqa
-import uar.skills.lm_studio_skills  # noqa
-import uar.skills.anthropic_skills  # noqa
-import uar.skills.gemini_skills  # noqa
-import uar.skills.mistral_skills  # noqa
-import uar.skills.groq_skills  # noqa
-import uar.skills.huggingface_skills  # noqa
-import uar.skills.together_skills  # noqa
-import uar.skills.advanced_integrations  # noqa
-import uar.skills.uor_ecosystem_skills  # noqa
-import uar.skills.trefoil_simulation  # noqa
-import uar.skills.molecular_visualization  # noqa
-import uar.skills.quantum_circuit_visualization  # noqa
-import uar.skills.riscv_sim  # noqa
-import uar.skills.verilog_parse  # noqa
-import uar.skills.fpga_verify  # noqa
-import uar.skills.myhdl_design  # noqa
-import uar.skills.riscv_cycle  # noqa
-import uar.skills.verilator_sim  # noqa
-import uar.skills.micropython  # noqa
-import uar.skills.platformio  # noqa
-import uar.skills.stub_skills  # noqa
-import uar.skills.data_viz_3d  # noqa
-import uar.skills.doc_ingest_enhanced  # noqa
-import uar.skills.stem_extended  # noqa
-import uar.skills.cv_skills  # noqa
-import uar.skills.ml_tools  # noqa
-import uar.skills.quantum_ml  # noqa
-import uar.skills.math_plot  # noqa
-import uar.skills.math_plot_3d  # noqa
-import uar.skills.code_analysis  # noqa
+import uar.skills  # noqa — registers all standard skills
 
 # Validate canonical recipe skill references now that all skills are
 # registered in the global registry.
