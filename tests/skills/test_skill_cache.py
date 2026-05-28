@@ -3,7 +3,20 @@
 import time
 from unittest.mock import MagicMock
 
+import pytest
+
 from uar.core.skill_cache import SkillCache, cached_skill
+
+
+@pytest.fixture(autouse=True)
+def clear_global_skill_cache():
+    """Clear global skill cache between tests to ensure isolation."""
+    yield
+    # After each test, clear any cached entries from the global cache
+    import uar.core.skill_cache as _sc
+
+    if _sc._global_skill_cache is not None:
+        _sc._global_skill_cache.invalidate()
 
 
 class TestSkillCache:

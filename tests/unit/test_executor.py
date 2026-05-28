@@ -4,6 +4,7 @@ import pytest
 import time
 from unittest.mock import Mock, patch
 
+from uar.core.cache import clear_global_cache
 import uar.core.executor as executor_module
 from uar.core.executor import (
     get_max_retries,
@@ -16,6 +17,17 @@ from uar.core.executor import (
 )
 from uar.core.exceptions import TimeoutError, ValidationError
 from uar.core.contracts import StrategySpec, GoalSpec, PipelineContext
+
+
+@pytest.fixture(autouse=True)
+def _clear_global_cache():
+    """Clear global result cache between tests to ensure isolation."""
+    yield
+    clear_global_cache()
+    import uar.core.executor as _emod
+
+    _emod._coalesce_results.clear()
+    _emod._coalesce_lru.clear()
 
 
 class TestGetMaxRetries:
@@ -663,9 +675,13 @@ class TestRecipeCaching:
             ctx.data["noop_ran"] = True
             return "done"
 
-        if not registry.is_registered("noop"):
+        _needs_cleanup = not registry.is_registered("noop")
+        if _needs_cleanup:
             registry.register("noop", _noop_skill)
         yield
+        if _needs_cleanup:
+            registry._skills.pop("noop", None)
+            registry._trie.remove("noop")
 
     def test_recipe_caches_context_delta(self):
         """A recipe with cache=true stores its context mutations."""
@@ -855,9 +871,13 @@ class TestRecipeCacheEviction:
             ctx.data["noop_ran"] = True
             return "done"
 
-        if not registry.is_registered("noop"):
+        _needs_cleanup = not registry.is_registered("noop")
+        if _needs_cleanup:
             registry.register("noop", _noop_skill)
         yield
+        if _needs_cleanup:
+            registry._skills.pop("noop", None)
+            registry._trie.remove("noop")
 
     @patch("uar.core.executor.registry")
     def test_cache_evicts_oldest_when_over_limit(self, mock_registry):
