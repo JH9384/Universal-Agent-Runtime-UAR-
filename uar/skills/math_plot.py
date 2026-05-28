@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.safe_eval import safe_eval
+from uar.core.skill_utils import require_package, skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +49,6 @@ try:
     DEFAULT_FIGSIZE = tuple(float(x) for x in _figsize_parts[:2])
 except (ValueError, TypeError):
     DEFAULT_FIGSIZE = (8.0, 6.0)
-
-
-def _check_matplotlib_available() -> bool:
-    """Check if matplotlib and numpy are available."""
-    import importlib.util
-
-    return (
-        importlib.util.find_spec("matplotlib") is not None
-        and importlib.util.find_spec("numpy") is not None
-    )
 
 
 def _encode_figure(fig) -> str:
@@ -320,6 +311,7 @@ def _plot_scatter(
 
 
 @register_skill("math_plot")
+@skill_guard("Math plot", status="failed")
 def math_plot(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate 2D mathematical plots as base64 PNG images.
 
@@ -345,15 +337,12 @@ def math_plot(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with base64-encoded PNG image and metadata.
     """
-    if not _check_matplotlib_available():
-        return {
-            "status": "failed",
-            "error": (
-                "matplotlib and numpy not installed. "
-                "Install with: pip install matplotlib numpy"
-            ),
-            "plot_type": "unavailable",
-        }
+    err = require_package(
+        ["matplotlib", "numpy"],
+        install_hint="pip install matplotlib numpy",
+    )
+    if err:
+        return err
 
     params = ctx.goal.metadata or {}
     plot_type = str(params.get("plot_type", "function")).lower()
@@ -364,54 +353,45 @@ def math_plot(ctx: PipelineContext) -> Dict[str, Any]:
     grid = bool(params.get("plot_grid", True))
     legend = bool(params.get("plot_legend", True))
 
-    try:
-        if plot_type == "parametric":
-            param = params.get("plot_parametric", {})
-            x_expr = str(param.get("x", "sin(t)"))
-            y_expr = str(param.get("y", "cos(t)"))
-            t_range = _parse_range(param.get("t_range", [0, 2 * 3.14159]))
-            result = _plot_parametric(
-                x_expr, y_expr, t_range, title=title, style=style, grid=grid
-            )
-        elif plot_type == "polar":
-            polar = params.get("plot_polar", {})
-            r_expr = str(polar.get("r", "1 + cos(theta)"))
-            theta_range = _parse_range(
-                polar.get("theta_range", [0, 2 * 3.14159])
-            )
-            result = _plot_polar(
-                r_expr, theta_range, title=title, style=style, grid=grid
-            )
-        elif plot_type == "scatter":
-            points = params.get("plot_scatter_data", [])
-            result = _plot_scatter(
-                points, title=title, x_label=x_label, y_label=y_label,
-                style=style, grid=grid,
-            )
-        else:
-            # Default: function plotting
-            expressions = params.get("plot_expressions", [])
-            if isinstance(expressions, str):
-                expressions = [expressions]
-            if not expressions:
-                expressions = ["sin(x)", "cos(x)"]
-            x_range = _parse_range(params.get("plot_x_range", [-10, 10]))
-            y_range = None
-            if params.get("plot_y_range"):
-                y_range = _parse_range(params["plot_y_range"])
-            result = _plot_function(
-                expressions, x_range, y_range=y_range,
-                title=title, x_label=x_label, y_label=y_label,
-                style=style, grid=grid, legend=legend,
-            )
+    if plot_type == "parametric":
+        param = params.get("plot_parametric", {})
+        x_expr = str(param.get("x", "sin(t)"))
+        y_expr = str(param.get("y", "cos(t)"))
+        t_range = _parse_range(param.get("t_range", [0, 2 * 3.14159]))
+        result = _plot_parametric(
+            x_expr, y_expr, t_range, title=title, style=style, grid=grid
+        )
+    elif plot_type == "polar":
+        polar = params.get("plot_polar", {})
+        r_expr = str(polar.get("r", "1 + cos(theta)"))
+        theta_range = _parse_range(
+            polar.get("theta_range", [0, 2 * 3.14159])
+        )
+        result = _plot_polar(
+            r_expr, theta_range, title=title, style=style, grid=grid
+        )
+    elif plot_type == "scatter":
+        points = params.get("plot_scatter_data", [])
+        result = _plot_scatter(
+            points, title=title, x_label=x_label, y_label=y_label,
+            style=style, grid=grid,
+        )
+    else:
+        # Default: function plotting
+        expressions = params.get("plot_expressions", [])
+        if isinstance(expressions, str):
+            expressions = [expressions]
+        if not expressions:
+            expressions = ["sin(x)", "cos(x)"]
+        x_range = _parse_range(params.get("plot_x_range", [-10, 10]))
+        y_range = None
+        if params.get("plot_y_range"):
+            y_range = _parse_range(params["plot_y_range"])
+        result = _plot_function(
+            expressions, x_range, y_range=y_range,
+            title=title, x_label=x_label, y_label=y_label,
+            style=style, grid=grid, legend=legend,
+        )
 
-        result["status"] = "completed" if result.get("success") else "failed"
-        return result
-
-    except Exception:
-        logger.exception("math_plot failed")
-        return {
-            "status": "failed",
-            "error": "Plot generation failed",
-            "plot_type": plot_type,
-        }
+    result["status"] = "completed" if result.get("success") else "failed"
+    return result

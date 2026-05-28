@@ -35,6 +35,7 @@ from typing import Any, Dict, Optional, Tuple
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.safe_eval import safe_eval
+from uar.core.skill_utils import require_package, skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +49,6 @@ try:
     DEFAULT_FIGSIZE = tuple(float(x) for x in _figsize_parts[:2])
 except (ValueError, TypeError):
     DEFAULT_FIGSIZE = (8.0, 6.0)
-
-
-def _check_deps() -> bool:
-    import importlib.util
-    return (
-        importlib.util.find_spec("matplotlib") is not None
-        and importlib.util.find_spec("numpy") is not None
-    )
 
 
 def _encode_figure(fig) -> str:
@@ -262,20 +255,18 @@ def _plot_parametric_3d(
 
 
 @register_skill("math_plot_3d")
+@skill_guard("Math plot 3d", status="failed")
 def math_plot_3d(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate 3D mathematical plots as base64 PNG images.
 
     Supports surface plots, wireframes, and 3D parametric curves.
     """
-    if not _check_deps():
-        return {
-            "status": "failed",
-            "error": (
-                "matplotlib and numpy not installed. "
-                "Install with: pip install matplotlib numpy"
-            ),
-            "plot_type": "unavailable",
-        }
+    err = require_package(
+        ["matplotlib", "numpy"],
+        install_hint="pip install matplotlib numpy",
+    )
+    if err:
+        return err
 
     params = ctx.goal.metadata or {}
     plot_type = str(params.get("plot_3d_type", "surface")).lower()
@@ -284,48 +275,39 @@ def math_plot_3d(ctx: PipelineContext) -> Dict[str, Any]:
     elev = float(params.get("plot_3d_elev", 30.0))
     azim = float(params.get("plot_3d_azim", -60.0))
 
-    try:
-        if plot_type == "wireframe":
-            expr = str(
-                params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
-            )
-            x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
-            y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
-            result = _plot_wireframe(
-                expr, x_range, y_range,
-                title=title, style=style,
-                elev=elev, azim=azim,
-            )
-        elif plot_type == "parametric_curve":
-            param = params.get("plot_3d_parametric", {})
-            x_expr = str(param.get("x", "cos(t)"))
-            y_expr = str(param.get("y", "sin(t)"))
-            z_expr = str(param.get("z", "t"))
-            t_range = _parse_range(param.get("t_range", [0, 6.28318]))
-            result = _plot_parametric_3d(
-                x_expr, y_expr, z_expr, t_range,
-                title=title, style=style,
-                elev=elev, azim=azim,
-            )
-        else:
-            # Default: surface
-            expr = str(
-                params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
-            )
-            x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
-            y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
-            result = _plot_surface(
-                expr, x_range, y_range, title=title, style=style,
-                elev=elev, azim=azim,
-            )
+    if plot_type == "wireframe":
+        expr = str(
+            params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
+        )
+        x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
+        y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
+        result = _plot_wireframe(
+            expr, x_range, y_range,
+            title=title, style=style,
+            elev=elev, azim=azim,
+        )
+    elif plot_type == "parametric_curve":
+        param = params.get("plot_3d_parametric", {})
+        x_expr = str(param.get("x", "cos(t)"))
+        y_expr = str(param.get("y", "sin(t)"))
+        z_expr = str(param.get("z", "t"))
+        t_range = _parse_range(param.get("t_range", [0, 6.28318]))
+        result = _plot_parametric_3d(
+            x_expr, y_expr, z_expr, t_range,
+            title=title, style=style,
+            elev=elev, azim=azim,
+        )
+    else:
+        # Default: surface
+        expr = str(
+            params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
+        )
+        x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
+        y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
+        result = _plot_surface(
+            expr, x_range, y_range, title=title, style=style,
+            elev=elev, azim=azim,
+        )
 
-        result["status"] = "completed" if result.get("success") else "failed"
-        return result
-
-    except Exception:
-        logger.exception("math_plot_3d failed")
-        return {
-            "status": "failed",
-            "error": "3D plot generation failed",
-            "plot_type": plot_type,
-        }
+    result["status"] = "completed" if result.get("success") else "failed"
+    return result

@@ -9,7 +9,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ def skill_guard(
 
 
 def require_package(
-    package: str, *,
+    package: Union[str, List[str]], *,
     install_hint: Optional[str] = None,
 ) -> Optional[Dict[str, str]]:
     """Return an error dict if *package* is not importable, else ``None``.
@@ -67,17 +67,31 @@ def require_package(
     Eliminates the duplicated ``importlib.util.find_spec`` guard that
     exists across many optional-dependency skills.
 
+    Args:
+        package: Package name or list of package names to check.
+        install_hint: Optional hint shown in the error message.
+
     Usage::
 
         err = require_package("scipy", install_hint="pip install scipy")
         if err:
             return err
+
+        err = require_package(
+            ["matplotlib", "numpy"],
+            install_hint="pip install matplotlib numpy",
+        )
+        if err:
+            return err
     """
-    if importlib.util.find_spec(package) is not None:
+    packages = [package] if isinstance(package, str) else package
+    missing = [p for p in packages if importlib.util.find_spec(p) is None]
+    if not missing:
         return None
 
-    hint = install_hint or f"pip install {package}"
+    hint = install_hint or f"pip install {' '.join(missing)}"
+    pkg_list = ", ".join(missing)
     return {
         "status": "failed",
-        "error": f"{package} not installed. {hint}",
+        "error": f"{pkg_list} not installed. {hint}",
     }

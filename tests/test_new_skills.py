@@ -50,9 +50,10 @@ class TestQuantumML:
 
 class TestMathPlot3D:
     def test_missing_deps_returns_error(self):
-        from uar.skills.math_plot_3d import _check_deps, math_plot_3d
+        from uar.core.skill_utils import require_package
+        from uar.skills.math_plot_3d import math_plot_3d
 
-        if _check_deps():
+        if require_package(["matplotlib", "numpy"]) is None:
             pytest.skip(
                 "matplotlib+numpy installed — skipping missing-dependency test"
             )
@@ -60,11 +61,12 @@ class TestMathPlot3D:
         ctx = _make_ctx({"plot_3d_type": "surface"})
         result = math_plot_3d(ctx)
         assert result["status"] == "failed"
-        assert "matplotlib and numpy not installed" in result["error"]
+        assert "matplotlib" in result["error"].lower()
 
-    def test_check_deps_boolean(self):
-        from uar.skills.math_plot_3d import _check_deps
-        assert isinstance(_check_deps(), bool)
+    def test_require_package_is_dict_or_none(self):
+        from uar.core.skill_utils import require_package
+        result = require_package(["matplotlib", "numpy"])
+        assert result is None or isinstance(result, dict)
 
     def test_parse_range_defaults(self):
         from uar.skills.math_plot_3d import _parse_range
