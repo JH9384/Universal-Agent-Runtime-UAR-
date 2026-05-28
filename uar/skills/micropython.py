@@ -9,11 +9,7 @@ from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-
-
-def _check_micropython() -> bool:
-    import importlib.util
-    return importlib.util.find_spec("machine") is not None
+from uar.core.skill_utils import require_package
 
 
 def _simulate_execution(code: str) -> Dict[str, Any]:
@@ -76,7 +72,7 @@ def micropython(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "code is required in goal metadata",
         }
 
-    available = _check_micropython()
+    available = require_package("machine") is None
     result = _simulate_execution(code)
 
     return {

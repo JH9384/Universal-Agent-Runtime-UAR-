@@ -7,11 +7,11 @@ functionality.
 
 from __future__ import annotations
 
-import importlib.util
 from typing import Any, Callable, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import require_package
 
 
 _STUBS: Dict[str, str] = {
@@ -57,7 +57,7 @@ def _make_stub(
 
     def stub_skill(ctx: PipelineContext) -> Dict[str, Any]:
         if package:
-            available = importlib.util.find_spec(package) is not None
+            available = require_package(package) is None
         else:
             available = True
 
