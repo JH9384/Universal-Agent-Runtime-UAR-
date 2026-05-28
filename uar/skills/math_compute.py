@@ -22,7 +22,7 @@ from typing import Dict, Any
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
-from uar.core.skill_utils import require_package
+from uar.core.skill_utils import require_package, skill_guard
 
 # Circuit breaker for SymPy computations (handles timeouts and errors)
 _math_cb = CircuitBreaker(
@@ -144,6 +144,7 @@ def _simplify(expr: str) -> Dict[str, Any]:
 
 
 @register_skill("math_compute")
+@skill_guard("Math compute", status="failed")
 def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
     """Perform mathematical computations using SymPy.
 

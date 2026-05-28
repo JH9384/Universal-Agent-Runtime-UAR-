@@ -23,7 +23,7 @@ from typing import Dict, Any
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
-from uar.core.skill_utils import require_package
+from uar.core.skill_utils import require_package, skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +144,7 @@ def _calculate_redshift(z: str) -> Dict[str, Any]:
 
 
 @register_skill("physics_compute")
+@skill_guard("Physics compute", status="failed")
 def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
     """Perform physics and astronomy computations using Astropy.
 
