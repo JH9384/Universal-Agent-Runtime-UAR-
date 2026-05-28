@@ -10,6 +10,7 @@ Tests the executor's ability to:
 from __future__ import annotations
 
 import pytest
+from unittest.mock import Mock, patch
 
 from uar.core.executor import _expand_execution_order_with_markers
 from uar.core.recipes import DEFAULT_RECIPES
@@ -187,15 +188,168 @@ class TestRecipeConditions:
 class TestRecipeEventEmission:
     """Test that recipe events are properly emitted during execution."""
 
-    def test_recipe_start_event_structure(self):
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_recipe_start_event_structure(
+        self, mock_registry, mock_guardrails
+    ):
         """Recipe start events have required fields."""
-        # Would need full executor run to test event emission
-        pass
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = Mock(return_value="ok")
+        mock_guardrails.return_value = []
 
-    def test_recipe_end_event_includes_duration(self):
+        from uar.core.executor import Executor
+        from uar.core.contracts import GoalSpec, StrategySpec
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {"type": "recipe", "content": "review", "id": "r1"},
+                ]
+            },
+        )
+        strategy = StrategySpec(goal_id="g1", ordered_skills=[])
+        events = list(
+            Executor().iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        starts = [e for e in events if e["type"] == "recipe_start"]
+        assert len(starts) == 1
+        assert starts[0]["payload"]["recipe_id"] == "review"
+        assert starts[0]["payload"]["instance_id"] == "r1"
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_recipe_end_event_includes_duration(
+        self, mock_registry, mock_guardrails
+    ):
         """Recipe end events include duration."""
-        pass
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = Mock(return_value="ok")
+        mock_guardrails.return_value = []
 
-    def test_nested_recipe_events(self):
+        from uar.core.executor import Executor
+        from uar.core.contracts import GoalSpec, StrategySpec
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {"type": "recipe", "content": "review", "id": "r1"},
+                ]
+            },
+        )
+        strategy = StrategySpec(goal_id="g1", ordered_skills=[])
+        events = list(
+            Executor().iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        ends = [e for e in events if e["type"] == "recipe_end"]
+        assert len(ends) >= 1
+        assert ends[-1]["payload"]["recipe_id"] == "review"
+        assert "status" in ends[-1]["payload"]
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_nested_recipe_events(self, mock_registry, mock_guardrails):
         """Nested recipes emit correct event sequences."""
-        pass
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = Mock(return_value="ok")
+        mock_guardrails.return_value = []
+
+        from uar.core.executor import Executor
+        from uar.core.contracts import GoalSpec, StrategySpec
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "use_hierarchical": True,
+                "execution_order": [
+                    {
+                        "type": "recipe",
+                        "content": "parent",
+                        "id": "p1",
+                    },
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "parent",
+                        "skills": ["noop"],
+                        "items": [
+                            {
+                                "type": "recipe",
+                                "content": "child",
+                                "id": "c1",
+                            },
+                        ],
+                    },
+                    {
+                        "id": "child",
+                        "skills": ["noop"],
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="g1", ordered_skills=[])
+        events = list(
+            Executor().iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        types = [e["type"] for e in events]
+        assert types.count("recipe_start") >= 2
+        assert types.count("recipe_end") >= 2
+
+
+class TestHierarchicalParallelGroups:
+    """Parallel skill groups in recipes under hierarchical execution."""
+
+    @patch("uar.core.executor._validate_input_guardrails")
+    @patch("uar.core.executor.registry")
+    def test_parallel_groups_in_skills_are_executed(
+        self, mock_registry, mock_guardrails
+    ):
+        """A recipe with skills=['a', ['b', 'c']] runs all three skills."""
+        call_log = []
+
+        def mock_skill(ctx):
+            call_log.append("called")
+            return {"status": "ok"}
+
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+        mock_guardrails.return_value = []
+
+        from uar.core.executor import Executor
+        from uar.core.contracts import GoalSpec, StrategySpec
+
+        goal = GoalSpec(
+            id="test",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "use_hierarchical": True,
+                "execution_order": [
+                    {"type": "recipe", "content": "parallel", "id": "p1"},
+                ],
+                "recipe_definitions": [
+                    {
+                        "id": "parallel",
+                        "skills": ["skill_a", ["skill_b", "skill_c"]],
+                    },
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="g1", ordered_skills=[])
+        events = list(
+            Executor().iter_events(strategy, goal, timeout_seconds=1.0)
+        )
+        # All three skills should have been invoked
+        assert len(call_log) == 3
+        skill_events = [
+            e for e in events if e["type"].startswith("skill_")
+        ]
+        assert len(skill_events) == 6  # 3 starts + 3 completes

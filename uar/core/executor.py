@@ -2100,6 +2100,8 @@ class Executor:
                 )
                 # Normalize string lists to typed item dicts so that
                 # recipes defined with plain skill names work seamlessly.
+                # Parallel groups (lists) are flattened into individual
+                # typed items so the flat sub-executor can regroup them.
                 nested_items: List[Dict[str, Any]] = []
                 for raw in raw_nested:
                     if isinstance(raw, str):
@@ -2108,6 +2110,18 @@ class Executor:
                         )
                     elif isinstance(raw, dict):
                         nested_items.append(raw)
+                    elif isinstance(raw, list):
+                        for sub in raw:
+                            if isinstance(sub, str):
+                                nested_items.append(
+                                    {
+                                        "type": "skill",
+                                        "content": sub,
+                                        "id": "",
+                                    }
+                                )
+                            elif isinstance(sub, dict):
+                                nested_items.append(sub)
 
                 while True:
                     if attempt > 0:
