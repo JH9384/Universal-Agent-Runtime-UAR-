@@ -11,11 +11,7 @@ from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-
-
-def _check_myhdl_available() -> bool:
-    import importlib.util
-    return importlib.util.find_spec("myhdl") is not None
+from uar.core.skill_utils import require_package, skill_guard
 
 
 def _parse_python_hdl(source: str) -> Dict[str, Any]:
@@ -70,6 +66,7 @@ def _generate_verilog_stub(name: str, signals: list) -> str:
     return "\n".join(lines)
 
 
+@skill_guard("MyHDL design", status="failed")
 def myhdl_design(ctx: PipelineContext) -> Dict[str, Any]:
     """Hardware design with MyHDL.
 
@@ -87,7 +84,7 @@ def myhdl_design(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "source is required in goal metadata",
         }
 
-    myhdl_available = _check_myhdl_available()
+    myhdl_available = require_package("myhdl") is None
     parsed = _parse_python_hdl(source)
     verilog_stub = _generate_verilog_stub(module_name, parsed["signals"])
 
