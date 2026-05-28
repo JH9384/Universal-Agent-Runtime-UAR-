@@ -31,9 +31,36 @@ class ValidationError(UARError):
 
     code = ErrorCode.VALIDATION
 
+    _FIELD_MESSAGES: dict[Optional[str], str] = {
+        "goal": (
+            "Invalid goal. Please provide a clear goal "
+            "description (3-10,000 characters)."
+        ),
+        "skills": (
+            "Invalid skills. Please check that the skills "
+            "are available in the system."
+        ),
+        "input_path": (
+            "Invalid path provided"
+        ),
+        "timeout_seconds": (
+            "Invalid timeout. Please provide a timeout "
+            "between 1 and 300 seconds."
+        ),
+        "execution_order": (
+            "Invalid execution order. Please check that "
+            "all skills and recipes are valid."
+        ),
+    }
+
     def __init__(self, message: str, field: Optional[str] = None):
         self.field = field
         super().__init__(message)
+
+    @property
+    def user_message(self) -> str:
+        """Return a user-friendly message based on the invalid field."""
+        return self._FIELD_MESSAGES.get(self.field, "Invalid input provided")
 
 
 class SkillNotFoundError(UARError):

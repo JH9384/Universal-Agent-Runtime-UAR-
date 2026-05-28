@@ -12,25 +12,13 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ValidationError)
     async def validation_error_handler(request, exc):
         field = getattr(exc, "field", None)
-        if field == "input_path":
-            message = "Invalid path provided"
-        elif field == "goal":
-            message = "Invalid goal provided"
-        elif field == "skills":
-            message = "Invalid skills provided"
-        elif field == "timeout_seconds":
-            message = "Invalid timeout provided"
-        elif field == "execution_order":
-            message = "Invalid execution order provided"
-        else:
-            message = "Invalid input provided"
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "detail": {
                     "error": "Validation error",
                     "code": exc.code.value,
-                    "message": message,
+                    "message": exc.user_message,
                     "field": field,
                 }
             },

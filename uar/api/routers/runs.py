@@ -104,39 +104,11 @@ async def run_goal(
 
         except ValidationError as e:
             logger.warning("[%s] Validation error: %s", request_id, e)
-            if e.field == "goal":
-                user_message = (
-                    "Invalid goal. Please provide a clear goal "
-                    "description (3-10,000 characters)."
-                )
-            elif e.field == "skills":
-                user_message = (
-                    "Invalid skills. Please check that the skills "
-                    "are available in the system."
-                )
-            elif e.field == "input_path":
-                user_message = (
-                    "Invalid input path. Please provide a valid "
-                    "path within the project directory."
-                )
-            elif e.field == "timeout_seconds":
-                user_message = (
-                    "Invalid timeout. Please provide a timeout "
-                    "between 1 and 300 seconds."
-                )
-            elif e.field == "execution_order":
-                user_message = (
-                    "Invalid execution order. Please check that "
-                    "all skills and recipes are valid."
-                )
-            else:
-                user_message = "Invalid input provided"
-
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "error": "Validation error",
-                    "message": user_message,
+                    "message": e.user_message,
                     "field": e.field,
                     "request_id": request_id,
                     "suggestion": (

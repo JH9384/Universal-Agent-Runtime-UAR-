@@ -1000,3 +1000,45 @@ def register_metrics_middleware(app) -> None:
                 request.headers.get("x-correlation-id", "none"),
             )
         return response
+
+
+# ---------------------------------------------------------------------------
+# Reusable error handler decorator
+# ---------------------------------------------------------------------------
+
+
+def api_error_handler(operation_name: str):
+    """Decorator that wraps an endpoint in the canonical UAR error-handling
+    pattern: re-raise ``UARError`` / ``ValidationError`` verbatim, catch
+    everything else and map it to ``HTTPException(500)`` with structured
+    logging.
+
+    Usage::
+
+        @router.get("/api/uar/orchestrator/status")
+        @api_error_handler("orchestrator status")
+        async def get_orchestrator_status():
+            ...
+    """
+
+    def decorator(fn):
+        from uar.core.exceptions import UARError, ValidationError
+
+        @wraps(fn)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await fn(*args, **kwargs)
+            except HTTPException:
+                raise
+            except (UARError, ValidationError):
+                raise
+            except Exception as exc:
+                logger.exception("Failed to get %s", operation_name)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Internal server error",
+                ) from exc
+
+        return wrapper
+
+    return decorator
