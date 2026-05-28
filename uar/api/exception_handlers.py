@@ -1,10 +1,9 @@
 """FastAPI exception handlers for UAR domain exceptions."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
-from fastapi import status
 
-from uar.core.exceptions import UARError, ValidationError, PathSecurityError
+from uar.core.exceptions import PathSecurityError, UARError, ValidationError
 
 
 def register_exception_handlers(app: FastAPI) -> None:

@@ -116,6 +116,38 @@ def _validate_node(node: ast.AST) -> None:
         _validate_node(child)
 
 
+def _disallowed_string_in(node: ast.AST) -> Optional[str]:
+    """Recursively search *node* for any string constant in
+    ``_DISALLOWED_ATTRS``."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        if node.value in _DISALLOWED_ATTRS:
+            return node.value
+    for child in ast.iter_child_nodes(node):
+        result = _disallowed_string_in(child)
+        if result is not None:
+            return result
+    return None
+
+
+def _eval_slice_constant(node: ast.AST) -> Optional[str]:
+    """Attempt to evaluate a subscript slice to a compile-time string.
+
+    Handles ``ast.Constant(str)`` and ``ast.BinOp(ast.Add)`` of
+    string constants so that concatenated dunder names are detected.
+    """
+    # Unwrap Python < 3.9 Index wrapper
+    if isinstance(node, ast.Index):
+        node = node.value  # type: ignore[attr-defined, assignment]
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _eval_slice_constant(node.left)
+        right = _eval_slice_constant(node.right)
+        if left is not None and right is not None:
+            return left + right
+    return None
+
+
 def _validate_names(tree: ast.AST, allowed_names: set[str]) -> None:
     """Ensure every ``ast.Name`` in *tree* is in *allowed_names*."""
     for node in ast.walk(tree):
@@ -128,6 +160,17 @@ def _validate_names(tree: ast.AST, allowed_names: set[str]) -> None:
             if node.attr in _DISALLOWED_ATTRS:
                 raise SafeEvalAttrError(
                     f"Disallowed attribute access: {node.attr}"
+                )
+        elif isinstance(node, ast.Subscript):
+            bad = _disallowed_string_in(node.slice)
+            if bad is not None:
+                raise SafeEvalAttrError(
+                    f"Disallowed subscript access: {bad}"
+                )
+            evaluated = _eval_slice_constant(node.slice)
+            if evaluated is not None and evaluated in _DISALLOWED_ATTRS:
+                raise SafeEvalAttrError(
+                    f"Disallowed subscript access: {evaluated}"
                 )
 
 

@@ -23,9 +23,9 @@ _RUNRECORD_FIELDS = frozenset(RunRecord.__dataclass_fields__.keys())  # type: ig
 def run_record_from_dict(row: Dict[str, Any]) -> RunRecord:
     """Convert a raw store row dict into a :class:`RunRecord`.
 
-    Extra keys present in the dict (e.g. ``created_at``, ``id``,
-    ``metadata``) that are not ``RunRecord`` fields are silently
-    dropped so this works with every store backend.
+    Extra keys present in the dict (e.g. ``created_at``, ``id``)
+    that are not ``RunRecord`` fields are silently dropped so this
+    works with every store backend.
 
     Args:
         row: A dict as returned by any store's ``list_records()``

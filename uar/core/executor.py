@@ -13,21 +13,21 @@ import sys
 import threading
 import time
 import uuid
-from typing import Iterator, Dict, Any, List, Tuple
+from typing import Any, Dict, Iterator, List, Tuple
 
+from ..api.metrics import get_metrics_collector
+from ..compat.uor_address import (
+    UORAddressError,
+    address_with_witness,
+)
 from .async_utils import run_sync_safe
 from .cache import get_cache
 from .contracts import PipelineContext, RunRecord, StrategySpec
 from .exceptions import SkillExecutionError, TimeoutError, ValidationError
-from .registry import registry
-from .validation import validate_timeout
-from ..compat.uor_address import (
-    address_with_witness,
-    UORAddressError,
-)
 from .recipes import DEFAULT_RECIPES
+from .registry import registry
 from .schema import validate_event
-from ..api.metrics import get_metrics_collector
+from .validation import validate_timeout
 
 # GC hint threshold: trigger gc.collect() after runs with many events
 # to reduce memory pressure from accumulated intermediate objects.
@@ -78,7 +78,6 @@ _TIMEOUT_POOL_MAX = max(
 _TIMEOUT_POOL = concurrent.futures.ThreadPoolExecutor(
     max_workers=_TIMEOUT_POOL_MAX
 )
-_TIMEOUT_POOL_LOCK = threading.Lock()
 
 
 def _shutdown_timeout_pool():
@@ -707,9 +706,7 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
             raise TimeoutError(timeout_seconds) from exc
 
     # Shared pool avoids per-skill churn.
-    with _TIMEOUT_POOL_LOCK:
-        pool = _TIMEOUT_POOL
-    future = pool.submit(fn, ctx)
+    future = _TIMEOUT_POOL.submit(fn, ctx)
     try:
         return future.result(timeout=timeout_seconds)
     except concurrent.futures.TimeoutError as exc:
@@ -1680,8 +1677,10 @@ class Executor:
                         if params_stack and isinstance(params_stack, list):
                             params_stack.pop()
 
+                    was_skipped = False
                     if skip_to_recipe_end == instance_id:
                         skip_to_recipe_end = ""
+                        was_skipped = True
 
                     if recipe_error_lists.get(instance_id):
                         if recipe_retry_remaining.get(instance_id, 0) > 0:
@@ -1743,6 +1742,9 @@ class Executor:
                             "recipe_id": marker.get("recipe_id"),
                             "instance_id": instance_id,
                             "duration_ms": duration_ms,
+                            "status": (
+                                "skipped" if was_skipped else "completed"
+                            ),
                         },
                     )
             if retry_triggered:

@@ -24,8 +24,8 @@ CORS_ORIGINS = [
 
 async def _retention_purge_loop() -> None:
     """Background task: purge old run records periodically."""
-    from uar.memory.base_store import get_store
     from uar.config import config
+    from uar.memory.base_store import get_store
 
     if config.run_retention_days <= 0:
         return
@@ -57,8 +57,8 @@ def create_lifespan(ws_conn_counter):
         logger.info("UAR API starting up...")
         # Clean up orphaned temp files on startup
         from uar.api.routers.docs import (
-            _library_dir,
             _cleanup_orphaned_temp_files,
+            _library_dir,
         )
 
         library = _library_dir()

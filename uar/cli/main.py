@@ -14,6 +14,7 @@ from rich import box
 from uar.core.contracts import GoalSpec
 from uar.core.planner import SimplePlanner
 from uar.core.executor import Executor
+from uar.core.exceptions import SkillNotFoundError
 from uar.core.registry import registry
 from uar.core.recipes import DEFAULT_RECIPES
 from uar.memory.base_store import get_store, run_record_from_dict
@@ -97,9 +98,9 @@ def skill_show(name: str) -> None:
     """Show details for a single skill."""
     try:
         fn = registry.get(name)
-    except Exception:
+    except SkillNotFoundError:
         console.print(f"[red]Skill '{name}' not found.[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     doc = (fn.__doc__ or "").strip()
     panel = Panel(
@@ -242,11 +243,11 @@ def run_server_goal(
         console.print_json(data=data)
     except httpx.ConnectError:
         console.print(f"[red]Cannot connect to {server}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except httpx.HTTPStatusError as exc:
         console.print(f"[red]HTTP {exc.response.status_code}[/red]")
         console.print_json(data=exc.response.json())
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
 
 # ── history commands ────────────────────────────────────────────────────────
@@ -390,7 +391,7 @@ def health_server(
                         "[yellow]![/yellow]",
                         f"{r.status_code}",
                     )
-            except Exception as exc:
+            except Exception:
                 table.add_row(label, "[red]✗[/red]", "Error")
 
     console.print(table)
@@ -417,10 +418,10 @@ def openapi_export(
         spec = r.json()
     except httpx.ConnectError:
         console.print(f"[red]Cannot connect to {server}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except httpx.HTTPStatusError as exc:
         console.print(f"[red]HTTP {exc.response.status_code}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     pretty = json.dumps(spec, indent=2)
     if output:

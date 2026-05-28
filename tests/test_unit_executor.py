@@ -645,7 +645,7 @@ class TestExpandExecutionOrder:
 
         # Verify recipe_end has complete status (not aborted)
         recipe_end = [e for e in events if e["type"] == "recipe_end"][-1]
-        assert recipe_end["payload"].get("status") is None
+        assert recipe_end["payload"].get("status") == "completed"
 
 
 class TestRecipeCaching:

@@ -185,7 +185,7 @@ class KeyManager:
             raise NotImplementedError(
                 "cryptography library required for key generation. "
                 "Install with: pip install cryptography"
-            )
+            ) from None
 
     def sign_data(self, key_id: str, data: bytes) -> Optional[str]:
         """Sign data with a private key.

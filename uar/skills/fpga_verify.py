@@ -164,7 +164,7 @@ def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
                 ),
             },
         }
-    except Exception as exc:
+    except Exception:
         return {
             "status": "failed",
             "error": "FPGA verification failed",

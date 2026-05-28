@@ -10,7 +10,7 @@ import os
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -431,13 +431,11 @@ class RedisCacheBackend(CacheBackend):
                 "circuit_tripped": self._circuit_tripped,
             }
         try:
-            info = (  # type: ignore[union-attr]
-                self._client.info("keyspace")
-            )
+            info = cast(dict, self._client.info("keyspace"))
             total_keys = sum(
                 v.get("keys", 0)
                 for v in info.values()
-                if isinstance(v, dict)  # type: ignore[union-attr]
+                if isinstance(v, dict)
             )
             self._record_success()
             return {

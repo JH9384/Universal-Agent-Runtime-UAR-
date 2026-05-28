@@ -22,11 +22,17 @@ class StarvationScore:
             return 0.0
         return max(sample.age_ms for sample in self.samples)
 
-    def stalled_queues(self, *, max_age_ms: float = 5_000.0) -> tuple[str, ...]:
+    def stalled_queues(
+        self, *, max_age_ms: float = 5_000.0
+    ) -> tuple[str, ...]:
         return tuple(
             sample.queue_name
             for sample in self.samples
-            if sample.depth > 0 and sample.serviced_count == 0 and sample.age_ms >= max_age_ms
+            if (
+                sample.depth > 0
+                and sample.serviced_count == 0
+                and sample.age_ms >= max_age_ms
+            )
         )
 
     def healthy(self, *, max_age_ms: float = 5_000.0) -> bool:

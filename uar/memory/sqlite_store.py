@@ -127,14 +127,17 @@ class SqliteRunStore:
             "outputs": json.dumps(getattr(record, "outputs", {})),
             "metadata": json.dumps(getattr(record, "metadata", {})),
             "uor_address": getattr(record, "uor_address", None),
-            "uor_witness": json.dumps(witness) if witness is not None else None,
+            "uor_witness": (
+                json.dumps(witness) if witness is not None else None
+            ),
         }
         with self._lock:
             conn = self._get_conn()
             conn.execute(
                 "INSERT INTO uar_runs"
                 " (run_id, goal_id, user_id, status,"
-                "  skills, events, outputs, metadata, uor_address, uor_witness)"
+                "  skills, events, outputs, metadata,"
+                "  uor_address, uor_witness)"
                 " VALUES (?,?,?,?,?,?,?,?,?,?)",
                 tuple(data.values()),
             )

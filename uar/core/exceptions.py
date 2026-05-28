@@ -16,6 +16,7 @@ class ErrorCode(str, Enum):
     EXTERNAL_DOWN = "EXTERNAL_DOWN"
     CONFIG_INVALID = "CONFIG_INVALID"
     EVENT_CONTRACT = "EVENT_CONTRACT"
+    PERSISTENCE = "PERSISTENCE"
     INTERNAL = "INTERNAL"
 
 
@@ -111,4 +112,4 @@ class ConfigInvalidError(UARError):
 class PersistenceError(UARError):
     """Raised when persistence operations fail"""
 
-    pass
+    code = ErrorCode.PERSISTENCE

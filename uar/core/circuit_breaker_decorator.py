@@ -82,7 +82,9 @@ def with_circuit_breaker(
                     f"skipping {func.__name__}"
                 )
                 # Re-raise as SkillExecutionError to maintain contract
-                raise SkillExecutionError(func.__name__, original_error=e)
+                raise SkillExecutionError(
+                    func.__name__, original_error=e
+                ) from e
 
         return wrapper
 

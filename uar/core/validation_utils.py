@@ -81,7 +81,7 @@ def validate_positive_number(
     except (ValueError, TypeError):
         raise ValidationError(
             f"{field_name} must be a number", field=field_name
-        )
+        ) from None
 
     if num_value < min_value:
         raise ValidationError(

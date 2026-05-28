@@ -154,7 +154,7 @@ def _resolve_docs_path(raw: str):
     except ValueError:
         raise PathSecurityError(
             str(resolved), f"Path is outside PROJECT_ROOT ({root})"
-        )
+        ) from None
     return resolved
 
 

@@ -26,7 +26,10 @@ def analyze(nodes: tuple[PartitionNode, ...]) -> PartitionResult:
     isolated = tuple(
         node.node_id
         for node in nodes
-        if sum(1 for peer in nodes if peer.partition_id == node.partition_id) == 1
+        if sum(
+            1 for peer in nodes if peer.partition_id == node.partition_id
+        )
+        == 1
     )
 
     return PartitionResult(tuple(partitions), isolated)

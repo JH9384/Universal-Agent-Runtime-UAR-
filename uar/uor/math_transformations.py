@@ -177,7 +177,11 @@ class GroupTheoryOperations:
                         mi = elements[i].matrix
                         mj = elements[j].matrix
                         mk = elements[k].matrix
-                        assert mi is not None and mj is not None and mk is not None
+                        assert (
+                            mi is not None
+                            and mj is not None
+                            and mk is not None
+                        )
                         left = self.lie_ops.compose_matrices(
                             self.lie_ops.compose_matrices(mi, mj),
                             mk,

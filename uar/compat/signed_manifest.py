@@ -83,7 +83,9 @@ class SignedManifest:
         )
         return True
 
-    def verify_artifact(self, artifact_path: Path, expected_digest: str) -> bool:
+    def verify_artifact(
+        self, artifact_path: Path, expected_digest: str
+    ) -> bool:
         """Verify artifact matches expected digest."""
         if not artifact_path.exists():
             logger.error("Artifact not found: %s", artifact_path)

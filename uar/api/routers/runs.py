@@ -144,7 +144,7 @@ async def run_goal(
                         "For help, see the API documentation."
                     ),
                 },
-            )
+            ) from e
         except UARError as e:
             logger.error("[%s] UAR error: %s", request_id, e)
             error_type = type(e).__name__
@@ -170,7 +170,7 @@ async def run_goal(
                     "request_id": request_id,
                     "suggestion": suggestion,
                 },
-            )
+            ) from e
         except Exception as e:
             logger.error(
                 f"[{request_id}] Unexpected error in run_goal: {str(e)}",
@@ -190,7 +190,7 @@ async def run_goal(
                         "contact support with the request ID."
                     ),
                 },
-            )
+            ) from e
 
 
 @router.get("/api/uar/skills")
@@ -267,7 +267,7 @@ async def list_runs(
                 "message": "Failed to retrieve runs",
                 "request_id": request_id,
             },
-        )
+        ) from e
 
 
 @router.get("/api/provenance/{run_id}")
@@ -360,8 +360,8 @@ async def query_code(
                 "message": "Greptile integration not installed. "
                 "Run: pip install 'universal-agent-runtime[greptile]'",
             },
-        )
-    except Exception:
+        ) from None
+    except Exception as exc:
         logger.exception("Greptile query failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -369,4 +369,4 @@ async def query_code(
                 "error": "greptile_error",
                 "message": "Greptile query failed",
             },
-        )
+        ) from exc

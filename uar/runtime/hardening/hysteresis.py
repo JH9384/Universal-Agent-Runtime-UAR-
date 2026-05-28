@@ -12,7 +12,9 @@ class HysteresisBand:
 
     def __post_init__(self) -> None:
         if self.exit_at > self.enter_at:
-            msg = "exit threshold must be less than or equal to enter threshold"
+            msg = (
+                "exit threshold must be less than or equal to enter threshold"
+            )
             raise ValueError(msg)
 
     def active_after(self, *, previous: bool, value: float) -> bool:

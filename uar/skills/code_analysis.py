@@ -19,8 +19,8 @@ import logging
 import re
 from typing import Any, Dict, List
 
-from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.registry import register_skill
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +174,9 @@ def _extract_classes(source: str, lang: str) -> List[str]:
         for m in re.finditer(r"\bclass\s+(\w+)", source):
             names.append(m.group(1))
     elif lang == "go":
-        for m in re.finditer(r"^type\s+(\w+)\s+struct\s*\{", source, re.MULTILINE):
+        for m in re.finditer(
+            r"^type\s+(\w+)\s+struct\s*\{", source, re.MULTILINE
+        ):
             names.append(m.group(1))
     elif lang == "rust":
         for m in re.finditer(r"\bstruct\s+(\w+)", source):

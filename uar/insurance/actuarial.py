@@ -1,6 +1,7 @@
 """Agent Insurance MVP - Actuarial data collection from provenance logs.
 
-Collects run metrics for actuarial analysis, risk scoring, and insurance pricing.
+Collects run metrics for actuarial analysis, risk scoring,
+and insurance pricing.
 Generates datasets suitable for underwriting AI agent performance.
 """
 from __future__ import annotations
@@ -203,7 +204,9 @@ class ActuarialCollector:
             total_runs = len(rows)
             success_rate = sum(successes) / total_runs
             avg_duration = statistics.mean(durations)
-            volatility = statistics.stdev(durations) if len(durations) > 1 else 0
+            volatility = (
+                statistics.stdev(durations) if len(durations) > 1 else 0
+            )
             error_freq = sum(error_counts) / total_runs
 
             # Calculate risk tier

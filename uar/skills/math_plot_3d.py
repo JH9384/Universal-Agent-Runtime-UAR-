@@ -286,7 +286,9 @@ def math_plot_3d(ctx: PipelineContext) -> Dict[str, Any]:
 
     try:
         if plot_type == "wireframe":
-            expr = str(params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))"))
+            expr = str(
+                params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
+            )
             x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
             y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
             result = _plot_wireframe(
@@ -307,7 +309,9 @@ def math_plot_3d(ctx: PipelineContext) -> Dict[str, Any]:
             )
         else:
             # Default: surface
-            expr = str(params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))"))
+            expr = str(
+                params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
+            )
             x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
             y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
             result = _plot_surface(

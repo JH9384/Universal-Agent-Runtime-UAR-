@@ -21,7 +21,9 @@ class ReconstructionResult:
 
 
 def reconstruct(fragments: tuple[ReplayFragment, ...]) -> ReconstructionResult:
-    ordered = sorted(fragment.sequence for fragment in fragments if fragment.valid)
+    ordered = sorted(
+        fragment.sequence for fragment in fragments if fragment.valid
+    )
 
     if not ordered:
         return ReconstructionResult((), ())

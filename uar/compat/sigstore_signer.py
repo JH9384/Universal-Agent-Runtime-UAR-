@@ -136,7 +136,9 @@ class SigstoreSigner:
             return SigstoreSigningResult(
                 success=True,
                 bundle_path=bundle_path,
-                log_index=result.log_entry.log_id if result.log_entry else None,
+                log_index=(
+                    result.log_entry.log_id if result.log_entry else None
+                ),
             )
 
         except Exception:
@@ -161,7 +163,10 @@ class SigstoreSigner:
         except (subprocess.CalledProcessError, FileNotFoundError):
             return SigstoreSigningResult(
                 success=False,
-                error="cosign CLI not found. Install: brew install sigstore/tap/cosign"
+                error=(
+                    "cosign CLI not found. "
+                    "Install: brew install sigstore/tap/cosign"
+                )
             )
 
         if output_path:
@@ -212,7 +217,9 @@ class SigstoreSigner:
             try:
                 import requests
 
-                req_token = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
+                req_token = os.environ.get(
+                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN", ""
+                )
                 req_url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL", "")
 
                 if req_token and req_url:
@@ -226,7 +233,9 @@ class SigstoreSigner:
             except Exception:
                 logger.exception("Failed to get GitHub OIDC token")
 
-        logger.warning("No CI OIDC token found. Local signing requires manual token.")
+        logger.warning(
+            "No CI OIDC token found. Local signing requires manual token."
+        )
         return os.getenv("SIGSTORE_ID_TOKEN")
 
     def _get_ci_token(self) -> Optional[str]:
@@ -298,7 +307,9 @@ class SigstoreVerifier:
                 issuer="https://accounts.google.com",
             )
 
-            result = verifier.verify(materials, policy=policy)  # type: ignore[union-attr]
+            result = verifier.verify(
+                materials, policy=policy
+            )  # type: ignore[union-attr]
 
             return {
                 "valid": result.ok,

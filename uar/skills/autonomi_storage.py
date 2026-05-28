@@ -22,15 +22,15 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 import re
+from pathlib import Path
 
 from uar.core.async_utils import run_sync_safe
-from uar.core.compat import lazy_import
-from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
-from uar.core.validation import validate_path_security
+from uar.core.compat import lazy_import
 from uar.core.exceptions import PathSecurityError
+from uar.core.registry import register_skill
+from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ def _resolve_input_path(ctx) -> Path | None:
 
 def _wallet_and_payment(autonomi_mod, private_key: str, network_name: str):
     """Create wallet and payment option from private key."""
-    from autonomi import Wallet, Network, PaymentOption
+    from autonomi import Network, PaymentOption, Wallet
 
     net = Network(network_name.lower() == "mainnet")
     if private_key.startswith("0x"):
@@ -193,7 +193,7 @@ def autonomi_upload(ctx):
         )
         return {
             "status": "completed",
-            "address": str(result) if result else None,
+            "address": str(result) if result is not None else None,
             "public": public,
             "file_path": str(src),
             "network": network_name,
@@ -350,7 +350,7 @@ def autonomi_status(ctx):
 
     if private_key:
         try:
-            from autonomi import Wallet, Network
+            from autonomi import Network, Wallet
 
             net = Network(network_name.lower() == "mainnet")
             if private_key.startswith("0x"):

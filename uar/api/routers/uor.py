@@ -325,7 +325,7 @@ def post_execution_run(
             parameters=req.parameters,
         )
     except KeyError:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise HTTPException(status_code=404, detail="Not found") from None
     except SandboxError as exc:
         msg = str(exc)
         status_code = 408 if "timed out" in msg.lower() else 400
@@ -357,7 +357,7 @@ def _run_workflow(req: WorkflowRunReq, store: ObjectStore) -> Dict[str, Any]:
             steps=[step.model_dump() for step in req.steps],
         )
     except KeyError:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise HTTPException(status_code=404, detail="Not found") from None
     except SandboxError as exc:
         msg = str(exc)
         status_code = 408 if "timed out" in msg.lower() else 400

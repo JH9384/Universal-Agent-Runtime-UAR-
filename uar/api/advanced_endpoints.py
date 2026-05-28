@@ -8,9 +8,12 @@ This module provides API endpoints for the integrated frameworks:
 - Knowledge graph RAG
 """
 
-from fastapi import APIRouter, HTTPException
-from typing import Dict, Any, Optional
 import logging
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, HTTPException
+
+from uar.core.exceptions import UARError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +28,13 @@ async def get_orchestrator_status() -> Dict[str, Any]:
 
         orchestrator = get_orchestrator()
         return orchestrator.get_status()  # type: ignore
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to get orchestrator status")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.get("/governance/status")
@@ -38,9 +45,13 @@ async def get_governance_status() -> Dict[str, Any]:
 
         governance = get_governance_system()
         return governance.get_system_status()
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to get governance status")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.post("/governance/budget")
@@ -64,9 +75,13 @@ async def create_agent_budget(
             max_duration_seconds=max_duration_seconds,
         )
         return budget.to_dict()
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to create budget")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.get("/governance/budget/{agent_id}")
@@ -82,9 +97,13 @@ async def get_agent_budget(agent_id: str) -> Dict[str, Any]:
         return budget.to_dict()
     except HTTPException:
         raise
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to get budget")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.get("/governance/violations")
@@ -95,8 +114,8 @@ async def get_violations(
     """Get guardrail violations with optional filters."""
     try:
         from uar.core.guardrails import (
-            get_governance_system,
             ViolationSeverity,
+            get_governance_system,
         )
 
         governance = get_governance_system()
@@ -118,9 +137,13 @@ async def get_violations(
             "violations": [v.to_dict() for v in violations],
             "count": len(violations),
         }
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to get violations")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.get("/dagster/status")
@@ -131,9 +154,13 @@ async def get_dagster_status() -> Dict[str, Any]:
 
         orchestrator = get_orchestrator()
         return orchestrator.get_orchestrator_status()
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to get Dagster status")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.post("/dagster/pipeline")
@@ -151,9 +178,13 @@ async def execute_dagster_pipeline(
             context=context or {},
         )
         return execution.to_dict()
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to execute pipeline")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.get("/graphrag/status")
@@ -164,9 +195,13 @@ async def get_graphrag_status() -> Dict[str, Any]:
 
         graphrag = get_graphrag_instance()
         return graphrag.get_graph_stats()
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to get GraphRAG status")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.post("/graphrag/query")
@@ -178,8 +213,8 @@ async def query_graphrag(
     """Query the knowledge graph."""
     try:
         from uar.core.flexible_graphrag import (
-            get_graphrag_instance,
             SearchStrategy,
+            get_graphrag_instance,
         )
 
         graphrag = get_graphrag_instance()
@@ -195,9 +230,13 @@ async def query_graphrag(
 
         result = graphrag.query_graph(query, strategy_enum, top_k)
         return result
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to query graph")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.get("/crewai/status")
@@ -208,9 +247,13 @@ async def get_crewai_status() -> Dict[str, Any]:
 
         orchestrator = get_task_orchestrator()
         return orchestrator.get_orchestrator_status()
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to get CrewAI status")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.post("/crewai/agent")
@@ -223,9 +266,9 @@ async def create_crewai_agent(
     """Create a CrewAI agent with a specific role."""
     try:
         from uar.core.crewai_integration import (
-            get_task_orchestrator,
-            create_standard_agent,
             AgentRole,
+            create_standard_agent,
+            get_task_orchestrator,
         )
 
         orchestrator = get_task_orchestrator()
@@ -256,9 +299,13 @@ async def create_crewai_agent(
             "name": agent.name,
             "description": agent.description,
         }
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to create agent")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc
 
 
 @router.post("/crewai/workflow")
@@ -275,6 +322,10 @@ async def execute_crewai_workflow(
             input_data=input_data,
         )
         return result  # type: ignore[return-value]
-    except Exception:
+    except (UARError, ValidationError):
+        raise
+    except Exception as exc:
         logger.exception("Failed to execute workflow")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(
+            status_code=500, detail="Internal server error"
+        ) from exc

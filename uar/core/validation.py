@@ -148,10 +148,10 @@ def validate_input_path(
             try:
                 validate_path_security(Path(input_path), allowed_root)
                 return input_path
-            except PathSecurityError:
+            except PathSecurityError as exc:
                 raise ValidationError(
                     "Absolute path outside allowed root", field="input_path"
-                )
+                ) from exc
         raise ValidationError("Absolute paths not allowed", field="input_path")
 
     # Check for dangerous shell/path characters
@@ -175,8 +175,8 @@ def validate_input_path(
         full_path = allowed_root / input_path
         try:
             validate_path_security(full_path, allowed_root)
-        except PathSecurityError as e:
-            raise ValidationError(str(e), field="input_path")
+        except PathSecurityError as exc:
+            raise ValidationError(str(exc), field="input_path") from exc
 
     return input_path
 
@@ -192,7 +192,9 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
         try:
             resolved_path.relative_to(resolved_root)
         except ValueError:
-            raise PathSecurityError(str(path), "Path outside allowed root")
+            raise PathSecurityError(
+                str(path), "Path outside allowed root"
+            ) from None
 
         # Check for symlinks at any point in the path chain
         # Check every component from root to target
@@ -219,7 +221,7 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
             except OSError:
                 raise PathSecurityError(
                     str(path), "Cannot verify path security"
-                )
+                ) from None
 
         # Check for potentially dangerous path patterns
         dangerous_patterns = [

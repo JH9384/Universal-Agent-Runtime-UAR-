@@ -623,7 +623,7 @@ async def stream_goal(
                         "For help, see the API documentation."
                     ),
                 },
-            )
+            ) from e
         except UARError as e:
             logger.error("[%s] Stream UAR error: %s", request_id, e)
             # Provide more context for UARError types
@@ -650,7 +650,7 @@ async def stream_goal(
                     "request_id": request_id,
                     "suggestion": suggestion,
                 },
-            )
+            ) from e
         except Exception as e:
             await _release_sse_connection()
             logger.error(
@@ -671,7 +671,7 @@ async def stream_goal(
                         "contact support with the request ID."
                     ),
                 },
-            )
+            ) from e
 
 
 @router.websocket("/ws/run")

@@ -2,7 +2,7 @@ import collections
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,10 @@ class PipelineContext:
         try:
             self.close()
         except Exception:
-            logger.warning("PipelineContext cleanup failed", exc_info=True)
+            try:
+                logger.warning("PipelineContext cleanup failed", exc_info=True)
+            except Exception:
+                pass
 
 
 @dataclass(slots=True)
@@ -90,3 +93,4 @@ class RunRecord:
     user_id: Optional[str] = None
     uor_address: Optional[str] = None
     uor_witness: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)

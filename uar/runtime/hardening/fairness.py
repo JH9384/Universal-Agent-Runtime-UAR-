@@ -16,7 +16,9 @@ class MutationWindow:
         average = mean(self.participant_rates)
         if average <= 0:
             return 0.0
-        return (max(self.participant_rates) - min(self.participant_rates)) / average
+        return (
+            max(self.participant_rates) - min(self.participant_rates)
+        ) / average
 
     def fair(self, *, max_imbalance: float = 0.5) -> bool:
         return self.imbalance() <= max_imbalance

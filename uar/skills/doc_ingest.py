@@ -185,7 +185,9 @@ def _extract_pdf(file_path: Path) -> str:
         try:
             from PyPDF2 import PdfReader  # type: ignore
         except ImportError:
-            raise RuntimeError("pypdf not installed (pip install pypdf)")
+            raise RuntimeError(
+                "pypdf not installed (pip install pypdf)"
+            ) from None
     reader = PdfReader(str(file_path))
     out = []
     for i, page in enumerate(reader.pages):

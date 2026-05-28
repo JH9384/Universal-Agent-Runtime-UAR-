@@ -4,15 +4,15 @@ Provides Prometheus-compatible metrics and basic runtime statistics.
 """
 
 import atexit
+import functools
 import logging
 import math
 import os
-import time
 import threading
-import functools
+import time
 from collections import defaultdict
-from typing import Dict, Any, Callable, Optional
 from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

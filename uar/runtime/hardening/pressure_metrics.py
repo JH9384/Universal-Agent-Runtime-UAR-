@@ -77,5 +77,7 @@ class PressureLedger:
             "sample_count": len(self.samples),
             "max_pressure": self.max_pressure(),
             "latest_pressure": latest.pressure_score() if latest else 0.0,
-            "dropped_events": sum(sample.dropped_events for sample in self.samples),
+            "dropped_events": sum(
+                sample.dropped_events for sample in self.samples
+            ),
         }

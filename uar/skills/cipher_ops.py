@@ -59,7 +59,7 @@ def _decode_base64(data: str) -> bytes:
     try:
         return base64.b64decode(data)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"Invalid base64 data: {exc}")
+        raise ValueError(f"Invalid base64 data: {exc}") from exc
 
 
 def _encode_base64(data: bytes) -> str:

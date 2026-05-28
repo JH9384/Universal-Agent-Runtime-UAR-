@@ -1,4 +1,5 @@
-"""Regression tests for store field mapping, PipelineContext, and async_utils.
+"""Regression tests for store field mapping, PipelineContext,
+async_utils, and safe_eval.
 
 Covers:
   - PostgresRunStore / SqliteRunStore field-mapping bug (run_id, goal_id)
@@ -6,6 +7,7 @@ Covers:
   - PipelineContext overflow-file __del__ cleanup
   - run_record_from_dict key-filtering
   - run_sync_safe coroutine runner (no-loop and running-loop paths)
+  - safe_eval subscript slice security (concatenated dunder bypass)
 """
 import asyncio
 import collections
@@ -23,7 +25,7 @@ from uar.memory.base_store import run_record_from_dict
 # ---------------------------------------------------------------------------
 
 
-def test_run_record_from_dict_strips_extra_keys():
+def test_run_record_from_dict_filters_and_instantiates():
     row = {
         "run_id": "r1",
         "goal_id": "g1",
@@ -31,13 +33,14 @@ def test_run_record_from_dict_strips_extra_keys():
         "status": "completed",
         "created_at": "2025-01-01",   # Postgres-only column
         "id": 42,                      # Postgres serial PK
-        "metadata": {"x": 1},         # not in RunRecord
+        "metadata": {"x": 1},         # now a RunRecord field
     }
     rr = run_record_from_dict(row)
     assert rr.run_id == "r1"
     assert rr.goal_id == "g1"
     assert rr.skills == ["foo"]
     assert rr.status == "completed"
+    assert rr.metadata == {"x": 1}
 
 
 def test_run_record_from_dict_missing_required_raises():
@@ -200,6 +203,35 @@ def test_run_sync_safe_closes_coro_on_exception():
 
     with pytest.raises(ValueError, match="intentional"):
         run_sync_safe(_bad())
+
+
+# ---------------------------------------------------------------------------
+# 5. safe_eval — subscript slice security
+# ---------------------------------------------------------------------------
+
+
+def test_safe_eval_rejects_concatenated_dunder_subscript():
+    """String concatenation in subscript slices must be rejected."""
+    from uar.core.safe_eval import SafeEvalAttrError, safe_eval
+
+    with pytest.raises(SafeEvalAttrError, match="Disallowed subscript"):
+        safe_eval('obj["__" + "class__"]', {"obj": object()})
+
+
+def test_safe_eval_allows_numeric_subscript():
+    """Numeric subscripts like x[1 + 2] should still work."""
+    from uar.core.safe_eval import safe_eval
+
+    result = safe_eval("x[1 + 2]", {"x": [10, 20, 30, 40]})
+    assert result == 40
+
+
+def test_safe_eval_allows_simple_string_subscript():
+    """Simple string subscripts on allowed keys should still work."""
+    from uar.core.safe_eval import safe_eval
+
+    result = safe_eval('d["foo"]', {"d": {"foo": "bar"}})
+    assert result == "bar"
 
 
 def test_pipeline_context_overflow_writes_oldest_event():
