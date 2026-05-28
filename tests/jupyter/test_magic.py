@@ -27,6 +27,7 @@ def _cell_magic(*args, **kwargs):
 
 
 _mock_ipython = MagicMock()
+_mock_ipython.version_info = (8, 30, 0)
 _mock_ipython.core.magic.Magics = _MockMagics
 _mock_ipython.core.magic.magics_class = lambda c: c
 _mock_ipython.core.magic.cell_magic = _cell_magic
