@@ -6,6 +6,7 @@ import httpx
 
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
+from uar.core.skill_utils import skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ def _build_context_block(docs: list) -> str:
 
 
 @register_skill("ollama_generate")
+@skill_guard("Ollama generate", status="failed")
 def ollama_generate(ctx):
     """Generate a local model response through Ollama.
 
@@ -139,26 +141,15 @@ def ollama_generate(ctx):
     if system:
         payload["system"] = system
 
-    try:
-        response = _ollama_cb.call(
-            lambda: httpx.post(
-                urljoin(host, "/api/generate"),
-                json=payload,
-                timeout=timeout,
-            )
+    response = _ollama_cb.call(
+        lambda: httpx.post(
+            urljoin(host, "/api/generate"),
+            json=payload,
+            timeout=timeout,
         )
-        response.raise_for_status()
-        data = response.json()
-    except Exception:
-        logger.exception("ollama_generate request failed")
-        return {
-            "status": "failed",
-            "model": model,
-            "host": host,
-            "error": "Generation failed",
-            "documents_used": used_docs,
-            "context_chars": context_chars,
-        }
+    )
+    response.raise_for_status()
+    data = response.json()
 
     return {
         "status": "completed",

@@ -85,7 +85,15 @@ def require_package(
             return err
     """
     packages = [package] if isinstance(package, str) else package
-    missing = [p for p in packages if importlib.util.find_spec(p) is None]
+    missing = []
+    for p in packages:
+        try:
+            if importlib.util.find_spec(p) is None:
+                missing.append(p)
+        except ValueError:
+            # Module present in sys.modules but __spec__ not set
+            # (e.g. test mocks) — treat as available.
+            pass
     if not missing:
         return None
 

@@ -93,10 +93,12 @@ class TestAutonomiUpload:
 
 
 class TestAutonomiDownload:
-    @patch("uar.skills.autonomi_storage._get_autonomi")
-    def test_string_false_public(self, mock_get):
+    @patch("uar.skills.autonomi_storage.require_package")
+    def test_string_false_public(self, mock_req):
         # Regression: 'autonomi_public': 'false' was treated as public=True.
-        mock_get.return_value = None
+        mock_req.return_value = {
+            "status": "failed", "error": "not installed"
+        }
         ctx = MagicMock()
         ctx.goal.metadata = {
             "autonomi_address": "test-addr",
@@ -107,9 +109,11 @@ class TestAutonomiDownload:
 
 
 class TestAutonomiStatus:
-    @patch("uar.skills.autonomi_storage._get_autonomi")
-    def test_returns_package_not_installed(self, mock_get):
-        mock_get.return_value = None
+    @patch("uar.skills.autonomi_storage.require_package")
+    def test_returns_package_not_installed(self, mock_req):
+        mock_req.return_value = {
+            "status": "failed", "error": "not installed"
+        }
         ctx = MagicMock()
         result = autonomi_status(ctx)
         assert result["status"] == "failed"

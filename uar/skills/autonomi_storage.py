@@ -30,6 +30,7 @@ from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.compat import lazy_import
 from uar.core.exceptions import PathSecurityError
 from uar.core.registry import register_skill
+from uar.core.skill_utils import require_package, skill_guard
 from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ def _resolve_input_path(ctx) -> Path | None:
     return None
 
 
-def _wallet_and_payment(autonomi_mod, private_key: str, network_name: str):
+def _wallet_and_payment(private_key: str, network_name: str):
     """Create wallet and payment option from private key."""
     from autonomi import Network, PaymentOption, Wallet
 
@@ -121,6 +122,7 @@ def _wallet_and_payment(autonomi_mod, private_key: str, network_name: str):
 
 
 @register_skill("autonomi_upload")
+@skill_guard("Autonomi upload", status="failed")
 def autonomi_upload(ctx):
     """Upload a file to Autonomi decentralized storage.
 
@@ -129,12 +131,9 @@ def autonomi_upload(ctx):
       autonomi_network : "testnet" or "mainnet" (default: testnet)
       autonomi_private_key : EVM wallet private key (optional, overrides env var)
     """  # noqa: E501
-    mod = _get_autonomi()
-    if mod is None:
-        return {
-            "status": "failed",
-            "error": "autonomi Python package not installed. Run: pip install autonomi",  # noqa: E501
-        }
+    err = require_package("autonomi")
+    if err:
+        return err
 
     source = ctx.goal.metadata.get("autonomi_source")
     if not source:
@@ -146,8 +145,7 @@ def autonomi_upload(ctx):
     src = Path(source).resolve()
     try:
         validate_path_security(src, ALLOWED_ROOT)
-    except Exception:
-        logger.exception("Path security validation failed for %s", src)
+    except PathSecurityError:
         return {"status": "failed", "error": "Path security violation"}
 
     if not src.exists():
@@ -182,32 +180,22 @@ def autonomi_upload(ctx):
         else:
             if not private_key:
                 raise ValueError("Private key required for private uploads")
-            _, payment = _wallet_and_payment(mod, private_key, network_name)
+            _, payment = _wallet_and_payment(private_key, network_name)
             result = await client.file_upload(str(src), payment)
         return result
 
-    try:
-        import asyncio
-        result = _autonomi_cb.call(
-            lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
-        )
-        return {
-            "status": "completed",
-            "address": str(result) if result is not None else None,
-            "public": public,
-            "file_path": str(src),
-            "network": network_name,
-            "has_wallet": bool(private_key),
-        }
-    except (ValueError, TypeError, OSError):
-        logger.exception("autonomi_upload failed")
-        return {
-            "status": "failed",
-            "error": "Upload failed",
-            "file_path": str(src),
-            "network": network_name,
-            "public": public,
-        }
+    import asyncio
+    result = _autonomi_cb.call(
+        lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
+    )
+    return {
+        "status": "completed",
+        "address": str(result) if result is not None else None,
+        "public": public,
+        "file_path": str(src),
+        "network": network_name,
+        "has_wallet": bool(private_key),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +204,7 @@ def autonomi_upload(ctx):
 
 
 @register_skill("autonomi_download")
+@skill_guard("Autonomi download", status="failed")
 def autonomi_download(ctx):
     """Download a file from Autonomi by address or data map.
 
@@ -229,12 +218,9 @@ def autonomi_download(ctx):
     Returns:
       {status, dest_path, address, public, network, error?}
     """  # noqa: E501
-    mod = _get_autonomi()
-    if mod is None:
-        return {
-            "status": "failed",
-            "error": "autonomi Python package not installed. Run: pip install autonomi",  # noqa: E501
-        }
+    err = require_package("autonomi")
+    if err:
+        return err
 
     address = ctx.goal.metadata.get("autonomi_address")
     if not address:
@@ -262,8 +248,7 @@ def autonomi_download(ctx):
     # Validate destination path security
     try:
         validate_path_security(dest, ALLOWED_ROOT)
-    except (PathSecurityError, ValueError, OSError):
-        logger.exception("Destination path security validation failed")
+    except PathSecurityError:
         return {
             "status": "failed",
             "error": "Destination path security violation",
@@ -290,27 +275,17 @@ def autonomi_download(ctx):
             await client.file_download(address, str(dest))
         return str(dest)
 
-    try:
-        import asyncio
-        _autonomi_cb.call(
-            lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
-        )
-        return {
-            "status": "completed",
-            "dest_path": str(dest),
-            "address": address,
-            "public": public,
-            "network": network_name,
-        }
-    except (ValueError, TypeError, OSError):
-        logger.exception("autonomi_download failed")
-        return {
-            "status": "failed",
-            "error": "Download failed",
-            "address": address,
-            "network": network_name,
-            "public": public,
-        }
+    import asyncio
+    _autonomi_cb.call(
+        lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
+    )
+    return {
+        "status": "completed",
+        "dest_path": str(dest),
+        "address": address,
+        "public": public,
+        "network": network_name,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -319,19 +294,19 @@ def autonomi_download(ctx):
 
 
 @register_skill("autonomi_status")
+@skill_guard("Autonomi status", status="failed")
 def autonomi_status(ctx):
     """Check Autonomi client availability and wallet status.
 
     Returns:
       {status, available, package_version, network, has_wallet, wallet_error?}
     """
-    mod = _get_autonomi()
-    if mod is None:
-        return {
-            "status": "failed",
-            "available": False,
-            "error": "autonomi Python package not installed",
-        }
+    err = require_package("autonomi")
+    if err:
+        err["available"] = False
+        return err
+
+    import autonomi as _autonomi_mod
 
     private_key = ctx.goal.metadata.get("autonomi_private_key") or os.getenv(
         "AUTONOMI_PRIVATE_KEY"
@@ -343,7 +318,7 @@ def autonomi_status(ctx):
     result = {
         "status": "completed",
         "available": True,
-        "package_version": getattr(mod, "__version__", "unknown"),
+        "package_version": getattr(_autonomi_mod, "__version__", "unknown"),
         "network": network_name,
         "has_wallet": bool(private_key),
     }
