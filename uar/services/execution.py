@@ -148,7 +148,7 @@ class GoalExecutionService(BaseService):
                 for wave in plan.waves or []:
                     for skill_name in wave:
                         # Pre-warm: compute cache key without running
-                        cache_key = cache._make_key(skill_name, "", {})
+                        cache_key = cache._make_key(skill_name, {})
                         # Touch Redis if backed
                         if hasattr(cache, "_redis"):
                             cache._redis.exists(cache_key)

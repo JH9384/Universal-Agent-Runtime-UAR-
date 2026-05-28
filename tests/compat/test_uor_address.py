@@ -32,6 +32,7 @@ class TestAddressViaNative:
     """Native uor-addr path."""
 
     def test_calls_kappa_json_address(self):
+        pytest.importorskip("uor_addr")
         mock_kappa = MagicMock()
         mock_kappa.json_address.return_value = "uor://test"
         with patch("uar.compat.uor_address.kappa", mock_kappa):
@@ -40,6 +41,7 @@ class TestAddressViaNative:
         mock_kappa.json_address.assert_called_once()
 
     def test_native_error_wrapped(self):
+        pytest.importorskip("uor_addr")
         from uor_addr import AddressError as RealAddrErr
 
         mock_kappa = MagicMock()
@@ -70,6 +72,7 @@ class TestAddressWithWitness:
     """Witness payload generation."""
 
     def test_native_returns_witness(self):
+        pytest.importorskip("uor_addr")
         mock_kappa = MagicMock()
         mock_grounded = MagicMock()
         mock_grounded.kappa_label.return_value = "uor://label"
@@ -99,6 +102,7 @@ class TestAddressWithWitness:
 
     def test_native_missing_attribute_fallback(self):
         """If kappa lacks json_address_with_witness, fallback."""
+        pytest.importorskip("uor_addr")
         mock_kappa = MagicMock(spec=[])
         with patch("uar.compat.uor_address.kappa", mock_kappa):
             with patch(

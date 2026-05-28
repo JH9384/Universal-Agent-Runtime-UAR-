@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 from uar.api.server import app
@@ -87,6 +88,11 @@ def test_run_and_stream_final_output_parity():
 
 
 def test_stream_persists_without_duplicate_execution():
+    import os
+
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        pytest.skip("Store-mutation test not safe under xdist")
+
     # Clear store to avoid limit masking the new record
     from uar.api.server import store
 

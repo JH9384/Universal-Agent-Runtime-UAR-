@@ -50,7 +50,10 @@ sys.modules["IPython.core.magic_arguments"] = (
     _mock_ipython.core.magic_arguments
 )
 
-from uar.jupyter.magic import UARMagics, load_ipython_extension
+from uar.jupyter.magic import (  # noqa: E402
+    UARMagics,
+    load_ipython_extension,
+)
 
 
 class MockShell:
