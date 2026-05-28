@@ -62,6 +62,14 @@ jobs:
           .venv/bin/python tests/performance/benchmark_skills.py || true
         continue-on-error: true
 
+      - name: Flaky test detection (3 random seeds)
+        run: |
+          for seed in 1 7 42; do
+            echo "=== Randomly seed=$seed ==="
+            .venv/bin/pytest tests/ --ignore=tests/conformance/test_invariants.py \
+              -q --tb=line --timeout=60 --randomly-seed=$seed || exit 1
+          done
+
   optional-dependency-smoke:
     runs-on: ubuntu-latest
     strategy:
