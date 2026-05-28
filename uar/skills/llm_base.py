@@ -30,6 +30,7 @@ from typing import Any, Callable, Dict, Optional, TypeVar
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
+from uar.core.skill_utils import skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -170,48 +171,40 @@ def _chat_skill(
         if not messages:
             messages = [{"role": "user", "content": ctx.goal.objective}]
 
-        try:
-            model = get_model(ctx)
-            temperature = get_temperature(ctx)
-            max_tokens = get_max_tokens(ctx)
+        model = get_model(ctx)
+        temperature = get_temperature(ctx)
+        max_tokens = get_max_tokens(ctx)
 
-            logger.info("Calling %s chat with model %s", provider_name, model)
+        logger.info("Calling %s chat with model %s", provider_name, model)
 
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
-            if not response.choices:
-                return {
-                    "status": "failed",
-                    "error": "API returned empty choices array",
-                    "model": model,
-                }
-
-            usage = response.usage or {}
-            return {
-                "status": "completed",
-                "model": model,
-                "message": response.choices[0].message.content,
-                "finish_reason": response.choices[0].finish_reason,
-                "usage": {
-                    "prompt_tokens": getattr(usage, "prompt_tokens", 0),
-                    "completion_tokens": getattr(
-                        usage, "completion_tokens", 0
-                    ),
-                    "total_tokens": getattr(usage, "total_tokens", 0),
-                },
-            }
-        except Exception:
-            logger.exception("%s_chat failed", provider_name)
+        if not response.choices:
             return {
                 "status": "failed",
-                "error": "Chat request failed",
-                "model": get_model(ctx),
+                "error": "API returned empty choices array",
+                "model": model,
             }
+
+        usage = response.usage or {}
+        return {
+            "status": "completed",
+            "model": model,
+            "message": response.choices[0].message.content,
+            "finish_reason": response.choices[0].finish_reason,
+            "usage": {
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(
+                    usage, "completion_tokens", 0
+                ),
+                "total_tokens": getattr(usage, "total_tokens", 0),
+            },
+        }
 
     skill.__name__ = f"{provider_name}_chat"
     skill.__doc__ = (
@@ -244,50 +237,42 @@ def _completion_skill(
         meta = ctx.goal.metadata or {}
         prompt = meta.get("prompt", ctx.goal.objective)
 
-        try:
-            model = get_model(ctx)
-            temperature = get_temperature(ctx)
-            max_tokens = get_max_tokens(ctx)
+        model = get_model(ctx)
+        temperature = get_temperature(ctx)
+        max_tokens = get_max_tokens(ctx)
 
-            logger.info(
-                "Calling %s completion with model %s", provider_name, model
-            )
+        logger.info(
+            "Calling %s completion with model %s", provider_name, model
+        )
 
-            response = client.completions.create(
-                model=model,
-                prompt=prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+        response = client.completions.create(
+            model=model,
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
-            if not response.choices:
-                return {
-                    "status": "failed",
-                    "error": "API returned empty choices array",
-                    "model": model,
-                }
-
-            usage = response.usage or {}
-            return {
-                "status": "completed",
-                "model": model,
-                "text": response.choices[0].text,
-                "finish_reason": response.choices[0].finish_reason,
-                "usage": {
-                    "prompt_tokens": getattr(usage, "prompt_tokens", 0),
-                    "completion_tokens": getattr(
-                        usage, "completion_tokens", 0
-                    ),
-                    "total_tokens": getattr(usage, "total_tokens", 0),
-                },
-            }
-        except Exception:
-            logger.exception("%s_completion failed", provider_name)
+        if not response.choices:
             return {
                 "status": "failed",
-                "error": "Completion request failed",
-                "model": get_model(ctx),
+                "error": "API returned empty choices array",
+                "model": model,
             }
+
+        usage = response.usage or {}
+        return {
+            "status": "completed",
+            "model": model,
+            "text": response.choices[0].text,
+            "finish_reason": response.choices[0].finish_reason,
+            "usage": {
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0),
+                "completion_tokens": getattr(
+                    usage, "completion_tokens", 0
+                ),
+                "total_tokens": getattr(usage, "total_tokens", 0),
+            },
+        }
 
     skill.__name__ = f"{provider_name}_completion"
     skill.__doc__ = (
@@ -319,38 +304,30 @@ def _embedding_skill(
         text = meta.get("text", ctx.goal.objective)
         model = meta.get("embedding_model", default_embedding_model)
 
-        try:
-            logger.info(
-                "Calling %s embedding with model %s", provider_name, model
-            )
+        logger.info(
+            "Calling %s embedding with model %s", provider_name, model
+        )
 
-            response = client.embeddings.create(model=model, input=text)
+        response = client.embeddings.create(model=model, input=text)
 
-            if not response.data:
-                return {
-                    "status": "failed",
-                    "error": "API returned empty data array",
-                    "model": model,
-                }
-
-            usage = response.usage or {}
-            return {
-                "status": "completed",
-                "model": model,
-                "embedding": response.data[0].embedding,
-                "dimensions": len(response.data[0].embedding),
-                "usage": {
-                    "prompt_tokens": getattr(usage, "prompt_tokens", 0),
-                    "total_tokens": getattr(usage, "total_tokens", 0),
-                },
-            }
-        except Exception:
-            logger.exception("%s_embedding failed", provider_name)
+        if not response.data:
             return {
                 "status": "failed",
-                "error": "Embedding request failed",
+                "error": "API returned empty data array",
                 "model": model,
             }
+
+        usage = response.usage or {}
+        return {
+            "status": "completed",
+            "model": model,
+            "embedding": response.data[0].embedding,
+            "dimensions": len(response.data[0].embedding),
+            "usage": {
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0),
+                "total_tokens": getattr(usage, "total_tokens", 0),
+            },
+        }
 
     skill.__name__ = f"{provider_name}_embedding"
     skill.__doc__ = (
@@ -421,23 +398,37 @@ def register_openai_provider(
         default=max_tokens_default,
     )
 
-    # Register the three standard skills with circuit breaker protection
+    # Register the three standard skills with skill_guard and circuit breaker
     register_skill(f"{prefix}_chat")(
-        with_circuit_breaker(name, failure_threshold=5, recovery_timeout=60.0)(
-            _chat_skill(
-                name, get_client, get_model, get_temperature, get_max_tokens
+        skill_guard(f"{name.title()} chat", status="failed")(
+            with_circuit_breaker(
+                name, failure_threshold=5, recovery_timeout=60.0
+            )(
+                _chat_skill(
+                    name, get_client, get_model, get_temperature,
+                    get_max_tokens
+                )
             )
         )
     )
     register_skill(f"{prefix}_completion")(
-        with_circuit_breaker(name, failure_threshold=5, recovery_timeout=60.0)(
-            _completion_skill(
-                name, get_client, get_model, get_temperature, get_max_tokens
+        skill_guard(f"{name.title()} completion", status="failed")(
+            with_circuit_breaker(
+                name, failure_threshold=5, recovery_timeout=60.0
+            )(
+                _completion_skill(
+                    name, get_client, get_model, get_temperature,
+                    get_max_tokens
+                )
             )
         )
     )
     register_skill(f"{prefix}_embedding")(
-        with_circuit_breaker(name, failure_threshold=5, recovery_timeout=60.0)(
-            _embedding_skill(name, get_client, default_embedding_model)
+        skill_guard(f"{name.title()} embedding", status="failed")(
+            with_circuit_breaker(
+                name, failure_threshold=5, recovery_timeout=60.0
+            )(
+                _embedding_skill(name, get_client, default_embedding_model)
+            )
         )
     )
