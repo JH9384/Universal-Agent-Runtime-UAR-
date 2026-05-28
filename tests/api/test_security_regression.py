@@ -320,3 +320,69 @@ def test_ping_skill_missing_body_still_validates():
     response = client.post("/api/uar/skills/ping", json={})
     assert response.status_code == 400
     assert response.json()["detail"]["error"] == "missing_skill"
+
+
+# ── middleware auth bypass attempts ──────────────────────────────────────────
+
+
+def test_bypass_with_empty_bearer_token():
+    """Empty string after 'Bearer ' should be treated as invalid."""
+    response = client.get(
+        "/api/cache/stats",
+        headers={"Authorization": "Bearer "},
+    )
+    assert response.status_code == 401
+
+
+def test_bypass_with_missing_bearer_prefix():
+    """Key without 'Bearer' prefix should be rejected."""
+    response = client.get(
+        "/api/cache/stats",
+        headers={"Authorization": "dev-key-12345"},
+    )
+    assert response.status_code == 401
+
+
+def test_bypass_with_url_encoded_key():
+    """URL-encoded key should not match the raw key."""
+    response = client.get(
+        "/api/cache/stats",
+        headers={"Authorization": "Bearer dev%2Dkey%2D12345"},
+    )
+    assert response.status_code == 401
+
+
+def test_bypass_with_null_byte_in_header():
+    """Null byte injection in the Authorization header should fail."""
+    response = client.get(
+        "/api/cache/stats",
+        headers={"Authorization": "Bearer dev-key\x0012345"},
+    )
+    assert response.status_code in (401, 400)
+
+
+def test_bypass_admin_with_authenticated_tier():
+    """Authenticated-tier user must not access admin-only older_than_days."""
+    response = client.post(
+        "/api/uar/runs/bulk-delete",
+        json={"older_than_days": 0},
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert response.status_code == 403
+
+
+def test_bypass_with_case_variation_header_name():
+    """HTTP clients normalize header names; case variation is handled
+    by FastAPI/Starlette, but the credential still needs to be valid.
+    """
+    response = client.get(
+        "/api/cache/stats",
+        headers={"authorization": "Bearer invalid-key"},
+    )
+    assert response.status_code == 401
+
+
+def test_bypass_no_auth_header_rejected():
+    """Missing Authorization header on protected endpoint is rejected."""
+    response = client.get("/api/cache/stats")
+    assert response.status_code == 401
