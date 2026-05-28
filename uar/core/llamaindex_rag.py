@@ -23,7 +23,6 @@ from datetime import datetime
 try:
     from llama_index import (
         VectorStoreIndex,
-        Document,
         SimpleDirectoryReader,
         StorageContext,
         load_index_from_storage,
@@ -161,7 +160,7 @@ class LlamaIndexRAG:
         self.index: Optional[VectorStoreIndex] = None
         self.kg_index: Optional[KGIndex] = None
         self.query_engine = None
-        self.documents: List[Document] = []
+        self.documents: List[Any] = []
 
         if not LLAMAINDEX_AVAILABLE:
             logger.error("LlamaIndex not available")
@@ -186,7 +185,7 @@ class LlamaIndexRAG:
         self,
         input_path: str,
         recursive: bool = True,
-    ) -> List[Document]:
+    ) -> List[Any]:
         """Load documents from a directory or file."""
         if not LLAMAINDEX_AVAILABLE:
             logger.error("LlamaIndex not available")
@@ -207,7 +206,7 @@ class LlamaIndexRAG:
             logger.exception("Failed to load documents")
             return []
 
-    def add_documents(self, documents: List[Document]):
+    def add_documents(self, documents: List[Any]):
         """Add documents to the index."""
         if not LLAMAINDEX_AVAILABLE:
             return
@@ -215,7 +214,7 @@ class LlamaIndexRAG:
         self.documents.extend(documents)
         logger.info("Added %s documents", len(documents))
 
-    def create_index(self, documents: Optional[List[Document]] = None):
+    def create_index(self, documents: Optional[List[Any]] = None):
         """Create a vector index from documents."""
         if not LLAMAINDEX_AVAILABLE:
             return
@@ -278,7 +277,7 @@ class LlamaIndexRAG:
             logger.exception("Failed to load index")
 
     def create_knowledge_graph_index(
-        self, documents: Optional[List[Document]] = None
+        self, documents: Optional[List[Any]] = None
     ):
         """Create a knowledge graph index."""
         if not LLAMAINDEX_AVAILABLE:

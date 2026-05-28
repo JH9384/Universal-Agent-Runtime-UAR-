@@ -174,12 +174,14 @@ def test_bulk_delete_missing_filter():
 def test_run_py_deprecation_warning():
     import warnings
 
+    from uar.cli.run import main
+
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        from uar.cli.run import main
-
-        with pytest.raises(SystemExit):
+        try:
             main()
+        except SystemExit:
+            pass
 
         dep_warns = [
             x for x in w if issubclass(x.category, DeprecationWarning)

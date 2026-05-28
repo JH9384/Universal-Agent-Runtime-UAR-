@@ -34,7 +34,13 @@ class RecipeService(BaseService):
     def _default_recipes_path() -> Path:
         root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
         p = root / ".uar_data" / "user_recipes.json"
-        p.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            import tempfile
+
+            p = Path(tempfile.gettempdir()) / ".uar_data" / "user_recipes.json"
+            p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
     def load(

@@ -31,8 +31,14 @@ def test_ingest_dir():
     """Create a test directory within project for doc ingest tests."""
     test_dir = Path("runs/test_ingest")
     test_dir.mkdir(parents=True, exist_ok=True)
+    # Patch ALLOWED_ROOT so tests work regardless of env PROJECT_ROOT
+    import uar.skills.doc_ingest as _di
+
+    original_root = _di.ALLOWED_ROOT
+    _di.ALLOWED_ROOT = Path.cwd()
     yield test_dir
     # Cleanup
+    _di.ALLOWED_ROOT = original_root
     if test_dir.exists():
         shutil.rmtree(test_dir)
 

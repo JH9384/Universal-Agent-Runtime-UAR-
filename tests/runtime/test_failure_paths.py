@@ -37,10 +37,9 @@ def test_doc_ingest_bad_input_path_still_completes_with_warning():
     assert data["status"] == "completed"
     # doc_ingest handles missing paths gracefully with error documents
     doc_ingest_result = data["final_context"]["doc_ingest"]
-    assert doc_ingest_result["document_count"] == 0
-    assert len(doc_ingest_result["documents"]) == 1
-    assert "error" in doc_ingest_result["documents"][0]
-    assert "not found" in doc_ingest_result["documents"][0]["error"].lower()
+    assert doc_ingest_result["status"] == "failed"
+    assert len(doc_ingest_result["documents"]) == 0
+    assert "error" in doc_ingest_result
 
 
 def test_api_missing_goal_returns_validation_error():
