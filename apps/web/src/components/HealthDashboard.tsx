@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { authHeaders } from '../utils/auth'
+import { useApiFetch } from '../hooks/useApiFetch'
 import styles from './UARPanel.module.css'
 
 interface SkillHealth {
@@ -24,27 +23,10 @@ interface HealthData {
 }
 
 export function HealthDashboard() {
-  const [health, setHealth] = useState<HealthData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const fetchHealth = async () => {
-      try {
-        const res = await fetch('/api/health/dashboard', { headers: authHeaders() })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        setHealth(data)
-      } catch (e) {
-        setError(String(e))
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchHealth()
-    const id = setInterval(fetchHealth, 30000)
-    return () => clearInterval(id)
-  }, [])
+  const { data: health, loading, error } = useApiFetch<HealthData>(
+    '/api/health/dashboard',
+    { interval: 30_000 }
+  )
 
   if (loading) return <div className={styles.healthLoading}>Loading health…</div>
   if (error) return <div className={styles.healthError}>Health check failed: {error}</div>

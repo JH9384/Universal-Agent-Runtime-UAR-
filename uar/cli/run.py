@@ -16,6 +16,10 @@ import uar.skills.graphrag_skills  # noqa
 import uar.skills.autonomi_storage  # noqa
 import uar.skills.atomic_lang_model  # noqa
 import uar.skills.advanced_integrations  # noqa
+import uar.skills.quantum_ml  # noqa
+import uar.skills.math_plot_3d  # noqa
+import uar.skills.code_analysis  # noqa
+import uar.skills.myhdl_design  # noqa
 
 
 def cmd_run(args):

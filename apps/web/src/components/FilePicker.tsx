@@ -35,6 +35,7 @@ interface FilePickerProps {
   initialPath: string
   projectRoot: string
   presets: Preset[]
+  deploymentMode?: 'local' | 'shared'
   onClose: () => void
   onPick: (path: string) => void
 }
@@ -47,7 +48,7 @@ interface FilePickerProps {
  * keep that file's surface manageable.
  */
 export function FilePicker(props: FilePickerProps) {
-  const { open, initialPath, projectRoot, presets, onClose, onPick } = props
+  const { open, initialPath, projectRoot, presets, deploymentMode, onClose, onPick } = props
   const [path, setPath] = useState(initialPath ?? projectRoot)
   const [data, setData] = useState<BrowseResult | null>(null)
   const [busy, setBusy] = useState(false)
@@ -242,7 +243,29 @@ export function FilePicker(props: FilePickerProps) {
 
         {/* Body */}
         <div className={styles.modalBody}>
-          {err && <div className={styles.errorText}>Error: {err}</div>}
+          {err && (
+            <div className={styles.errorText}>
+              Error: {err}
+              {/401|unauthorized/i.test(err) && (
+                <div className={styles.errorHint}>
+                  {deploymentMode === 'shared' ? (
+                    <>
+                      <strong>Authentication required</strong> —
+                      <code>GET /api/uar/docs/browse</code> requires a valid API key.
+                      Add your key in Settings.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Backend requires authentication</strong> —
+                      Your local backend is running in <em>production</em> mode.
+                      Either set <code>ENVIRONMENT=development</code> on the backend,
+                      or add your API key in Settings.
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {busy && <div className={styles.loadingText}>Loading…</div>}
           {!busy && !err && data && (
             <>

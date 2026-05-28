@@ -42,13 +42,18 @@ def _cached_expand_execution_order(
     execution_order_tuple: tuple,
     recipe_map_tuple: tuple,
 ) -> Tuple[List[str], List[Dict[str, Any]]]:
-    """LRU-cached wrapper for recipe expansion with hashable keys."""
+    """LRU-cached wrapper for recipe expansion with hashable keys.
+
+    The cache key includes the full recipe dict serialized as JSON so
+    that changes to recipe parameters, conditions, or other metadata
+    produce distinct cache entries and are faithfully reconstructed.
+    """
     execution_order = [
         json.loads(item) for item in execution_order_tuple
     ]
     if recipe_map_tuple:
         recipe_map = {
-            k: {"skills": list(v)}
+            k: json.loads(v)
             for k, v in recipe_map_tuple
         }
     else:
@@ -690,11 +695,9 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
     timeout_seconds = max(0.1, timeout_seconds)
 
     # Async skill: run in an event loop.
-    # Prefer asyncio.run() (creates a fresh loop) which is safe when called
-    # from a worker thread (the normal executor path).  If there is already
-    # a running loop in this thread (e.g. direct call from async test code),
-    # fall back to run_until_complete on a brand-new loop so we never hit
-    # "This event loop is already running".
+    # Uses run_sync_safe from uar.core.async_utils, which detects whether a
+    # loop is already running and dispatches to a dedicated thread with a
+    # fresh loop when needed, avoiding "This event loop is already running".
     if inspect.iscoroutinefunction(fn):
         try:
             return run_sync_safe(
@@ -845,7 +848,10 @@ class Executor:
                 )
                 rm_tuple = tuple(
                     sorted(
-                        (k, tuple(v.get("skills", [])))
+                        (
+                            k,
+                            json.dumps(v, sort_keys=True, default=str),
+                        )
                         for k, v in recipe_map.items()
                     )
                 )

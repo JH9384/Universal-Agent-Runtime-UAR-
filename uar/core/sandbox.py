@@ -13,6 +13,7 @@ Usage:
 import logging
 import os
 import subprocess
+import sys
 import tempfile
 from typing import Any, Dict, List, Optional
 
@@ -247,7 +248,7 @@ def _restricted_eval_in_subprocess(expression: str) -> Any:
         script_path = f.name
     try:
         proc = subprocess.run(
-            ["python", script_path, expr],
+            [sys.executable, script_path, expr],
             capture_output=True,
             text=True,
             timeout=5,

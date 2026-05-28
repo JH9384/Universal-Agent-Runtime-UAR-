@@ -23,11 +23,10 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import cast
-
 import re
 
 from uar.core.async_utils import run_sync_safe
+from uar.core.compat import lazy_import
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.validation import validate_path_security
@@ -46,6 +45,13 @@ _autonomi_cb = CircuitBreaker(
 )
 
 
+def _to_bool(value) -> bool:
+    """Coerce a value to bool, handling string 'false'/'true' correctly."""
+    if isinstance(value, str):
+        return value.strip().lower() not in {"false", "0", "", "no", "off"}
+    return bool(value)
+
+
 def _safe_filename(name: str) -> str:
     """Sanitize a string so it is safe to use as a filename."""
     safe = re.sub(r"[^\w.\-]+", "_", name)
@@ -57,12 +63,7 @@ def _safe_filename(name: str) -> str:
 
 def _get_autonomi():
     """Lazy import autonomi bindings. Returns None if not installed."""
-    try:
-        import autonomi
-
-        return autonomi
-    except ImportError:
-        return None
+    return lazy_import("autonomi")
 
 
 def _resolve_input_path(ctx) -> Path | None:
@@ -88,8 +89,8 @@ def _resolve_input_path(ctx) -> Path | None:
         for d in di["documents"]:
             if isinstance(d, dict):
                 path_val = d.get("path")
-                if path_val and isinstance(path_val, (str, bytes)):
-                    resolved = cast(Path, Path(str(path_val)).resolve())
+                if path_val and isinstance(path_val, str):
+                    resolved = Path(path_val).resolve()
                     try:
                         validate_path_security(resolved, ALLOWED_ROOT)
                         if resolved.exists():
@@ -152,13 +153,13 @@ def autonomi_upload(ctx):
     if not src.exists():
         return {"status": "failed", "error": "Source not found"}
 
-    if not src.is_file():
-        raise ValueError("Path is neither file nor directory")
+    if not src.is_file() and not src.is_dir():
+        return {"status": "failed", "error": "Path is not a file or directory"}
 
     network_name = ctx.goal.metadata.get("autonomi_network") or os.getenv(
         "AUTONOMI_NETWORK", "testnet"
     )
-    public = bool(ctx.goal.metadata.get("autonomi_public", False))
+    public = _to_bool(ctx.goal.metadata.get("autonomi_public", False))
 
     private_key = ctx.goal.metadata.get("autonomi_private_key") or os.getenv(
         "AUTONOMI_PRIVATE_KEY"
@@ -245,7 +246,7 @@ def autonomi_download(ctx):
     network_name = ctx.goal.metadata.get("autonomi_network") or os.getenv(
         "AUTONOMI_NETWORK", "testnet"
     )
-    public = bool(ctx.goal.metadata.get("autonomi_public", False))
+    public = _to_bool(ctx.goal.metadata.get("autonomi_public", False))
 
     # Destination -----------------------------------------------------------
     dest_raw = ctx.goal.metadata.get("autonomi_dest")
@@ -359,7 +360,7 @@ def autonomi_status(ctx):
             result["wallet_address"] = str(
                 getattr(wallet, "address", "unavailable")
             )
-            # Redact private key from result
+            # Wallet validated successfully
             result["has_wallet"] = True
         except Exception:
             result["wallet_error"] = "Wallet check failed"

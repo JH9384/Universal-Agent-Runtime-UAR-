@@ -62,8 +62,11 @@ async def metrics_json_endpoint(
 
 
 @router.get("/metrics")
-async def prometheus_metrics():
+async def prometheus_metrics(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Prometheus metrics endpoint for scraping."""
+    _check_metrics_auth(credentials)
     from uar.api.uor_alignment_metrics import get_uor_alignment_metrics
 
     collector = get_metrics_collector()

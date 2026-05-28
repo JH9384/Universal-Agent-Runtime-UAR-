@@ -36,6 +36,10 @@ import uar.skills.cipher_ops  # noqa: F401
 import uar.skills.stem_extended  # noqa: F401
 import uar.skills.physics_compute  # noqa: F401
 import uar.skills.uor_ecosystem_skills  # noqa: F401
+import uar.skills.quantum_ml  # noqa: F401
+import uar.skills.math_plot_3d  # noqa: F401
+import uar.skills.code_analysis  # noqa: F401
+import uar.skills.myhdl_design  # noqa: F401
 
 app = typer.Typer(
     name="uar",

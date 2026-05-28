@@ -229,6 +229,17 @@ body {
   color: #555;
 }
 
+.helpList kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.1);
+}
+
 .errorBox {
   background: #fee;
   border: 1px solid #fcc;
@@ -812,6 +823,12 @@ body {
   padding: 12px;
   color: #b00;
   font-size: 13px;
+}
+
+.errorHint {
+  font-size: 12px;
+  margin-top: 6px;
+  color: #666;
 }
 
 .loadingText {
@@ -1758,6 +1775,139 @@ body {
   color: #f87171;
 }
 
+/* CollapsibleSection dark mode */
+:global(.dark) .collapsibleBox {
+  border-color: #404040;
+}
+
+:global(.dark) .collapsibleHeader {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+:global(.dark) .collapsibleHeader:hover {
+  background-color: #3d3d3d;
+}
+
+:global(.dark) .collapsibleTitle {
+  color: #e5e5e5;
+}
+
+:global(.dark) .collapsibleInfo {
+  color: #888;
+}
+
+:global(.dark) .collapsibleContent {
+  background-color: #1a1a1a;
+  border-color: #404040;
+}
+
+/* SettingsDrawer dark mode */
+:global(.dark) .drawerOverlay {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+:global(.dark) .drawerContent {
+  background-color: #2d2d2d;
+  border-left-color: #404040;
+}
+
+:global(.dark) .drawerHeader {
+  border-bottom-color: #404040;
+}
+
+:global(.dark) .drawerHeader strong {
+  color: #e5e5e5;
+}
+
+:global(.dark) .drawerClose {
+  color: #aaa;
+}
+
+:global(.dark) .drawerClose:hover {
+  color: #e5e5e5;
+}
+
+:global(.dark) .drawerSection {
+  border-bottom-color: #404040;
+}
+
+:global(.dark) .drawerSectionTitle {
+  color: #e5e5e5;
+}
+
+:global(.dark) .drawerLabel {
+  color: #ccc;
+}
+
+:global(.dark) .drawerHint {
+  color: #888;
+}
+
+:global(.dark) .drawerHintRequired {
+  color: #ff6b6b;
+}
+
+:global(.dark) .drawerHintInline {
+  color: #888;
+}
+
+:global(.dark) .drawerInput {
+  background-color: #1a1a1a;
+  border-color: #505050;
+  color: #e5e5e5;
+}
+
+:global(.dark) .drawerInput:focus {
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+}
+
+:global(.dark) .drawerToggleRow label {
+  color: #ccc;
+}
+
+/* Mode cards dark mode */
+:global(.dark) .modeLabel {
+  color: #ccc;
+}
+
+:global(.dark) .modeCard {
+  background-color: #2d2d2d;
+  border-color: #505050;
+}
+
+:global(.dark) .modeCard:hover {
+  border-color: #666;
+}
+
+:global(.dark) .modeCardActive {
+  border-color: #4a90e2;
+  background-color: #1e3a5f;
+}
+
+:global(.dark) .modeCardTitle {
+  color: #e5e5e5;
+}
+
+:global(.dark) .modeCardDesc {
+  color: #888;
+}
+
+:global(.dark) .modeAlert {
+  background-color: #3d3510;
+  border-color: #5a4d1a;
+  color: #e8d890;
+}
+
+:global(.dark) .helpList kbd {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #e5e5e5;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.3);
+}
+
 .builderToggle {
   display: flex;
   gap: 4px;
@@ -2361,4 +2511,331 @@ body {
   padding: 12px;
   font-size: 13px;
   color: #555;
+}
+
+/* --------------------------------------------------
+   CollapsibleSection
+   -------------------------------------------------- */
+.collapsibleBox {
+  background: var(--box-bg, #fff);
+  border: 1px solid var(--border, #e5e5e5);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.collapsibleHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.collapsibleHeader:hover {
+  background: var(--hover-bg, #f5f5f5);
+}
+
+.collapsibleTitle {
+  flex: 1;
+  font-weight: 600;
+}
+
+.collapsibleInfo {
+  color: #888;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.collapsibleIcon {
+  font-size: 12px;
+  color: #888;
+  min-width: 16px;
+  text-align: center;
+}
+
+.collapsibleContent {
+  padding: 0 14px 14px;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------
+   SettingsDrawer
+   -------------------------------------------------- */
+.drawerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s ease;
+}
+
+.drawerContent {
+  width: 360px;
+  max-width: 90vw;
+  height: 100%;
+  background: var(--box-bg, #fff);
+  border-left: 1px solid var(--border, #e5e5e5);
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.2s ease;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border, #e5e5e5);
+  font-size: 16px;
+}
+
+.drawerClose {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #666;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.drawerClose:hover {
+  background: #f0f0f0;
+}
+
+.drawerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 18px;
+}
+
+.drawerSection {
+  margin-bottom: 18px;
+}
+
+.drawerLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.drawerLabelSpaced {
+  margin-top: 10px;
+}
+
+.drawerSectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modeLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.modeCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.modeCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  font-size: 12px;
+  text-align: center;
+}
+
+.modeCard:hover {
+  border-color: #ccc;
+}
+
+.modeCardActive {
+  border-color: #4a90e2;
+  background: #f0f4ff;
+}
+
+.modeCardIcon {
+  font-size: 20px;
+}
+
+.modeCardTitle {
+  font-weight: 600;
+  color: #333;
+}
+
+.modeCardDesc {
+  color: #888;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.modeAlert {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #856404;
+}
+
+.drawerHintRequired {
+  display: inline;
+  font-weight: 400;
+  color: #c0392b;
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+.drawerHintInline {
+  display: block;
+  font-weight: 400;
+  color: #888;
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.drawerHint {
+  display: inline;
+  font-weight: 400;
+  color: #888;
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+.drawerInput,
+.drawerSelect {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 13px;
+  box-sizing: border-box;
+  margin-top: 4px;
+}
+
+.drawerToggleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.drawerToggleRow label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------
+   EmptyState
+   -------------------------------------------------- */
+.emptyState {
+  text-align: center;
+  padding: 32px 16px;
+  color: #666;
+}
+
+.emptyStateIcon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.emptyStateTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.emptyStateText {
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.emptyStateExamples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.emptyStateExample {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.emptyStateExample:hover {
+  background: #f0f4ff;
+  border-color: #4a90e2;
+}
+
+.emptyStateExampleTitle {
+  font-weight: 600;
+  color: #333;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.emptyStateExampleDesc {
+  color: #888;
+  font-size: 12px;
 }

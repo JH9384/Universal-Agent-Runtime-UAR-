@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
-from uar.api.middleware import auth_middleware, security
+from uar.api.middleware import auth_middleware, security, _is_dev_mode
 from uar.version import get_uar_version
 from uar.compat.uor_version import get_uor_version
 
@@ -93,7 +93,7 @@ async def health_circuit_breakers(
 ):
     """Circuit breaker health with per-service state and failure counts."""
     user_info = auth_middleware(credentials)
-    if not user_info:
+    if not user_info and not _is_dev_mode():
         return JSONResponse(
             status_code=401,
             content={
@@ -163,5 +163,3 @@ async def health_dashboard(
         "server_version": get_uar_version(),
         "uptime_seconds": int(time.time() - _uar_start_time),
     }
-
-

@@ -1,4 +1,10 @@
 import styles from './UARPanel.module.css'
+import { type ExecutionOrderItem } from './ExecutionOrder'
+
+const CLEAR_ICON = '✕'
+const COLLAPSED_ICON = '▶'
+const EXPANDED_ICON = '▼'
+const CHECK_ICON = '✓'
 
 interface Skill {
   id: string
@@ -10,12 +16,6 @@ interface SkillGroup {
   name: string
   icon: string
   skills: Skill[]
-}
-
-interface ExecutionOrderItem {
-  id: string
-  type: 'skill' | 'recipe'
-  content: string
 }
 
 interface SkillSelectorProps {
@@ -40,6 +40,17 @@ function chip(active: boolean, disabled = false): string {
   return base
 }
 
+function getSkillCount(unifiedOrder: ExecutionOrderItem[], skillId: string): number {
+  return unifiedOrder.filter(
+    (i) => i.type === 'skill' && i.content === skillId
+  ).length
+}
+
+function getCheckedLabel(count: number, label: string): string {
+  if (count > 0) return `${CHECK_ICON} (${count}) ${label}`
+  return label
+}
+
 export default function SkillSelector({
   skillSearch,
   debouncedSkillSearch,
@@ -62,7 +73,7 @@ export default function SkillSelector({
             type="text"
             value={skillSearch}
             onChange={(e) => onSkillSearchChange(e.target.value)}
-            placeholder="Search skills\u2026"
+            placeholder="Search skills…"
             className={styles.skillSearchInput}
             aria-label="Search skills"
           />
@@ -72,7 +83,7 @@ export default function SkillSelector({
               className={styles.skillSearchClear}
               aria-label="Clear search"
             >
-              \u2715
+              {CLEAR_ICON}
             </button>
           )}
         </div>
@@ -119,17 +130,13 @@ export default function SkillSelector({
                           {group.name}
                         </span>
                         <span className={styles.collapseIcon}>
-                          {isCollapsed ? '\u25B6' : '\u25BC'}
+                          {isCollapsed ? COLLAPSED_ICON : EXPANDED_ICON}
                         </span>
                       </div>
                       {!isCollapsed && (
                         <div className={styles.skillGroupSkills}>
                           {group.skills.map((s) => {
-                            const count = unifiedOrder.filter(
-                              (i) =>
-                                i.type === 'skill' &&
-                                i.content === s.id
-                            ).length
+                            const count = getSkillCount(unifiedOrder, s.id)
                             return (
                               <button
                                 key={s.id}
@@ -141,10 +148,7 @@ export default function SkillSelector({
                                   isRunning
                                 )}
                               >
-                                {count > 0
-                                  ? `\u2713 (${count}) `
-                                  : ''}
-                                {s.label}
+                                {getCheckedLabel(count, s.label)}
                               </button>
                             )
                           })}
@@ -157,10 +161,7 @@ export default function SkillSelector({
             : (
                 <div className={styles.skillGroupSkills}>
                   {availableSkills.map((s) => {
-                    const count = unifiedOrder.filter(
-                      (i) =>
-                        i.type === 'skill' && i.content === s.id
-                    ).length
+                    const count = getSkillCount(unifiedOrder, s.id)
                     return (
                       <button
                         key={s.id}
@@ -169,8 +170,7 @@ export default function SkillSelector({
                         title={s.desc}
                         className={chip(count > 0, isRunning)}
                       >
-                        {count > 0 ? `\u2713 (${count}) ` : ''}
-                        {s.label}
+                        {getCheckedLabel(count, s.label)}
                       </button>
                     )
                   })}

@@ -8,16 +8,64 @@ import os
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
-from uar.api.middleware import auth_middleware, security
+from uar.api.middleware import security, _is_dev_mode
 from uar.api.responses import error_response
 from uar.core.exceptions import ValidationError, PathSecurityError
+from uar.services import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+_auth_svc = AuthService()
+
+
+def _require_auth(credentials):
+    """Require authenticated user or raise 401."""
+    return _auth_svc.require_user(credentials)
+
+
+def _require_auth_or_dev(
+    credentials,
+    module: str | None = None,
+    endpoint: str | None = None,
+    func: str | None = None,
+):
+    """Require auth in production; allow anonymous in dev mode.
+
+    In dev mode an *invalid* API key is treated as anonymous rather
+    than raising 401, so users with stale localStorage keys don't get
+    locked out of local-first deployments.
+    """
+    from fastapi import HTTPException
+
+    try:
+        user = _auth_svc.authenticate(credentials)
+    except HTTPException:
+        if _is_dev_mode():
+            user = None
+        else:
+            raise
+    if user is None and not _is_dev_mode():
+        msg = "Authentication required"
+        if func:
+            msg = f"{func}: {msg}. Provide a valid Bearer token."
+        detail: dict[str, str] = {
+            "error": "unauthorized",
+            "message": msg,
+        }
+        if module:
+            detail["module"] = module
+        if endpoint:
+            detail["endpoint"] = endpoint
+        raise HTTPException(
+            status_code=401,
+            detail=detail,
+        )
+    return user
+
 
 CHUNK_SIZE = 1024 * 64  # 64KB
 DEFAULT_BROWSE_LIMIT = 200
@@ -115,15 +163,7 @@ async def docs_presets(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return convenient preset document paths inside PROJECT_ROOT."""
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
+    _require_auth_or_dev(credentials)
     project_root = _docs_root()
     library = _library_dir()
     candidates = ["docs", "specs", "tests", "apps/web/src", "uar"]
@@ -148,16 +188,7 @@ async def docs_upload(
     """Upload files to the document library."""
     from pathlib import Path
 
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
-
+    _require_auth(credentials)
     request_id = str(uuid.uuid4())
     library = _library_dir()
     saved = []
@@ -170,7 +201,7 @@ async def docs_upload(
             rejected.append({"name": safe_name, "reason": "Invalid filename"})
             continue
         ext = Path(safe_name).suffix.lower()
-        if ext and ext not in ALLOWED_UPLOAD_EXTS:
+        if not ext or ext not in ALLOWED_UPLOAD_EXTS:
             rejected.append(
                 {"name": safe_name, "reason": "Extension not allowed"}
             )
@@ -295,15 +326,7 @@ async def docs_library_list(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """List all files currently in the document library."""
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
+    _require_auth_or_dev(credentials)
     library = _library_dir()
     entries = []
     total = 0
@@ -335,15 +358,7 @@ async def docs_library_delete(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Delete a single file from the library by its basename."""
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
+    _require_auth(credentials)
     from pathlib import Path
 
     library = _library_dir().resolve()
@@ -372,15 +387,12 @@ async def docs_browse(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Browse directories with optional recursion."""
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
+    _require_auth_or_dev(
+        credentials,
+        module="uar.api.routers.docs",
+        endpoint="GET /api/uar/docs/browse",
+        func="docs_browse",
+    )
     request_id = str(uuid.uuid4())
     try:
         p = _resolve_docs_path(path)
@@ -471,15 +483,7 @@ async def docs_create_folder(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Create a folder inside the library directory."""
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
+    _require_auth(credentials)
     request_id = str(uuid.uuid4())
     parent_path = payload.get("path")
     folder_name = payload.get("name")

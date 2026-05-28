@@ -793,6 +793,134 @@ const SKILLS: Skill[] = [
     prerequisites: ['platformio'],
     output: 'Build artifacts and upload status',
     category: 'Analysis'
+  },
+  {
+    id: 'math_plot_3d',
+    label: 'math_plot_3d',
+    desc: '3D mathematical plotting with matplotlib',
+    useCase: 'Surface plots, wireframes, and parametric curves in 3D',
+    example: 'Goal: "Plot 3D surface" → Skills: [math_plot_3d]',
+    prerequisites: ['matplotlib', 'numpy'],
+    output: 'Base64-encoded PNG image with 3D plot metadata',
+    category: 'Analysis'
+  },
+  {
+    id: 'quantum_ml',
+    label: 'quantum_ml',
+    desc: 'Quantum machine learning with PennyLane',
+    useCase: 'Quantum neural networks, VQE, QAOA, quantum chemistry',
+    example: 'Goal: "Train quantum model" → Skills: [quantum_ml]',
+    prerequisites: ['pennylane'],
+    output: 'Training metrics, predictions, and energy values',
+    category: 'Analysis'
+  },
+  {
+    id: 'code_analysis',
+    label: 'code_analysis',
+    desc: 'Multi-language code analysis and metrics',
+    useCase: 'Static analysis for Python, JS, TS, Go, Rust, Java, C, C++',
+    example: 'Goal: "Analyze code" → Skills: [code_analysis]',
+    output: 'Line counts, functions, classes, complexity, and issues',
+    category: 'Core'
+  },
+  {
+    id: 'agent_workflow',
+    label: 'agent_workflow',
+    desc: 'Multi-agent workflow execution with Microsoft Agent Framework',
+    useCase: 'Orchestrate multi-agent pipelines with dependency management',
+    example: 'Goal: "Run agent workflow" → Skills: [agent_workflow]',
+    output: 'Workflow results and agent outputs',
+    category: 'AI'
+  },
+  {
+    id: 'crewai_task',
+    label: 'crewai_task',
+    desc: 'Role-based agent task execution with CrewAI',
+    useCase: 'Assign tasks to specialized AI agents',
+    example: 'Goal: "Research topic" → Skills: [crewai_task]',
+    output: 'Agent task results and deliverables',
+    category: 'AI'
+  },
+  {
+    id: 'crewai_workflow',
+    label: 'crewai_workflow',
+    desc: 'Multi-agent workflow orchestration with CrewAI',
+    useCase: 'Build and run multi-step agent workflows',
+    example: 'Goal: "Build research team" → Skills: [crewai_workflow]',
+    output: 'Workflow completion status and outputs',
+    category: 'AI'
+  },
+  {
+    id: 'dagster_pipeline',
+    label: 'dagster_pipeline',
+    desc: 'Data pipeline execution with Dagster',
+    useCase: 'Asset-based data orchestration and pipeline execution',
+    example: 'Goal: "Run ETL pipeline" → Skills: [dagster_pipeline]',
+    output: 'Pipeline execution results and asset materializations',
+    category: 'Core'
+  },
+  {
+    id: 'dagster_status',
+    label: 'dagster_status',
+    desc: 'Check Dagster pipeline and asset status',
+    useCase: 'Monitor Dagster deployments and asset health',
+    example: 'Goal: "Check pipeline status" → Skills: [dagster_status]',
+    output: 'Pipeline status and asset health report',
+    category: 'Core'
+  },
+  {
+    id: 'guardrail_check',
+    label: 'guardrail_check',
+    desc: 'Validate agent outputs against guardrails',
+    useCase: 'Safety and policy validation for AI-generated content',
+    example: 'Goal: "Check output safety" → Skills: [guardrail_check]',
+    output: 'Guardrail pass/fail status with violation details',
+    category: 'Core'
+  },
+  {
+    id: 'llamaindex_rag',
+    label: 'llamaindex_rag',
+    desc: 'Advanced RAG with LlamaIndex',
+    useCase: 'Build and query knowledge graphs with LlamaIndex',
+    example: 'Goal: "Build RAG system" → Skills: [llamaindex_rag]',
+    output: 'RAG query results with source attribution',
+    category: 'AI'
+  },
+  {
+    id: 'llamaindex_query',
+    label: 'llamaindex_query',
+    desc: 'Query an existing LlamaIndex RAG system',
+    useCase: 'Search indexed documents with LlamaIndex',
+    example: 'Goal: "Query knowledge base" → Skills: [llamaindex_query]',
+    output: 'Query results with relevance scores',
+    category: 'AI'
+  },
+  {
+    id: 'budget_status',
+    label: 'budget_status',
+    desc: 'Check agent budget and usage status',
+    useCase: 'Monitor API spend and token usage across providers',
+    example: 'Goal: "Check budget" → Skills: [budget_status]',
+    output: 'Budget status and usage metrics',
+    category: 'Core'
+  },
+  {
+    id: 'blackboard_status',
+    label: 'blackboard_status',
+    desc: 'Check shared blackboard status for agent coordination',
+    useCase: 'Monitor inter-agent shared state and messages',
+    example: 'Goal: "Check blackboard" → Skills: [blackboard_status]',
+    output: 'Blackboard state and recent messages',
+    category: 'Core'
+  },
+  {
+    id: 'blackboard_message',
+    label: 'blackboard_message',
+    desc: 'Post or read messages on shared blackboard for inter-agent communication',
+    useCase: 'Inter-agent messaging via shared key-value store in pipeline context',
+    example: 'Goal: "Post message to blackboard" → Skills: [blackboard_message]',
+    output: 'Message post/read confirmation with channel and key',
+    category: 'Core'
   }
 ]
 

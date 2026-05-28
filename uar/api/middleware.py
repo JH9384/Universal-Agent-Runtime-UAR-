@@ -640,6 +640,15 @@ def rate_limit_middleware(
     request.state.rate_limit_remaining = remaining
 
 
+def _is_dev_mode() -> bool:
+    """Return True when running in development (local-first) mode.
+
+    Read-only endpoints may allow anonymous access in dev while
+    shared deployments (production) keep auth requirements strict.
+    """
+    return os.getenv("ENVIRONMENT", "").lower() != "production"
+
+
 def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
     """Authentication middleware"""
     _maybe_reload_api_keys()
@@ -661,7 +670,11 @@ def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
             detail={
                 "error": "Invalid API key",
                 "error_code": "INVALID_API_KEY",
-                "message": "The provided API key is not valid",
+                "message": (
+                    "auth_middleware: The provided API key is not valid."
+                ),
+                "module": "uar.api.middleware",
+                "function": "auth_middleware",
             },
         )
 

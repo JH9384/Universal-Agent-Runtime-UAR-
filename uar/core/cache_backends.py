@@ -35,13 +35,19 @@ _RELEVANT_KEYS = [
 def _make_cache_key(skill_name: str, ctx: Dict[str, Any], goal: str) -> str:
     # Try full context first for correctness; fall back to relevant
     # keys if the full context contains non-serializable values.
-    key_data = {"skill": skill_name, "goal": goal, "ctx": ctx}
+    key_data = {
+        "skill": skill_name,
+        "goal": goal,
+        "ctx": ctx,
+        "execution_order": ctx.get("execution_order"),
+    }
     try:
         key_str = json.dumps(key_data, sort_keys=True, default=str)
         return hashlib.sha256(key_str.encode()).hexdigest()
     except (TypeError, ValueError):
         pass
     ctx_snapshot = {k: ctx.get(k) for k in _RELEVANT_KEYS}
+    ctx_snapshot["execution_order"] = ctx.get("execution_order")
     key_data = {"skill": skill_name, "goal": goal}
     key_data.update({k: v for k, v in ctx_snapshot.items() if v is not None})
     try:

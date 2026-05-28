@@ -919,7 +919,13 @@ async def websocket_run(websocket: WebSocket):
                     request_id, exc,
                 )
     finally:
-        await _ws_conn_counter.release()
+        try:
+            await _ws_conn_counter.release()
+        except Exception:
+            logger.warning(
+                "WebSocket connection counter release failed",
+                exc_info=True,
+            )
         heartbeat_stop.set()
         if heartbeat_task and not heartbeat_task.done():
             heartbeat_task.cancel()

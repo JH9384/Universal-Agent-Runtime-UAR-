@@ -115,6 +115,9 @@ import uar.skills.doc_ingest_enhanced  # noqa
 import uar.skills.stem_extended  # noqa
 import uar.skills.cv_skills  # noqa
 import uar.skills.ml_tools  # noqa
+import uar.skills.quantum_ml  # noqa
+import uar.skills.math_plot_3d  # noqa
+import uar.skills.code_analysis  # noqa
 
 # Validate canonical recipe skill references now that all skills are
 # registered in the global registry.
@@ -187,7 +190,9 @@ app.include_router(cache_sandbox_router, dependencies=[Depends(require_auth)])
 app.include_router(metrics_router)
 
 # Include document library router
-app.include_router(docs_router, dependencies=[Depends(require_auth)])
+# Auth is handled per-endpoint in docs.py to allow anonymous read-only
+# access in development mode while keeping write operations protected.
+app.include_router(docs_router)
 
 # Include run execution and query router
 from uar.api.routers.runs import router as runs_router  # noqa: E402

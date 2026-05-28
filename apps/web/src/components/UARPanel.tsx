@@ -13,6 +13,8 @@ import { HealthDashboard } from './HealthDashboard'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
+import CollapsibleSection from './CollapsibleSection'
+import SettingsDrawer from './SettingsDrawer'
 import styles from './UARPanel.module.css'
 
 // Lazy-loaded visualizers — only fetched when their skill data arrives
@@ -46,6 +48,12 @@ const DataViz3D = lazy(() =>
   import('./DataViz3D').then((m) => ({ default: m.DataViz3D })))
 const MathPlotVisualizer = lazy(() =>
   import('./MathPlotVisualizer').then((m) => ({ default: m.MathPlotVisualizer })))
+const CodeAnalysisVisualizer = lazy(() =>
+  import('./CodeAnalysisVisualizer').then((m) => ({ default: m.CodeAnalysisVisualizer })))
+const QuantumMLVisualizer = lazy(() =>
+  import('./QuantumMLVisualizer').then((m) => ({ default: m.QuantumMLVisualizer })))
+const MyHDLVisualizer = lazy(() =>
+  import('./MyHDLVisualizer').then((m) => ({ default: m.MyHDLVisualizer })))
 
 const MAX_EVENTS = 1000
 const RECENT_KEY = 'uar.recentPaths'
@@ -53,6 +61,28 @@ const RECIPES_KEY = 'uar.recipes'
 const USER_PRESETS_KEY = 'uar.userPresets'
 const FOLDER_PRESETS_KEY = 'uar.folderPresets'
 const RECENT_MAX = 8
+
+/** Recursively expand a recipe ID into its constituent skill names.
+ *  Detects cycles and returns an empty array for circular recipes. */
+function expandRecipeSkills(
+  recipeId: string,
+  recipes: { id: string; skills: string[] }[],
+  visited = new Set<string>()
+): string[] {
+  if (visited.has(recipeId)) return []
+  visited.add(recipeId)
+  const recipe = recipes.find((r) => r.id === recipeId)
+  if (!recipe) return []
+  const out: string[] = []
+  for (const s of recipe.skills) {
+    if (recipes.some((r) => r.id === s)) {
+      out.push(...expandRecipeSkills(s, recipes, visited))
+    } else {
+      out.push(s)
+    }
+  }
+  return out
+}
 
 interface UserPreset {
   name: string
@@ -119,6 +149,7 @@ const SKILL_GROUPS = [
       { id: 'dependency_map', label: 'dependency_map', desc: 'Build a dependency graph between artifacts' },
       { id: 'section_sum',    label: 'section_sum',    desc: 'Summarize document sections' },
       { id: 'sum_review',     label: 'sum_review',     desc: 'Final review of pipeline outputs' },
+      { id: 'code_analysis', label: 'code_analysis',  desc: 'Multi-language code analysis: Python, JS, TS, Go, Rust, Java, C, C++ metrics and issues (no deps)' },
     ]
   },
   {
@@ -189,6 +220,7 @@ const SKILL_GROUPS = [
       { id: 'guardrail_check', label: 'guardrail_check', desc: 'Check guardrails for agent outputs - content safety, rate limits, budgets' },
       { id: 'budget_status', label: 'budget_status', desc: 'Check agent budget status - tokens, API calls, cost, time limits' },
       { id: 'blackboard_status', label: 'blackboard_status', desc: 'Check shared blackboard status for agent coordination' },
+      { id: 'blackboard_message', label: 'blackboard_message', desc: 'Post or read messages on shared blackboard for inter-agent communication' },
     ]
   },
   {
@@ -245,6 +277,7 @@ const SKILL_GROUPS = [
     skills: [
       { id: 'math_compute',    label: 'math_compute',    desc: 'Symbolic math with SymPy: solve, differentiate, integrate, simplify (requires sympy)' },
       { id: 'math_plot',       label: 'math_plot',       desc: '2D mathematical plotting with matplotlib: functions, parametric, polar, scatter (requires matplotlib+numpy)' },
+      { id: 'math_plot_3d',    label: 'math_plot_3d',    desc: '3D mathematical plotting with matplotlib: surface, wireframe, parametric curves (requires matplotlib+numpy)' },
       { id: 'cipher_ops',      label: 'cipher_ops',      desc: 'Cryptographic operations: encrypt, decrypt, hash, sign (requires pycryptodome)' },
       { id: 'physics_compute', label: 'physics_compute', desc: 'Physics & astronomy: unit conversion, coordinate transforms, cosmology (requires astropy)' },
       { id: 'diff_eq_solve',    label: 'diff_eq_solve',    desc: 'Differential equations with diffeqpy: ODE/PDE solvers, symbolic optimization (requires diffeqpy)' },
@@ -410,6 +443,9 @@ export function UARPanel() {
     () => import('./DocIngestDashboard'),
     () => import('./AutonomiDashboard'),
     () => import('./MathPlotVisualizer'),
+    () => import('./CodeAnalysisVisualizer'),
+    () => import('./QuantumMLVisualizer'),
+    () => import('./MyHDLVisualizer'),
   ], 4000)
 
   const [skillLastPositions, setSkillLastPositions] = useState<Record<string, number>>(() => {
@@ -446,10 +482,7 @@ export function UARPanel() {
   const selectedSkills = useMemo(() => {
     const recipeSkills = unifiedOrder
       .filter(i => i.type === 'recipe')
-      .flatMap((item) => {
-        const recipe = recipes.find((r) => r.id === item.content)
-        return recipe ? recipe.skills : []
-      })
+      .flatMap((item) => expandRecipeSkills(item.content, recipes))
     const manualSkills = unifiedOrder
       .filter(i => i.type === 'skill')
       .map(i => i.content)
@@ -479,6 +512,9 @@ export function UARPanel() {
   const [autonomiData, setAutonomiData] = useState<any>(null)
   const [dataViz3D, setDataViz3D] = useState<any>(null)
   const [mathPlotData, setMathPlotData] = useState<any>(null)
+  const [codeAnalysisData, setCodeAnalysisData] = useState<any>(null)
+  const [quantumMLData, setQuantumMLData] = useState<any>(null)
+  const [myhdlData, setMyhdlData] = useState<any>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
   const [useWebSocket, setUseWebSocket] = useState(false)
@@ -535,6 +571,12 @@ export function UARPanel() {
   const [tipsPopupOpen, setTipsPopupOpen] = useState(false)
   const [libraryPopupOpen, setLibraryPopupOpen] = useState(false)
   const [recipesPopupOpen, setRecipesPopupOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [deploymentMode, setDeploymentMode] = useState<'local' | 'shared'>(() => {
+    const saved = getLocalStorage()?.getItem('uar.deploymentMode')
+    return saved === 'shared' ? 'shared' : 'local'
+  })
+  const [apiKey, setApiKey] = useState(() => getLocalStorage()?.getItem('uar_api_key') ?? '')
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null)
   const [editRecipeLabel, setEditRecipeLabel] = useState('')
   const [editRecipeSkills, setEditRecipeSkills] = useState('')
@@ -677,7 +719,8 @@ export function UARPanel() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/uar/docs/presets', { headers: authHeaders() })
+    const ctrl1 = new AbortController()
+    fetch('/api/uar/docs/presets', { headers: authHeaders(), signal: ctrl1.signal })
       .then((r) => r.json())
       .then((d) => {
         setPresets(d.presets || [])
@@ -690,23 +733,27 @@ export function UARPanel() {
         }
       })
       .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
         console.error('Failed to load presets:', err)
         setPresetsError(true)
         setPresetsLoaded(true)
       })
     refreshLibrary()
     // Fetch backend skills for validation consistency
-    fetch('/api/uar/skills', { headers: authHeaders() })
+    const ctrl2 = new AbortController()
+    fetch('/api/uar/skills', { headers: authHeaders(), signal: ctrl2.signal })
       .then((r) => r.json())
       .then((d) => {
         setBackendSkills(d.skills || [])
       })
-      .catch(() => {
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
         // Fallback to AVAILABLE_SKILLS if endpoint fails
         setBackendSkills(AVAILABLE_SKILLS.map(s => s.id))
       })
     // Fetch canonical recipes from backend to eliminate drift
-    fetch('/api/uar/recipes', { headers: authHeaders() })
+    const ctrl3 = new AbortController()
+    fetch('/api/uar/recipes', { headers: authHeaders(), signal: ctrl3.signal })
       .then((r) => r.json())
       .then((d) => {
         const fetched = (d.recipes || []) as Recipe[]
@@ -729,9 +776,15 @@ export function UARPanel() {
           return merged
         })
       })
-      .catch(() => {
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
         // Silently fall back to existing localStorage/hardcoded recipes
       })
+    return () => {
+      ctrl1.abort()
+      ctrl2.abort()
+      ctrl3.abort()
+    }
   }, [refreshLibrary])
 
   const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -1173,6 +1226,15 @@ export function UARPanel() {
     })
   }
 
+  const handleClearOrder = useCallback(() => {
+    setUnifiedOrder([])
+    setUnifiedOrderHistory([[]])
+    setUnifiedOrderHistoryIndex(0)
+    setSkillLastPositions({})
+    setSkillHistory([[]])
+    setSkillHistoryIndex(0)
+  }, [])
+
   const onPick = useCallback((p: string) => {
     setInputPath(p)
     pushRecent(p)
@@ -1191,7 +1253,7 @@ export function UARPanel() {
     // Abort any previous stream before starting a new one (prevents
     // orphaned connections when the user rapidly clicks Run).
     abortControllerRef.current?.abort()
-    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setDataViz3D(null); setError(null)
+    setEvents([]); setGraph(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setMathPlotData(null); setCodeAnalysisData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setDataViz3D(null); setQuantumMLData(null); setMyhdlData(null); setError(null)
     setIsRunning(true)
     eventCountRef.current = 0
     abortControllerRef.current = new AbortController()
@@ -1265,27 +1327,12 @@ export function UARPanel() {
     }
 
     // Recursively expand recipes so allSkills contains only real skill names.
-    const expandRecipeSkills = (recipeId: string, visited = new Set<string>()): string[] => {
-      if (visited.has(recipeId)) return []
-      visited.add(recipeId)
-      const recipe = recipes.find((r) => r.id === recipeId)
-      if (!recipe) return []
-      const out: string[] = []
-      for (const s of recipe.skills) {
-        if (recipes.some((r) => r.id === s)) {
-          out.push(...expandRecipeSkills(s, visited))
-        } else {
-          out.push(s)
-        }
-      }
-      return out
-    }
     const currentSkills = unifiedOrder
       .filter(i => i.type === 'skill')
       .map(i => i.content)
     const recipeSkills = unifiedOrder
       .filter(i => i.type === 'recipe')
-      .flatMap((item) => expandRecipeSkills(item.content))
+      .flatMap((item) => expandRecipeSkills(item.content, recipes))
     const allSkills = [...new Set([...currentSkills, ...recipeSkills])]
 
     const body: { goal: string; skills: string[]; input_path?: string; metadata?: RunRequestMetadata; execution_order?: ExecutionOrderItem[]; use_hierarchical?: boolean } = { 
@@ -1430,6 +1477,18 @@ export function UARPanel() {
                   if (json.skill === 'math_plot' && json.payload?.result) {
                     setMathPlotData(json.payload.result)
                   }
+                  if (json.skill === 'math_plot_3d' && json.payload?.result) {
+                    setMathPlotData(json.payload.result)
+                  }
+                  if (json.skill === 'code_analysis' && json.payload?.result) {
+                    setCodeAnalysisData(json.payload.result)
+                  }
+                  if (json.skill === 'quantum_ml' && json.payload?.result) {
+                    setQuantumMLData(json.payload.result)
+                  }
+                  if (json.skill === 'myhdl_design' && json.payload?.result) {
+                    setMyhdlData(json.payload.result)
+                  }
                 }
                 if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
                 if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
@@ -1472,6 +1531,7 @@ export function UARPanel() {
           // Connection timeout fallback
           setTimeout(() => {
             if (ws?.readyState !== WebSocket.OPEN) {
+              ws?.close()
               resolve(false)
             }
           }, 10000)
@@ -1644,6 +1704,9 @@ export function UARPanel() {
                 if (json.skill === 'data_viz_3d' && json.payload?.result) {
                   setDataViz3D(json.payload.result)
                 }
+                if (json.skill === 'myhdl_design' && json.payload?.result) {
+                  setMyhdlData(json.payload.result)
+                }
               }
               if (json.type === 'recipe_start' && json.payload?.recipe_id) setCurrentSkill(`Recipe: ${json.payload.recipe_id}`)
               if (json.type === 'recipe_end' && json.payload?.recipe_id) setCurrentSkill(`Completed recipe: ${json.payload.recipe_id}`)
@@ -1674,7 +1737,7 @@ export function UARPanel() {
         abortControllerRef.current = null
       }
     }
-  }, [goal, inputPath, unifiedOrder, recipes, backendSkills, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent, useHierarchical])
+  }, [goal, inputPath, unifiedOrder, recipes, backendSkills, graphragMethod, ollamaModel, autonomiKey, autonomiNetwork, autonomiPublic, autonomiAddress, pushRecent, useHierarchical, useWebSocket])
 
   const stopStream = useCallback(() => {
     setIsStopping(true)
@@ -1692,6 +1755,7 @@ export function UARPanel() {
         setSkillGuideOpen(false)
         setLibraryPopupOpen(false)
         setRecipesPopupOpen(false)
+        setSettingsOpen(false)
       }
       if (
         (e.ctrlKey || e.metaKey) &&
@@ -1733,16 +1797,17 @@ export function UARPanel() {
 
   // Graph rendering is delegated to GraphVisualizer component
 
-  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setDataViz3D(null); eventCountRef.current = 0 }, [])
+  const clearEvents = useCallback(() => { setEvents([]); setError(null); setMetrics(null); setTrefoilData(null); setMolecularData(null); setQuantumData(null); setPhysicsData(null); setMathData(null); setMathPlotData(null); setCodeAnalysisData(null); setRiscvData(null); setVerilogData(null); setFpgaData(null); setCipherData(null); setEcosystemData(null); setDocIngestData(null); setAutonomiData(null); setDataViz3D(null); setQuantumMLData(null); setMyhdlData(null); eventCountRef.current = 0 }, [])
 
-  const fetchRuns = useCallback(async () => {
+  const fetchRuns = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch('/api/uar/runs', { headers: authHeaders() })
+      const res = await fetch('/api/uar/runs', { headers: authHeaders(), signal })
       if (res.ok) {
         const data = await res.json()
         setRunsHistory(Array.isArray(data) ? data : [])
       }
     } catch (e) {
+      if ((e as Error)?.name === 'AbortError') return
       console.warn('Failed to fetch runs history:', e)
     }
   }, [])
@@ -1777,6 +1842,7 @@ export function UARPanel() {
         initialPath={inputPath || libraryPath || projectRoot}
         projectRoot={projectRoot}
         presets={presets}
+        deploymentMode={deploymentMode}
         onClose={onPickerClose}
         onPick={onPick}
       />
@@ -1809,6 +1875,14 @@ export function UARPanel() {
         >
           📘
         </button>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className={styles.skillGuideButton}
+          title="Open settings"
+          aria-label="Open settings"
+        >
+          ⚙️
+        </button>
         <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" className={styles.uorIcon} onError={() => setUorImageError(true)} />}</a></span>
       </div>
 
@@ -1822,6 +1896,8 @@ export function UARPanel() {
               <li>2. <strong>Set a goal</strong> describing what you want to accomplish</li>
               <li>3. <strong>Build your order</strong> - add skills and recipes to the unified list, drag-and-drop to reorder</li>
               <li>4. <strong>Run</strong> and watch real-time events, 3D visualizers, and dependency graphs appear</li>
+              <li>5. <strong>Collapse sections</strong> to reduce clutter - your preferences are saved automatically</li>
+              <li>6. <strong>Open Settings (⚙️)</strong> to switch between Local and Shared deployment modes</li>
             </ul>
           </div>
           <div className={styles.helpSection}>
@@ -1833,6 +1909,8 @@ export function UARPanel() {
               <li><strong>3D Visualizers</strong> auto-appear when skills produce data - click 🎥 to record video</li>
               <li><strong>WebSocket mode</strong> is more resilient for long runs than default SSE</li>
               <li><strong>Hierarchical mode</strong> runs recipes as discrete units with retry per recipe block</li>
+              <li><strong>Local-first</strong>: Default deployment mode needs no API key - runs entirely on your machine</li>
+              <li><strong>Keyboard shortcuts</strong>: <kbd>Ctrl+Enter</kbd> to run, <kbd>Esc</kbd> to close modals</li>
               <li>Hover over skills for descriptions; click 💡 per section for detailed tips</li>
             </ul>
           </div>
@@ -1850,32 +1928,37 @@ export function UARPanel() {
       )}
 
       {/* DOCUMENTS */}
-      <div className={styles.box}>
-        <div className={styles.sectionHeader}>
-          <strong className={styles.sectionTitle} title="Manage documents, upload files, and select input paths">Documents</strong>
-          <span className={styles.sectionInfo}>
-            library: {libraryPath}
-          </span>
-          <button
-            onClick={() => {
-              setTipsTargetSection('Documents')
-              setTipsPopupOpen(true)
-            }}
-            className={styles.skillGuideButton}
-            title="View tips"
-            aria-label="View document tips"
-          >
-            💡
-          </button>
-          <button
-            onClick={() => setPickerOpen(true)}
-            disabled={isRunning}
-            className={styles.pickButton}
-            title="Open file picker"
-            aria-label="Open file picker"
-          >📂 Pick…</button>
-        </div>
-
+      <CollapsibleSection
+        id="documents"
+        title="Documents"
+        info={`library: ${libraryPath}`}
+        headerActions={
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setTipsTargetSection('Documents')
+                setTipsPopupOpen(true)
+              }}
+              className={styles.skillGuideButton}
+              title="View tips"
+              aria-label="View document tips"
+            >
+              💡
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setPickerOpen(true)
+              }}
+              disabled={isRunning}
+              className={styles.pickButton}
+              title="Open file picker"
+              aria-label="Open file picker"
+            >📂 Pick…</button>
+          </>
+        }
+      >
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             {/* Drop zone */}
@@ -1996,24 +2079,30 @@ export function UARPanel() {
             </div>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* GOAL + SKILLS */}
-      <div className={styles.box}>
+      <CollapsibleSection
+        id="goal-skills"
+        title="Goal & Skills"
+        headerActions={
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setTipsTargetSection('Goal')
+              setTipsPopupOpen(true)
+            }}
+            className={styles.skillGuideButton}
+            title="View tips"
+            aria-label="View goal tips"
+          >
+            💡
+          </button>
+        }
+      >
         <div className={styles.marginBottom12}>
           <label className={styles.label} title="Describe what you want to accomplish - guides AI processing">
             Goal
-            <button
-              onClick={() => {
-                setTipsTargetSection('Goal')
-                setTipsPopupOpen(true)
-              }}
-              className={styles.skillGuideButton}
-              title="View tips"
-              aria-label="View goal tips"
-            >
-              💡
-            </button>
           </label>
           <div className={styles.sectionWithTips}>
             <div className={styles.sectionContent}>
@@ -2145,14 +2234,7 @@ export function UARPanel() {
                 <strong>Order of Operation:</strong>
                 {unifiedOrder.length > 0 && (
                   <button
-                    onClick={() => {
-                      setUnifiedOrder([])
-                      setUnifiedOrderHistory([[]])
-                      setUnifiedOrderHistoryIndex(0)
-                      setSkillLastPositions({})
-                      setSkillHistory([[]])
-                      setSkillHistoryIndex(0)
-                    }}
+                    onClick={handleClearOrder}
                     className={styles.clearButton}
                     disabled={isRunning}
                     title="Clear execution order"
@@ -2167,14 +2249,6 @@ export function UARPanel() {
                   onReorder={handleReorder}
                   onDuplicate={handleDuplicate}
                   onRemove={handleRemove}
-                  onClear={() => {
-                    setUnifiedOrder([])
-                    setUnifiedOrderHistory([[]])
-                    setUnifiedOrderHistoryIndex(0)
-                    setSkillLastPositions({})
-                    setSkillHistory([[]])
-                    setSkillHistoryIndex(0)
-                  }}
                 />
               </div>
 
@@ -2378,14 +2452,16 @@ export function UARPanel() {
             </div>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* RUN */}
-      <div className={styles.box}>
-        <div className={styles.sectionHeader}>
-          <strong title="Execute selected skills and monitor execution">Run</strong>
+      <CollapsibleSection
+        id="run"
+        title="Run"
+        headerActions={
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation()
               setTipsTargetSection('Run')
               setTipsPopupOpen(true)
             }}
@@ -2395,7 +2471,8 @@ export function UARPanel() {
           >
             💡
           </button>
-        </div>
+        }
+      >
         <div className={styles.presetsContainer}>
           <button
             onClick={() => setUseWebSocket((v) => !v)}
@@ -2495,7 +2572,7 @@ export function UARPanel() {
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
           {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
         </div>
-      </div>
+      </CollapsibleSection>
 
       {ingested && (
         <div className={styles.box} title="Documents processed by doc_ingest skill">
@@ -2535,55 +2612,67 @@ export function UARPanel() {
         </div>
       )}
 
-      <div className={styles.box}>
-        <div className={styles.sectionHeader}>
-          <strong title="Real-time execution events from skills">Events ({events.length})</strong>
-          <div className={styles.timelineViewToggle}>
+      <CollapsibleSection
+        id="events"
+        title={`Events (${events.length})`}
+        headerActions={
+          <>
+            <div className={styles.timelineViewToggle}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEventViewMode('timeline')
+                }}
+                className={`${styles.timelineViewButton} ${eventViewMode === 'timeline' ? styles.timelineViewButtonActive : ''}`}
+                title="Timeline view"
+              >
+                Timeline
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEventViewMode('json')
+                }}
+                className={`${styles.timelineViewButton} ${eventViewMode === 'json' ? styles.timelineViewButtonActive : ''}`}
+                title="Raw JSON view"
+              >
+                JSON
+              </button>
+            </div>
             <button
-              onClick={() => setEventViewMode('timeline')}
-              className={`${styles.timelineViewButton} ${eventViewMode === 'timeline' ? styles.timelineViewButtonActive : ''}`}
-              title="Timeline view"
-            >
-              Timeline
-            </button>
-            <button
-              onClick={() => setEventViewMode('json')}
-              className={`${styles.timelineViewButton} ${eventViewMode === 'json' ? styles.timelineViewButtonActive : ''}`}
-              title="Raw JSON view"
-            >
-              JSON
-            </button>
-          </div>
-          <button
-            onClick={() => {
-              setTipsTargetSection('Events')
-              setTipsPopupOpen(true)
-            }}
-            className={styles.skillGuideButton}
-            title="View tips"
-            aria-label="View events tips"
-          >
-            💡
-          </button>
-          {events.length > 0 && (
-            <button
-              onClick={() => {
-                const blob = new Blob([JSON.stringify(events, null, 2)], { type: 'application/json' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = 'events.json'
-                a.click()
-                URL.revokeObjectURL(url)
+              onClick={(e) => {
+                e.stopPropagation()
+                setTipsTargetSection('Events')
+                setTipsPopupOpen(true)
               }}
               className={styles.skillGuideButton}
-              title="Download all events as JSON"
-              aria-label="Download all events as JSON"
+              title="View tips"
+              aria-label="View events tips"
             >
-              📥
+              💡
             </button>
-          )}
-        </div>
+            {events.length > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const blob = new Blob([JSON.stringify(events, null, 2)], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'events.json'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className={styles.skillGuideButton}
+                title="Download all events as JSON"
+                aria-label="Download all events as JSON"
+              >
+                📥
+              </button>
+            )}
+          </>
+        }
+      >
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             <div ref={eventsContainerRef} className={styles.eventsContainer} aria-live="polite" aria-atomic="false">
@@ -2633,41 +2722,47 @@ export function UARPanel() {
             </div>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
-      <div className={styles.box}>
-        <div className={styles.sectionHeader}>
-          <strong title="Visualizes dependencies and relationships">Dependency Graph</strong>
-          <button
-            onClick={() => {
-              setTipsTargetSection('Graph')
-              setTipsPopupOpen(true)
-            }}
-            className={styles.skillGuideButton}
-            title="View tips"
-            aria-label="View graph tips"
-          >
-            💡
-          </button>
-          {graph && (
+      <CollapsibleSection
+        id="graph"
+        title="Dependency Graph"
+        headerActions={
+          <>
             <button
-              onClick={() => {
-                const data = JSON.stringify(graph, null, 2)
-                const blob = new Blob([data], { type: 'application/json' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = 'dependency-graph.json'
-                a.click()
-                URL.revokeObjectURL(url)
+              onClick={(e) => {
+                e.stopPropagation()
+                setTipsTargetSection('Graph')
+                setTipsPopupOpen(true)
               }}
               className={styles.skillGuideButton}
-              title="Export graph as JSON"
+              title="View tips"
+              aria-label="View graph tips"
             >
-              📥
+              💡
             </button>
-          )}
-        </div>
+            {graph && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const data = JSON.stringify(graph, null, 2)
+                  const blob = new Blob([data], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'dependency-graph.json'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className={styles.skillGuideButton}
+                title="Export graph as JSON"
+              >
+                📥
+              </button>
+            )}
+          </>
+        }
+      >
         <div className={styles.sectionWithTips}>
           <div className={styles.sectionContent}>
             <div className={styles.graphContainer}>
@@ -2679,7 +2774,7 @@ export function UARPanel() {
             </div>
           </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* 3D Trefoil Visualization */}
       {(trefoilData || isRunning) && (
@@ -2873,6 +2968,66 @@ export function UARPanel() {
                 <ErrorBoundary>
                   <Suspense fallback={<div className={styles.loadingFallback}>Loading crypto results...</div>}>
                     <CipherDashboard data={cipherData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Code Analysis */}
+      {(codeAnalysisData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>📊 Code Analysis</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading analysis results...</div>}>
+                    <CodeAnalysisVisualizer data={codeAnalysisData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quantum ML */}
+      {(quantumMLData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>⚛️ Quantum ML</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading quantum ML results...</div>}>
+                    <QuantumMLVisualizer data={quantumMLData} darkMode={darkMode} />
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MyHDL Design */}
+      {(myhdlData || isRunning) && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h3>🔧 MyHDL Design</h3>
+          </div>
+          <div className={styles.sectionWithTips}>
+            <div className={styles.sectionContent}>
+              <div className={styles.graphContainer}>
+                <ErrorBoundary>
+                  <Suspense fallback={<div className={styles.loadingFallback}>Loading MyHDL results...</div>}>
+                    <MyHDLVisualizer data={myhdlData} darkMode={darkMode} />
                   </Suspense>
                 </ErrorBoundary>
               </div>
@@ -3213,6 +3368,7 @@ export function UARPanel() {
                         <li><strong>guardrail_check</strong>: Check guardrails for agent outputs - content safety, rate limits, budget compliance</li>
                         <li><strong>budget_status</strong>: Check agent budget status - tokens used, API calls, cost, time limits</li>
                         <li><strong>blackboard_status</strong>: Check shared blackboard status for inter-agent coordination and message passing</li>
+                        <li><strong>blackboard_message</strong>: Post or read messages on shared blackboard for inter-agent communication</li>
                         <li><strong>Requirements</strong>: guardrails-ai for guardrail_check</li>
                         <li><strong>Use cases</strong>: Content moderation, cost control, multi-agent coordination, compliance monitoring</li>
                         <li><strong>Workflow</strong>: Run governance checks before or after agent execution to ensure compliance</li>
@@ -3945,6 +4101,45 @@ export function UARPanel() {
           </div>
         </div>
       )}
+
+      <SettingsDrawer
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        deploymentMode={deploymentMode}
+        onDeploymentModeChange={(mode: 'local' | 'shared') => {
+          setDeploymentMode(mode)
+          try {
+            getLocalStorage()?.setItem('uar.deploymentMode', mode)
+          } catch {}
+        }}
+        apiKey={apiKey}
+        onApiKeyChange={(key: string) => {
+          setApiKey(key)
+          try {
+            if (key) {
+              getLocalStorage()?.setItem('uar_api_key', key)
+            } else {
+              getLocalStorage()?.removeItem('uar_api_key')
+            }
+          } catch {}
+        }}
+        ollamaModel={ollamaModel}
+        onOllamaModelChange={setOllamaModel}
+        useHierarchical={useHierarchical}
+        onHierarchicalChange={setUseHierarchical}
+        graphragMethod={graphragMethod}
+        onGraphragMethodChange={setGraphragMethod}
+        useWebSocket={useWebSocket}
+        onUseWebSocketChange={setUseWebSocket}
+        autonomiKey={autonomiKey}
+        onAutonomiKeyChange={setAutonomiKey}
+        autonomiNetwork={autonomiNetwork}
+        onAutonomiNetworkChange={setAutonomiNetwork}
+        autonomiPublic={autonomiPublic}
+        onAutonomiPublicChange={setAutonomiPublic}
+        autonomiAddress={autonomiAddress}
+        onAutonomiAddressChange={setAutonomiAddress}
+      />
     </main>
     </div>
   )

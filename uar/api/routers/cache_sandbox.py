@@ -10,8 +10,15 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from uar.api.middleware import security
 from uar.api.responses import error_response
+from uar.services import AuthService
 
 router = APIRouter()
+_auth_svc = AuthService()
+
+
+def _require_auth(credentials):
+    """Shorthand: require authenticated user or raise 401."""
+    return _auth_svc.require_user(credentials)
 
 
 @router.get("/api/cache/stats")
@@ -19,6 +26,7 @@ async def cache_stats_endpoint(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return skill cache statistics."""
+    _require_auth(credentials)
     from uar.core.skill_cache import get_skill_cache
 
     cache = get_skill_cache()
@@ -38,6 +46,7 @@ async def cache_invalidate_endpoint(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Invalidate cache entries.  Omit 'skill' to clear all."""
+    _require_auth(credentials)
     from uar.core.skill_cache import get_skill_cache
 
     cache = get_skill_cache()
@@ -51,6 +60,7 @@ async def sandbox_health_endpoint(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return WASM sandbox health."""
+    _require_auth(credentials)
     from uar.core.sandbox import WASMSandbox
 
     return WASMSandbox().health()
@@ -62,6 +72,7 @@ async def sandbox_eval_endpoint(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Safely evaluate an arithmetic expression in the WASM sandbox."""
+    _require_auth(credentials)
     from uar.core.sandbox import sandbox_eval
     import logging
 

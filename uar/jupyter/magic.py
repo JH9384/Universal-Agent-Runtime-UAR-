@@ -30,9 +30,14 @@ import uar.skills.sum_review  # noqa: F401
 import uar.skills.ollama_generate  # noqa: F401
 import uar.skills.math_compute  # noqa: F401
 import uar.skills.math_plot  # noqa: F401
+import uar.skills.advanced_integrations  # noqa: F401
 import uar.skills.cipher_ops  # noqa: F401
 import uar.skills.stem_extended  # noqa: F401
 import uar.skills.physics_compute  # noqa: F401
+import uar.skills.quantum_ml  # noqa: F401
+import uar.skills.math_plot_3d  # noqa: F401
+import uar.skills.code_analysis  # noqa: F401
+import uar.skills.myhdl_design  # noqa: F401
 
 
 @magics_class
