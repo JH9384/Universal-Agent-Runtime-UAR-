@@ -176,14 +176,21 @@ class SigmaticsIntegrator:
                 timeout=30,
             )
 
-            if result.returncode == 0:
-                return json.loads(result.stdout)
+            if result.returncode == 0 and result.stdout.strip():
+                try:
+                    return json.loads(result.stdout)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Sigmatics CLI returned non-JSON stdout: %s",
+                        result.stdout[:200],
+                    )
+                    return None
             else:
                 logger.error("Sigmatics CLI error: %s", result.stderr)
                 return None
 
-        except (subprocess.TimeoutExpired, json.JSONDecodeError):
-            logger.exception("Sigmatics CLI evaluation failed")
+        except subprocess.TimeoutExpired:
+            logger.exception("Sigmatics CLI evaluation timed out")
             return None
 
     def integrate_with_uor(

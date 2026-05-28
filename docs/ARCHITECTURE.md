@@ -1,7 +1,7 @@
 # UAR Architecture
 
 **Version:** 1.1.0 (see `VERSION` file)  
-**Last Updated:** 2026-05-27
+**Last Updated:** 2026-05-28
 
 ---
 

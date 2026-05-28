@@ -17,7 +17,9 @@ from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 from uar.core.contracts import RunRecord
 
-_RUNRECORD_FIELDS = frozenset(RunRecord.__dataclass_fields__.keys())  # type: ignore[attr-defined]
+_RUNRECORD_FIELDS = frozenset(
+    RunRecord.__dataclass_fields__.keys()  # type: ignore[attr-defined]
+)
 
 
 def run_record_from_dict(row: Dict[str, Any]) -> RunRecord:
@@ -64,6 +66,8 @@ class RunStoreProtocol(Protocol):
     def get_by_run_id(self, run_id: str) -> Optional[Dict[str, Any]]: ...
 
     def flush(self) -> None: ...
+
+    def purge_old_records(self, retention_days: int) -> int: ...
 
 
 def get_store() -> RunStoreProtocol:

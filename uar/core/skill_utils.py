@@ -45,11 +45,11 @@ def skill_guard(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 return fn(*args, **kwargs)
-            except Exception:
+            except Exception as exc:
                 mod_logger.exception("%s failed", operation_name)
                 return {
                     "status": status,
-                    "error": "Internal error",
+                    "error": f"{type(exc).__name__}: {exc}",
                     "message": f"{operation_name} failed",
                 }
 
@@ -87,6 +87,9 @@ def require_package(
     packages = [package] if isinstance(package, str) else package
     missing = []
     for p in packages:
+        if not p:
+            missing.append("<empty>")
+            continue
         try:
             if importlib.util.find_spec(p) is None:
                 missing.append(p)

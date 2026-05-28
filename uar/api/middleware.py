@@ -347,8 +347,8 @@ class RedisRateLimiter:
             self._redis.zremrangebyscore(
                 f"uar:ratelimit:{key}", 0, window_start
             )
-            current = int(  # type: ignore[arg-type]
-                self._redis.zcard(f"uar:ratelimit:{key}")
+            current = int(
+                self._redis.zcard(f"uar:ratelimit:{key}")  # type: ignore[arg-type]
             )
         except redis.RedisError:
             return limit

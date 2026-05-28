@@ -59,7 +59,7 @@ class RDFConversionResult:
     """Result of RDF format conversion."""
 
     success: bool
-    data: Optional[Union[str, Graph]] = None
+    data: Optional[Union[str, Graph, Dict[str, Any]]] = None
     format: Optional[str] = None
     error: Optional[str] = None
 
@@ -272,7 +272,7 @@ class RDFConverter:
             )
 
     def _add_property_to_graph(
-        self, graph: Graph, subject: URIRef, key: str, value: Any
+        self, graph: Graph, subject: Union[URIRef, BNode], key: str, value: Any
     ):
         """Add a property to the RDF graph.
 

@@ -166,6 +166,35 @@ This project uses semantic versioning for release tags.
   call (argument added in 3.12); symlink skipping already handled by preceding
   `entry.is_symlink()` check. Fixes `TypeError` in production runtime
 
+### Bug Fixes — Session 7 (Codebase Review & Documentation Consistency)
+- **Type safety**: `JsonRunStore.list_all` signature updated to accept `limit` parameter,
+  matching `RunStoreProtocol`
+- **Protocol completeness**: Added `purge_old_records` to `RunStoreProtocol`; implemented
+  in `PostgresRunStore` with PostgreSQL `DELETE ... WHERE created_at < cutoff`
+- **Skill correctness**: `llamaindex_query` fixed `result.sources` → `result.retrieved_nodes`
+  to match `RAGResult` dataclass field name
+- **RDF format types**: `RDFConversionResult.data` widened from `str | Graph` to include
+  `Dict[str, Any]`; `_add_property_to_graph` subject type widened from `URIRef` to
+  `Union[URIRef, BNode]` for nested object support
+- **Hierarchical execution**: Environment variable `UAR_HIERARCHICAL_EXECUTION` now
+  correctly parses `"false"`, `"0"`, `""` as falsy instead of any non-empty string
+  being truthy
+- **Static analysis cleanup**: Removed unused `logging`, `UARError`, `ValidationError`
+  imports across `advanced_integrations.py` and `advanced_endpoints.py`
+- **Frontend documentation**: Added 21 missing stub skills to `SkillGuide.tsx`
+  (`airflow_dag`, `autogluon_ml`, `cern_root`, `crypto_analyze`, `dbt_transform`,
+  `face_recognize`, `flaml_auto`, `kubeflow_pipe`, `mlflow_deploy`, `mlflow_track`,
+  `model_reg`, `nft_mint`, `osint_recon`, `pentest_scan`, `pycaret_ml`, `security_audit`,
+  `smart_contract`, `snowflake_etl`, `solana_tx`, `spark_process`, `video_analyze`)
+- **Documentation tests**: New `tests/test_documentation_consistency.py` (16 tests)
+  covering: skill registry ↔ frontend consistency, recipe consistency, CLI help coverage,
+  frontend tips/help validation, architecture doc ↔ code consistency, event type docs,
+  README/Getting Started validation
+
+### Test Coverage
+- Expanded test suite to 1128 tests (+31 from documentation consistency tests)
+- All tests passing (16.56s full suite)
+
 ### Planned / Deferred
 - Parallel executor expansion
 - Replay timeline UI

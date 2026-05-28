@@ -47,7 +47,11 @@ def _recv() -> Dict[str, Any]:
         raise ValueError("MCP payload too large")
 
     raw = sys.stdin.read(length)
-    return json.loads(raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.warning("MCP message JSON decode failed: %s", exc)
+        return {}
 
 
 def _build_tool(name: str, fn: Any) -> Dict[str, Any]:

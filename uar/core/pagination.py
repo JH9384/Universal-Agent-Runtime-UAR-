@@ -53,8 +53,11 @@ class CursorToken:
         padding = 4 - len(token) % 4
         if padding != 4:
             token += "=" * padding
-        raw = base64.urlsafe_b64decode(token.encode())
-        payload = json.loads(raw)
+        try:
+            raw = base64.urlsafe_b64decode(token.encode())
+            payload = json.loads(raw)
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Invalid cursor token: {exc}") from exc
         return cls(
             offset=payload["o"],
             page_size=payload["s"],

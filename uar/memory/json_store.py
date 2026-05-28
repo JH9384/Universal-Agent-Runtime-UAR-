@@ -54,7 +54,9 @@ class JsonRunStore:
 
     def append(self, record: RunRecord) -> None:
         """Buffer record; flush to JSONL file when batch size reached."""
-        line = json.dumps(asdict(record), sort_keys=True) + "\n"
+        data = asdict(record)
+        data["created_at"] = time.time()
+        line = json.dumps(data, sort_keys=True) + "\n"
         with self._thread_lock:
             self._buffer.append(line)
             if len(self._buffer) >= self._BATCH_SIZE:
@@ -113,9 +115,11 @@ class JsonRunStore:
                                 continue
                 return records
 
-    def list_all(self, user_id: Optional[str] = None) -> List[dict]:
+    def list_all(
+        self, user_id: Optional[str] = None, limit: int = 1000
+    ) -> List[dict]:
         """Alias for list_records — returns all stored run records."""
-        return self.list_records(user_id=user_id)
+        return self.list_records(user_id=user_id, limit=limit)
 
     def get_by_run_id(self, run_id: str) -> Optional[dict]:
         """Fetch a single record by run ID.
@@ -141,6 +145,7 @@ class JsonRunStore:
         kept_lines: List[str] = []
 
         with self._thread_lock:
+            self._flush()
             with self._acquire_lock():
                 with self.path.open("r", encoding="utf-8") as f:
                     for line in f:
@@ -149,7 +154,7 @@ class JsonRunStore:
                             continue
                         try:
                             record = json.loads(raw)
-                            ts = record.get("timestamp")
+                            ts = record.get("created_at")
                             if ts and isinstance(ts, (int, float)):
                                 if ts < cutoff:
                                     removed += 1

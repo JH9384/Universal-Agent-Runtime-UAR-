@@ -113,10 +113,21 @@ class UORSchemaValidator:
 
             url = self.UOR_FOUNDATION_SCHEMA_URL
             with urllib.request.urlopen(url, timeout=10.0) as response:
-                schema = json.loads(response.read().decode())
+                content = response.read().decode()
+                try:
+                    schema = json.loads(content)
+                except json.JSONDecodeError as exc:
+                    logger.warning(
+                        "Remote schema at %s is not valid JSON: %s",
+                        url, exc,
+                    )
+                    return False
                 self.schemas["uor.foundation.schema"] = schema
                 logger.info("Loaded UOR Foundation schema from remote")
                 return True
+        except urllib.error.URLError as exc:
+            logger.warning("Failed to fetch UOR Foundation schema: %s", exc)
+            return False
         except Exception:
             logger.exception("Failed to load UOR Foundation schema")
             return False

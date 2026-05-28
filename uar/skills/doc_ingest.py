@@ -534,4 +534,8 @@ def doc_ingest(ctx):
         }
 
     except PathSecurityError:
-        return {"documents": [], "error": "Path security error"}
+        return {
+            "status": "failed",
+            "documents": [],
+            "error": "Path security error",
+        }

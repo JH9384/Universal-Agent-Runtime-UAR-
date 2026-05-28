@@ -208,6 +208,12 @@ class GoalExecutionService(BaseService):
                 tmp_file.writelines(_write_buf)
                 _write_buf.clear()
 
+        # Background persistence: fire-and-forget if enabled
+        _bg_persist = (
+            os.getenv("UAR_BG_PERSIST", "false").lower() == "true"
+        )
+        _bg_task_created = False
+
         try:
             async for raw_event in self._iter_events(
                 strategy, goal, timeout, cid
@@ -258,16 +264,13 @@ class GoalExecutionService(BaseService):
             tmp_file.flush()
 
             # Persist successful run from temp file
-            # Background persistence: fire-and-forget if enabled
-            _bg_persist = (
-                os.getenv("UAR_BG_PERSIST", "false").lower() == "true"
-            )
             if _bg_persist and yield_persisted:
                 asyncio.create_task(
                     self._persist_async(
                         tmp_path.name, strategy, user_id, request_id
                     )
                 )
+                _bg_task_created = True
                 persisted = True
             else:
                 record = self._persist_from_file(
@@ -310,9 +313,9 @@ class GoalExecutionService(BaseService):
                         f"Fallback persistence failed: {persist_err}",
                         request_id,
                     )
-            # Only unlink when persistence is synchronous; background
-            # persistence owns cleanup via _persist_async.
-            if not _bg_persist:
+            # Only unlink when no background persistence task was created.
+            # _persist_async owns cleanup of its own file copy.
+            if not _bg_task_created:
                 try:
                     os.unlink(tmp_path.name)
                 except Exception:
@@ -371,19 +374,23 @@ class GoalExecutionService(BaseService):
                 with f:
                     for line in f:
                         line = line.strip()
-                        if line:
+                        if not line:
+                            continue
+                        try:
                             event = json.loads(line)
-                            if _filter_types:
-                                if event.get("type") not in _filter_types:
-                                    continue
-                            if _dedup:
-                                ev_hash = json.dumps(
-                                    event, sort_keys=True, default=str
-                                )
-                                if ev_hash in seen:
-                                    continue
-                                seen.add(ev_hash)
-                            events.append(event)
+                        except json.JSONDecodeError:
+                            continue
+                        if _filter_types:
+                            if event.get("type") not in _filter_types:
+                                continue
+                        if _dedup:
+                            ev_hash = json.dumps(
+                                event, sort_keys=True, default=str
+                            )
+                            if ev_hash in seen:
+                                continue
+                            seen.add(ev_hash)
+                        events.append(event)
             else:
                 # Optional mmap read for large temp files
                 _use_mmap = (
@@ -404,38 +411,46 @@ class GoalExecutionService(BaseService):
                                 line_s = bytes(raw_line).decode(
                                     "utf-8", errors="replace"
                                 ).strip()
-                                if line_s:
+                                if not line_s:
+                                    continue
+                                try:
                                     event = json.loads(line_s)
-                                    if _filter_types:
-                                        et = event.get("type")
-                                        if et not in _filter_types:
-                                            continue
-                                    if _dedup:
-                                        ev_hash = json.dumps(
-                                            event, sort_keys=True,
-                                            default=str,
-                                        )
-                                        if ev_hash in seen:
-                                            continue
-                                        seen.add(ev_hash)
-                                    events.append(event)
-                else:
-                    with open(file_path, "r") as f:
-                        for line in f:
-                            line = line.strip()
-                            if line:
-                                event = json.loads(line)
+                                except json.JSONDecodeError:
+                                    continue
                                 if _filter_types:
-                                    if event.get("type") not in _filter_types:
+                                    et = event.get("type")
+                                    if et not in _filter_types:
                                         continue
                                 if _dedup:
                                     ev_hash = json.dumps(
-                                        event, sort_keys=True, default=str
+                                        event, sort_keys=True,
+                                        default=str,
                                     )
                                     if ev_hash in seen:
                                         continue
                                     seen.add(ev_hash)
                                 events.append(event)
+                else:
+                    with open(file_path, "r") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                event = json.loads(line)
+                            except json.JSONDecodeError:
+                                continue
+                            if _filter_types:
+                                if event.get("type") not in _filter_types:
+                                    continue
+                            if _dedup:
+                                ev_hash = json.dumps(
+                                    event, sort_keys=True, default=str
+                                )
+                                if ev_hash in seen:
+                                    continue
+                                seen.add(ev_hash)
+                            events.append(event)
         except Exception as read_err:
             self._log(
                 "error",

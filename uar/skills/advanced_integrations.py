@@ -10,12 +10,12 @@ This module provides UAR skill wrappers for the integrated frameworks:
 - Flexible GraphRAG (knowledge graph RAG)
 """
 
-import logging
 from pathlib import Path
 from typing import Any, Dict
 from uar.core.async_utils import run_sync_safe
 from uar.core.registry import register_skill
 from uar.core.skill_utils import skill_guard
+
 
 @register_skill("agent_workflow")
 @skill_guard("Agent Workflow")
@@ -77,7 +77,6 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "results": result.get("results", []),
         "status_code": result.get("status"),
     }
-
 
 
 @register_skill("crewai_task")
@@ -147,7 +146,6 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-
 @register_skill("crewai_workflow")
 @skill_guard("Crewai Workflow")
 def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -187,7 +185,6 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "status_code": result.get("status"),
         "results": result.get("results", []),
     }
-
 
 
 @register_skill("llamaindex_rag")
@@ -269,11 +266,10 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "query": query,
         "response": result.response,
         "sources": [
-            node.to_dict() for node in result.sources
-        ],  # type: ignore[attr-defined]
+            node.to_dict() for node in result.retrieved_nodes
+        ],
         "metadata": result.metadata,
     }
-
 
 
 @register_skill("llamaindex_query")
@@ -324,11 +320,10 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "query": query,
         "response": result.response,
         "sources": [
-            node.to_dict() for node in result.sources
-        ],  # type: ignore[attr-defined]
+            node.to_dict() for node in result.retrieved_nodes
+        ],
         "metadata": result.metadata,
     }
-
 
 
 @register_skill("dagster_pipeline")
@@ -377,7 +372,6 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-
 @register_skill("dagster_status")
 @skill_guard("Dagster Status")
 def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -399,7 +393,6 @@ def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "status": "success",
         "orchestrator_status": status,
     }
-
 
 
 @register_skill("guardrail_check")
@@ -463,7 +456,6 @@ def guardrail_check(ctx: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-
 @register_skill("budget_status")
 @skill_guard("Budget Status")
 def budget_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -502,7 +494,6 @@ def budget_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-
 @register_skill("blackboard_status")
 @skill_guard("Blackboard Status")
 def blackboard_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -524,7 +515,6 @@ def blackboard_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "status": "success",
         "blackboard_status": status,
     }
-
 
 
 @register_skill("flexible_graphrag")
@@ -604,7 +594,6 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "results": result["results"],
         "result_count": result["result_count"],
     }
-
 
 
 # ---------------------------------------------------------------------------

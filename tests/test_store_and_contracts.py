@@ -11,7 +11,9 @@ Covers:
 """
 import asyncio
 import collections
+import json
 import os
+import time
 
 import pytest
 
@@ -162,7 +164,7 @@ def test_pipeline_context_del_closes_overflow_file(tmp_path, monkeypatch):
     assert overflow is not None, "Expected overflow file to be open"
     assert not overflow.closed
 
-    ctx.__del__()
+    ctx.close()
     assert overflow.closed
 
 
@@ -265,3 +267,314 @@ def test_pipeline_context_overflow_writes_oldest_event():
     assert lines[0]["type"] == "event_a"
     # In-memory deque should have the two newest events
     assert [e["type"] for e in ctx.events] == ["event_b", "event_c"]
+
+
+# ---------------------------------------------------------------------------
+# 6. skill_utils — skill_guard and require_package
+# ---------------------------------------------------------------------------
+
+
+def test_skill_guard_preserves_exception_info():
+    """skill_guard must include exception type/message in error field."""
+    from uar.core.skill_utils import skill_guard
+
+    @skill_guard("Test op", status="failed")
+    def boom(ctx):
+        raise ValueError("something broke")
+
+    result = boom(None)
+    assert result["status"] == "failed"
+    assert "ValueError" in result["error"]
+    assert "something broke" in result["error"]
+
+
+def test_skill_guard_uses_provided_status():
+    """skill_guard must use the status kwarg, not always 'error'."""
+    from uar.core.skill_utils import skill_guard
+
+    @skill_guard("Test op", status="failed")
+    def fail(ctx):
+        raise RuntimeError("x")
+
+    result = fail(None)
+    assert result["status"] == "failed"
+
+
+def test_require_package_empty_string():
+    """Empty string package must be reported as missing."""
+    from uar.core.skill_utils import require_package
+
+    result = require_package("")
+    assert result is not None
+    assert result["status"] == "failed"
+
+
+def test_require_package_empty_in_list():
+    """Empty string in a list must be reported as missing."""
+    from uar.core.skill_utils import require_package
+
+    result = require_package(["os", ""])
+    assert result is not None
+    assert "<empty>" in result["error"]
+
+
+def test_require_package_installed():
+    """Installed package returns None."""
+    from uar.core.skill_utils import require_package
+
+    assert require_package("os") is None
+
+
+def test_require_package_missing():
+    """Missing package returns error dict."""
+    from uar.core.skill_utils import require_package
+
+    result = require_package("definitely_not_a_real_package_12345")
+    assert isinstance(result, dict)
+    assert result["status"] == "failed"
+    assert "definitely_not_a_real_package_12345" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# 7. JsonRunStore.list_all respects limit parameter
+# ---------------------------------------------------------------------------
+
+
+def test_json_run_store_list_all_accepts_limit(tmp_path):
+    """JsonRunStore.list_all must accept and forward the limit parameter."""
+    from uar.memory.json_store import JsonRunStore
+
+    store = JsonRunStore(str(tmp_path / "runs.jsonl"))
+    for i in range(5):
+        store.append(
+            RunRecord(
+                run_id=f"r{i}",
+                goal_id="g",
+                skills=["noop"],
+                status="completed",
+            )
+        )
+    store.flush()
+
+    all_records = store.list_all(limit=1000)
+    assert len(all_records) == 5
+
+    limited = store.list_all(limit=2)
+    assert len(limited) == 2
+
+
+# ---------------------------------------------------------------------------
+# 8. RunStoreProtocol includes purge_old_records
+# ---------------------------------------------------------------------------
+
+
+def test_run_store_protocol_has_purge_old_records():
+    """All stores must satisfy the purge_old_records protocol method."""
+    from uar.memory.base_store import RunStoreProtocol
+
+    assert hasattr(RunStoreProtocol, "purge_old_records")
+
+
+# ---------------------------------------------------------------------------
+# 9. PostgresRunStore has purge_old_records
+# ---------------------------------------------------------------------------
+
+
+def test_postgres_run_store_has_purge_old_records():
+    """PostgresRunStore must implement purge_old_records."""
+    from uar.memory.postgres_store import PostgresRunStore
+
+    assert hasattr(PostgresRunStore, "purge_old_records")
+
+
+# ---------------------------------------------------------------------------
+# 10. Hierarchical env var "false" must not enable hierarchical mode
+# ---------------------------------------------------------------------------
+
+
+def _run_executor_with_env(monkeypatch, env_value: str):
+    """Helper: run executor with given env value, return executor instance."""
+    from unittest.mock import Mock, patch
+
+    from uar.core.executor import Executor
+    from uar.core.contracts import GoalSpec, StrategySpec
+
+    monkeypatch.setenv("UAR_HIERARCHICAL_EXECUTION", env_value)
+    mock_skill = Mock(return_value={"status": "ok"})
+
+    with patch("uar.core.executor.registry") as mock_registry:
+        mock_registry.is_registered.return_value = True
+        mock_registry.get.return_value = mock_skill
+        executor = Executor()
+        goal = GoalSpec(
+            id="g1",
+            user_intent="test",
+            objective="test",
+            metadata={
+                "execution_order": [
+                    {"type": "recipe", "content": "cached_r", "id": "r1"},
+                ],
+                "recipe_definitions": [
+                    {"id": "cached_r", "skills": ["noop"], "cache": True},
+                ],
+            },
+        )
+        strategy = StrategySpec(goal_id="g1", ordered_skills=["noop"])
+        list(executor.iter_events(strategy, goal, timeout_seconds=5.0))
+
+    return executor
+
+
+def test_hierarchical_env_false_not_truthy(monkeypatch):
+    """UAR_HIERARCHICAL_EXECUTION=false must not trigger hierarchical mode."""
+    executor = _run_executor_with_env(monkeypatch, "false")
+    # Flat mode does not populate recipe cache
+    assert len(executor._recipe_cache) == 0
+
+
+def test_hierarchical_env_one_is_truthy(monkeypatch):
+    """UAR_HIERARCHICAL_EXECUTION=1 must trigger hierarchical mode."""
+    executor = _run_executor_with_env(monkeypatch, "1")
+    # Hierarchical mode with cache=True populates recipe cache
+    assert len(executor._recipe_cache) == 1
+
+
+# ---------------------------------------------------------------------------
+# 11. RAGResult uses retrieved_nodes, not sources
+# ---------------------------------------------------------------------------
+
+
+def test_rag_result_has_retrieved_nodes_not_sources():
+    """RAGResult dataclass must expose retrieved_nodes, not sources."""
+    from uar.core.llamaindex_rag import RAGResult
+
+    result = RAGResult(query="q", response="r")
+    assert hasattr(result, "retrieved_nodes")
+    assert not hasattr(result, "sources")
+
+
+# ---------------------------------------------------------------------------
+# 12. SqliteRunStore.purge_old_records — regression for Julian day bug
+# ---------------------------------------------------------------------------
+
+
+def test_sqlite_purge_old_records_actually_removes_rows(tmp_path):
+    """purge_old_records must delete rows older than retention_days.
+
+    Regression: created_at defaulted to julianday('now') while cutoff
+    was computed in Unix epoch seconds, so the comparison was always
+    false and nothing was ever deleted.
+    """
+    from uar.memory.sqlite_store import SqliteRunStore
+
+    db = tmp_path / "purge_test.db"
+    store = SqliteRunStore(path=str(db))
+    try:
+        # Insert a record with an explicitly old created_at
+        # (Unix epoch seconds, 10 days ago)
+        old_ts = time.time() - (10 * 86400)
+        conn = store._get_conn()
+        conn.execute(
+            "INSERT INTO uar_runs (run_id, goal_id, skills, created_at)"
+            " VALUES (?, ?, ?, ?)",
+            ("run-old", "goal", json.dumps(["noop"]), old_ts),
+        )
+        conn.commit()
+
+        # Insert a recent record
+        conn.execute(
+            "INSERT INTO uar_runs (run_id, goal_id, skills, created_at)"
+            " VALUES (?, ?, ?, julianday('now'))",
+            ("run-new", "goal", json.dumps(["noop"])),
+        )
+        conn.commit()
+
+        assert len(store.list_records()) == 2
+
+        # Purge records older than 5 days
+        removed = store.purge_old_records(5)
+        assert removed == 1, f"Expected 1 removed, got {removed}"
+        remaining = store.list_records()
+        assert len(remaining) == 1
+        assert remaining[0]["run_id"] == "run-new"
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# 13. JsonRunStore.purge_old_records — regression for timestamp key bug
+# ---------------------------------------------------------------------------
+
+
+def test_json_purge_old_records_actually_removes_lines(tmp_path):
+    """purge_old_records must delete records older than retention_days.
+
+    Regression: the method looked for 'timestamp' which was never written;
+    records always lacked it so nothing was ever removed.
+    """
+    from uar.memory.json_store import JsonRunStore
+
+    path = tmp_path / "runs.jsonl"
+    store = JsonRunStore(str(path))
+
+    # Append a recent record
+    store.append(
+        RunRecord(
+            run_id="run-new", goal_id="g", skills=["noop"],
+            status="completed",
+        )
+    )
+    store.flush()
+
+    # Append an old record by writing raw JSON with backdated created_at
+    old_line = json.dumps(
+        {
+            "run_id": "run-old",
+            "goal_id": "g",
+            "skills": ["noop"],
+            "status": "completed",
+            "created_at": time.time() - (10 * 86400),
+        },
+        sort_keys=True,
+    )
+    with path.open("a") as f:
+        f.write(old_line + "\n")
+
+    assert len(store.list_records()) == 2
+
+    removed = store.purge_old_records(5)
+    assert removed == 1, f"Expected 1 removed, got {removed}"
+    remaining = store.list_records()
+    assert len(remaining) == 1
+    assert remaining[0]["run_id"] == "run-new"
+
+
+# ---------------------------------------------------------------------------
+# 14. require_package empty string produces clear message
+# ---------------------------------------------------------------------------
+
+
+def test_require_package_empty_string_clear_message():
+    """Empty string package must produce a readable error message."""
+    from uar.core.skill_utils import require_package
+
+    result = require_package("")
+    assert result is not None
+    assert "<empty>" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# 15. skill_guard default status for framework wrappers
+# ---------------------------------------------------------------------------
+
+
+def test_skill_guard_default_status_is_error():
+    """Framework wrappers without explicit status must default to 'error'."""
+    from uar.core.skill_utils import skill_guard
+
+    @skill_guard("Framework Op")
+    def boom(ctx):
+        raise RuntimeError("framework failure")
+
+    result = boom(None)
+    assert result["status"] == "error"

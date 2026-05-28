@@ -146,9 +146,8 @@ def ollama_generate(ctx):
             urljoin(host, "/api/generate"),
             json=payload,
             timeout=timeout,
-        )
+        ).raise_for_status()
     )
-    response.raise_for_status()
     data = response.json()
 
     return {

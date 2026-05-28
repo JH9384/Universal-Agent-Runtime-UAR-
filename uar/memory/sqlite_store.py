@@ -283,8 +283,15 @@ class SqliteRunStore:
         cutoff = time.time() - (retention_days * 86400)
         with self._lock:
             conn = self._get_conn()
+            # created_at may be Julian day (default) or Unix epoch.
+            # Heuristic: values > 1e9 are Unix timestamps.
             cur = conn.execute(
-                "DELETE FROM uar_runs WHERE created_at < ?", (cutoff,)
+                "DELETE FROM uar_runs WHERE CASE"
+                " WHEN created_at > 1000000000"
+                " THEN datetime(created_at, 'unixepoch')"
+                " ELSE datetime(created_at) END"
+                " < datetime(?, 'unixepoch')",
+                (cutoff,),
             )
             return cur.rowcount
 

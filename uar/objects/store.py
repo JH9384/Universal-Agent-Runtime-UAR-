@@ -114,11 +114,23 @@ class ObjectStore:
             self._lineage.clear()
             self._runtime_registry.clear()
             for row in conn.execute("SELECT digest, record_json FROM objects"):
-                self._objects[row["digest"]] = json.loads(row["record_json"])
+                try:
+                    self._objects[row["digest"]] = json.loads(
+                        row["record_json"]
+                    )
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Skipping corrupted object row: %s", row["digest"]
+                    )
             for row in conn.execute("SELECT digest, event_json FROM lineage"):
-                self._lineage.setdefault(row["digest"], []).append(
-                    json.loads(row["event_json"])
-                )
+                try:
+                    self._lineage.setdefault(row["digest"], []).append(
+                        json.loads(row["event_json"])
+                    )
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Skipping corrupted lineage row: %s", row["digest"]
+                    )
             for row in conn.execute(
                 "SELECT name, digest FROM runtime_registry"
             ):

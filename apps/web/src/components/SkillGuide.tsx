@@ -921,6 +921,216 @@ const SKILLS: Skill[] = [
     example: 'Goal: "Post message to blackboard" → Skills: [blackboard_message]',
     output: 'Message post/read confirmation with channel and key',
     category: 'Core'
+  },
+  {
+    id: 'airflow_dag',
+    label: 'airflow_dag',
+    desc: 'Workflow orchestration with Airflow - DAGs, scheduling, monitoring',
+    useCase: 'Build and run data pipelines with directed acyclic graphs',
+    example: 'Goal: "Run ETL pipeline" → Skills: [airflow_dag]',
+    prerequisites: ['apache-airflow'],
+    output: 'DAG execution status and task results',
+    category: 'Core'
+  },
+  {
+    id: 'autogluon_ml',
+    label: 'autogluon_ml',
+    desc: 'AutoML with AutoGluon - ensemble methods, multi-modal support',
+    useCase: 'Automated machine learning with stacked ensembles',
+    example: 'Goal: "Train model" → Skills: [autogluon_ml]',
+    prerequisites: ['autogluon'],
+    output: 'Trained model and performance metrics',
+    category: 'AI'
+  },
+  {
+    id: 'cern_root',
+    label: 'cern_root',
+    desc: 'CERN ROOT data analysis - particle physics, large datasets',
+    useCase: 'High-energy physics data processing and statistical analysis',
+    example: 'Goal: "Analyze particle data" → Skills: [cern_root]',
+    prerequisites: ['uproot'],
+    output: 'Histograms, ntuples, and statistical summaries',
+    category: 'Analysis'
+  },
+  {
+    id: 'crypto_analyze',
+    label: 'crypto_analyze',
+    desc: 'Cryptographic analysis - hash cracking, encryption analysis',
+    useCase: 'Analyze and test cryptographic implementations',
+    example: 'Goal: "Audit crypto" → Skills: [crypto_analyze]',
+    prerequisites: ['pycryptodome'],
+    output: 'Crypto analysis report',
+    category: 'Core'
+  },
+  {
+    id: 'dbt_transform',
+    label: 'dbt_transform',
+    desc: 'Data transformation with dbt - SQL models, testing, documentation',
+    useCase: 'Transform raw data into analytics-ready models',
+    example: 'Goal: "Transform data" → Skills: [dbt_transform]',
+    prerequisites: ['dbt-core'],
+    output: 'Materialized models and test results',
+    category: 'Core'
+  },
+  {
+    id: 'face_recognize',
+    label: 'face_recognize',
+    desc: 'Face recognition - detection, identification, emotion analysis',
+    useCase: 'Identify faces in images and analyze facial attributes',
+    example: 'Goal: "Recognize faces" → Skills: [face_recognize]',
+    prerequisites: ['face-recognition'],
+    output: 'Face detection boxes and identity matches',
+    category: 'AI'
+  },
+  {
+    id: 'flaml_auto',
+    label: 'flaml_auto',
+    desc: 'Efficient AutoML with FLAML - fast hyperparameter tuning',
+    useCase: 'Resource-efficient automated machine learning',
+    example: 'Goal: "Auto tune model" → Skills: [flaml_auto]',
+    prerequisites: ['flaml'],
+    output: 'Optimized model and configuration',
+    category: 'AI'
+  },
+  {
+    id: 'kubeflow_pipe',
+    label: 'kubeflow_pipe',
+    desc: 'ML pipelines with Kubeflow - workflow orchestration on K8s',
+    useCase: 'Run scalable ML workflows on Kubernetes',
+    example: 'Goal: "Run Kubeflow pipeline" → Skills: [kubeflow_pipe]',
+    prerequisites: ['kfp'],
+    output: 'Pipeline run status and artifacts',
+    category: 'AI'
+  },
+  {
+    id: 'mlflow_deploy',
+    label: 'mlflow_deploy',
+    desc: 'ML model deployment with MLflow - serving, batch inference',
+    useCase: 'Deploy trained models to production',
+    example: 'Goal: "Deploy model" → Skills: [mlflow_deploy]',
+    prerequisites: ['mlflow'],
+    output: 'Deployment endpoint and model version',
+    category: 'AI'
+  },
+  {
+    id: 'mlflow_track',
+    label: 'mlflow_track',
+    desc: 'ML experiment tracking with MLflow - metrics, parameters, artifacts',
+    useCase: 'Track experiments and compare model runs',
+    example: 'Goal: "Track experiment" → Skills: [mlflow_track]',
+    prerequisites: ['mlflow'],
+    output: 'Experiment run ID and logged metrics',
+    category: 'AI'
+  },
+  {
+    id: 'model_reg',
+    label: 'model_reg',
+    desc: 'Model registry management - versioning, staging, promotion',
+    useCase: 'Manage model lifecycle from staging to production',
+    example: 'Goal: "Register model" → Skills: [model_reg]',
+    prerequisites: ['mlflow'],
+    output: 'Registered model version and stage',
+    category: 'AI'
+  },
+  {
+    id: 'nft_mint',
+    label: 'nft_mint',
+    desc: 'NFT minting and metadata management on blockchain',
+    useCase: 'Create and manage NFT tokens with metadata',
+    example: 'Goal: "Mint NFT" → Skills: [nft_mint]',
+    prerequisites: ['web3'],
+    output: 'Token ID and transaction hash',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'osint_recon',
+    label: 'osint_recon',
+    desc: 'OSINT reconnaissance - gather intelligence on targets',
+    useCase: 'Collect publicly available information for security assessment',
+    example: 'Goal: "Recon target" → Skills: [osint_recon]',
+    prerequisites: ['shodan'],
+    output: 'Reconnaissance report with gathered data',
+    category: 'Core'
+  },
+  {
+    id: 'pentest_scan',
+    label: 'pentest_scan',
+    desc: 'Penetration testing - vulnerability scanning, security assessment',
+    useCase: 'Scan systems for security vulnerabilities',
+    example: 'Goal: "Scan for vulnerabilities" → Skills: [pentest_scan]',
+    prerequisites: ['python-nmap'],
+    output: 'Vulnerability scan report',
+    category: 'Core'
+  },
+  {
+    id: 'pycaret_ml',
+    label: 'pycaret_ml',
+    desc: 'Low-code ML with PyCaret - classification, regression, clustering',
+    useCase: 'Rapid prototyping of machine learning models',
+    example: 'Goal: "Classify dataset" → Skills: [pycaret_ml]',
+    prerequisites: ['pycaret'],
+    output: 'Model comparison table and trained pipeline',
+    category: 'AI'
+  },
+  {
+    id: 'security_audit',
+    label: 'security_audit',
+    desc: 'Security audit - code review, dependency vulnerabilities',
+    useCase: 'Audit code and dependencies for security issues',
+    example: 'Goal: "Audit security" → Skills: [security_audit]',
+    prerequisites: ['bandit'],
+    output: 'Security audit findings report',
+    category: 'Core'
+  },
+  {
+    id: 'smart_contract',
+    label: 'smart_contract',
+    desc: 'Smart contract deployment and interaction on Ethereum',
+    useCase: 'Deploy and interact with Solidity smart contracts',
+    example: 'Goal: "Deploy contract" → Skills: [smart_contract]',
+    prerequisites: ['web3'],
+    output: 'Contract address and deployment receipt',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'snowflake_etl',
+    label: 'snowflake_etl',
+    desc: 'Snowflake ETL - data loading, warehousing, analytics',
+    useCase: 'Load and transform data in Snowflake',
+    example: 'Goal: "Load to Snowflake" → Skills: [snowflake_etl]',
+    prerequisites: ['snowflake-connector-python'],
+    output: 'Load status and row counts',
+    category: 'Core'
+  },
+  {
+    id: 'solana_tx',
+    label: 'solana_tx',
+    desc: 'Solana transactions - SPL tokens, wallet management',
+    useCase: 'Send transactions and manage tokens on Solana',
+    example: 'Goal: "Send SOL" → Skills: [solana_tx]',
+    prerequisites: ['solana'],
+    output: 'Transaction signature and confirmation',
+    category: 'Ecosystem'
+  },
+  {
+    id: 'spark_process',
+    label: 'spark_process',
+    desc: 'Big data processing with PySpark - ETL, analytics on large datasets',
+    useCase: 'Process large-scale data with Apache Spark',
+    example: 'Goal: "Process big data" → Skills: [spark_process]',
+    prerequisites: ['pyspark'],
+    output: 'Spark job status and results',
+    category: 'Core'
+  },
+  {
+    id: 'video_analyze',
+    label: 'video_analyze',
+    desc: 'Video analysis - motion detection, tracking, frame extraction',
+    useCase: 'Extract insights from video streams',
+    example: 'Goal: "Analyze video" → Skills: [video_analyze]',
+    prerequisites: ['moviepy'],
+    output: 'Frame annotations and motion reports',
+    category: 'AI'
   }
 ]
 

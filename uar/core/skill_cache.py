@@ -216,6 +216,9 @@ class RedisSkillCache:
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
             return json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("Corrupted cache entry for key %s", key)
+            return None
         except Exception:
             return None
 

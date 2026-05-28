@@ -183,7 +183,10 @@ def quantum_circuit(ctx: PipelineContext) -> Dict[str, Any]:
                      {"name": "H"/"X"/"Y"/"Z"/"CX", "targets": [0]}
         qc_shots:    number of simulation shots (default 1024)
     """
-    err = require_package("qiskit")
+    err = require_package(
+        ["qiskit", "qiskit_aer"],
+        install_hint="pip install qiskit qiskit-aer",
+    )
     if err:
         return err
 

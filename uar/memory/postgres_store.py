@@ -464,3 +464,24 @@ class PostgresRunStore:
             if isinstance(record[key], str):
                 record[key] = json.loads(record[key])
         return record
+
+    def purge_old_records(self, retention_days: int) -> int:
+        """Remove records older than *retention_days* from PostgreSQL.
+
+        Returns the number of records removed.
+        """
+        if retention_days <= 0:
+            return 0
+        import time
+
+        cutoff = time.time() - (retention_days * 86400)
+        sql = "DELETE FROM uar_runs WHERE created_at < to_timestamp(%s)"
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, (cutoff,))
+                removed = cur.rowcount
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+        return removed

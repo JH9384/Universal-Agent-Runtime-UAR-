@@ -14,8 +14,6 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 
 from uar.api.middleware import api_error_handler
-from uar.core.exceptions import UARError, ValidationError
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/advanced", tags=["advanced"])

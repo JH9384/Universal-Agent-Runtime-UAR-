@@ -369,6 +369,10 @@ class RedisCacheBackend(CacheBackend):
             if raw is None:
                 return None
             return json.loads(str(raw)).get("result")
+        except json.JSONDecodeError as exc:
+            logger.warning("Redis cache entry corrupt for %s: %s", key, exc)
+            self._record_failure(exc)
+            return None
         except Exception as exc:
             self._record_failure(exc)
             return None

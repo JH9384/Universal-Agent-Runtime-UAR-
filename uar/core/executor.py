@@ -953,9 +953,9 @@ class Executor:
             )
 
         # Hierarchical execution path (opt-in via env var or metadata)
-        _executed_hierarchical = False
-        _hierarchical_enabled = os.getenv(
-            "UAR_HIERARCHICAL_EXECUTION", ""
+        _hierarchical_env = os.getenv("UAR_HIERARCHICAL_EXECUTION", "").lower()
+        _hierarchical_enabled = (
+            _hierarchical_env in ("true", "1", "yes")
         ) or goal_metadata.get("use_hierarchical")
         if (
             execution_order
@@ -975,6 +975,9 @@ class Executor:
             )
             # Emit top-level metrics and complete for hierarchical path
             total_time = time.time() - _metrics_start
+            with self._recipe_cache_lock:
+                _recipe_hits = self._recipe_cache_hits
+                _recipe_misses = self._recipe_cache_misses
             yield _ev(
                 "metrics",
                 payload={
@@ -982,8 +985,8 @@ class Executor:
                     "event_count": _metrics_event_count,
                     "cache_hits": _metrics_cache_hits,
                     "cache_misses": _metrics_cache_misses,
-                    "recipe_cache_hits": self._recipe_cache_hits,
-                    "recipe_cache_misses": self._recipe_cache_misses,
+                    "recipe_cache_hits": _recipe_hits,
+                    "recipe_cache_misses": _recipe_misses,
                     "skills_executed": len(_metrics_skill_times),
                     "skill_times_ms": {
                         k: round(v * 1000, 1)
@@ -1007,42 +1010,39 @@ class Executor:
                 gc.collect()
             return
 
-        if not _executed_hierarchical:
-            # Legacy flat execution path
-            # Group skills for parallel execution
-            enable_parallel = getattr(goal, "metadata", {}).get(
-                "enable_parallel", True
+        # Legacy flat execution path
+        # Group skills for parallel execution
+        enable_parallel = getattr(goal, "metadata", {}).get(
+            "enable_parallel", True
+        )
+        if enable_parallel and strategy.waves:
+            # DAG-aware parallel waves from orchestration plan
+            skill_groups: List[List[str]] = []
+            for g in strategy.waves:
+                if len(g) == 1:
+                    # Singleton groups always included
+                    skill_groups.append(g)
+                else:
+                    # Multi-skill wave: split out context-modifying
+                    clean: List[str] = []
+                    for skill in g:
+                        if skill in CONTEXT_MODIFYING_SKILLS:
+                            if clean:
+                                skill_groups.append(clean)
+                                clean = []
+                            skill_groups.append([skill])
+                        else:
+                            clean.append(skill)
+                    if clean:
+                        skill_groups.append(clean)
+        elif enable_parallel:
+            skill_groups = _get_parallel_groups(
+                strategy.ordered_skills
             )
-            if enable_parallel and strategy.waves:
-                # DAG-aware parallel waves from orchestration plan
-                skill_groups: List[List[str]] = []
-                for g in strategy.waves:
-                    if len(g) == 1:
-                        # Singleton groups always included
-                        skill_groups.append(g)
-                    else:
-                        # Multi-skill wave: split out context-modifying
-                        clean: List[str] = []
-                        for skill in g:
-                            if skill in CONTEXT_MODIFYING_SKILLS:
-                                if clean:
-                                    skill_groups.append(clean)
-                                    clean = []
-                                skill_groups.append([skill])
-                            else:
-                                clean.append(skill)
-                        if clean:
-                            skill_groups.append(clean)
-            elif enable_parallel:
-                skill_groups = _get_parallel_groups(
-                    strategy.ordered_skills
-                )
-            else:
-                skill_groups = [
-                    [s] for s in strategy.ordered_skills
-                ]
         else:
-            skill_groups = []
+            skill_groups = [
+                [s] for s in strategy.ordered_skills
+            ]
 
         # Build O(1) marker lookup for recipe_start/recipe_end emission
         # keyed by index in the flat ordered_skills list
@@ -1814,6 +1814,9 @@ class Executor:
         if not _suppress_start_complete:
             # Emit execution metrics before completion
             total_time = time.time() - _metrics_start
+            with self._recipe_cache_lock:
+                _recipe_hits = self._recipe_cache_hits
+                _recipe_misses = self._recipe_cache_misses
             yield _ev(
                 "metrics",
                 payload={
@@ -1821,8 +1824,8 @@ class Executor:
                     "event_count": _metrics_event_count,
                     "cache_hits": _metrics_cache_hits,
                     "cache_misses": _metrics_cache_misses,
-                    "recipe_cache_hits": self._recipe_cache_hits,
-                    "recipe_cache_misses": self._recipe_cache_misses,
+                    "recipe_cache_hits": _recipe_hits,
+                    "recipe_cache_misses": _recipe_misses,
                     "skills_executed": len(_metrics_skill_times),
                     "skill_times_ms": {
                         k: round(v * 1000, 1)
@@ -2035,6 +2038,8 @@ class Executor:
                             self._recipe_cache_hits += 1
                             cached_delta = self._recipe_cache[_cache_key]
                             has_hit = True
+                        else:
+                            self._recipe_cache_misses += 1
 
                 if has_hit:
                     yield _event(
@@ -2173,8 +2178,6 @@ class Executor:
                 self._recipe_post_execute(
                     recipe_id, instance_id, status, recipe_errors
                 )
-
-                self._recipe_cache_misses += 1
 
                 # Cache the context delta on successful execution
                 if _cache_key and not recipe_errors and status == "completed":
