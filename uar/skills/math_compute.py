@@ -15,15 +15,14 @@ Goal Metadata:
     math_domain - Optional domain specification (e.g., 'real', 'complex')
 """
 
-import os
 import logging
+import os
 from typing import Dict, Any
 
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
-
-logger = logging.getLogger(__name__)
+from uar.core.skill_utils import require_package
 
 # Circuit breaker for SymPy computations (handles timeouts and errors)
 _math_cb = CircuitBreaker(
@@ -39,12 +38,7 @@ MAX_EXPRESSION_SIZE = max(
     1, int(os.getenv("MATH_MAX_EXPRESSION_SIZE", "10000").strip() or "10000")
 )
 
-
-def _check_sympy_available() -> bool:
-    """Check if SymPy is available with graceful degradation."""
-    import importlib.util
-
-    return importlib.util.find_spec("sympy") is not None
+logger = logging.getLogger(__name__)
 
 
 def _safe_sympy_eval(expr: str, timeout: float) -> Dict[str, Any]:
@@ -88,81 +82,65 @@ def _solve_equation(expr: str, variable: str = "x") -> Dict[str, Any]:
     """Solve equation for variable."""
     import sympy
 
-    try:
-        x = sympy.Symbol(variable)
-        lhs = sympy.sympify(expr.split("=")[0])
-        rhs = sympy.sympify(expr.split("=")[1])
-        eq = sympy.Eq(lhs, rhs)
-        solutions = sympy.solve(eq, x)
+    x = sympy.Symbol(variable)
+    lhs = sympy.sympify(expr.split("=")[0])
+    rhs = sympy.sympify(expr.split("=")[1])
+    eq = sympy.Eq(lhs, rhs)
+    solutions = sympy.solve(eq, x)
 
-        return {
-            "success": True,
-            "solutions": [str(sol) for sol in solutions],
-            "solution_count": len(solutions),
-            "variable": variable,
-        }
-    except Exception:
-        logger.exception("_solve failed")
-        return {"success": False, "error": "Solve failed"}
+    return {
+        "success": True,
+        "solutions": [str(sol) for sol in solutions],
+        "solution_count": len(solutions),
+        "variable": variable,
+    }
 
 
 def _differentiate(expr: str, variable: str = "x") -> Dict[str, Any]:
     """Differentiate expression with respect to variable."""
     import sympy
 
-    try:
-        x = sympy.Symbol(variable)
-        f = sympy.sympify(expr)
-        df = sympy.diff(f, x)
+    x = sympy.Symbol(variable)
+    f = sympy.sympify(expr)
+    df = sympy.diff(f, x)
 
-        return {
-            "success": True,
-            "derivative": str(df),
-            "derivative_latex": sympy.latex(df),
-            "variable": variable,
-        }
-    except Exception:
-        logger.exception("_differentiate failed")
-        return {"success": False, "error": "Differentiation failed"}
+    return {
+        "success": True,
+        "derivative": str(df),
+        "derivative_latex": sympy.latex(df),
+        "variable": variable,
+    }
 
 
 def _integrate(expr: str, variable: str = "x") -> Dict[str, Any]:
     """Integrate expression with respect to variable."""
     import sympy
 
-    try:
-        x = sympy.Symbol(variable)
-        f = sympy.sympify(expr)
-        integral = sympy.integrate(f, x)
+    x = sympy.Symbol(variable)
+    f = sympy.sympify(expr)
+    integral = sympy.integrate(f, x)
 
-        return {
-            "success": True,
-            "integral": str(integral),
-            "integral_latex": sympy.latex(integral),
-            "variable": variable,
-        }
-    except Exception:
-        logger.exception("_integrate failed")
-        return {"success": False, "error": "Integration failed"}
+    return {
+        "success": True,
+        "integral": str(integral),
+        "integral_latex": sympy.latex(integral),
+        "variable": variable,
+    }
 
 
 def _simplify(expr: str) -> Dict[str, Any]:
     """Simplify mathematical expression."""
     import sympy
 
-    try:
-        f = sympy.sympify(expr)
-        simplified = sympy.simplify(f)
+    f = sympy.sympify(expr)
+    simplified = sympy.simplify(f)
 
-        return {
-            "success": True,
-            "original": str(f),
-            "simplified": str(simplified),
-            "simplified_latex": sympy.latex(simplified),
-        }
-    except Exception:
-        logger.exception("_simplify failed")
-        return {"success": False, "error": "Simplification failed"}
+    return {
+        "success": True,
+        "original": str(f),
+        "simplified": str(simplified),
+        "simplified_latex": sympy.latex(simplified),
+    }
 
 
 @register_skill("math_compute")
@@ -187,13 +165,9 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with computation results or error information.
     """
-    # Check SymPy availability
-    if not _check_sympy_available():
-        return {
-            "status": "failed",
-            "error": "SymPy not installed. Install with: pip install sympy",
-            "operation": "unavailable",
-        }
+    err = require_package("sympy")
+    if err:
+        return err
 
     # Get parameters from goal metadata
     operation = ctx.goal.metadata.get("math_operation", "evaluate")

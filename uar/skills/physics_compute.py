@@ -23,6 +23,7 @@ from typing import Dict, Any
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import require_package
 
 logger = logging.getLogger(__name__)
 
@@ -44,32 +45,21 @@ MAX_DATA_SIZE = max(
 )
 
 
-def _check_astropy_available() -> bool:
-    """Check if Astropy is available with graceful degradation."""
-    import importlib.util
-
-    return importlib.util.find_spec("astropy") is not None
-
-
 def _convert_units(value: str, from_unit: str, to_unit: str) -> Dict[str, Any]:
     """Convert value from one unit to another using Astropy."""
     from astropy import units as u
 
-    try:
-        qty = u.Quantity(value, from_unit)
-        converted = qty.to(to_unit)
+    qty = u.Quantity(value, from_unit)
+    converted = qty.to(to_unit)
 
-        return {
-            "success": True,
-            "original_value": value,
-            "original_unit": from_unit,
-            "converted_value": str(converted.value),
-            "converted_unit": to_unit,
-            "numerical_value": float(converted.value),
-        }
-    except Exception:
-        logger.exception("_unit_convert failed")
-        return {"success": False, "error": "Unit conversion failed"}
+    return {
+        "success": True,
+        "original_value": value,
+        "original_unit": from_unit,
+        "converted_value": str(converted.value),
+        "converted_unit": to_unit,
+        "numerical_value": float(converted.value),
+    }
 
 
 def _calculate_distance(
@@ -78,22 +68,18 @@ def _calculate_distance(
     """Calculate angular distance between two coordinates."""
     from astropy.coordinates import SkyCoord
 
-    try:
-        c1 = SkyCoord(ra1, dec1, unit="deg")
-        c2 = SkyCoord(ra2, dec2, unit="deg")
-        separation = c1.separation(c2)
+    c1 = SkyCoord(ra1, dec1, unit="deg")
+    c2 = SkyCoord(ra2, dec2, unit="deg")
+    separation = c1.separation(c2)
 
-        return {
-            "success": True,
-            "coordinate1": f"{ra1}, {dec1}",
-            "coordinate2": f"{ra2}, {dec2}",
-            "angular_distance": str(separation),
-            "angular_distance_degrees": separation.degree,
-            "angular_distance_arcsec": separation.arcsecond,
-        }
-    except Exception:
-        logger.exception("_calculate_distance failed")
-        return {"success": False, "error": "Distance calculation failed"}
+    return {
+        "success": True,
+        "coordinate1": f"{ra1}, {dec1}",
+        "coordinate2": f"{ra2}, {dec2}",
+        "angular_distance": str(separation),
+        "angular_distance_degrees": separation.degree,
+        "angular_distance_arcsec": separation.arcsecond,
+    }
 
 
 def _transform_coordinate(
@@ -103,30 +89,26 @@ def _transform_coordinate(
     from astropy.coordinates import SkyCoord
     from astropy.coordinates import FK5, ICRS, Galactic
 
-    try:
-        frames = {"icrs": ICRS, "fk5": FK5, "galactic": Galactic}
+    frames = {"icrs": ICRS, "fk5": FK5, "galactic": Galactic}
 
-        if from_frame not in frames or to_frame not in frames:
-            return {
-                "success": False,
-                "error": "Unsupported frame",
-            }
-
-        c = SkyCoord(ra, dec, unit="deg", frame=frames[from_frame])
-        transformed = c.transform(frames[to_frame])
-
+    if from_frame not in frames or to_frame not in frames:
         return {
-            "success": True,
-            "from_frame": from_frame,
-            "to_frame": to_frame,
-            "original_ra": ra,
-            "original_dec": dec,
-            "transformed_ra": str(transformed.ra),
-            "transformed_dec": str(transformed.dec),
+            "success": False,
+            "error": "Unsupported frame",
         }
-    except Exception:
-        logger.exception("_transform_coordinate failed")
-        return {"success": False, "error": "Coordinate transformation failed"}
+
+    c = SkyCoord(ra, dec, unit="deg", frame=frames[from_frame])
+    transformed = c.transform(frames[to_frame])
+
+    return {
+        "success": True,
+        "from_frame": from_frame,
+        "to_frame": to_frame,
+        "original_ra": ra,
+        "original_dec": dec,
+        "transformed_ra": str(transformed.ra),
+        "transformed_dec": str(transformed.dec),
+    }
 
 
 def _calculate_energy(wavelength: str) -> Dict[str, Any]:
@@ -134,39 +116,31 @@ def _calculate_energy(wavelength: str) -> Dict[str, Any]:
     from astropy import units as u
     from astropy.constants import h, c
 
-    try:
-        wave = u.Quantity(wavelength)
-        energy = (h * c / wave).to(u.eV)
+    wave = u.Quantity(wavelength)
+    energy = (h * c / wave).to(u.eV)
 
-        return {
-            "success": True,
-            "wavelength": str(wave),
-            "energy": str(energy),
-            "energy_eV": energy.value,
-        }
-    except Exception:
-        logger.exception("_calculate_energy failed")
-        return {"success": False, "error": "Energy calculation failed"}
+    return {
+        "success": True,
+        "wavelength": str(wave),
+        "energy": str(energy),
+        "energy_eV": energy.value,
+    }
 
 
 def _calculate_redshift(z: str) -> Dict[str, Any]:
     """Calculate cosmological properties from redshift."""
     from astropy.cosmology import Planck18
 
-    try:
-        z_val = float(z)
-        cosmo = Planck18
-        distance = cosmo.luminosity_distance(z_val)
+    z_val = float(z)
+    cosmo = Planck18
+    distance = cosmo.luminosity_distance(z_val)
 
-        return {
-            "success": True,
-            "redshift": z,
-            "luminosity_distance": str(distance),
-            "luminosity_distance_Mpc": distance.value,
-        }
-    except Exception:
-        logger.exception("_calculate_redshift failed")
-        return {"success": False, "error": "Redshift calculation failed"}
+    return {
+        "success": True,
+        "redshift": z,
+        "luminosity_distance": str(distance),
+        "luminosity_distance_Mpc": distance.value,
+    }
 
 
 @register_skill("physics_compute")
@@ -191,13 +165,9 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with computation results or error information.
     """  # noqa: E501
-    # Check Astropy availability
-    if not _check_astropy_available():
-        return {
-            "status": "failed",
-            "error": "Astropy not installed. Install with: pip install astropy",  # noqa: E501
-            "operation": "unavailable",
-        }
+    err = require_package("astropy")
+    if err:
+        return err
 
     # Get parameters from goal metadata
     operation = ctx.goal.metadata.get("physics_operation", "convert")
@@ -296,14 +266,10 @@ def _query_physics(physics_type: str, value: str) -> Dict[str, Any]:
 def _calculate_distance_from_value(value: str) -> Dict[str, Any]:
     """Calculate distance from coordinate string."""
     # Parse coordinate string format: "ra1,dec1,ra2,dec2"
-    try:
-        parts = value.split(",")
-        if len(parts) != 4:
-            return {
-                "success": False,
-                "error": "Format should be: ra1,dec1,ra2,dec2",
-            }
-        return _calculate_distance(parts[0], parts[1], parts[2], parts[3])
-    except Exception:
-        logger.exception("_execute_operation failed")
-        return {"success": False, "error": "Operation failed"}
+    parts = value.split(",")
+    if len(parts) != 4:
+        return {
+            "success": False,
+            "error": "Format should be: ra1,dec1,ra2,dec2",
+        }
+    return _calculate_distance(parts[0], parts[1], parts[2], parts[3])
