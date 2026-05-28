@@ -5,9 +5,12 @@ Covers: endpoint availability, content-type, valid exposition format.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 
+from uar.api.metrics import get_metrics_collector
 from uar.api.server import app
 
 
@@ -162,3 +165,150 @@ class TestMetricsCollector:
         collector = MetricsCollector()
         collector.shutdown()
         assert collector._shutdown is True
+
+    def test_record_connection(self):
+        from uar.api.metrics import MetricsCollector
+        collector = MetricsCollector()
+        collector.record_connection(3)
+        assert collector._active_ws_connections == 3
+        collector.record_connection(-2)
+        assert collector._active_ws_connections == 1
+        collector.record_connection(-10)
+        assert collector._active_ws_connections == 0
+        collector.shutdown()
+
+    def test_get_metrics(self):
+        from uar.api.metrics import MetricsCollector
+        collector = MetricsCollector()
+        collector.record_request("/api/test", 0.1)
+        collector._flush_window()
+        metrics = collector.get_metrics()
+        assert metrics["total_requests"] == 1
+        assert "/api/test" in metrics["endpoints"]
+        collector.shutdown()
+
+    def test_get_prometheus_format(self):
+        from uar.api.metrics import MetricsCollector
+        collector = MetricsCollector()
+        collector.record_request("/api/test", 0.1)
+        collector._flush_window()
+        text = collector.get_prometheus_format()
+        assert "uar_requests_total" in text
+        assert "uar_request_duration_seconds_bucket" in text
+        collector.shutdown()
+
+    def test_redis_circuit_breaker(self):
+        from uar.api.metrics import MetricsCollector
+        collector = MetricsCollector()
+        assert collector._is_redis_circuit_open() is False
+        for _ in range(5):
+            collector._record_redis_failure(Exception("fail"))
+        assert collector._is_redis_circuit_open() is True
+        collector.shutdown()
+
+    def test_redis_circuit_resets(self):
+        from uar.api.metrics import MetricsCollector
+        import time
+
+        collector = MetricsCollector()
+        collector._record_redis_failure(Exception("fail"))
+        assert collector._is_redis_circuit_open() is False
+        # Manually set to open and backdate
+        with collector._redis_circuit_lock:
+            collector._redis_circuit_open = True
+            collector._redis_last_failure_time = time.time() - 60
+        assert collector._is_redis_circuit_open() is False
+        collector.shutdown()
+
+    def test_load_from_redis_no_redis(self):
+        from uar.api.metrics import MetricsCollector
+        collector = MetricsCollector()
+        collector._load_from_redis()  # should not raise
+        collector.shutdown()
+
+    def test_persist_to_redis_no_redis(self):
+        from uar.api.metrics import MetricsCollector
+        collector = MetricsCollector()
+        collector._persist_to_redis()  # should not raise
+        collector.shutdown()
+
+    def test_persist_to_redis_with_mock(self):
+        from uar.api.metrics import MetricsCollector
+        mock_redis = MagicMock()
+        with patch("uar.api.metrics._get_redis", return_value=mock_redis):
+            collector = MetricsCollector()
+            collector._total_requests = 42
+            collector._dirty = True
+            collector._persist_to_redis()
+            mock_redis.hset.assert_called()
+            mock_redis.expire.assert_called()
+        collector.shutdown()
+
+    def test_load_from_redis_with_mock(self):
+        from uar.api.metrics import MetricsCollector
+        mock_redis = MagicMock()
+        mock_redis.hgetall.return_value = {
+            "total_requests": "100",
+            "total_errors": "5",
+            "active_ws_connections": "2",
+        }
+        with patch("uar.api.metrics._get_redis", return_value=mock_redis):
+            collector = MetricsCollector()
+            assert collector._total_requests == 100
+            assert collector._total_errors == 5
+            assert collector._active_ws_connections == 2
+        collector.shutdown()
+
+    def test_record_redis_failure_persistence(self):
+        from uar.api.metrics import MetricsCollector
+        mock_redis = MagicMock()
+        mock_redis.hset.side_effect = Exception("redis down")
+        with patch("uar.api.metrics._get_redis", return_value=mock_redis):
+            collector = MetricsCollector()
+            collector._total_requests = 10
+            collector._dirty = True
+            collector._persist_to_redis()
+            assert collector._redis_failures > 0
+        collector.shutdown()
+
+
+class TestTimedDecorator:
+    """@timed decorator."""
+
+    def test_records_success(self):
+        from uar.api.metrics import timed, get_metrics_collector
+        collector = get_metrics_collector()
+        before = collector._total_requests
+
+        @timed(endpoint="/test_decorated")
+        def my_func():
+            return "ok"
+
+        my_func()
+        assert collector._total_requests > before
+
+    def test_records_error(self):
+        from uar.api.metrics import timed
+        collector = get_metrics_collector()
+        before_err = collector._total_errors
+
+        @timed(endpoint="/test_error")
+        def my_func():
+            raise ValueError("fail")
+
+        with pytest.raises(ValueError):
+            my_func()
+        collector._flush_window()
+        assert collector._total_errors > before_err
+
+    def test_default_endpoint_name(self):
+        from uar.api.metrics import timed
+        collector = get_metrics_collector()
+
+        @timed()
+        def my_module_my_func():
+            return "ok"
+
+        my_module_my_func()
+        # Should use __qualname__ as endpoint
+        assert collector._total_requests >= 1
