@@ -29,6 +29,7 @@ except ImportError:
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
+from uar.core.skill_utils import require_package, skill_guard
 from uar.skills.llm_base import (
     make_client_getter,
     make_model_getter,
@@ -57,6 +58,7 @@ _get_max_tokens = make_max_tokens_getter(prefix="anthropic")
 
 
 @register_skill("anthropic_chat")
+@skill_guard("Anthropic chat", status="failed")
 @with_circuit_breaker("anthropic", failure_threshold=5, recovery_timeout=60.0)
 def anthropic_chat(ctx: PipelineContext) -> Dict[str, Any]:
     """Chat with Anthropic Claude models.
@@ -70,15 +72,13 @@ def anthropic_chat(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with chat response and metadata
     """
-    client = _get_client()
+    err = require_package("anthropic")
+    if err:
+        return err
 
+    client = _get_client()
     if client is None:
-        return {
-            "status": "failed",
-            "error": (  # noqa
-                "Anthropic client not available (install anthropic package and set ANTHROPIC_API_KEY)"  # noqa
-            ),
-        }
+        return {"status": "failed", "error": "ANTHROPIC_API_KEY not set"}
 
     meta = ctx.goal.metadata or {}
     messages = meta.get("messages", [])
@@ -88,50 +88,43 @@ def anthropic_chat(ctx: PipelineContext) -> Dict[str, Any]:
         # If no messages provided, use the goal as a user message
         messages = [{"role": "user", "content": ctx.goal.objective}]
 
-    try:
-        model = _get_model(ctx)
-        temperature = _get_temperature(ctx)
-        max_tokens = _get_max_tokens(ctx)
+    model = _get_model(ctx)
+    temperature = _get_temperature(ctx)
+    max_tokens = _get_max_tokens(ctx)
 
-        logger.info("Calling Anthropic Claude with model %s", model)
+    logger.info("Calling Anthropic Claude with model %s", model)
 
-        response = client.messages.create(
-            model=model,
-            system=system,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+    response = client.messages.create(
+        model=model,
+        system=system,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
 
-        if not response.content:
-            return {
-                "status": "failed",
-                "error": "API returned empty content array",
-                "model": model,
-            }
-
-        return {
-            "status": "completed",
-            "model": model,
-            "message": response.content[0].text,
-            "stop_reason": response.stop_reason,
-            "usage": {  # noqa
-                "input_tokens": response.usage.input_tokens,  # noqa
-                "output_tokens": response.usage.output_tokens,  # noqa
-                "total_tokens": response.usage.input_tokens
-                + response.usage.output_tokens,  # noqa
-            },
-        }
-    except Exception:
-        logger.exception("anthropic_chat failed")
+    if not response.content:
         return {
             "status": "failed",
-            "error": "Chat request failed",
-            "model": _get_model(ctx),
+            "error": "API returned empty content array",
+            "model": model,
         }
+
+    return {
+        "status": "completed",
+        "model": model,
+        "message": response.content[0].text,
+        "stop_reason": response.stop_reason,
+        "usage": {  # noqa
+            "input_tokens": response.usage.input_tokens,  # noqa
+            "output_tokens": response.usage.output_tokens,  # noqa
+            "total_tokens": response.usage.input_tokens
+            + response.usage.output_tokens,  # noqa
+        },
+    }
 
 
 @register_skill("anthropic_completion")
+@skill_guard("Anthropic completion", status="failed")
 @with_circuit_breaker("anthropic", failure_threshold=5, recovery_timeout=60.0)
 def anthropic_completion(ctx: PipelineContext) -> Dict[str, Any]:
     """Text completion with Anthropic Claude models.
@@ -144,62 +137,53 @@ def anthropic_completion(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with completion text and metadata
     """
-    client = _get_client()
+    err = require_package("anthropic")
+    if err:
+        return err
 
+    client = _get_client()
     if client is None:
-        return {
-            "status": "failed",
-            "error": (  # noqa
-                "Anthropic client not available (install anthropic package and set ANTHROPIC_API_KEY)"  # noqa
-            ),
-        }
+        return {"status": "failed", "error": "ANTHROPIC_API_KEY not set"}
 
     meta = ctx.goal.metadata or {}
     prompt = meta.get("prompt", ctx.goal.objective)
 
-    try:
-        model = _get_model(ctx)
-        temperature = _get_temperature(ctx)
-        max_tokens = _get_max_tokens(ctx)
+    model = _get_model(ctx)
+    temperature = _get_temperature(ctx)
+    max_tokens = _get_max_tokens(ctx)
 
-        logger.info("Calling Anthropic completion with model %s", model)
+    logger.info("Calling Anthropic completion with model %s", model)
 
-        response = client.messages.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+    response = client.messages.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
 
-        if not response.content:
-            return {
-                "status": "failed",
-                "error": "API returned empty content array",
-                "model": model,
-            }
-
-        return {
-            "status": "completed",
-            "model": model,
-            "text": response.content[0].text,
-            "stop_reason": response.stop_reason,
-            "usage": {  # noqa
-                "input_tokens": response.usage.input_tokens,  # noqa
-                "output_tokens": response.usage.output_tokens,  # noqa
-                "total_tokens": response.usage.input_tokens
-                + response.usage.output_tokens,  # noqa
-            },
-        }
-    except Exception:
-        logger.exception("anthropic_completion failed")
+    if not response.content:
         return {
             "status": "failed",
-            "error": "Completion request failed",
-            "model": _get_model(ctx),
+            "error": "API returned empty content array",
+            "model": model,
         }
+
+    return {
+        "status": "completed",
+        "model": model,
+        "text": response.content[0].text,
+        "stop_reason": response.stop_reason,
+        "usage": {  # noqa
+            "input_tokens": response.usage.input_tokens,  # noqa
+            "output_tokens": response.usage.output_tokens,  # noqa
+            "total_tokens": response.usage.input_tokens
+            + response.usage.output_tokens,  # noqa
+        },
+    }
 
 
 @register_skill("anthropic_embedding")
+@skill_guard("Anthropic embedding", status="failed")
 @with_circuit_breaker("anthropic", failure_threshold=5, recovery_timeout=60.0)
 def anthropic_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate embeddings using Anthropic (if supported).
