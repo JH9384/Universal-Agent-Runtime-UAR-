@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 
 def _parse_dut_ports(source: str) -> List[Dict[str, Any]]:
@@ -80,6 +81,7 @@ def _simulate_combinational(
     return results
 
 
+@skill_guard("FPGA verify", status="failed")
 def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """Verify Verilog module with generated test vectors.
 
@@ -97,78 +99,72 @@ def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "source is required in goal metadata",
         }
 
-    try:
-        ports = _parse_dut_ports(source)
-        inputs = [p for p in ports if p["direction"] == "input"]
-        outputs = [p for p in ports if p["direction"] == "output"]
+    ports = _parse_dut_ports(source)
+    inputs = [p for p in ports if p["direction"] == "input"]
+    outputs = [p for p in ports if p["direction"] == "output"]
 
-        vectors = _generate_test_vectors(inputs, num_vectors)
-        results = _simulate_combinational(source, vectors)
+    vectors = _generate_test_vectors(inputs, num_vectors)
+    results = _simulate_combinational(source, vectors)
 
-        # Build waveform metadata
-        waveform = {
-            "signals": [p["name"] for p in ports],
-            "cycles": num_vectors,
-            "data": results,
-        }
+    # Build waveform metadata
+    waveform = {
+        "signals": [p["name"] for p in ports],
+        "cycles": num_vectors,
+        "data": results,
+    }
 
-        # Simple assertions
-        assertions = []
-        passed = 0
-        failed = 0
-        for r in results:
-            for out_name, out_val in r["outputs"].items():
-                # Check output is within valid range
-                out_port = next(
-                    (p for p in outputs if p["name"] == out_name), None
-                )
-                if out_port:
-                    max_val = (1 << out_port["width"]) - 1
-                    if 0 <= out_val <= max_val:
-                        passed += 1
-                    else:
-                        failed += 1
-                        assertions.append({
-                            "cycle": r["cycle"],
-                            "signal": out_name,
-                            "expected": f"<= {max_val}",
-                            "actual": out_val,
-                            "status": "fail",
-                        })
-                    if failed == 0:
-                        passed += 1
+    # Simple assertions
+    assertions = []
+    passed = 0
+    failed = 0
+    for r in results:
+        for out_name, out_val in r["outputs"].items():
+            # Check output is within valid range
+            out_port = next(
+                (p for p in outputs if p["name"] == out_name), None
+            )
+            if out_port:
+                max_val = (1 << out_port["width"]) - 1
+                if 0 <= out_val <= max_val:
+                    passed += 1
+                else:
+                    failed += 1
+                    assertions.append({
+                        "cycle": r["cycle"],
+                        "signal": out_name,
+                        "expected": f"<= {max_val}",
+                        "actual": out_val,
+                        "status": "fail",
+                    })
+                if failed == 0:
+                    passed += 1
 
-        return {
-            "status": "completed",
-            "goal": ctx.goal.user_intent,
-            "result": {
-                "module_name": (
-                    (_m.group(1) if (_m := re.search(
-                        r'module\s+(\w+)', source
-                    )) else "unknown")
-                ),
-                "ports": ports,
-                "test_vectors": num_vectors,
-                "passed": passed,
-                "failed": failed,
-                "assertions": assertions,
-                "waveform": waveform,
-            },
-            "metrics": {
-                "inputs": len(inputs),
-                "outputs": len(outputs),
-                "tests": num_vectors,
-                "pass_rate": (
-                    (passed / (passed + failed) * 100)
-                    if (passed + failed) > 0 else 0
-                ),
-            },
-        }
-    except Exception:
-        return {
-            "status": "failed",
-            "error": "FPGA verification failed",
-        }
+    return {
+        "status": "completed",
+        "goal": ctx.goal.user_intent,
+        "result": {
+            "module_name": (
+                (_m.group(1) if (_m := re.search(
+                    r'module\s+(\w+)', source
+                )) else "unknown")
+            ),
+            "ports": ports,
+            "test_vectors": num_vectors,
+            "passed": passed,
+            "failed": failed,
+            "assertions": assertions,
+            "waveform": waveform,
+        },
+        "metrics": {
+            "inputs": len(inputs),
+            "outputs": len(outputs),
+            "tests": num_vectors,
+            "pass_rate": (
+                (passed / (passed + failed) * 100)
+                if (passed + failed) > 0 else 0
+            ),
+        },
+    }
 
 
 register_skill("fpga_verify")(fpga_verify)
