@@ -7,7 +7,8 @@ Provides skills for interacting with Hugging Face Inference API:
 
 Configure via env:
   HF_API_KEY          — Hugging Face API token (optional for some models)
-  HF_MODEL            — Default model (default: meta-llama/Llama-3.3-70B-Instruct)
+  HF_MODEL            — Default model
+                        (default: meta-llama/Llama-3.3-70B-Instruct)
   HF_TIMEOUT_SEC      — Request timeout in seconds (default: 30)
 """
 

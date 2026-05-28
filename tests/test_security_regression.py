@@ -178,7 +178,9 @@ def test_cached_delta_filters_internal_keys():
     # Confirm poisoned keys were never written into a completed context
     complete_events = [e for e in events if e.get("type") == "complete"]
     if complete_events:
-        final_ctx = complete_events[-1].get("payload", {}).get("final_context", {})
+        final_ctx = complete_events[-1].get(
+            "payload", {}
+        ).get("final_context", {})
         assert "_recipe_params" not in final_ctx, (
             "Poisoned _recipe_params leaked into final_context"
         )

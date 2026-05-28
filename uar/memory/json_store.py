@@ -2,6 +2,7 @@ import fcntl
 import json
 import logging
 import os
+import shutil
 import threading
 import time
 from contextlib import contextmanager
@@ -132,6 +133,48 @@ class JsonRunStore:
                 return record
         return None
 
+    def delete(self, run_id: str) -> bool:
+        """Remove a single record by run_id from the JSONL file.
+
+        Returns True if a record was removed, False otherwise.
+        """
+        if not self.path.exists():
+            return False
+
+        removed = False
+        kept_lines: List[str] = []
+
+        with self._thread_lock:
+            self._flush()
+            with self._acquire_lock():
+                with self.path.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        raw = line.strip()
+                        if not raw:
+                            continue
+                        try:
+                            record = json.loads(raw)
+                            if record.get("run_id") == run_id:
+                                removed = True
+                                continue
+                        except json.JSONDecodeError:
+                            pass
+                        kept_lines.append(raw)
+
+                if removed:
+                    tmp = self.path.with_suffix(".jsonl.tmp")
+                    with tmp.open("w", encoding="utf-8") as f:
+                        for raw in kept_lines:
+                            f.write(raw + "\n")
+                        f.flush()
+                        os.fsync(f.fileno())
+                    try:
+                        tmp.replace(self.path)
+                    except PermissionError:
+                        shutil.copy2(str(tmp), str(self.path))
+                        tmp.unlink()
+        return removed
+
     def purge_old_records(self, retention_days: int) -> int:
         """Remove records older than *retention_days* from the JSONL file.
 
@@ -176,7 +219,6 @@ class JsonRunStore:
                         tmp.replace(self.path)
                     except PermissionError:
                         # Windows: cannot replace if file is open; fallback
-                        import shutil
                         shutil.copy2(str(tmp), str(self.path))
                         tmp.unlink()
 

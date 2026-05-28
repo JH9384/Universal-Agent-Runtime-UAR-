@@ -1,4 +1,5 @@
 import argparse
+import warnings
 
 from uar.core.contracts import GoalSpec
 from uar.memory.base_store import get_store, run_record_from_dict
@@ -92,6 +93,11 @@ def cmd_replay(args):
 
 
 def main():
+    warnings.warn(
+        "uar.cli.run is deprecated. Use 'uar' (uar.cli.main) instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     parser = argparse.ArgumentParser(
         description="UAR CLI - Universal Agent Runtime"
     )

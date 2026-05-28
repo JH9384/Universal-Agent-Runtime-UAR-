@@ -129,11 +129,74 @@ async def health_circuit_breakers(
     )
 
 
+@router.post("/api/health/circuit-breakers/{service_name}/reset")
+async def reset_circuit_breaker(
+    service_name: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Reset a circuit breaker to closed state."""
+    user_info = auth_middleware(credentials)
+    if not user_info and not _is_dev_mode():
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": {
+                    "error": "unauthorized",
+                    "message": "Authentication required",
+                }
+            },
+        )
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+    if not is_admin and not _is_dev_mode():
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": {
+                    "error": "forbidden",
+                    "message": "Admin access required",
+                }
+            },
+        )
+
+    from uar.core.circuit_breaker_decorator import (
+        reset_circuit_breaker as _reset_cb,
+        get_circuit_breaker_states,
+    )
+
+    if service_name not in get_circuit_breaker_states():
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": {
+                    "error": "not_found",
+                    "message": f"Circuit breaker '{service_name}' not found",
+                }
+            },
+        )
+
+    _reset_cb(service_name)
+    return {"status": "reset", "service": service_name}
+
+
 @router.get("/api/health/dashboard")
 async def health_dashboard(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
-    """Comprehensive health dashboard data for the web UI."""
+    """Comprehensive health dashboard data for the web UI.
+
+    Requires authentication in production; dev mode allows anonymous.
+    """
+    user_info = auth_middleware(credentials)
+    if not user_info and not _is_dev_mode():
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": {
+                    "error": "unauthorized",
+                    "message": "Authentication required",
+                }
+            },
+        )
     from uar.core.registry import registry
     from uar.core.circuit_breaker_decorator import (
         get_circuit_breaker_states,

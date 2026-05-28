@@ -1,4 +1,5 @@
-"""Tests for newly implemented skills: quantum_ml, math_plot_3d, code_analysis."""
+"""Tests for newly implemented skills: quantum_ml, math_plot_3d,
+code_analysis."""
 
 from __future__ import annotations
 
@@ -79,7 +80,9 @@ class TestMathPlot3D:
 
         ctx = _make_ctx({"plot_3d_type": "surface"})
         result = math_plot_3d(ctx)
-        if result["status"] == "failed" and "not installed" in result.get("error", ""):
+        if result["status"] == "failed" and "not installed" in result.get(
+            "error", ""
+        ):
             pytest.skip("matplotlib+numpy not installed")
         assert result["status"] == "completed"
         assert "image_base64" in result
@@ -90,7 +93,9 @@ class TestMathPlot3D:
 
         ctx = _make_ctx({"plot_3d_type": "wireframe"})
         result = math_plot_3d(ctx)
-        if result["status"] == "failed" and "not installed" in result.get("error", ""):
+        if result["status"] == "failed" and "not installed" in result.get(
+            "error", ""
+        ):
             pytest.skip("matplotlib+numpy not installed")
         assert result["status"] == "completed"
         assert result["plot_type"] == "wireframe"
@@ -103,7 +108,9 @@ class TestMathPlot3D:
             "plot_3d_parametric": {"x": "cos(t)", "y": "sin(t)", "z": "t"},
         })
         result = math_plot_3d(ctx)
-        if result["status"] == "failed" and "not installed" in result.get("error", ""):
+        if result["status"] == "failed" and "not installed" in result.get(
+            "error", ""
+        ):
             pytest.skip("matplotlib+numpy not installed")
         assert result["status"] == "completed"
         assert result["plot_type"] == "parametric_curve"
@@ -301,7 +308,8 @@ class TestCodeAnalysis:
         assert todos[0]["type"] == "TODO"
 
     def test_no_go_dead_code_issues(self):
-        """Regression: Go section was a no-op and should not add noise issues."""
+        """Regression: Go section was a no-op and should not add noise
+        issues."""
         from uar.skills.code_analysis import code_analysis
 
         source = "package main\n\nfunc main() {\n    println(\"hello\")\n}\n"

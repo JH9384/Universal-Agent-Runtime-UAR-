@@ -413,6 +413,405 @@ def openapi_export(
         console.print(pretty)
 
 
+# ── doctor command ─────────────────────────────────────────────────────────
+
+def _api_headers(api_key: Optional[str]) -> Dict[str, str]:
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+@app.command("doctor")
+def doctor_command(
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", "-k",
+        help="API key for authentication",
+    ),
+) -> None:
+    """Run diagnostics: validate environment, check server health,
+    and verify skill availability."""
+    from uar.config import (
+        Config,
+        validate_environment,
+        validate_docker_environment,
+    )
+    from uar.config_advanced import validate_advanced_config
+
+    console.print(Panel("[bold cyan]UAR Doctor[/bold cyan]", box=box.ROUNDED))
+
+    # Local environment validation
+    env_issues = validate_environment()
+    docker_issues = validate_docker_environment()
+    config = Config()
+    config_issues = config.validate()
+    try:
+        adv_results = validate_advanced_config()
+        adv_ok = adv_results["valid"]
+    except Exception as exc:
+        adv_results = {"valid": False, "issues": [str(exc)]}
+        adv_ok = False
+
+    local_ok = not (env_issues or docker_issues or config_issues)
+
+    if local_ok:
+        console.print("[green]Local environment: OK[/green]")
+    else:
+        console.print("[red]Local environment: FAILED[/red]")
+        for issue in env_issues + docker_issues + config_issues:
+            console.print(f"  [red]- {issue}[/red]")
+
+    if adv_ok:
+        console.print("[green]Advanced integrations: OK[/green]")
+    else:
+        console.print("[yellow]Advanced integrations: warnings[/yellow]")
+        for issue in adv_results.get("issues", []):
+            console.print(f"  [yellow]- {issue}[/yellow]")
+
+    # Server health check
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(
+                f"{server}/api/health/dashboard",
+                headers=_api_headers(api_key),
+            )
+            r.raise_for_status()
+            data = r.json()
+
+        skills = data.get("skills", [])
+        healthy_skills = [s for s in skills if s.get("available")]
+        unhealthy = [s for s in skills if not s.get("available")]
+
+        console.print(
+            f"[green]Server ({server}): reachable[/green] "
+            f"— {len(healthy_skills)}/{len(skills)} skills healthy"
+        )
+        if unhealthy:
+            console.print("[yellow]Unhealthy skills:[/yellow]")
+            for s in unhealthy:
+                console.print(
+                    f"  [yellow]- {s['name']}: "
+                    f"{s.get('last_error', 'unknown')}[/yellow]"
+                )
+
+        circuits = data.get("circuit_breakers", [])
+        open_circuits = [c for c in circuits if c.get("state") == "open"]
+        if open_circuits:
+            console.print(
+                f"[red]Open circuit breakers: "
+                f"{len(open_circuits)}[/red]"
+            )
+            for c in open_circuits:
+                console.print(f"  [red]- {c['name']}[/red]")
+        else:
+            console.print("[green]Circuit breakers: all closed[/green]")
+
+        uptime = data.get("uptime_seconds", 0)
+        console.print(f"[dim]Server uptime: {uptime}s[/dim]")
+    except httpx.ConnectError:
+        console.print(f"[red]Server ({server}): unreachable[/red]")
+    except httpx.HTTPStatusError as exc:
+        console.print(
+            f"[red]Server ({server}): HTTP {exc.response.status_code}[/red]"
+        )
+
+    console.print("\n[bold]Doctor complete.[/bold]")
+
+
+# ── skill ping command ──────────────────────────────────────────────────────
+
+@skill_app.command("ping")
+def skill_ping(
+    name: str = typer.Argument(..., help="Skill name to test"),
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", "-k",
+        help="API key for authentication",
+    ),
+) -> None:
+    """Dry-run a skill to verify availability."""
+    headers = _api_headers(api_key)
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            r = client.get(
+                f"{server}/api/uar/skills", headers=headers
+            )
+            r.raise_for_status()
+            registered = {s for s in r.json().get("skills", [])}
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to {server}[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]HTTP {exc.response.status_code}[/red]")
+        raise typer.Exit(1) from exc
+
+    if name not in registered:
+        console.print(f"[red]Skill '{name}' is not registered.[/red]")
+        raise typer.Exit(1)
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            r = client.post(
+                f"{server}/api/uar/skills/ping",
+                json={"skill": name},
+                headers=headers,
+            )
+            r.raise_for_status()
+            result = r.json()
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to {server}[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]HTTP {exc.response.status_code}[/red]")
+        raise typer.Exit(1) from exc
+
+    status = result.get("status", "unknown")
+    if status == "ok":
+        console.print(f"[green]Skill '{name}' ping: OK[/green]")
+        if result.get("latency_ms") is not None:
+            console.print(f"  Latency: {result['latency_ms']}ms")
+    else:
+        console.print(
+            f"[red]Skill '{name}' ping: FAILED[/red]"
+        )
+        if result.get("error"):
+            console.print(f"  Error: {result['error']}")
+        raise typer.Exit(1)
+
+
+# ── circuit-breaker commands ─────────────────────────────────────────────────
+
+cb_app = typer.Typer(help="Circuit breaker management")
+app.add_typer(cb_app, name="circuit-breakers")
+
+
+@cb_app.command("list")
+def cb_list(
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", "-k",
+        help="API key for authentication",
+    ),
+) -> None:
+    """List all circuit breaker states."""
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(
+                f"{server}/api/health/circuit-breakers",
+                headers=_api_headers(api_key),
+            )
+            r.raise_for_status()
+            data = r.json()
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to {server}[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]HTTP {exc.response.status_code}[/red]")
+        raise typer.Exit(1) from exc
+
+    circuits = data.get("circuits", {})
+    if not circuits:
+        console.print("[yellow]No circuit breakers registered.[/yellow]")
+        return
+
+    table = Table(
+        title="Circuit Breakers",
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Service", style="cyan")
+    table.add_column("State", style="bold")
+    table.add_column("Failures", justify="right")
+
+    for svc, info in circuits.items():
+        state = info.get("state", "unknown")
+        state_style = {
+            "closed": "green",
+            "open": "red",
+            "half-open": "yellow",
+        }.get(state, "white")
+        table.add_row(
+            svc,
+            f"[{state_style}]{state}[/{state_style}]",
+            str(info.get("failures", 0)),
+        )
+
+    console.print(table)
+
+
+@cb_app.command("reset")
+def cb_reset(
+    service_name: str = typer.Argument(..., help="Service name to reset"),
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", "-k",
+        help="API key for authentication",
+    ),
+) -> None:
+    """Reset a circuit breaker to closed state."""
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.post(
+                f"{server}/api/health/circuit-breakers/{service_name}/reset",
+                headers=_api_headers(api_key),
+            )
+            r.raise_for_status()
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to {server}[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            console.print(
+                f"[red]Circuit breaker '{service_name}' not found.[/red]"
+            )
+        elif exc.response.status_code == 403:
+            console.print(
+                "[red]Admin access required to reset circuit breakers.[/red]"
+            )
+        else:
+            console.print(f"[red]HTTP {exc.response.status_code}[/red]")
+        raise typer.Exit(1) from exc
+
+    console.print(f"[green]Circuit breaker '{service_name}' reset.[/green]")
+
+
+# ── run management commands ─────────────────────────────────────────────────
+
+
+@run_app.command("compare")
+def run_compare(
+    run_a: str = typer.Argument(..., help="First run ID"),
+    run_b: str = typer.Argument(..., help="Second run ID"),
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", "-k",
+        help="API key for authentication",
+    ),
+) -> None:
+    """Compare two runs and show differences."""
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(
+                f"{server}/api/uar/runs/{run_a}/compare/{run_b}",
+                headers=_api_headers(api_key),
+            )
+            r.raise_for_status()
+            data = r.json()
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to {server}[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]HTTP {exc.response.status_code}[/red]")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"[bold]Comparing runs:[/bold] {run_a} vs {run_b}"
+    )
+    same = data.get("same_status", False) and data.get("same_skills", False)
+    if same:
+        console.print(
+            "[green]Runs are identical in status and skills.[/green]"
+        )
+    else:
+        console.print("[yellow]Differences found:[/yellow]")
+    for field, diff in data.get("diffs", {}).items():
+        console.print(f"  [cyan]{field}:[/cyan]")
+        console.print(f"    A: {diff['a']}")
+        console.print(f"    B: {diff['b']}")
+
+
+@run_app.command("delete")
+def run_delete(
+    run_id: str = typer.Argument(..., help="Run ID to delete"),
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", "-k",
+        help="API key for authentication",
+    ),
+) -> None:
+    """Delete a single run by ID."""
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.post(
+                f"{server}/api/uar/runs/bulk-delete",
+                json={"run_ids": [run_id]},
+                headers=_api_headers(api_key),
+            )
+            r.raise_for_status()
+            data = r.json()
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to {server}[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]HTTP {exc.response.status_code}[/red]")
+        raise typer.Exit(1) from exc
+
+    deleted = data.get("deleted", 0)
+    if deleted:
+        console.print(f"[green]Deleted {deleted} run(s).[/green]")
+    else:
+        console.print(
+            "[yellow]No runs deleted (not found or not owner).[/yellow]"
+        )
+
+
+@run_app.command("bulk-delete")
+def run_bulk_delete(
+    older_than_days: int = typer.Argument(
+        ..., help="Delete runs older than N days"
+    ),
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL",
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", "-k",
+        help="API key for authentication",
+    ),
+) -> None:
+    """Bulk delete runs older than a given number of days."""
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.post(
+                f"{server}/api/uar/runs/bulk-delete",
+                json={"older_than_days": older_than_days},
+                headers=_api_headers(api_key),
+            )
+            r.raise_for_status()
+            data = r.json()
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to {server}[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]HTTP {exc.response.status_code}[/red]")
+        raise typer.Exit(1) from exc
+
+    console.print(
+        f"[green]Deleted {data.get('deleted', 0)} run(s) "
+        f"({data.get('filter', 'unknown')}).[/green]"
+    )
+
+
 # ── entry point ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

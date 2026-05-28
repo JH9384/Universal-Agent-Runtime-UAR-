@@ -299,11 +299,15 @@ class TestFrontendHelpConsistency:
     def skill_group_names(self, panel_source):
         return _extract_group_names_from_skill_groups(panel_source)
 
-    def test_tips_sections_match_skill_groups(self, panel_source, skill_group_names):
+    def test_tips_sections_match_skill_groups(
+        self, panel_source, skill_group_names
+    ):
         """Tips popup sections must include all SKILL_GROUPS names."""
         # Static sections with literal data-section="..."
         static_names = _extract_tips_section_names(panel_source)
-        core_sections = {"Documents", "Goal", "Skills", "Run", "Events", "Graph"}
+        core_sections = {
+            "Documents", "Goal", "Skills", "Run", "Events", "Graph"
+        }
         missing_core = core_sections - static_names
         assert not missing_core, (
             f"Missing core tips sections: {sorted(missing_core)}"
@@ -515,7 +519,9 @@ class TestGettingStartedDocs:
 
         registered = set(registry.list())
         # Extract skills from code blocks
-        skills_mentioned = set(re.findall(r'"skills":\s*\[(.*?)\]', text, re.DOTALL))
+        skills_mentioned = set(
+            re.findall(r'"skills":\s*\[(.*?)\]', text, re.DOTALL)
+        )
         for block in skills_mentioned:
             skill_names = re.findall(r'"(\w+)"', block)
             for skill in skill_names:

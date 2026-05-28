@@ -465,6 +465,19 @@ class PostgresRunStore:
                 record[key] = json.loads(record[key])
         return record
 
+    def delete(self, run_id: str) -> bool:
+        """Remove a single record by run_id."""
+        sql = "DELETE FROM uar_runs WHERE run_id = %(run_id)s"
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, {"run_id": run_id})
+                deleted = cur.rowcount > 0
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+        return deleted
+
     def purge_old_records(self, retention_days: int) -> int:
         """Remove records older than *retention_days* from PostgreSQL.
 

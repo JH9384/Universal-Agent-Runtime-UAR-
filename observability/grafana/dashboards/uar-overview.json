@@ -266,6 +266,96 @@
       ],
       "title": "Request Latency (ms)",
       "type": "timeseries"
+    },
+    {
+      "datasource": "JSON API",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 6,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "available", "type": "number" }]
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "refId": "A",
+          "url": "${UAR_API_URL}/api/health/dashboard",
+          "cacheDurationSeconds": 30,
+          "query": "$.skills.*",
+          "columns": [
+            { "text": "Skill", "type": "string", "jsonPath": "$.name" },
+            { "text": "Available", "type": "number", "jsonPath": "$.available" }
+          ]
+        }
+      ],
+      "title": "Skill Health",
+      "type": "table"
+    },
+    {
+      "datasource": "JSON API",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            {
+              "options": {
+                "0": { "color": "green", "text": "Closed" },
+                "1": { "color": "red", "text": "Open" }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 7,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "refId": "A",
+          "url": "${UAR_API_URL}/api/health/circuit-breakers",
+          "cacheDurationSeconds": 30,
+          "query": "$.circuits.*",
+          "columns": [
+            { "text": "Service", "type": "string", "jsonPath": "$.key" },
+            { "text": "State", "type": "string", "jsonPath": "$.state" }
+          ]
+        }
+      ],
+      "title": "Circuit Breaker States",
+      "type": "table"
     }
   ],
   "refresh": "30s",

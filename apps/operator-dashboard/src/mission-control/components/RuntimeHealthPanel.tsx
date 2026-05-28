@@ -1,17 +1,67 @@
+import { useEffect, useState } from "react";
 import type { MissionControlRuntimeHealth } from "../types";
-
-export interface RuntimeHealthPanelProps {
-  health: MissionControlRuntimeHealth | null;
-}
+import { api } from "../../api/client";
 
 const percent = (value: number): string => `${Math.round(value * 100)}%`;
 
-export function RuntimeHealthPanel({ health }: RuntimeHealthPanelProps) {
-  if (!health) {
+export function RuntimeHealthPanel() {
+  const [health, setHealth] = useState<MissionControlRuntimeHealth | null>(
+    null
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchData = () => {
+      api
+        .healthDashboard()
+        .then((data) => {
+          if (!mounted) return;
+          const anyOpen = (data.circuit_breakers || []).some(
+            (cb) => cb.state === "open"
+          );
+          setHealth({
+            pressure: 0,
+            oscillation: 0,
+            replayConfidence: 1,
+            starvation: false,
+            mode: anyOpen ? "degraded" : "healthy",
+            healthy: !anyOpen,
+            emittedAt: Date.now(),
+          });
+          setError(null);
+        })
+        .catch((err) => {
+          if (!mounted) return;
+          setError(String(err));
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    };
+    fetchData();
+    const id = setInterval(fetchData, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  if (loading) {
     return (
       <section aria-label="Runtime health" className="mission-panel">
         <h2>Runtime Health</h2>
-        <p>No runtime health sample has been received yet.</p>
+        <p>Loading...</p>
+      </section>
+    );
+  }
+
+  if (error || !health) {
+    return (
+      <section aria-label="Runtime health" className="mission-panel">
+        <h2>Runtime Health</h2>
+        <p className="error">{error || "No data"}</p>
       </section>
     );
   }

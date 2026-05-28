@@ -174,6 +174,45 @@ async def get_skills():
     return {"skills": registry.list()}
 
 
+@router.post("/api/uar/skills/ping")
+async def ping_skill(
+    body: dict[str, Any],
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Dry-run a skill to verify availability.
+
+    Resolves lazy skills and reports registration status.
+    Does not execute the skill payload — only verifies it can be loaded.
+    """
+    import time
+
+    from uar.core.registry import registry
+
+    rate_limit_middleware(request, credentials)
+    auth_middleware(credentials)
+
+    name = body.get("skill", "")
+    if not name or not isinstance(name, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "missing_skill", "message": "Provide 'skill'"},
+        )
+
+    start = time.perf_counter()
+    if name not in registry.list():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "skill_not_found",
+                "message": f"Skill '{name}' is not registered",
+                "skill": name,
+            },
+        )
+    latency_ms = round((time.perf_counter() - start) * 1000, 2)
+    return {"status": "ok", "skill": name, "latency_ms": latency_ms}
+
+
 @router.get("/api/uar/runs/{run_id}/timeline")
 async def get_run_timeline(
     run_id: str,
@@ -183,16 +222,25 @@ async def get_run_timeline(
     from uar.api.server import store
 
     user_info = auth_middleware(credentials)
-    user_id = user_info["user"] if user_info else None
-    records = store.list_records(user_id=user_id)
-    for rec in records:
-        if rec.get("run_id") == run_id:
-            rr = run_record_from_dict(rec)
-            return timeline_from_record(rr)
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail={"error": "not_found", "message": "Run not found"},
-    )
+    user = user_info["user"] if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+    record = store.get_by_run_id(run_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": "Run not found"},
+        )
+    owner = record.get("user_id") or record.get("user", "")
+    if owner and owner != user and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "forbidden",
+                "message": "Access denied to this run",
+            },
+        )
+    rr = run_record_from_dict(record)
+    return timeline_from_record(rr)
 
 
 @router.get(
@@ -264,7 +312,8 @@ async def get_provenance(
         raise HTTPException(status_code=404, detail="Run not found")
 
     # Verify ownership if not admin
-    if record.get("user_id") != user and user != "admin":
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+    if record.get("user_id") != user and not is_admin:
         raise HTTPException(
             status_code=403, detail="Not authorized to access this run"
         )
@@ -342,3 +391,151 @@ async def query_code(
                 "message": "Greptile query failed",
             },
         ) from exc
+
+
+@router.get("/api/uar/runs/{run_id}/compare/{other_run_id}")
+async def compare_runs(
+    run_id: str,
+    other_run_id: str,
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Compare two runs and return a structured diff."""
+    from uar.api.server import store
+
+    rate_limit_middleware(request, credentials)
+    user_info = auth_middleware(credentials)
+    user = user_info["user"] if user_info else "anonymous"
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    rec_a = store.get_by_run_id(run_id)
+    rec_b = store.get_by_run_id(other_run_id)
+
+    if not rec_a:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "not_found",
+                "message": f"Run {run_id} not found",
+            },
+        )
+    if not rec_b:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "not_found",
+                "message": f"Run {other_run_id} not found",
+            },
+        )
+
+    # Ownership check
+    for rec, rid in [(rec_a, run_id), (rec_b, other_run_id)]:
+        owner = rec.get("user_id") or rec.get("user", "")
+        if owner and owner != user and not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "forbidden",
+                    "message": f"Access denied to run {rid}",
+                },
+            )
+
+    # Field-level diff
+    fields = [
+        "status",
+        "skills",
+        "outputs",
+        "events",
+        "timeline",
+        "metrics",
+    ]
+    diffs = {}
+    for field in fields:
+        val_a = rec_a.get(field)
+        val_b = rec_b.get(field)
+        if val_a != val_b:
+            diffs[field] = {"a": val_a, "b": val_b}
+
+    return {
+        "run_a": run_id,
+        "run_b": other_run_id,
+        "same_status": rec_a.get("status") == rec_b.get("status"),
+        "same_skills": rec_a.get("skills") == rec_b.get("skills"),
+        "diffs": diffs,
+    }
+
+
+@router.post("/api/uar/runs/bulk-delete")
+async def bulk_delete_runs(
+    body: dict[str, Any],
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Bulk delete runs by a list of run IDs or a time-based filter.
+
+    Body schema:
+      { "run_ids": ["r1", "r2"] }
+      or
+      { "older_than_days": 30 }
+    """
+    from uar.api.server import store
+
+    rate_limit_middleware(request, credentials)
+    user_info = auth_middleware(credentials)
+    user = user_info["user"] if user_info else "anonymous"
+
+    run_ids = body.get("run_ids")
+    older_than_days = body.get("older_than_days")
+
+    if run_ids is not None:
+        if not isinstance(run_ids, list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "invalid_run_ids",
+                    "message": "Expected list",
+                },
+            )
+        removed = 0
+        is_admin = bool(user_info and user_info.get("tier") == "admin")
+        for rid in run_ids:
+            rec = store.get_by_run_id(rid)
+            if rec:
+                owner = rec.get("user_id") or rec.get("user", "")
+                if owner == user or is_admin:
+                    store.delete(rid)
+                    removed += 1
+        return {"deleted": removed, "filter": "run_ids"}
+
+    if older_than_days is not None:
+        try:
+            days = int(older_than_days)
+            if days < 0:
+                raise ValueError
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "invalid_older_than_days",
+                    "message": "Must be a non-negative integer",
+                },
+            ) from None
+        is_admin = bool(user_info and user_info.get("tier") == "admin")
+        if not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "forbidden",
+                    "message": "Admin access required for time-based purge",
+                },
+            )
+        removed = store.purge_old_records(days)
+        return {"deleted": removed, "filter": f"older_than_{days}_days"}
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={
+            "error": "missing_filter",
+            "message": "Provide 'run_ids' or 'older_than_days'",
+        },
+    )

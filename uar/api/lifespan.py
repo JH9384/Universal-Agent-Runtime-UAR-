@@ -98,6 +98,35 @@ def create_lifespan(ws_conn_counter):
 
         setup_fastapi_tracing(app)
 
+        # Validate environment before accepting traffic (fail-fast)
+        from uar.config import (
+            validate_environment,
+            validate_docker_environment,
+        )
+
+        env_issues = validate_environment()
+        docker_issues = validate_docker_environment()
+        all_issues = env_issues + docker_issues
+        if all_issues:
+            for issue in all_issues:
+                logger.error("Startup validation failed: %s", issue)
+            raise RuntimeError(
+                f"UAR startup validation failed with "
+                f"{len(all_issues)} issue(s). Run 'uar doctor' for details."
+            )
+
+        # Validate advanced integration configs (non-fatal, logged)
+        try:
+            from uar.config_advanced import (
+                validate_advanced_config,
+                log_validation_results,
+            )
+
+            adv_results = validate_advanced_config()
+            log_validation_results(adv_results)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Advanced config validation skipped: %s", exc)
+
         # Start background data retention purge task
         purge_task = None
         from uar.config import config

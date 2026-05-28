@@ -275,6 +275,18 @@ class SqliteRunStore:
         """Alias for list_records — satisfies RunStoreProtocol."""
         return self.list_records(user_id=user_id, limit=limit)
 
+    def delete(self, run_id: str) -> bool:
+        """Remove a single record by run_id."""
+        with self._lock:
+            conn = self._get_conn()
+            cur = conn.execute(
+                "DELETE FROM uar_runs WHERE run_id = ?", (run_id,)
+            )
+            deleted = cur.rowcount > 0
+        with self._hot_cache_lock:
+            self._hot_cache.pop(run_id, None)
+        return deleted
+
     def purge_old_records(self, retention_days: int) -> int:
         if retention_days <= 0:
             return 0
