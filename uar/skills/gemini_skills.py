@@ -33,6 +33,11 @@ except ImportError:
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
+from uar.skills.llm_base import (
+    make_model_getter,
+    make_temperature_getter,
+    make_max_tokens_getter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,43 +64,16 @@ def _get_client() -> Any:
     return genai
 
 
-def _get_model(ctx: PipelineContext | None = None) -> str:
-    """Get model from goal metadata override or environment."""
-    if ctx and ctx.goal.metadata:
-        override_model = ctx.goal.metadata.get("gemini_model")
-        if override_model:
-            return override_model
-    return os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
-
-
-def _get_temperature(ctx: PipelineContext | None = None) -> float:
-    """Get temperature from goal metadata override or default."""
-    if ctx and ctx.goal.metadata:
-        temp = ctx.goal.metadata.get("gemini_temperature")
-        if temp is not None:
-            try:
-                value = float(temp)
-                return max(0.0, min(2.0, value))
-            except (ValueError, TypeError):
-                logger.warning(
-                    "Invalid gemini_temperature value, using default"
-                )
-    return 0.7
-
-
-def _get_max_tokens(ctx: PipelineContext | None = None) -> int:
-    """Get max tokens from goal metadata override or default."""
-    if ctx and ctx.goal.metadata:
-        tokens = ctx.goal.metadata.get("gemini_max_tokens")
-        if tokens is not None:
-            try:
-                value = int(tokens)
-                return max(1, min(100000, value))
-            except (ValueError, TypeError):
-                logger.warning(
-                    "Invalid gemini_max_tokens value, using default"
-                )
-    return 1000
+_get_model = make_model_getter(
+    prefix="gemini",
+    default_model="gemini-2.0-flash-exp",
+)
+_get_temperature = make_temperature_getter(
+    prefix="gemini",
+    default=0.7,
+    temp_max=2.0,
+)
+_get_max_tokens = make_max_tokens_getter(prefix="gemini")
 
 
 @register_skill("gemini_chat")
