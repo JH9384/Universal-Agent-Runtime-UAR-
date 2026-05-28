@@ -147,13 +147,6 @@ def _call_alm(
             "error": "Connection failed",
             "details": f"Could not connect to {base_url}",
         }
-    except Exception:
-        logger.exception("Unexpected error calling ALM service")
-        return {
-            "status": "error",
-            "error": "Unexpected error",
-            "details": "ALM request failed",
-        }
 
 
 def _mock_alm_response(

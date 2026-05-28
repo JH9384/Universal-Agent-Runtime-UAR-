@@ -251,8 +251,8 @@ def _qaoa(dev, n_qubits, n_layers, steps, params):
 
 def _qchem_molecule(params):
     """Quantum chemistry molecular computation."""
-    import importlib.util
-    if importlib.util.find_spec("pennylane_qchem") is None:
+    err = require_package("pennylane_qchem")
+    if err:
         return {
             "status": "completed",
             "task": "qchem_molecule",
