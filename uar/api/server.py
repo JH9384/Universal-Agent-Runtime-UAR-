@@ -6,8 +6,6 @@ import time
 import uuid
 import asyncio
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin, urlparse
-
 from contextlib import asynccontextmanager
 
 from fastapi import (
@@ -47,6 +45,7 @@ from uar.core.recipes import DEFAULT_RECIPES
 from uar.core.timeline import timeline_from_record
 from uar.api.advanced_endpoints import router as advanced_router
 from uar.api.responses import error_response
+from uar.api.routers.health import router as health_router
 from uar.core.validation import (
     validate_goal,
     validate_skills,
@@ -548,6 +547,9 @@ def require_auth(
 # Include advanced integrations router
 app.include_router(advanced_router, dependencies=[Depends(require_auth)])
 
+# Include health / metrics / status router
+app.include_router(health_router)
+
 # Include consolidated UOR object/runtime/agent router (formerly
 # apps/api-python/main.py).
 from uar.api.routers import uor_router  # noqa: E402
@@ -561,10 +563,9 @@ if os.getenv("UAR_DATABASE_URL"):
 else:
     store = JsonRunStore()  # type: ignore[assignment]
 
-_uar_start_time = time.time()
-
 
 # Custom exception handlers for UAR exceptions
+
 @app.exception_handler(ValidationError)
 async def validation_error_handler(request, exc):
     field = getattr(exc, "field", None)
@@ -2033,38 +2034,6 @@ async def list_runs(
         )
 
 
-@app.get("/api/health")
-async def health_check():
-    """Health check endpoint (backwards-compatible alias for liveness)."""
-    return {
-        "status": "healthy",
-        "version": get_uar_version(),
-        "uor_upstream_version": get_uor_version(),
-    }
-
-
-@app.get("/api/status")
-async def status_endpoint(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Operational status with skill inventory and authenticated user."""
-    user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else "anonymous"
-    from uar.core.registry import registry
-
-    return {
-        "status": "operational",
-        "available_skills": registry.list(),
-        "user": user,
-    }
-
-
-@app.get("/api/health/live")
-async def liveness_probe():
-    """Kubernetes liveness probe — process is alive."""
-    return {"status": "alive"}
-
-
 @app.get("/api/metrics")
 async def metrics_endpoint(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
@@ -2114,94 +2083,6 @@ def _check_metrics_auth(
                 "message": "Valid metrics API key required",
             },
         )
-
-
-@app.get("/api/health/circuit-breakers")
-async def health_circuit_breakers(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
-    """Circuit breaker status for all external services."""
-    from uar.core.circuit_breaker_decorator import (
-        get_circuit_breaker_states,
-        _circuit_breakers,
-    )
-
-    states = get_circuit_breaker_states()
-    details = {}
-    any_open = False
-    for name, cb in _circuit_breakers.items():
-        state = states.get(name, "unknown")
-        if state == "open":
-            any_open = True
-        details[name] = {
-            "state": state,
-            "failure_threshold": cb.failure_threshold,
-            "recovery_timeout": cb.recovery_timeout,
-            "failures": getattr(cb, "_failures", 0),
-            "pending_calls": getattr(cb, "_pending_calls", 0),
-        }
-
-    status_code = 200 if not any_open else 503
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "status": "healthy" if not any_open else "degraded",
-            "circuits": details,
-        },
-    )
-
-
-@app.get("/api/health/dashboard")
-async def health_dashboard(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    """Comprehensive health dashboard data for the web UI."""
-    from uar.core.registry import registry
-    from uar.core.circuit_breaker_decorator import (
-        get_circuit_breaker_states,
-        _circuit_breakers,
-    )
-
-    # Skill availability
-    skill_health = []
-    for name in registry.list():
-        try:
-            registry.get(name)
-            skill_health.append({"name": name, "available": True})
-        except Exception:
-            skill_health.append({
-                "name": name,
-                "available": False,
-                "last_error": "Skill unavailable",
-            })
-
-    # Circuit breaker states
-    cb_states = get_circuit_breaker_states()
-    circuit_breakers = []
-    for name, cb in _circuit_breakers.items():
-        circuit_breakers.append({
-            "name": name,
-            "state": cb_states.get(name, "unknown"),
-            "failures": getattr(cb, "_failures", 0),
-            "threshold": cb.failure_threshold,
-        })
-
-    return {
-        "skills": skill_health,
-        "circuit_breakers": circuit_breakers,
-        "recent_errors": [],
-        "server_version": get_uar_version(),
-        "uptime_seconds": int(time.time() - _uar_start_time),
-    }
 
 
 @app.get("/api/cache/stats")
@@ -2267,100 +2148,6 @@ async def sandbox_eval_endpoint(
                 "error": "Expression evaluation failed",
             },
         )
-
-
-@app.get("/api/health/ready")
-async def readiness_probe():
-    """Kubernetes readiness probe — service is ready to accept traffic."""
-    checks = {}
-
-    # Check skills loaded
-    from uar.core.registry import registry
-
-    skills = registry.list()
-    checks["skills_loaded"] = len(skills) > 0
-
-    # Check disk writable (use RUNS_DIR — works for any store backend).
-    # Use a probe-unique filename to prevent concurrent readiness probes
-    # from racing on the same ".health_check" path.
-    try:
-        from pathlib import Path as _Path
-        _task = asyncio.current_task()
-        _probe_id = id(_task) if _task else id(object())
-        _runs_dir = _Path(os.getenv("RUNS_DIR", "runs")).resolve()
-        _runs_dir.mkdir(parents=True, exist_ok=True)
-        _test_file = _runs_dir / f".health_check_{os.getpid()}_{_probe_id}"
-        _test_file.write_text("ok")
-        _test_file.unlink()
-        checks["disk_writable"] = True
-    except Exception:
-        checks["disk_writable"] = False
-
-    # Check Ollama reachable (non-blocking, best-effort)
-    try:
-        import httpx
-
-        ollama_host = os.getenv(
-            "OLLAMA_HOST", "http://127.0.0.1:11434"
-        )
-        if urlparse(ollama_host).scheme not in ("http", "https"):
-            logger.warning(
-                "Ignoring invalid OLLAMA_HOST scheme: %s", ollama_host
-            )
-            ollama_host = "http://127.0.0.1:11434"
-        r = await asyncio.get_running_loop().run_in_executor(
-            None,
-            lambda: httpx.get(
-                urljoin(ollama_host, "/api/tags"),
-                timeout=2.0,
-            ),
-        )
-        checks["ollama_reachable"] = r.is_success
-    except Exception:
-        checks["ollama_reachable"] = False
-
-    # Check Redis connectivity (if configured)
-    redis_url = os.getenv("REDIS_URL", "").strip()
-    if redis_url:
-        try:
-            import redis as _redis_mod
-
-            _redis_client = _redis_mod.from_url(
-                redis_url, socket_connect_timeout=2
-            )
-            _redis_client.ping()
-            checks["redis_reachable"] = True
-        except Exception:
-            checks["redis_reachable"] = False
-    else:
-        # type: ignore[assignment]  # not configured
-        checks["redis_reachable"] = None
-
-    # Check circuit breaker states (non-blocking, informational)
-    try:
-        from uar.core.circuit_breaker_decorator import (
-            get_circuit_breaker_states,
-        )
-
-        cb_states = get_circuit_breaker_states()
-        open_circuits = [
-            name for name, state in cb_states.items() if state == "open"
-        ]
-        checks["circuit_breakers"] = len(open_circuits) == 0
-        checks["open_circuits"] = open_circuits  # type: ignore[assignment]
-    except Exception:
-        checks["circuit_breakers"] = True
-        checks["open_circuits"] = []  # type: ignore[assignment]
-
-    all_ready = all(v for k, v in checks.items() if isinstance(v, bool))
-    status_code = 200 if all_ready else 503
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "status": "ready" if all_ready else "not_ready",
-            "checks": checks,
-        },
-    )
 
 
 @app.get("/metrics")
