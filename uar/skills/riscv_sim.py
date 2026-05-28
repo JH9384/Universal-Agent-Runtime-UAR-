@@ -7,14 +7,12 @@ No external dependencies — pure Python implementation.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any, Dict, List
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-
-logger = logging.getLogger(__name__)
+from uar.core.skill_utils import skill_guard
 
 
 # RV32I opcodes
@@ -470,6 +468,7 @@ def _parse_assembly(asm: str) -> List[int]:
     return words
 
 
+@skill_guard("Riscv sim", status="failed")
 def riscv_simulation(ctx: PipelineContext) -> Dict[str, Any]:
     """Run RISC-V assembly simulation.
 
@@ -489,56 +488,49 @@ def riscv_simulation(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "assembly is required in goal metadata",
         }
 
-    try:
-        words = _parse_assembly(assembly)
-        emu = RiscvEmulator(memory_size=memory_size)
-        emu.load_program(words)
-        emu.run(max_steps=max_steps)
+    words = _parse_assembly(assembly)
+    emu = RiscvEmulator(memory_size=memory_size)
+    emu.load_program(words)
+    emu.run(max_steps=max_steps)
 
-        # Build register output
-        registers = []
-        for i, val in enumerate(emu.registers):
-            registers.append({
-                "index": i,
-                "name": emu.reg_names[i],
-                "value": val,
-                "hex": f"0x{val:08x}",
-            })
+    # Build register output
+    registers = []
+    for i, val in enumerate(emu.registers):
+        registers.append({
+            "index": i,
+            "name": emu.reg_names[i],
+            "value": val,
+            "hex": f"0x{val:08x}",
+        })
 
-        # Memory dump (first 256 bytes)
-        mem_dump = []
-        for addr in range(0, min(256, memory_size), 4):
-            w = int.from_bytes(emu.memory[addr:addr + 4], "little")
-            mem_dump.append({
-                "addr": addr,
-                "hex": f"0x{w:08x}",
-            })
+    # Memory dump (first 256 bytes)
+    mem_dump = []
+    for addr in range(0, min(256, memory_size), 4):
+        w = int.from_bytes(emu.memory[addr:addr + 4], "little")
+        mem_dump.append({
+            "addr": addr,
+            "hex": f"0x{w:08x}",
+        })
 
-        # Final trace (last 50 entries to avoid bloat)
-        trace = emu.trace[-50:] if len(emu.trace) > 50 else emu.trace
+    # Final trace (last 50 entries to avoid bloat)
+    trace = emu.trace[-50:] if len(emu.trace) > 50 else emu.trace
 
-        return {
-            "status": "completed",
-            "goal": ctx.goal.user_intent,
-            "result": {
-                "registers": registers,
-                "memory": mem_dump,
-                "trace": trace,
-                "instruction_count": emu.instruction_count,
-                "final_pc": emu.pc,
-            },
-            "metrics": {
-                "instructions_executed": emu.instruction_count,
-                "trace_length": len(emu.trace),
-                "memory_size": memory_size,
-            },
-        }
-    except Exception:
-        logger.exception("riscv_sim failed")
-        return {
-            "status": "failed",
-            "error": "RISC-V simulation failed",
-        }
+    return {
+        "status": "completed",
+        "goal": ctx.goal.user_intent,
+        "result": {
+            "registers": registers,
+            "memory": mem_dump,
+            "trace": trace,
+            "instruction_count": emu.instruction_count,
+            "final_pc": emu.pc,
+        },
+        "metrics": {
+            "instructions_executed": emu.instruction_count,
+            "trace_length": len(emu.trace),
+            "memory_size": memory_size,
+        },
+    }
 
 
 register_skill("riscv_sim")(riscv_simulation)

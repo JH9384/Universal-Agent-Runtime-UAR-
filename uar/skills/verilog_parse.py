@@ -7,14 +7,12 @@ dependencies required.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any, Dict, List
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-
-logger = logging.getLogger(__name__)
+from uar.core.skill_utils import skill_guard
 
 
 def _extract_modules(source: str) -> List[Dict[str, Any]]:
@@ -119,6 +117,7 @@ def _extract_assigns(body: str) -> List[Dict[str, str]]:
     return assigns
 
 
+@skill_guard("Verilog parse", status="failed")
 def verilog_parse(ctx: PipelineContext) -> Dict[str, Any]:
     """Parse Verilog HDL source code.
 
@@ -134,53 +133,46 @@ def verilog_parse(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "source is required in goal metadata",
         }
 
-    try:
-        modules = _extract_modules(source)
+    modules = _extract_modules(source)
 
-        # Build hierarchy tree
-        hierarchy = []
-        for mod in modules:
-            children = [
-                {
-                    "type": "instance",
-                    "module": inst["module"],
-                    "name": inst["instance"],
-                }
-                for inst in mod["instances"]
-            ]
-            hierarchy.append({
-                "module": mod["name"],
-                "children": children,
-            })
+    # Build hierarchy tree
+    hierarchy = []
+    for mod in modules:
+        children = [
+            {
+                "type": "instance",
+                "module": inst["module"],
+                "name": inst["instance"],
+            }
+            for inst in mod["instances"]
+        ]
+        hierarchy.append({
+            "module": mod["name"],
+            "children": children,
+        })
 
-        # Count statistics
-        total_ports = sum(len(m["ports"]) for m in modules)
-        total_signals = sum(len(m["signals"]) for m in modules)
-        total_instances = sum(len(m["instances"]) for m in modules)
+    # Count statistics
+    total_ports = sum(len(m["ports"]) for m in modules)
+    total_signals = sum(len(m["signals"]) for m in modules)
+    total_instances = sum(len(m["instances"]) for m in modules)
 
-        return {
-            "status": "completed",
-            "goal": ctx.goal.user_intent,
-            "result": {
-                "modules": modules,
-                "hierarchy": hierarchy,
-                "module_count": len(modules),
-                "total_ports": total_ports,
-                "total_signals": total_signals,
-                "total_instances": total_instances,
-            },
-            "metrics": {
-                "modules": len(modules),
-                "instances": total_instances,
-                "signals": total_signals,
-            },
-        }
-    except Exception:
-        logger.exception("verilog_parse failed")
-        return {
-            "status": "failed",
-            "error": "Verilog parsing failed",
-        }
+    return {
+        "status": "completed",
+        "goal": ctx.goal.user_intent,
+        "result": {
+            "modules": modules,
+            "hierarchy": hierarchy,
+            "module_count": len(modules),
+            "total_ports": total_ports,
+            "total_signals": total_signals,
+            "total_instances": total_instances,
+        },
+        "metrics": {
+            "modules": len(modules),
+            "instances": total_instances,
+            "signals": total_signals,
+        },
+    }
 
 
 register_skill("verilog_parse")(verilog_parse)
