@@ -116,6 +116,7 @@ import uar.skills.stem_extended  # noqa
 import uar.skills.cv_skills  # noqa
 import uar.skills.ml_tools  # noqa
 import uar.skills.quantum_ml  # noqa
+import uar.skills.math_plot  # noqa
 import uar.skills.math_plot_3d  # noqa
 import uar.skills.code_analysis  # noqa
 
