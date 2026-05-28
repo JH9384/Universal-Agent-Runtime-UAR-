@@ -10,6 +10,7 @@ import { generateUniqueId } from '../utils/idGenerator'
 import { authHeaders, getLocalStorage } from '../utils/auth'
 import RecipeTimeline from './RecipeTimeline'
 import { HealthDashboard } from './HealthDashboard'
+import PresetsPanel from './PresetsPanel'
 import styles from './UARPanel.module.css'
 
 // Lazy-loaded visualizers — only fetched when their skill data arrives
@@ -520,9 +521,6 @@ export function UARPanel() {
       return []
     }
   })
-  const [showAddPreset, setShowAddPreset] = useState(false)
-  const [newPresetName, setNewPresetName] = useState('')
-  const [newPresetPath, setNewPresetPath] = useState('')
   const [projectRoot, setProjectRoot] = useState<string>('')
   const [libraryPath, setLibraryPath] = useState<string>('')
   const [library, setLibrary] = useState<LibFile[]>([])
@@ -836,43 +834,6 @@ export function UARPanel() {
       console.warn('Failed to clear recent paths from localStorage:', e)
     }
   }
-
-  const addFolderPreset = useCallback(() => {
-    const name = newPresetName.trim()
-    const path = newPresetPath.trim()
-    if (!name || !path) return
-    const preset: Preset = { name, path }
-    setFolderPresets((prev) => {
-      const next = [...prev.filter((p) => p.path !== path), preset]
-      try {
-        getLocalStorage()?.setItem(FOLDER_PRESETS_KEY, JSON.stringify(next))
-      } catch {
-        /* ignore quota errors */
-      }
-      return next
-    })
-    setNewPresetName('')
-    setNewPresetPath('')
-    setShowAddPreset(false)
-  }, [newPresetName, newPresetPath])
-
-  const removeFolderPreset = useCallback((path: string) => {
-    setFolderPresets((prev) => {
-      const next = prev.filter((p) => p.path !== path)
-      try {
-        getLocalStorage()?.setItem(FOLDER_PRESETS_KEY, JSON.stringify(next))
-      } catch {
-        /* ignore quota errors */
-      }
-      return next
-    })
-  }, [])
-
-  const allPresets = useMemo(() => {
-    const serverPaths = new Set(presets.map((p) => p.path))
-    const merged = [...presets, ...folderPresets.filter((fp) => !serverPaths.has(fp.path))]
-    return merged
-  }, [presets, folderPresets])
 
   const saveUserPreset = useCallback(() => {
     const name = userPresetName.trim()
@@ -1879,34 +1840,34 @@ export function UARPanel() {
               )}
             </div>
 
-            <div className={styles.presetsContainer}>
-              <div className={styles.label} title="Quick access to pre-configured project directories">Presets</div>
-              {!presetsLoaded && <span className={styles.loadingText}>(loading…)</span>}
-              {presetsLoaded && presetsError && <span className={styles.errorText}>Failed to load presets — check server</span>}
-              {presetsLoaded && !presetsError && allPresets.length === 0 && <span className={styles.loadingText}>(none)</span>}
-              {allPresets.map((p) => {
-                const isUser = folderPresets.some((fp) => fp.path === p.path)
-                return (
-                  <span key={p.path} className={styles.presetRow}>
-                    <button disabled={isRunning} onClick={() => onPick(p.path)} className={chip(inputPath === p.path, isRunning)} title={p.path}>
-                      {p.name}
-                    </button>
-                    {isUser && (
-                      <button onClick={() => removeFolderPreset(p.path)} className={styles.deleteButton} title="Remove preset" aria-label={`Remove preset ${p.name}`}>✕</button>
-                    )}
-                  </span>
-                )
-              })}
-              <button onClick={() => setShowAddPreset((v) => !v)} className={styles.presetButton} title="Add custom folder preset">+</button>
-              {showAddPreset && (
-                <div className={styles.addPresetForm}>
-                  <input value={newPresetName} onChange={(e) => setNewPresetName(e.target.value)} placeholder="Name…" className={`${styles.advancedOverrideInput} ${styles.addPresetInput}`} />
-                  <input value={newPresetPath} onChange={(e) => setNewPresetPath(e.target.value)} placeholder="/path…" className={`${styles.advancedOverrideInput} ${styles.addPresetInputPath}`} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFolderPreset() } }} />
-                  <button onClick={addFolderPreset} disabled={!newPresetName.trim() || !newPresetPath.trim()} className={styles.smallButton}>Add</button>
-                  <button onClick={() => setShowAddPreset(false)} className={styles.smallButton}>Cancel</button>
-                </div>
-              )}
-            </div>
+            <PresetsPanel
+              presets={presets}
+              presetsLoaded={presetsLoaded}
+              presetsError={presetsError}
+              folderPresets={folderPresets}
+              isRunning={isRunning}
+              inputPath={inputPath}
+              onPick={onPick}
+              onAddPreset={(name: string, path: string) => {
+                const preset: Preset = { name, path }
+                setFolderPresets((prev) => {
+                  const next = [...prev.filter((p) => p.path !== path), preset]
+                  try {
+                    getLocalStorage()?.setItem(FOLDER_PRESETS_KEY, JSON.stringify(next))
+                  } catch {}
+                  return next
+                })
+              }}
+              onRemovePreset={(path: string) => {
+                setFolderPresets((prev) => {
+                  const next = prev.filter((p) => p.path !== path)
+                  try {
+                    getLocalStorage()?.setItem(FOLDER_PRESETS_KEY, JSON.stringify(next))
+                  } catch {}
+                  return next
+                })
+              }}
+            />
 
             {recent.length > 0 && (
               <div className={styles.recentContainer}>
