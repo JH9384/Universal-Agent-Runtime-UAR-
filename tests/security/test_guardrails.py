@@ -225,3 +225,168 @@ def test_setup_default_guardrails():
     )
 
     assert len(violations) > 0
+
+
+class TestBudgetRemainingMethods:
+    """Budget helper methods not covered by existing tests."""
+
+    def test_remaining_cost(self):
+        budget = Budget(agent_id="a", max_cost_usd=10.0, used_cost_usd=3.5)
+        assert budget.remaining_cost() == 6.5
+
+    def test_remaining_time(self):
+        budget = Budget(agent_id="a", max_duration_seconds=100)
+        assert budget.remaining_time() <= 100.0
+        assert budget.remaining_time() >= 99.0
+
+    def test_to_dict(self):
+        budget = Budget(
+            agent_id="a",
+            max_tokens=100,
+            used_tokens=50,
+        )
+        d = budget.to_dict()
+        assert d["agent_id"] == "a"
+        assert d["remaining_tokens"] == 50
+        assert d["is_exhausted"] is False
+
+
+class TestBlackboardEntryHelpers:
+    """BlackboardEntry uncovered paths."""
+
+    def test_to_dict(self):
+        entry = BlackboardEntry(
+            entry_id="e1", key="k", value="v", agent_id="a"
+        )
+        d = entry.to_dict()
+        assert d["entry_id"] == "e1"
+        assert d["is_locked"] is False
+        assert d["lock_expiry"] is None
+
+    def test_lock_expiry(self):
+        entry = BlackboardEntry(
+            entry_id="e1", key="k", value="v", agent_id="a"
+        )
+        import time
+
+        entry.acquire_lock("a", ttl_seconds=1)
+        assert entry.is_locked() is True
+        time.sleep(1.1)
+        assert entry.is_locked() is False
+
+
+class TestSharedBlackboardAdvanced:
+    """SharedBlackboard validate, commit, get with locked entries."""
+
+    def test_validate_and_commit(self):
+        bb = SharedBlackboard()
+        eid = bb.propose("a", "k", "v")
+        assert bb.validate(eid, lambda v: v == "v") is True
+        assert bb.commit(eid, "a") is True
+
+    def test_validate_missing_entry(self):
+        bb = SharedBlackboard()
+        assert bb.validate("missing", lambda v: True) is False
+
+    def test_commit_wrong_agent(self):
+        bb = SharedBlackboard()
+        eid = bb.propose("a", "k", "v")
+        assert bb.commit(eid, "b") is False
+
+    def test_get_skips_locked(self):
+        bb = SharedBlackboard()
+        eid = bb.propose("a", "k", "v")
+        bb.acquire_lock(eid, "a", ttl_seconds=60)
+        assert bb.get("k") is None
+
+    def test_get_unlocked(self):
+        bb = SharedBlackboard()
+        bb.propose("a", "k", "v")
+        assert bb.get("k") == "v"
+
+
+class TestGuardrailCheckerAdvanced:
+    """GuardrailChecker check_all, get_violations, clear_violations."""
+
+    def test_check_all(self):
+        checker = GuardrailChecker()
+
+        def _checker(content):
+            return GuardrailViolation(
+                violation_id="v1",
+                guardrail_type=GuardrailType.CONTENT_SAFETY,
+                severity=ViolationSeverity.WARNING,
+                message="bad",
+            )
+
+        checker.register_checker(GuardrailType.CONTENT_SAFETY, _checker)
+        results = checker.check_all(
+            "a",
+            {GuardrailType.CONTENT_SAFETY: "data"},
+        )
+        assert GuardrailType.CONTENT_SAFETY in results
+
+    def test_get_violations_filters(self):
+        checker = GuardrailChecker()
+        v1 = GuardrailViolation(
+            "v1", GuardrailType.CONTENT_SAFETY,
+            ViolationSeverity.WARNING, "msg", agent_id="a",
+        )
+        v2 = GuardrailViolation(
+            "v2", GuardrailType.RATE_LIMIT,
+            ViolationSeverity.ERROR, "msg", agent_id="b",
+        )
+        checker.violations = [v1, v2]
+
+        assert len(checker.get_violations(agent_id="a")) == 1
+        assert len(
+            checker.get_violations(severity=ViolationSeverity.ERROR)
+        ) == 1
+
+    def test_clear_violations(self):
+        checker = GuardrailChecker()
+        checker.violations = [
+            GuardrailViolation(
+                "v1", GuardrailType.CONTENT_SAFETY,
+                ViolationSeverity.WARNING, "msg",
+            ),
+        ]
+        checker.clear_violations()
+        assert len(checker.violations) == 0
+
+    def test_clear_violations_before_timestamp(self):
+        from datetime import datetime, timezone
+
+        checker = GuardrailChecker()
+        old_ts = datetime(2020, 1, 1, tzinfo=timezone.utc).replace(tzinfo=None)
+        old = GuardrailViolation(
+            "v1", GuardrailType.CONTENT_SAFETY,
+            ViolationSeverity.WARNING, "msg", timestamp=old_ts,
+        )
+        new = GuardrailViolation(
+            "v2", GuardrailType.CONTENT_SAFETY,
+            ViolationSeverity.WARNING, "msg",
+        )
+        checker.violations = [old, new]
+        before_ts = datetime(
+            2025, 1, 1, tzinfo=timezone.utc
+        ).replace(tzinfo=None)
+        checker.clear_violations(before=before_ts)
+        assert len(checker.violations) == 1
+
+
+class TestGovernanceSystemAdvanced:
+    """GovernanceSystem edge cases."""
+
+    def test_check_budget_no_budget_means_unlimited(self):
+        gov = GovernanceSystem()
+        assert gov.check_budget("unknown_agent", tokens=999999) is True
+
+    def test_check_policy_not_found_means_allowed(self):
+        gov = GovernanceSystem()
+        assert gov.check_policy("missing", {}) is True
+
+    def test_check_policy_exception_returns_false(self):
+        gov = GovernanceSystem()
+        gov.register_policy("bad", lambda ctx: 1 / 0)
+        assert gov.check_policy("bad", {}) is False
