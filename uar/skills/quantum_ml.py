@@ -20,23 +20,16 @@ Goal Metadata:
 
 from __future__ import annotations
 
-import logging
 import os
 from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-
-logger = logging.getLogger(__name__)
-
-
-def _check_pennylane() -> bool:
-    """Check if PennyLane is available."""
-    import importlib.util
-    return importlib.util.find_spec("pennylane") is not None
+from uar.core.skill_utils import require_package, skill_guard
 
 
 @register_skill("quantum_ml")
+@skill_guard("Quantum ML", status="failed")
 def quantum_ml(ctx: PipelineContext) -> Dict[str, Any]:
     """Quantum machine learning with PennyLane.
 
@@ -47,11 +40,9 @@ def quantum_ml(ctx: PipelineContext) -> Dict[str, Any]:
       - qaoa:              Quantum Approximate Optimization Algorithm
       - qchem_molecule:    Quantum chemistry molecular energy
     """
-    if not _check_pennylane():
-        return {
-            "status": "failed",
-            "error": "PennyLane not installed. pip install pennylane",
-        }
+    err = require_package("pennylane")
+    if err:
+        return err
 
     import pennylane as qml  # noqa: F811
 
@@ -66,26 +57,20 @@ def quantum_ml(ctx: PipelineContext) -> Dict[str, Any]:
     dev_name = os.getenv("PENNYLANE_DEVICE", "default.qubit")
     dev = qml.device(dev_name, wires=n_qubits)
 
-    try:
-        if task == "qnn_regression":
-            return _qnn_regression(
-                dev, n_qubits, n_layers, steps, data, params
-            )
-        elif task == "qnn_classification":
-            return _qnn_classification(
-                dev, n_qubits, n_layers, steps, data, params
-            )
-        elif task == "vqe":
-            return _vqe(dev, n_qubits, n_layers, steps, params)
-        elif task == "qaoa":
-            return _qaoa(dev, n_qubits, n_layers, steps, params)
-        elif task == "qchem_molecule":
-            return _qchem_molecule(params)
-        else:
-            return {"status": "failed", "error": f"Unknown task: {task}"}
-    except Exception:
-        logger.exception("quantum_ml failed")
-        return {"status": "failed", "error": "Quantum ML computation failed"}
+    if task == "qnn_regression":
+        return _qnn_regression(dev, n_qubits, n_layers, steps, data, params)
+    elif task == "qnn_classification":
+        return _qnn_classification(
+            dev, n_qubits, n_layers, steps, data, params
+        )
+    elif task == "vqe":
+        return _vqe(dev, n_qubits, n_layers, steps, params)
+    elif task == "qaoa":
+        return _qaoa(dev, n_qubits, n_layers, steps, params)
+    elif task == "qchem_molecule":
+        return _qchem_molecule(params)
+    else:
+        return {"status": "failed", "error": f"Unknown task: {task}"}
 
 
 def _qnn_regression(dev, n_qubits, n_layers, steps, data, params):
@@ -276,28 +261,20 @@ def _qchem_molecule(params):
             "mock_molecule": params.get("molecule", "H2"),
         }
 
-    try:
-        molecule = params.get("molecule", "H2")
-        basis = params.get("basis", "sto-3g")
-        charge = int(params.get("charge", 0))
+    molecule = params.get("molecule", "H2")
+    basis = params.get("basis", "sto-3g")
+    charge = int(params.get("charge", 0))
 
-        # Mock result — full qchem requires molecular structure files
-        return {
-            "status": "completed",
-            "task": "qchem_molecule",
-            "molecule": molecule,
-            "basis": basis,
-            "charge": charge,
-            "note": (
-                "Basic quantum chemistry placeholder. "
-                "Install pennylane-qchem for full functionality."
-            ),
-            "mock_energy": -1.117 if molecule == "H2" else None,
-        }
-    except Exception:
-        logger.exception("qchem failed")
-        return {
-            "status": "completed",
-            "task": "qchem_molecule",
-            "note": "Quantum chemistry computation unavailable",
-        }
+    # Mock result — full qchem requires molecular structure files
+    return {
+        "status": "completed",
+        "task": "qchem_molecule",
+        "molecule": molecule,
+        "basis": basis,
+        "charge": charge,
+        "note": (
+            "Basic quantum chemistry placeholder. "
+            "Install pennylane-qchem for full functionality."
+        ),
+        "mock_energy": -1.117 if molecule == "H2" else None,
+    }

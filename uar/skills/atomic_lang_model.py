@@ -33,6 +33,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +209,7 @@ def _mock_alm_response(
 
 
 @register_skill("alm_analyze")
+@skill_guard("Alm Analyze", status="failed")
 def alm_analyze(ctx: PipelineContext) -> Dict[str, Any]:
     """Analyze a formal grammar specification using ALM.
 
@@ -229,19 +231,12 @@ def alm_analyze(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "No grammar_spec provided in goal metadata",
         }
 
-    try:
-        result = _call_alm("analyze", {"grammar_spec": grammar_spec}, ctx)
-        return {"status": "completed", "grammar_spec": grammar_spec, **result}
-    except Exception:
-        logger.exception("alm_analyze failed")
-        return {
-            "status": "failed",
-            "error": "ALM analysis failed",
-            "grammar_spec": grammar_spec,
-        }
+    result = _call_alm("analyze", {"grammar_spec": grammar_spec}, ctx)
+    return {"status": "completed", "grammar_spec": grammar_spec, **result}
 
 
 @register_skill("alm_generate")
+@skill_guard("Alm Generate", status="failed")
 def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate a token sequence from a prefix using ALM.
 
@@ -264,25 +259,17 @@ def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "No prefix provided in goal metadata",
         }
 
-    try:
-        result = _call_alm("generate", {"prefix": prefix, "count": count}, ctx)
-        return {
-            "status": "completed",
-            "prefix": prefix,
-            "count": count,
-            "tokens": result.get("tokens", []),
-        }
-    except Exception:
-        logger.exception("alm_generate failed")
-        return {
-            "status": "failed",
-            "error": "ALM generation failed",
-            "prefix": prefix,
-            "count": count,
-        }
+    result = _call_alm("generate", {"prefix": prefix, "count": count}, ctx)
+    return {
+        "status": "completed",
+        "prefix": prefix,
+        "count": count,
+        "tokens": result.get("tokens", []),
+    }
 
 
 @register_skill("alm_verify")
+@skill_guard("Alm Verify", status="failed")
 def alm_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """Validate text against ALM grammar.
 
@@ -304,21 +291,13 @@ def alm_verify(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "No text provided in goal metadata",
         }
 
-    try:
-        result = _call_alm("verify", {"text": text}, ctx)
-        return {
-            "status": "completed",
-            "text": text,
-            "valid": result.get("valid", False),
-            "proof_id": result.get("proof_id"),
-            "notes": result.get("notes"),
-            "error": result.get("error"),
-            "details": result.get("details"),
-        }
-    except Exception:
-        logger.exception("alm_verify failed")
-        return {
-            "status": "failed",
-            "error": "Verification failed",
-            "text": text,
-        }
+    result = _call_alm("verify", {"text": text}, ctx)
+    return {
+        "status": "completed",
+        "text": text,
+        "valid": result.get("valid", False),
+        "proof_id": result.get("proof_id"),
+        "notes": result.get("notes"),
+        "error": result.get("error"),
+        "details": result.get("details"),
+    }

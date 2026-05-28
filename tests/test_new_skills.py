@@ -25,9 +25,10 @@ def _make_ctx(metadata: dict | None = None) -> PipelineContext:
 
 class TestQuantumML:
     def test_missing_pennylane_returns_error(self):
-        from uar.skills.quantum_ml import _check_pennylane, quantum_ml
+        from uar.core.skill_utils import require_package
+        from uar.skills.quantum_ml import quantum_ml
 
-        if _check_pennylane():
+        if require_package("pennylane") is None:
             pytest.skip(
                 "PennyLane is installed — skipping missing-dependency test"
             )
@@ -35,11 +36,12 @@ class TestQuantumML:
         ctx = _make_ctx({"qml_task": "qnn_regression"})
         result = quantum_ml(ctx)
         assert result["status"] == "failed"
-        assert "PennyLane not installed" in result["error"]
+        assert "pennylane not installed" in result["error"].lower()
 
-    def test_check_pennylane_is_boolean(self):
-        from uar.skills.quantum_ml import _check_pennylane
-        assert isinstance(_check_pennylane(), bool)
+    def test_require_package_is_dict_or_none(self):
+        from uar.core.skill_utils import require_package
+        result = require_package("pennylane")
+        assert result is None or isinstance(result, dict)
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ from typing import Dict, Any
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import require_package, skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +211,7 @@ def _verify_signature(
 
 
 @register_skill("cipher_ops")
+@skill_guard("Cipher Ops", status="failed")
 def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
     """Perform cryptographic operations using PyCryptodome.
 
@@ -231,13 +233,9 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
     Returns:
         Dictionary with operation results or error information.
     """  # noqa: E501
-    # Check PyCryptodome availability
-    if not _check_pycryptodome_available():
-        return {
-            "status": "failed",
-            "error": "PyCryptodome not installed. Install with: pip install pycryptodome",  # noqa: E501
-            "operation": "unavailable",
-        }
+    err = require_package("Crypto", install_hint="pip install pycryptodome")
+    if err:
+        return err
 
     # Get parameters from goal metadata
     operation = ctx.goal.metadata.get("cipher_operation", "hash")
@@ -294,18 +292,9 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
                 "operation": operation,
             }
 
-    # Execute operation with circuit breaker
-    try:
-        result = _cipher_cb.call(
-            lambda: _execute_operation(operation, algorithm, data, key, iv)
-        )
-    except Exception:
-        logger.exception("cipher_ops failed")
-        return {
-            "status": "failed",
-            "error": "Operation failed",
-            "operation": operation,
-        }
+    result = _cipher_cb.call(
+        lambda: _execute_operation(operation, algorithm, data, key, iv)
+    )
 
     # Add metadata to result
     result["operation"] = operation
