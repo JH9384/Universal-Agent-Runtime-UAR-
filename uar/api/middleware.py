@@ -9,7 +9,7 @@ from functools import wraps
 from typing import Dict, Optional, List, Any
 
 import logging
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from uar.api.metrics import get_metrics_collector
@@ -928,5 +928,62 @@ def apply_middleware(app):
         if os.getenv("ENVIRONMENT", "").lower() == "production":
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains"
+            )
+        return response
+
+
+def require_auth(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)
+    ),
+) -> dict[str, Any]:
+    """Require valid API key authentication.
+
+    Raises HTTPException(401) when credentials are missing or invalid.
+    """
+    user_info = auth_middleware(credentials)
+    if not user_info:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "unauthorized",
+                "message": "Authentication required",
+            },
+        )
+    request.state.user_id = user_info["user"]
+    return user_info
+
+
+def register_metrics_middleware(app) -> None:
+    """Attach universal request-timing middleware to a FastAPI app."""
+
+    @app.middleware("http")
+    async def metrics_middleware(request: Request, call_next):
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            duration = time.perf_counter() - start
+            get_metrics_collector().record_request(
+                request.url.path, duration, error=True
+            )
+            raise
+        duration = time.perf_counter() - start
+        get_metrics_collector().record_request(
+            request.url.path,
+            duration,
+            error=response.status_code >= 500,
+        )
+        # Log slow requests (> 5 s = p99 threshold for POST /api/uar/run)
+        SLOW_REQUEST_THRESHOLD = 5.0  # seconds
+        if duration > SLOW_REQUEST_THRESHOLD:
+            logger.warning(
+                "slow_request path=%s duration=%.3fs status=%s "
+                "correlation_id=%s",
+                request.url.path,
+                duration,
+                getattr(response, "status_code", "unknown"),
+                request.headers.get("x-correlation-id", "none"),
             )
         return response

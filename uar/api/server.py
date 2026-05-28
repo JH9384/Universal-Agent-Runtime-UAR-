@@ -3,14 +3,8 @@ import os
 import threading
 import time
 import asyncio
-from typing import Any, Dict, Optional
-from fastapi import (
-    FastAPI,
-    HTTPException,
-    Depends,
-    Request,
-)
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from typing import Any, Dict
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from uar.version import get_uar_version
@@ -37,7 +31,11 @@ from uar.api.exception_handlers import register_exception_handlers
 from uar.api.goal_builder import _build_goal  # noqa: F401
 from uar.api.lifespan import create_lifespan
 from uar.memory.json_store import JsonRunStore
-from .middleware import auth_middleware, apply_middleware
+from .middleware import (
+    apply_middleware,
+    require_auth,
+    register_metrics_middleware,
+)
 from uar.services import (
     AuthService,
     EventService,
@@ -275,59 +273,7 @@ app.add_middleware(
 )
 
 # Universal request-timing middleware (records every HTTP endpoint)
-
-
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    from uar.api.metrics import get_metrics_collector
-
-    start = time.perf_counter()
-    try:
-        response = await call_next(request)
-    except Exception:
-        duration = time.perf_counter() - start
-        get_metrics_collector().record_request(
-            request.url.path, duration, error=True
-        )
-        raise
-    duration = time.perf_counter() - start
-    get_metrics_collector().record_request(
-        request.url.path,
-        duration,
-        error=response.status_code >= 500,
-    )
-    # Log slow requests (> 5 s = p99 threshold for POST /api/uar/run)
-    SLOW_REQUEST_THRESHOLD = 5.0  # seconds
-    if duration > SLOW_REQUEST_THRESHOLD:
-        logger.warning(
-            "slow_request path=%s duration=%.3fs status=%s "
-            "correlation_id=%s",
-            request.url.path,
-            duration,
-            getattr(response, "status_code", "unknown"),
-            request.headers.get("x-correlation-id", "none"),
-        )
-    return response
-
-# Security scheme for API key authentication
-security = HTTPBearer(auto_error=False)
-
-
-def require_auth(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> dict[str, Any]:
-    user_info = auth_middleware(credentials)
-    if not user_info:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "unauthorized",
-                "message": "Authentication required",
-            },
-        )
-    request.state.user_id = user_info["user"]
-    return user_info
+register_metrics_middleware(app)
 
 
 # Include advanced integrations router
