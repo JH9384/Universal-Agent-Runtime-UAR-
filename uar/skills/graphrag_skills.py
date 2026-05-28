@@ -28,6 +28,8 @@ from urllib.parse import urljoin, urlparse
 
 from uar.core.registry import register_skill
 from uar.core.circuit_breaker import CircuitBreaker
+from uar.core.exceptions import PathSecurityError
+from uar.core.skill_utils import skill_guard
 from uar.core.validation import validate_path_security
 
 logger = logging.getLogger(__name__)
@@ -396,6 +398,7 @@ def _run_cli_impl(
 
 
 @register_skill("graphrag_init")
+@skill_guard("GraphRAG init", status="failed")
 def graphrag_init(ctx):
     """Create or refresh the GraphRAG workspace at
     <PROJECT_ROOT>/.uar_graphrag."""
@@ -410,6 +413,7 @@ def graphrag_init(ctx):
 
 
 @register_skill("graphrag_index")
+@skill_guard("GraphRAG index", status="failed")
 def graphrag_index(ctx):
     """Stage documents and build the GraphRAG knowledge graph.
 
@@ -436,8 +440,7 @@ def graphrag_index(ctx):
     # Validate path security
     try:
         validate_path_security(source, ALLOWED_ROOT)
-    except Exception:
-        logger.exception("Path security validation failed")
+    except PathSecurityError:
         return {"status": "failed", "error": "Path security violation"}
 
     if not source.exists():
@@ -493,6 +496,7 @@ def graphrag_index(ctx):
 
 
 @register_skill("graphrag_query")
+@skill_guard("GraphRAG query", status="failed")
 def graphrag_query(ctx):
     """Query the existing GraphRAG index.
 
