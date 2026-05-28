@@ -43,6 +43,7 @@ except ImportError:
 
 from uar.core.registry import register_skill
 from uar.core.exceptions import PathSecurityError
+from uar.core.skill_utils import skill_guard
 from uar.core.validation import validate_path_security
 
 
@@ -536,6 +537,7 @@ def _yield_documents_enhanced(
 
 
 @register_skill("doc_ingest_enhanced")
+@skill_guard("Doc ingest enhanced", status="failed")
 def doc_ingest_enhanced(ctx):
     """Enhanced document ingestion with advanced processing capabilities.
 
@@ -620,8 +622,4 @@ def doc_ingest_enhanced(ctx):
         }
 
     except PathSecurityError:
-        logger.exception("Path security error")
         return {"documents": [], "error": "Path security error"}
-    except Exception:
-        logger.exception("Unexpected error in doc_ingest_enhanced")
-        return {"documents": [], "error": "Unexpected error"}

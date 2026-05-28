@@ -5,6 +5,7 @@ import logging
 
 from uar.core.registry import register_skill
 from uar.core.exceptions import PathSecurityError
+from uar.core.skill_utils import skill_guard
 from uar.core.validation import validate_path_security
 
 
@@ -470,6 +471,7 @@ def _yield_documents(
 
 
 @register_skill("doc_ingest")
+@skill_guard("Doc ingest", status="failed")
 def doc_ingest(ctx):
     """Ingest documents from a specified path with security validation.
 
@@ -532,8 +534,4 @@ def doc_ingest(ctx):
         }
 
     except PathSecurityError:
-        logger.exception("Path security error")
         return {"documents": [], "error": "Path security error"}
-    except Exception:
-        logger.exception("Unexpected error in doc_ingest")
-        return {"documents": [], "error": "Unexpected error"}
