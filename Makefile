@@ -1,4 +1,4 @@
-.PHONY: help install test test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate api web up up-full clean release version sync-version check-version
+.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate api web up up-full clean release version sync-version check-version
 
 PYTHON ?= python3.12
 API_HOST ?= 127.0.0.1
@@ -15,6 +15,8 @@ help:
 	@echo "UAR quick commands"
 	@echo "  make install          Install Python development dependencies"
 	@echo "  make test             Run all Python tests"
+	@echo "  make test-fast        Run tests in parallel (pytest-xdist)"
+	@echo "  make test-coverage    Run tests with coverage report"
 	@echo "  make test-backend     Run backend tests (fast)"
 	@echo "  make test-frontend    Run frontend tests (Vitest)"
 	@echo "  make test-alignment   Run skill/feature/tips alignment tests"
@@ -45,6 +47,13 @@ install: $(VENV_STAMP)
 
 test: $(VENV_STAMP)
 	$(PYTEST) tests/ -q --tb=short
+
+test-fast: $(VENV_STAMP)
+	$(PYTEST) tests/ -q --tb=short -n auto
+
+test-coverage: $(VENV_STAMP)
+	$(PYTEST) tests/ -q --tb=short --cov=uar --cov-report=term-missing \
+		--cov-report=html:htmlcov --junitxml=test-results.xml
 
 test-backend: $(VENV_STAMP)
 	$(PYTEST) tests/ -q --tb=short

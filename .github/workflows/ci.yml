@@ -29,8 +29,24 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
-      - name: Validate backend
-        run: make validate PYTHON=python
+      - name: Validate backend with coverage
+        run: make test-coverage PYTHON=python
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-py${{ matrix.python-version }}
+          path: htmlcov/
+          retention-days: 14
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-py${{ matrix.python-version }}
+          path: test-results.xml
+          retention-days: 7
 
       - name: Lint backend
         run: make lint-py PYTHON=python
@@ -43,7 +59,7 @@ jobs:
 
       - name: Run benchmark (non-blocking)
         run: |
-          .venv/bin/python tests/benchmark_skills.py || true
+          .venv/bin/python tests/performance/benchmark_skills.py || true
         continue-on-error: true
 
   optional-dependency-smoke:
