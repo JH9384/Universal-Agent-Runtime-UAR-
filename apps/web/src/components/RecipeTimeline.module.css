@@ -17,12 +17,22 @@
   background: #f8f9fa;
 }
 
+:global(.dark) .runHeader {
+  background: #1e1e1e;
+  border-color: #333;
+  color: #fff;
+}
+
 .runHeaderRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+:global(.dark) .runHeaderRow {
+  color: #fff;
 }
 
 .runHeaderId {
@@ -34,6 +44,10 @@
   text-overflow: ellipsis;
 }
 
+:global(.dark) .runHeaderId {
+  color: #e0e0e0;
+}
+
 .runHeaderStatus {
   font-size: 11px;
   padding: 2px 10px;
@@ -43,6 +57,10 @@
   font-weight: 600;
 }
 
+:global(.dark) .runHeaderStatus {
+  color: #fff;
+}
+
 .runHeaderMeta {
   display: flex;
   align-items: center;
@@ -50,6 +68,10 @@
   font-size: 12px;
   color: #6c757d;
   flex-wrap: wrap;
+}
+
+:global(.dark) .runHeaderMeta {
+  color: #aaa;
 }
 
 /* ---- Summary Bar --------------------------------------------------------- */
@@ -65,14 +87,28 @@
   border-radius: 6px;
 }
 
+:global(.dark) .summaryBar {
+  background: #1e1e1e;
+  border-color: #333;
+  color: #fff;
+}
+
 .summaryItem {
   font-size: 12px;
   color: #495057;
 }
 
+:global(.dark) .summaryItem {
+  color: #e0e0e0;
+}
+
 .summaryItem strong {
   color: #212529;
   margin-right: 2px;
+}
+
+:global(.dark) .summaryItem strong {
+  color: #fff;
 }
 
 /* ---- Recipe Block -------------------------------------------------------- */
@@ -84,6 +120,11 @@
   background: #fff;
   overflow: hidden;
   padding-left: 8px;
+}
+
+:global(.dark) .recipeBlock {
+  background: #1e1e1e;
+  border-color: #333;
 }
 
 .recipeBlock[data-depth="1"] { padding-left: 24px; }
@@ -104,8 +145,18 @@
   user-select: none;
 }
 
+:global(.dark) .recipeHeader {
+  background: #2a2a2a;
+  border-color: #333;
+  color: #fff;
+}
+
 .recipeHeader:hover {
   background: #e9ecef;
+}
+
+:global(.dark) .recipeHeader:hover {
+  background: #333;
 }
 
 .statusIcon {
@@ -116,6 +167,10 @@
 .recipeLabel {
   font-weight: 600;
   flex: 1;
+}
+
+:global(.dark) .recipeLabel {
+  color: #fff;
 }
 
 .retryBadge {
@@ -132,9 +187,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+:global(.dark) .duration {
+  color: #aaa;
+}
+
 .expandIcon {
   font-size: 10px;
   color: #6c757d;
+}
+
+:global(.dark) .expandIcon {
+  color: #aaa;
 }
 
 /* ---- Skills List --------------------------------------------------------- */
@@ -143,10 +206,18 @@
   padding: 6px 10px 6px 28px;
 }
 
+:global(.dark) .skillsList {
+  color: #fff;
+}
+
 .noSkills {
   color: #6c757d;
   font-size: 12px;
   padding: 4px 0;
+}
+
+:global(.dark) .noSkills {
+  color: #aaa;
 }
 
 .skillItem {
@@ -170,15 +241,27 @@
   background: #f8f9fa;
 }
 
+:global(.dark) .skillItem:hover {
+  background: #2a2a2a;
+}
+
 .skillName {
   flex: 1;
   font-size: 12px;
+}
+
+:global(.dark) .skillName {
+  color: #e0e0e0;
 }
 
 .skillDuration {
   font-size: 11px;
   color: #6c757d;
   font-variant-numeric: tabular-nums;
+}
+
+:global(.dark) .skillDuration {
+  color: #aaa;
 }
 
 /* ---- Standalone Section -------------------------------------------------- */
@@ -191,11 +274,21 @@
   background: #f8f9fa;
 }
 
+:global(.dark) .standaloneSection {
+  background: #1e1e1e;
+  border-color: #555;
+  color: #fff;
+}
+
 .standaloneHeader {
   font-weight: 600;
   font-size: 12px;
   color: #495057;
   margin-bottom: 6px;
+}
+
+:global(.dark) .standaloneHeader {
+  color: #e0e0e0;
 }
 
 /* ---- Status Labels ------------------------------------------------------- */
@@ -229,6 +322,10 @@
   font-size: 13px;
 }
 
+:global(.dark) .noEvents {
+  color: #888;
+}
+
 /* ---- Details Drawer ------------------------------------------------------ */
 
 .detailOverlay {
@@ -253,12 +350,21 @@
   overflow: hidden;
 }
 
+:global(.dark) .detailDrawer {
+  background: #1e1e1e;
+  color: #fff;
+}
+
 .detailHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid #dee2e6;
+}
+
+:global(.dark) .detailHeader {
+  border-color: #333;
 }
 
 .detailClose {
@@ -279,6 +385,14 @@
 
 .detailClose:hover {
   background: #f1f3f5;
+}
+
+:global(.dark) .detailClose {
+  color: #aaa;
+}
+
+:global(.dark) .detailClose:hover {
+  background: #333;
 }
 
 .detailButton {
@@ -303,6 +417,15 @@
   background: #e9ecef;
 }
 
+:global(.dark) .detailButton {
+  color: #888;
+}
+
+:global(.dark) .detailButton:hover {
+  color: #ccc;
+  background: #333;
+}
+
 .detailBody {
   padding: 12px 16px;
   overflow-y: auto;
@@ -323,10 +446,18 @@
   font-weight: 500;
 }
 
+:global(.dark) .detailLabel {
+  color: #aaa;
+}
+
 .detailValue {
   flex: 1;
   color: #212529;
   word-break: break-word;
+}
+
+:global(.dark) .detailValue {
+  color: #e0e0e0;
 }
 
 .detailError {
@@ -345,4 +476,10 @@
   font-size: 12px;
   overflow-x: auto;
   margin-top: 6px;
+}
+
+:global(.dark) .detailPre {
+  background: #2a2a2a;
+  border-color: #333;
+  color: #e0e0e0;
 }
