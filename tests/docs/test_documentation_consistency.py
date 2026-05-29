@@ -347,10 +347,10 @@ class TestFrontendHelpConsistency:
     def test_all_skills_have_hover_title(self):
         """Every skill button in SKILL_GROUPS must have a title."""
         selector = _read_frontend_file("SkillSelector.tsx")
-        # Count skill buttons with title attributes
-        titled = len(re.findall(r'title=\{s\.desc\}', selector))
+        # Count skill buttons with title attributes (computed via buildTitle)
+        titled = len(re.findall(r'title=\{title\}', selector))
         assert titled >= 1, (
-            "Skill buttons missing hover title (title={s.desc})"
+            "Skill buttons missing hover title"
         )
 
 

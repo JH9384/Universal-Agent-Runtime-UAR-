@@ -361,6 +361,15 @@ const SKILL_GROUPS = [
 
 const AVAILABLE_SKILLS = SKILL_GROUPS.flatMap(g => g.skills)
 
+type SkillBadge = 'real' | 'stub' | 'cosplay'
+
+/** UI honesty layer: every skill is real, stub, or cosplay.
+ *  Currently empty — all registered skills are real. */
+const BADGES: Record<string, SkillBadge> = {}
+
+/** Package name shown in stub tooltip (empty = not yet implemented). */
+const STUB_DEPS: Record<string, string> = {}
+
 const GOAL_TEMPLATES = [
   'Summarize the project',
   'Document the architecture',
@@ -2244,6 +2253,8 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
                 isRunning={isRunning}
                 skillGroups={SKILL_GROUPS}
                 availableSkills={AVAILABLE_SKILLS}
+                badges={BADGES}
+                stubDeps={STUB_DEPS}
               />
               <div className={styles.orderText} title="Skills execute in this order">
                 <strong>Order of Operation:</strong>

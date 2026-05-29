@@ -151,15 +151,26 @@ class RoleBasedAgent(Agent):
     async def _perform_task(self, task: AgentTask) -> Any:
         """Perform the actual task execution.
 
-        When CrewAI is installed this delegates to the native CrewAI
-        agent pipeline.  Otherwise it falls back to a role-specific
-        simulation so that workflows can still be exercised and tested.
+        When CrewAI is installed and an LLM is configured this delegates
+        to the native CrewAI agent pipeline via ``crewai_real``.  If
+        CrewAI is unavailable or no LLM key is present it falls back to
+        the UAR-native role simulation.
         """
         if CREWAI_AVAILABLE:
-            # Native CrewAI path — would be wired here when a real
-            # LLM backend is configured.  For now fall through to the
-            # simulation so tests remain deterministic.
-            pass
+            try:
+                from uar.core.crewai_real import (
+                    execute_single_task,
+                    CrewAIRealError,
+                )
+
+                return execute_single_task(
+                    role=self.role,
+                    task_description=task.description or "",
+                    expected_output=task.expected_output,
+                )
+            except CrewAIRealError:
+                # LLM not configured — fall through to simulation
+                pass
 
         # Fallback simulation: produce role-appropriate structured output
         # based on the task description so downstream skills have useful
@@ -207,6 +218,7 @@ class RoleBasedAgent(Agent):
             "task_id": task.id,
             "agent_id": self.agent_id,
             "role": self.role.value,
+            "mode": "uar_native",
             "result": result,
         }
 

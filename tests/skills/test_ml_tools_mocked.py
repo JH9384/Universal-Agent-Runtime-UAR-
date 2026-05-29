@@ -218,3 +218,176 @@ class TestChromaDBStoreMocked:
                 )
         assert result["status"] == "failed"
         assert "Unknown operation" in result["error"]
+
+
+class TestFlamlAutoMocked:
+    """flaml_auto with mocked flaml."""
+
+    def _mock_flaml(self):
+        mock_automl = MagicMock()
+        mock_automl.best_estimator = "LightGBM"
+        mock_automl.best_config = {"learning_rate": 0.1}
+        mock_automl.best_loss = 0.05
+        mock_flaml = MagicMock()
+        mock_flaml.AutoML.return_value = mock_automl
+        return mock_flaml
+
+    def test_classification_default(self):
+        import numpy as np
+        flaml = self._mock_flaml()
+        mock_datasets = MagicMock()
+        mock_datasets.make_classification.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+        mock_datasets.make_regression.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+        mock_selection = MagicMock()
+        mock_selection.train_test_split.return_value = (
+            np.zeros((400, 10)), np.zeros((100, 10)),
+            np.zeros(400), np.zeros(100),
+        )
+        with patch.dict("sys.modules", {
+            "flaml": flaml, "pandas": MagicMock(),
+            "sklearn.datasets": mock_datasets,
+            "sklearn.model_selection": mock_selection,
+        }):
+            with patch(
+                "uar.skills.ml_tools.require_package",
+                return_value=None,
+            ):
+                from uar.skills.ml_tools import flaml_auto
+                result = flaml_auto(
+                    _ctx({"flaml_task": "classification"})
+                )
+        assert result["status"] == "completed"
+        assert result["best_estimator"] == "LightGBM"
+        assert result["task"] == "classification"
+
+    def test_regression(self):
+        import numpy as np
+        flaml = self._mock_flaml()
+        mock_datasets = MagicMock()
+        mock_datasets.make_classification.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+        mock_datasets.make_regression.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+        mock_selection = MagicMock()
+        mock_selection.train_test_split.return_value = (
+            np.zeros((400, 10)), np.zeros((100, 10)),
+            np.zeros(400), np.zeros(100),
+        )
+        with patch.dict("sys.modules", {
+            "flaml": flaml, "pandas": MagicMock(),
+            "sklearn.datasets": mock_datasets,
+            "sklearn.model_selection": mock_selection,
+        }):
+            with patch(
+                "uar.skills.ml_tools.require_package",
+                return_value=None,
+            ):
+                from uar.skills.ml_tools import flaml_auto
+                result = flaml_auto(
+                    _ctx({"flaml_task": "regression"})
+                )
+        assert result["status"] == "completed"
+        assert result["task"] == "regression"
+
+    def test_missing_dependency(self):
+        with patch(
+            "uar.skills.ml_tools.require_package",
+            return_value={"status": "failed", "error": "flaml missing"},
+        ):
+            from uar.skills.ml_tools import flaml_auto
+            result = flaml_auto(_ctx({}))
+        assert result["status"] == "failed"
+
+
+class TestPycaretMlMocked:
+    """pycaret_ml with mocked pycaret."""
+
+    def test_classification_compare(self):
+        import numpy as np
+        mock_setup = MagicMock()
+        mock_compare = MagicMock(return_value="best_model_obj")
+        mock_create = MagicMock()
+        mock_mod = MagicMock()
+        mock_mod.setup = mock_setup
+        mock_mod.compare_models = mock_compare
+        mock_mod.create_model = mock_create
+        mock_datasets = MagicMock()
+        mock_datasets.make_classification.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+        mock_datasets.make_regression.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+
+        with patch.dict("sys.modules", {
+            "pycaret": MagicMock(),
+            "pycaret.classification": mock_mod,
+            "pandas": MagicMock(),
+            "sklearn.datasets": mock_datasets,
+        }):
+            with patch(
+                "uar.skills.ml_tools.require_package",
+                return_value=None,
+            ):
+                from uar.skills.ml_tools import pycaret_ml
+                result = pycaret_ml(
+                    _ctx({"pycaret_task": "classification"})
+                )
+        assert result["status"] == "completed"
+        assert result["task"] == "classification"
+        assert result["compare"] is True
+        assert result["best_model"] == "best_model_obj"
+
+    def test_regression_create_model(self):
+        import numpy as np
+        mock_setup = MagicMock()
+        mock_compare = MagicMock()
+        mock_create = MagicMock(return_value="rf_model")
+        mock_mod = MagicMock()
+        mock_mod.setup = mock_setup
+        mock_mod.compare_models = mock_compare
+        mock_mod.create_model = mock_create
+        mock_datasets = MagicMock()
+        mock_datasets.make_classification.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+        mock_datasets.make_regression.return_value = (
+            np.zeros((500, 10)), np.zeros(500)
+        )
+
+        with patch.dict("sys.modules", {
+            "pycaret": MagicMock(),
+            "pycaret.regression": mock_mod,
+            "pandas": MagicMock(),
+            "sklearn.datasets": mock_datasets,
+        }):
+            with patch(
+                "uar.skills.ml_tools.require_package",
+                return_value=None,
+            ):
+                from uar.skills.ml_tools import pycaret_ml
+                result = pycaret_ml(
+                    _ctx({
+                        "pycaret_task": "regression",
+                        "pycaret_compare": False,
+                        "pycaret_model": "rf",
+                    })
+                )
+        assert result["status"] == "completed"
+        assert result["compare"] is False
+        assert result["best_model"] == "rf_model"
+
+    def test_missing_dependency(self):
+        with patch(
+            "uar.skills.ml_tools.require_package",
+            return_value={"status": "failed", "error": "pycaret missing"},
+        ):
+            from uar.skills.ml_tools import pycaret_ml
+            result = pycaret_ml(_ctx({}))
+        assert result["status"] == "failed"

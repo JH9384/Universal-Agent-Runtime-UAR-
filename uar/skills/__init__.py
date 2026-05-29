@@ -61,5 +61,8 @@ import uar.skills.ml_tools  # noqa: F401
 import uar.skills.quantum_ml  # noqa: F401
 import uar.skills.cern_root  # noqa: F401
 
+# Aliases (must be before stubs so they override stub registrations)
+import uar.skills.alias_skills  # noqa: F401
+
 # Stubs (must be last so real implementations take precedence)
 import uar.skills.stub_skills  # noqa: F401

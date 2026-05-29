@@ -6,6 +6,12 @@ const COLLAPSED_ICON = '▶'
 const EXPANDED_ICON = '▼'
 const CHECK_ICON = '✓'
 
+const BADGE_EMOJI: Record<string, string> = {
+  real: '🟢',
+  stub: '🔴',
+  cosplay: '🟡',
+}
+
 interface Skill {
   id: string
   label: string
@@ -31,6 +37,8 @@ interface SkillSelectorProps {
   isRunning: boolean
   skillGroups: SkillGroup[]
   availableSkills: Skill[]
+  badges: Record<string, 'real' | 'stub' | 'cosplay'>
+  stubDeps: Record<string, string>
 }
 
 function chip(active: boolean, disabled = false): string {
@@ -51,6 +59,23 @@ function getCheckedLabel(count: number, label: string): string {
   return label
 }
 
+function buildTitle(
+  badge: 'real' | 'stub' | 'cosplay' | undefined,
+  dep: string,
+  desc: string
+): string {
+  if (badge === 'stub') {
+    const install = dep
+      ? `Install ${dep} to enable.`
+      : 'Not yet implemented.'
+    return `${install} ${desc}`
+  }
+  if (badge === 'cosplay') {
+    return `${desc} (UAR-native)`
+  }
+  return desc
+}
+
 export default function SkillSelector({
   skillSearch,
   debouncedSkillSearch,
@@ -64,6 +89,8 @@ export default function SkillSelector({
   isRunning,
   skillGroups,
   availableSkills,
+  badges,
+  stubDeps,
 }: SkillSelectorProps) {
   return (
     <div className={styles.sectionWithTips}>
@@ -137,17 +164,31 @@ export default function SkillSelector({
                         <div className={styles.skillGroupSkills}>
                           {group.skills.map((s) => {
                             const count = getSkillCount(unifiedOrder, s.id)
+                            const badge = badges[s.id]
+                            const isStub = badge === 'stub'
+                            const emoji = BADGE_EMOJI[badge ?? 'real']
+                            const title = buildTitle(
+                              badge,
+                              stubDeps[s.id] ?? '',
+                              s.desc
+                            )
                             return (
                               <button
                                 key={s.id}
                                 onClick={() => onAddSkill(s.id)}
-                                disabled={isRunning}
-                                title={s.desc}
+                                disabled={isRunning || isStub}
+                                title={title}
                                 className={chip(
                                   count > 0,
-                                  isRunning
+                                  isRunning || isStub
                                 )}
                               >
+                                <span
+                                  className={styles.skillBadge}
+                                  aria-label={`${badge ?? 'real'} skill`}
+                                >
+                                  {emoji}
+                                </span>
                                 {getCheckedLabel(count, s.label)}
                               </button>
                             )
@@ -162,14 +203,28 @@ export default function SkillSelector({
                 <div className={styles.skillGroupSkills}>
                   {availableSkills.map((s) => {
                     const count = getSkillCount(unifiedOrder, s.id)
+                    const badge = badges[s.id]
+                    const isStub = badge === 'stub'
+                    const emoji = BADGE_EMOJI[badge ?? 'real']
+                    const title = buildTitle(
+                      badge,
+                      stubDeps[s.id] ?? '',
+                      s.desc
+                    )
                     return (
                       <button
                         key={s.id}
                         onClick={() => onAddSkill(s.id)}
-                        disabled={isRunning}
-                        title={s.desc}
-                        className={chip(count > 0, isRunning)}
+                        disabled={isRunning || isStub}
+                        title={title}
+                        className={chip(count > 0, isRunning || isStub)}
                       >
+                        <span
+                          className={styles.skillBadge}
+                          aria-label={`${badge ?? 'real'} skill`}
+                        >
+                          {emoji}
+                        </span>
                         {getCheckedLabel(count, s.label)}
                       </button>
                     )

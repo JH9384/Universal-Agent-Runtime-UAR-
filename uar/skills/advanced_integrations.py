@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict
 from uar.core.async_utils import run_sync_safe
 from uar.core.registry import register_skill
-from uar.core.skill_utils import skill_guard
+from uar.core.skill_utils import require_package, skill_guard
 
 
 @register_skill("agent_workflow")
@@ -85,8 +85,10 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute role-based agent tasks using CrewAI patterns.
 
-    This skill creates specialized agents with specific roles and
-    executes tasks with role-based coordination.
+    When CrewAI is installed and an LLM is configured the task is
+    executed by a real CrewAI agent.  Otherwise a UAR-native role
+    simulation is used and the result is tagged ``mode: uar_native``
+    so callers know exactly what happened.
 
     Metadata:
         - role: Agent role (researcher, analyst, writer, etc.)
@@ -97,12 +99,11 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
         Dict with task execution results
     """
     from uar.core.crewai_integration import (
+        CREWAI_AVAILABLE,
         TaskOrchestrator,
         create_standard_agent,
         AgentRole,
     )
-
-    orchestrator = TaskOrchestrator()
 
     # Get metadata
     metadata = ctx.get("metadata", {})
@@ -125,24 +126,44 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
     }
     role = role_map.get(role_str.lower(), AgentRole.RESEARCHER)
 
-    # Create agent
+    # Try real CrewAI first
+    if CREWAI_AVAILABLE:
+        try:
+            from uar.core.crewai_real import (
+                execute_single_task,
+                CrewAIRealError,
+            )
+
+            result = execute_single_task(
+                role=role,
+                task_description=task_description,
+                expected_output=expected_output,
+            )
+            result["skill"] = "crewai_task"
+            result["role"] = role_str
+            return result
+        except CrewAIRealError:
+            pass
+
+    # UAR-native fallback
+    orchestrator = TaskOrchestrator()
     agent = create_standard_agent(role=role)
     orchestrator.register_agent(agent)
-
-    # Create and assign task
-
     task = orchestrator.create_task(
         description=task_description,
         expected_output=expected_output,
     )
     orchestrator.assign_task_to_agent(task.id, agent.agent_id)
+    executed = run_sync_safe(orchestrator.execute_task(task.id))
 
     return {
-        "status": "success",
+        "status": "completed" if executed.status == "completed" else "failed",
         "agent_id": agent.agent_id,
         "role": role_str,
         "task_id": task.id,
         "task_description": task_description,
+        "mode": "uar_native",
+        "result": executed.result if executed.result else {},
     }
 
 
@@ -152,10 +173,10 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute standard multi-agent workflows using CrewAI patterns.
 
-    This skill runs predefined workflows for common multi-agent scenarios:
-    - research_analyze_write: Research, analyze, and write on a topic
-    - code_review: Review code for issues and improvements
-    - data_analysis: Analyze data and provide insights
+    When CrewAI is installed and an LLM is configured the workflow is
+    executed by real CrewAI Crews.  Otherwise the UAR-native
+    TaskOrchestrator simulation is used and the result is tagged
+    ``mode: uar_native``.
 
     Metadata:
         - workflow_type: Type of workflow to execute
@@ -164,26 +185,102 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with workflow execution results
     """
-    from uar.core.crewai_integration import execute_standard_workflow
+    from uar.core.crewai_integration import (
+        CREWAI_AVAILABLE,
+        AgentRole,
+        execute_standard_workflow,
+    )
 
     # Get metadata
     metadata = ctx.get("metadata", {})
     workflow_type = metadata.get("workflow_type", "research_analyze_write")
     input_data = metadata.get("input_data", {"topic": ctx.get("goal", "")})
 
-    # Execute workflow (async function called safely from sync skill)
+    # Try real CrewAI first
+    if CREWAI_AVAILABLE:
+        try:
+            from uar.core.crewai_real import (
+                execute_crew_workflow,
+                CrewAIRealError,
+            )
+
+            workflow_map = {
+                "research_analyze_write": [
+                    {
+                        "role": AgentRole.RESEARCHER,
+                        "description": "Research the topic",
+                        "expected_output": "Research findings",
+                    },
+                    {
+                        "role": AgentRole.ANALYST,
+                        "description": "Analyze the research findings",
+                        "expected_output": "Analysis report",
+                    },
+                    {
+                        "role": AgentRole.WRITER,
+                        "description": "Write a comprehensive report",
+                        "expected_output": "Final report",
+                    },
+                ],
+                "code_review": [
+                    {
+                        "role": AgentRole.CODER,
+                        "description": "Review the code",
+                        "expected_output": "Code review notes",
+                    },
+                    {
+                        "role": AgentRole.REVIEWER,
+                        "description": "Validate the review",
+                        "expected_output": "Validation result",
+                    },
+                ],
+                "data_analysis": [
+                    {
+                        "role": AgentRole.ANALYST,
+                        "description": "Analyze the data",
+                        "expected_output": "Data analysis",
+                    },
+                    {
+                        "role": AgentRole.RESEARCHER,
+                        "description": "Research anomalies",
+                        "expected_output": "Anomaly research",
+                    },
+                    {
+                        "role": AgentRole.WRITER,
+                        "description": "Write analysis report",
+                        "expected_output": "Analysis report",
+                    },
+                ],
+            }
+            task_specs = workflow_map.get(workflow_type, [])
+            if task_specs:
+                result = execute_crew_workflow(
+                    task_specs=task_specs,
+                    process="sequential",
+                )
+                result["skill"] = "crewai_workflow"
+                result["workflow_type"] = workflow_type
+                return result
+        except CrewAIRealError:
+            pass
+
+    # UAR-native fallback
     result = run_sync_safe(execute_standard_workflow(
         workflow_type=workflow_type,
         input_data=input_data,
     ))
 
+    status = (
+        "completed" if result.get("status") == "completed" else "partial"
+    )
     return {
-        "status": "success",
-        "workflow_id": result["workflow_id"],
+        "status": status,
+        "workflow_id": result.get("task_ids", []),
         "workflow_type": workflow_type,
         "agent_sequence": result.get("agent_sequence", []),
         "status_code": result.get("status"),
         "results": result.get("results", []),
+        "mode": "uar_native",
     }
 
 
@@ -192,6 +289,9 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
 def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute advanced RAG using LlamaIndex capabilities.
+
+    Requires ``llama-index``.  Falls back to UAR-native RAG when
+    unavailable and reports ``mode: uar_native``.
 
     This skill provides advanced retrieval-augmented generation with
     hierarchical chunking, hybrid search, and knowledge graph support.
@@ -205,6 +305,10 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with RAG query results
     """
+    err = require_package("llama_index")
+    if err:
+        return err
+
     from uar.core.llamaindex_rag import (
         LlamaIndexRAG,
         RAGConfig,
@@ -262,7 +366,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     result = rag.query(query)
 
     return {
-        "status": "success",
+        "status": "completed",
         "query": query,
         "response": result.response,
         "sources": [
@@ -288,6 +392,10 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with query results
     """
+    err = require_package("llama_index")
+    if err:
+        return err
+
     from uar.core.llamaindex_rag import get_rag_instance, RetrievalStrategy
 
     # Get metadata
@@ -316,7 +424,7 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     return {
-        "status": "success",
+        "status": "completed",
         "query": query,
         "response": result.response,
         "sources": [
@@ -342,6 +450,10 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with pipeline execution results
     """
+    err = require_package("dagster")
+    if err:
+        return err
+
     from uar.core.dagster_orchestration import (
         get_orchestrator,
         create_standard_pipelines,
@@ -362,7 +474,7 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
     execution = orchestrator.execute_pipeline(pipeline_name, context)
 
     return {
-        "status": "success",
+        "status": "completed",
         "execution_id": execution.execution_id,
         "pipeline_name": execution.pipeline_name,
         "status_code": execution.status.value,
@@ -384,13 +496,17 @@ def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with pipeline and asset status
     """
+    err = require_package("dagster")
+    if err:
+        return err
+
     from uar.core.dagster_orchestration import get_orchestrator
 
     orchestrator = get_orchestrator()
     status = orchestrator.get_orchestrator_status()
 
     return {
-        "status": "success",
+        "status": "completed",
         "orchestrator_status": status,
     }
 
@@ -534,6 +650,10 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with graph query results
     """  # noqa: E501
+    err = require_package("rdflib")
+    if err:
+        return err
+
     from uar.core.flexible_graphrag import (
         GraphBackend,
         SearchStrategy,
@@ -587,7 +707,7 @@ def flexible_graphrag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     return {
-        "status": "success",
+        "status": "completed",
         "query": query,
         "backend": backend_str,
         "search_strategy": search_str,

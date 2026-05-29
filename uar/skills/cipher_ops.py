@@ -323,3 +323,92 @@ def _execute_operation(
         }
 
     return operations[operation]()
+
+
+@register_skill("crypto_analyze")
+@skill_guard("Crypto Analyze")
+def crypto_analyze(ctx: PipelineContext) -> Dict[str, Any]:
+    """Cryptographic analysis: hash identification, entropy, key strength.
+
+    Metadata:
+        analyze_data:     base64-encoded data to analyze
+        analyze_type:       'hash_id', 'entropy', 'key_strength',
+                            'frequency', 'all' (default)
+    """
+    err = require_package("Crypto", install_hint="pip install pycryptodome")
+    if err:
+        return err
+
+    import math
+    from collections import Counter
+
+    meta = ctx.goal.metadata or {}
+    data_b64 = meta.get("analyze_data", "")
+    analyze_type = meta.get("analyze_type", "all")
+
+    if not data_b64:
+        return {"status": "failed", "error": "analyze_data required"}
+
+    try:
+        data = _decode_base64(data_b64)
+    except Exception:
+        return {"status": "failed", "error": "Invalid base64 data"}
+
+    results: Dict[str, Any] = {}
+
+    # Entropy (Shannon)
+    if analyze_type in ("entropy", "all"):
+        if data:
+            counter = Counter(data)
+            length = len(data)
+            entropy = -sum(
+                (count / length) * math.log2(count / length)
+                for count in counter.values()
+            )
+            results["entropy"] = round(entropy, 4)
+            results["entropy_bits_per_byte"] = round(entropy, 4)
+            results["is_random_like"] = entropy > 7.5
+        else:
+            results["entropy"] = 0.0
+
+    # Hash identification
+    if analyze_type in ("hash_id", "all"):
+        hex_preview = data[:32].hex()
+        hash_types = []
+        if len(data) == 16:
+            hash_types.append("MD5")
+        if len(data) == 20:
+            hash_types.append("SHA1")
+        if len(data) == 32:
+            hash_types.append("SHA256")
+        if len(data) == 48:
+            hash_types.append("SHA384")
+        if len(data) == 64:
+            hash_types.append("SHA512")
+        results["hash_length"] = len(data)
+        results["possible_hash_types"] = hash_types
+        results["hex_preview"] = hex_preview
+
+    # Frequency analysis
+    if analyze_type in ("frequency", "all"):
+        if data:
+            counter = Counter(data)
+            total = len(data)
+            freq = {
+                hex(b): round(count / total, 4)
+                for b, count in counter.most_common(10)
+            }
+            results["top_bytes"] = freq
+        else:
+            results["top_bytes"] = {}
+
+    # Key strength (if data is interpreted as a key)
+    if analyze_type in ("key_strength", "all"):
+        key_len = len(data) * 8
+        strength = (
+            "weak" if key_len < 128 else "good" if key_len < 256 else "strong"
+        )
+        results["key_bits"] = key_len
+        results["key_strength"] = strength
+
+    return {"status": "completed", "analysis": results}

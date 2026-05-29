@@ -14,39 +14,7 @@ from uar.core.contracts import PipelineContext
 from uar.core.skill_utils import require_package
 
 
-_STUBS: Dict[str, str] = {
-    "airflow_dag": "apache-airflow",
-    "auto_down": "autonomi",
-    "auto_status": "autonomi",
-    "auto_up": "autonomi",
-    "autogluon_ml": "autogluon",
-    "crypto_analyze": "pycryptodome",
-    "dbt_transform": "dbt-core",
-    "deps": "",
-    "eco_canon": "",
-    "eco_foundation": "",
-    "eco_status": "",
-    "face_recognize": "face-recognition",
-    "flaml_auto": "flaml",
-    "gr_full": "graphrag",
-    "gr_index": "graphrag",
-    "gr_query": "graphrag",
-    "kubeflow_pipe": "kfp",
-    "mlflow_deploy": "mlflow",
-    "mlflow_track": "mlflow",
-    "model_reg": "mlflow",
-    "nft_mint": "web3",
-    "osint_recon": "shodan",
-    "pentest_scan": "python-nmap",
-    "pycaret_ml": "pycaret",
-    "review": "",
-    "security_audit": "bandit",
-    "smart_contract": "web3",
-    "snowflake_etl": "snowflake-connector-python",
-    "solana_tx": "solana",
-    "spark_process": "pyspark",
-    "video_analyze": "moviepy",
-}
+_STUBS: Dict[str, str] = {}
 
 
 def _make_stub(

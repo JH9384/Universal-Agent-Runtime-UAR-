@@ -322,6 +322,14 @@
   opacity: 0.6;
 }
 
+.skillBadge {
+  font-size: 10px;
+  line-height: 1;
+  margin-right: 2px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .sectionHeader {
   display: flex;
   align-items: center;

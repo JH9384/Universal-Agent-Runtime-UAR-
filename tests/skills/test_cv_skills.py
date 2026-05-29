@@ -60,3 +60,33 @@ class TestYOLODetectMissingPackage:
             with patch.dict("sys.modules", {"ultralytics": None}):
                 result = yolo_detect(_ctx({"cv_image_path": ""}))
         assert result["status"] in ("failed", "error")
+
+
+class TestVideoAnalyzeMissingPackage:
+    """video_analyze when cv2 not installed."""
+
+    def test_returns_error_when_cv2_missing(self):
+        with patch(
+            "uar.skills.cv_skills.require_package",
+            return_value={"status": "failed", "error": "cv2 missing"},
+        ):
+            from uar.skills.cv_skills import video_analyze
+            result = video_analyze(
+                _ctx({"cv_video_path": "/tmp/test.mp4"})
+            )
+        assert result["status"] == "failed"
+
+
+class TestFaceRecognizeMissingPackage:
+    """face_recognize when face_recognition not installed."""
+
+    def test_returns_error_when_face_recognition_missing(self):
+        with patch(
+            "uar.skills.cv_skills.require_package",
+            return_value={"status": "failed", "error": "missing"},
+        ):
+            from uar.skills.cv_skills import face_recognize
+            result = face_recognize(
+                _ctx({"cv_image_path": "/tmp/test.jpg"})
+            )
+        assert result["status"] == "failed"

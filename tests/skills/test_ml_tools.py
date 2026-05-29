@@ -51,3 +51,29 @@ class TestChromaDBStoreMissingPackage:
         ):
             result = chromadb_store(_ctx({"chroma_operation": "query"}))
         assert result["status"] == "failed"
+
+
+class TestFlamlAutoMissingPackage:
+    """flaml_auto when flaml not installed."""
+
+    def test_returns_error_when_flaml_missing(self):
+        with patch(
+            "uar.skills.ml_tools.require_package",
+            return_value={"status": "failed", "error": "flaml missing"},
+        ):
+            from uar.skills.ml_tools import flaml_auto
+            result = flaml_auto(_ctx({"flaml_task": "classification"}))
+        assert result["status"] == "failed"
+
+
+class TestPycaretMlMissingPackage:
+    """pycaret_ml when pycaret not installed."""
+
+    def test_returns_error_when_pycaret_missing(self):
+        with patch(
+            "uar.skills.ml_tools.require_package",
+            return_value={"status": "failed", "error": "pycaret missing"},
+        ):
+            from uar.skills.ml_tools import pycaret_ml
+            result = pycaret_ml(_ctx({"pycaret_task": "classification"}))
+        assert result["status"] == "failed"
