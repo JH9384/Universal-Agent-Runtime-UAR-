@@ -137,8 +137,83 @@ class TestMathComputeErrors:
             "math_expression": "x**2 - 4",
             "math_variable": "x",
         }))
-        # Without '=' it may fail or return empty
-        assert result["status"] in ("completed", "failed")
+        assert result["status"] == "failed"
+        assert "must contain '='" in result["error"]
+
+    def test_timeout_evaluate_public(self):
+        """Evaluate operation times out via public API."""
+        result = math_compute(_make_ctx({
+            "math_operation": "evaluate",
+            "math_expression": "integrate(x**1000000, x)",
+        }))
+        assert result["status"] == "failed"
+        assert "timed out" in result["error"].lower()
+
+    def test_timeout_solve_public(self):
+        """Solve operation routes through _with_timeout."""
+        from unittest import mock
+        with mock.patch(
+            "uar.skills.math_compute._with_timeout"
+        ) as mock_timeout:
+            mock_timeout.return_value = {
+                "success": False,
+                "error": "Computation timed out",
+            }
+            result = math_compute(_make_ctx({
+                "math_operation": "solve",
+                "math_expression": "x = 0",
+                "math_variable": "x",
+            }))
+            assert result["status"] == "failed"
+            assert "timed out" in result["error"].lower()
+            assert mock_timeout.called
+
+    def test_timeout_integrate_public(self):
+        """Integrate operation times out via public API."""
+        result = math_compute(_make_ctx({
+            "math_operation": "integrate",
+            "math_expression": "x**1000000",
+            "math_variable": "x",
+        }))
+        assert result["status"] == "failed"
+        assert "timed out" in result["error"].lower()
+
+    def test_timeout_differentiate_public(self):
+        """Differentiate operation routes through _with_timeout."""
+        from unittest import mock
+        with mock.patch(
+            "uar.skills.math_compute._with_timeout"
+        ) as mock_timeout:
+            mock_timeout.return_value = {
+                "success": False,
+                "error": "Computation timed out",
+            }
+            result = math_compute(_make_ctx({
+                "math_operation": "differentiate",
+                "math_expression": "x**2",
+                "math_variable": "x",
+            }))
+            assert result["status"] == "failed"
+            assert "timed out" in result["error"].lower()
+            assert mock_timeout.called
+
+    def test_timeout_simplify_public(self):
+        """Simplify operation routes through _with_timeout."""
+        from unittest import mock
+        with mock.patch(
+            "uar.skills.math_compute._with_timeout"
+        ) as mock_timeout:
+            mock_timeout.return_value = {
+                "success": False,
+                "error": "Computation timed out",
+            }
+            result = math_compute(_make_ctx({
+                "math_operation": "simplify",
+                "math_expression": "x + x",
+            }))
+            assert result["status"] == "failed"
+            assert "timed out" in result["error"].lower()
+            assert mock_timeout.called
 
     def test_empty_metadata(self):
         result = math_compute(_make_ctx({}))
@@ -156,7 +231,7 @@ class TestMathComputeLatex:
         }))
         assert result["status"] == "completed"
         assert "result_latex" in result
-        assert "latex" in result["result_type"].lower() or True
+        assert result["result_type"] == "Pow"
 
     def test_differentiate_returns_latex(self):
         result = math_compute(_make_ctx({

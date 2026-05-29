@@ -55,10 +55,11 @@ class TestMathComputeTimeout:
         from uar.skills import math_compute
 
         source = inspect.getsource(math_compute._safe_sympy_eval)
+        source_timeout = inspect.getsource(math_compute._with_timeout)
         # Check for actual API calls, not just word occurrences in docs
         assert "signal.signal(signal.SIGALRM" not in source
         assert "signal.alarm(" not in source
-        assert "threading.Thread(" in source
+        assert "threading.Thread(" in source_timeout
 
     def test_fast_expr_returns_success(self):
         from uar.skills.math_compute import _safe_sympy_eval

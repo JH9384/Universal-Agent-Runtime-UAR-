@@ -41,15 +41,14 @@ MAX_EXPRESSION_SIZE = max(
 logger = logging.getLogger(__name__)
 
 
-def _safe_sympy_eval(expr: str, timeout: float) -> Dict[str, Any]:
-    """Safely evaluate SymPy expression with timeout.
+def _with_timeout(fn, timeout: float) -> Dict[str, Any]:
+    """Run callable with timeout using daemon thread.
 
     Uses ``threading.Thread`` with ``join(timeout)`` instead of
     ``signal.SIGALRM`` so the timeout works on any thread (e.g.
     inside a ``ThreadPoolExecutor``) and on Windows where SIGALRM
     does not exist.
     """
-    import sympy  # type: ignore
     import threading
 
     _result: Dict[str, Any] = {}
@@ -58,17 +57,11 @@ def _safe_sympy_eval(expr: str, timeout: float) -> Dict[str, Any]:
     def _target() -> None:
         nonlocal _result, _exc
         try:
-            result = sympy.sympify(expr)
-            _result = {
-                "success": True,
-                "result": str(result),
-                "result_latex": sympy.latex(result),
-                "result_type": str(type(result).__name__),
-            }
+            _result = fn()
         except Exception as e:
             _exc = e
 
-    t = threading.Thread(target=_target)
+    t = threading.Thread(target=_target, daemon=True)
     t.start()
     t.join(timeout=timeout)
     if t.is_alive():
@@ -78,69 +71,106 @@ def _safe_sympy_eval(expr: str, timeout: float) -> Dict[str, Any]:
     return _result
 
 
-def _solve_equation(expr: str, variable: str = "x") -> Dict[str, Any]:
+def _safe_sympy_eval(expr: str, timeout: float) -> Dict[str, Any]:
+    """Safely evaluate SymPy expression with timeout."""
+    import sympy  # type: ignore
+
+    def _do_eval():
+        result = sympy.sympify(expr)
+        return {
+            "success": True,
+            "result": str(result),
+            "result_latex": sympy.latex(result),
+            "result_type": str(type(result).__name__),
+        }
+
+    return _with_timeout(_do_eval, timeout)
+
+
+def _solve_equation(
+    expr: str, variable: str = "x", timeout: float = MATH_TIMEOUT
+) -> Dict[str, Any]:
     """Solve equation for variable."""
     import sympy
 
-    x = sympy.Symbol(variable)
-    lhs = sympy.sympify(expr.split("=")[0])
-    rhs = sympy.sympify(expr.split("=")[1])
-    eq = sympy.Eq(lhs, rhs)
-    solutions = sympy.solve(eq, x)
+    if "=" not in expr:
+        return {
+            "success": False,
+            "error": "Equation must contain '=' (e.g., 'x**2 - 4 = 0')",
+        }
 
-    return {
-        "success": True,
-        "solutions": [str(sol) for sol in solutions],
-        "solution_count": len(solutions),
-        "variable": variable,
-    }
+    def _do_solve():
+        x = sympy.Symbol(variable)
+        lhs_str, rhs_str = expr.split("=", 1)
+        lhs = sympy.sympify(lhs_str)
+        rhs = sympy.sympify(rhs_str)
+        eq = sympy.Eq(lhs, rhs)
+        solutions = sympy.solve(eq, x)
+        return {
+            "success": True,
+            "solutions": [str(sol) for sol in solutions],
+            "solution_count": len(solutions),
+            "variable": variable,
+        }
+
+    return _with_timeout(_do_solve, timeout)
 
 
-def _differentiate(expr: str, variable: str = "x") -> Dict[str, Any]:
+def _differentiate(
+    expr: str, variable: str = "x", timeout: float = MATH_TIMEOUT
+) -> Dict[str, Any]:
     """Differentiate expression with respect to variable."""
     import sympy
 
-    x = sympy.Symbol(variable)
-    f = sympy.sympify(expr)
-    df = sympy.diff(f, x)
+    def _do_diff():
+        x = sympy.Symbol(variable)
+        f = sympy.sympify(expr)
+        df = sympy.diff(f, x)
+        return {
+            "success": True,
+            "derivative": str(df),
+            "derivative_latex": sympy.latex(df),
+            "variable": variable,
+        }
 
-    return {
-        "success": True,
-        "derivative": str(df),
-        "derivative_latex": sympy.latex(df),
-        "variable": variable,
-    }
+    return _with_timeout(_do_diff, timeout)
 
 
-def _integrate(expr: str, variable: str = "x") -> Dict[str, Any]:
+def _integrate(
+    expr: str, variable: str = "x", timeout: float = MATH_TIMEOUT
+) -> Dict[str, Any]:
     """Integrate expression with respect to variable."""
     import sympy
 
-    x = sympy.Symbol(variable)
-    f = sympy.sympify(expr)
-    integral = sympy.integrate(f, x)
+    def _do_integrate():
+        x = sympy.Symbol(variable)
+        f = sympy.sympify(expr)
+        integral = sympy.integrate(f, x)
+        return {
+            "success": True,
+            "integral": str(integral),
+            "integral_latex": sympy.latex(integral),
+            "variable": variable,
+        }
 
-    return {
-        "success": True,
-        "integral": str(integral),
-        "integral_latex": sympy.latex(integral),
-        "variable": variable,
-    }
+    return _with_timeout(_do_integrate, timeout)
 
 
-def _simplify(expr: str) -> Dict[str, Any]:
+def _simplify(expr: str, timeout: float = MATH_TIMEOUT) -> Dict[str, Any]:
     """Simplify mathematical expression."""
     import sympy
 
-    f = sympy.sympify(expr)
-    simplified = sympy.simplify(f)
+    def _do_simplify():
+        f = sympy.sympify(expr)
+        simplified = sympy.simplify(f)
+        return {
+            "success": True,
+            "original": str(f),
+            "simplified": str(simplified),
+            "simplified_latex": sympy.latex(simplified),
+        }
 
-    return {
-        "success": True,
-        "original": str(f),
-        "simplified": str(simplified),
-        "simplified_latex": sympy.latex(simplified),
-    }
+    return _with_timeout(_do_simplify, timeout)
 
 
 @register_skill("math_compute")
@@ -209,10 +239,12 @@ def _execute_operation(
 ) -> Dict[str, Any]:
     """Execute the specified mathematical operation."""
     operations = {
-        "solve": lambda: _solve_equation(expression, variable),
-        "simplify": lambda: _simplify(expression),
-        "differentiate": lambda: _differentiate(expression, variable),
-        "integrate": lambda: _integrate(expression, variable),
+        "solve": lambda: _solve_equation(expression, variable, MATH_TIMEOUT),
+        "simplify": lambda: _simplify(expression, MATH_TIMEOUT),
+        "differentiate": lambda: _differentiate(
+            expression, variable, MATH_TIMEOUT
+        ),
+        "integrate": lambda: _integrate(expression, variable, MATH_TIMEOUT),
         "evaluate": lambda: _safe_sympy_eval(expression, MATH_TIMEOUT),
     }
 

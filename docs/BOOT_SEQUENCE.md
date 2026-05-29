@@ -5,7 +5,7 @@ This document provides a detailed step-by-step boot sequence for the Universal A
 ## Overview
 
 The UAR boot sequence varies based on the deployment mode:
-- **Local Development**: `boot.sh`, `start.sh`, `quickstart.sh`, `first_run.sh`
+- **Local Development**: `boot.sh`, `start.sh`, `quickstart.sh`, `first_run.sh`, plus Makefile targets (`make up`, `make up-full`, `make api`)
 - **Docker**: `docker-entrypoint.sh` with `Dockerfile.prod`
 
 ## Full-Stack Boot Sequence (boot.sh)
@@ -91,33 +91,40 @@ The UAR boot sequence varies based on the deployment mode:
 │ 1. Logger Initialization                               │
 │    - "UAR API starting up..."                          │
 │                                                         │
-│ 2. UOR Integrator Initialization                      │
-│    - get_uor_integrator() creates global instance     │
-│    - Object cache initialized (empty)                  │
-│    - Digest history initialized (empty)                │
-│                                                         │
-│ 3. UOR Foundation Assets Initialization               │
-│    - SigmaticsIntegrator initialized                   │
-│    - AtlasEmbeddingsIntegrator initialized              │
-│    - EgoGuardForgeIntegrator initialized                │
-│    - PrismIntegrator initialized                      │
-│                                                         │
-│ 4. Orphaned Temp File Cleanup                          │
+│ 2. Orphaned Temp File Cleanup                          │
 │    - _cleanup_orphaned_temp_files(library)            │
 │    - Removes *.tmp files older than 1 hour             │
 │    - Logs count of cleaned files                       │
 │                                                         │
-│ 5. Skill Registry Initialization                       │
-│    - Loads available skills from uar/skills/           │
-│    - Computes skill digests via UOR                    │
+│ 3. UOR Runtime Seeding (non-fatal)                     │
+│    - seed_standard_runtimes(get_default_store())      │
+│    - Idempotent — safe to run on every startup         │
 │                                                         │
-│ 6. Cache Initialization                                │
-│    - JsonRunStore initialized                          │
-│    - UOR digest tracking enabled                       │
+│ 4. External Skill Plugin Loading (non-fatal)          │
+│    - load_plugins() scans ~/.uar/skills/ and PyPI     │
+│    - entry points for uar.skills                      │
 │                                                         │
-│ 7. Guardrails Initialization                           │
-│    - Loads guardrail policies                          │
-│    - UOR digest tracking enabled for violations       │
+│ 5. Production Security Checks                          │
+│    - Warns if CORS_ORIGINS not set in production        │
+│    - Warns if SECURITY_HEADERS not enabled              │
+│                                                         │
+│ 6. OpenTelemetry Tracing Initialization              │
+│    - setup_fastapi_tracing(app)                        │
+│    - No-op if OTEL not configured                      │
+│                                                         │
+│ 7. Environment Validation (fail-fast)                │
+│    - validate_environment()                            │
+│    - validate_docker_environment()                     │
+│    - Raises RuntimeError on any issue                  │
+│                                                         │
+│ 8. Advanced Integration Config Validation (non-fatal) │
+│    - Neo4j, OpenAI, etc.                               │
+│    - Results logged, startup continues                 │
+│                                                         │
+│ 9. Background Retention Purge Task                     │
+│    - _retention_purge_loop()                         │
+│    - Only if run_retention_days > 0                    │
+│    - Checks hourly and purges old records              │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -320,75 +327,45 @@ The UAR boot sequence varies based on the deployment mode:
 │    exec python -m uvicorn uar.api.server:app           │
 │      --host 0.0.0.0 --port ${API_PORT:-8000}          │
 │    - Runs FastAPI lifespan startup hook                │
-│    - Initializes UOR integrators                       │
-│    - Initializes UOR Foundation assets                 │
+│    - Seeds UOR standard runtimes                       │
+│    - Loads external skill plugins                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ## UOR Integration Points in Boot Sequence
 
-### UOR Integrator Initialization
+### UOR Runtime Seeding
 
-**Location**: FastAPI lifespan startup hook in `uar/api/server.py`
+**Location**: FastAPI lifespan startup hook in `uar/api/lifespan.py`
 
 **Timing**: During API server startup, before accepting requests
 
 **Operations**:
-1. Create global UORIntegrator instance
-2. Initialize object cache (empty dict)
-3. Initialize digest history (empty list)
-4. Set enabled flag to True
+1. `seed_standard_runtimes(get_default_store())` is called
+2. Seeds canonical UOR object/runtime records into the SQLite-backed object store
+3. Operation is idempotent — safe to run on every startup
+4. Non-fatal: if seeding fails, a warning is logged and startup continues
 
 **Code**:
 ```python
-from uar.core.uor_integration import get_uor_integrator
+from uar.objects import get_default_store, seed_standard_runtimes
 
-_uor_integrator = get_uor_integrator()
-# Object cache: {}
-# Digest history: []
+seed_standard_runtimes(get_default_store())
 ```
-
-### UOR Foundation Assets Initialization
-
-**Location**: First use via lazy initialization
-
-**Timing**: On first access to each asset
-
-**Operations**:
-1. **SigmaticsIntegrator**:
-   - Check CLI availability (if use_cli=True)
-   - Initialize expression cache
-
-2. **AtlasEmbeddingsIntegrator**:
-   - Initialize vector cache
-   - Initialize enabled flag
-
-3. **EgoGuardForgeIntegrator**:
-   - Initialize policies dict
-   - Initialize audit trail list
-
-4. **PrismIntegrator**:
-   - Initialize prisms dict
 
 ### UOR Integration in System Components
 
 **Skill Registry**:
-- Computes skill digests during initialization
+- Computes skill digests during execution (not at boot)
 - Uses UOR wrap_input_data for skill source code
-- Stores digests for identity verification
+- Stores digests for identity verification in event records
 
 **Cache Layer**:
-- JsonRunStore initialized with UOR digest tracking
-- Appends UOR digest to persisted records
-
-**Guardrails**:
-- Loads policies with UOR digest tracking
-- GuardrailViolation includes uor_digest field
+- JsonRunStore persists records with UOR digests when UOR is enabled
 
 **API Layer**:
-- Wraps request data with UOR objects
-- Wraps response data with UOR objects
-- Logs digests for verification
+- Wraps request/response data with UOR objects
+- Logs digests for verification in run events
 
 ## Graceful Shutdown Sequence
 
@@ -428,22 +405,28 @@ _uor_integrator = get_uor_integrator()
 ┌─────────────────────────────────────────────────────────┐
 │ FastAPI Lifespan Shutdown Hook                         │
 │                                                         │
-│ 1. Request Draining                                    │
+│ 1. Cancel Background Tasks                             │
+│    - Cancel retention purge loop                     │
+│    - Wait for cancellation to complete                 │
+│                                                         │
+│ 2. Request Draining                                    │
 │    - Uvicorn stops accepting new connections           │
-│    - Drains existing connections (~30s)                 │
+│    - Drains WebSocket connections with active wait     │
 │                                                         │
-│ 2. Custom Grace Period                                │
-│    await asyncio.sleep(SHUTDOWN_SLEEP)  # 0.1s         │
-│    - Additional grace period for in-flight requests   │
+│ 3. Configurable Grace Period                           │
+│    - SHUTDOWN_SLEEP defaults to 30s                  │
+│    - Override via SHUTDOWN_GRACE_SECONDS env var      │
+│    - Polls active WebSocket count every 1s            │
 │                                                         │
-│ 3. Logging                                              │
-│    - "UAR API shutting down, draining requests..."    │
+│ 4. Logging                                              │
+│    - "UAR API shutting down, draining active ..."   │
+│    - "All connections drained cleanly" or grace expiry │
+│                                                         │
+│ 5. Resource Cleanup                                     │
+│    - Metrics collector shutdown                        │
+│    - Postgres connection pool close                    │
+│    - Per-domain aiohttp sessions close                 │
 │    - "UAR API shutdown complete"                       │
-│                                                         │
-│ 4. UOR Cleanup                                         │
-│    - Object cache remains in memory                    │
-│    - Digest history preserved for inspection            │
-│    - Integrators can be reset via reset functions      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -458,6 +441,38 @@ _uor_integrator = get_uor_integrator()
 | `PYTHON` | auto-detected | Python executable path |
 | `NO_BROWSER` | unset | Skip browser auto-open if set |
 
+### Application Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_HOST` | 127.0.0.1 | Bind address |
+| `API_PORT` | 8000 | Listen port |
+| `SECRET_KEY` | generated | JWT / session secret |
+| `API_KEYS` | dev_key:dev:admin | Comma-separated `key:user:tier` |
+| `DEBUG` | false | Enable debug mode |
+| `ENVIRONMENT` | development | `production` tightens CORS + disables debug |
+| `LOG_LEVEL` | info | Uvicorn / app log level |
+| `CORS_ORIGINS` | localhost:3000,5173 | Comma-separated allowed origins |
+| `RATE_LIMIT_ENABLED` | true | Toggle sliding-window rate limiter |
+| `RUNS_DIR` | runs | Run record storage directory |
+| `UAR_DATABASE_URL` | unset | Postgres URL — activates `PostgresRunStore` |
+| `REDIS_URL` | unset | Enables distributed rate limiting |
+| `OLLAMA_HOST` | http://127.0.0.1:11434 | Ollama endpoint |
+| `OLLAMA_MODEL` | llama3.2:3b | Default Ollama model |
+| `SHUTDOWN_GRACE_SECONDS` | 30 | Grace period for connection drain |
+| `UAR_SKILL_CACHE_TTL` | 300 | Skill compilation cache TTL (seconds) |
+| `UAR_GC_THRESHOLD` | 50 | GC hint after runs with N+ events |
+| `UAR_CONTEXT_DISK_OVERFLOW` | false | Spill `PipelineContext` events to disk |
+| `UAR_HIERARCHICAL_EXECUTION` | false | Recipe nested-execution mode |
+| `BACKPRESSURE_ENABLED` | true | Adaptive SSE backpressure |
+| `METRICS_ENABLED` | true | Enable metrics collection |
+| `METRICS_PORT` | 9090 | Prometheus metrics port |
+| `UAR_ENABLE_UOR_EXTENSIONS` | false | Enable optional UOR extensions |
+| `UOR_DB_PATH` | uar.sqlite3 | UOR object store path |
+| `LOG_FILE_PATH` | /var/log/uar/app.log | Production log file path |
+| `SECURITY_HEADERS` | unset | Set to `enabled` for security headers |
+| `UAR_GZIP_MIN_SIZE` | 1024 | Minimum response size for GZip (bytes) |
+
 ### Docker Variables
 
 | Variable | Required | Description |
@@ -468,12 +483,6 @@ _uor_integrator = get_uor_integrator()
 | `API_PORT` | 8000 | API server port |
 | `RUNS_DIR` | /var/lib/uar/runs | Directory for run records |
 | `LOG_FILE_PATH` | /var/log/uar | Directory for logs |
-
-### UOR Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| None | - | UOR integration uses defaults (SHA256, etc.) |
 
 ## Log Files
 
@@ -531,10 +540,10 @@ _uor_integrator = get_uor_integrator()
 **Symptoms**: Errors related to UOR modules
 
 **Checklist**:
-1. Verify UOR modules are installed: `python -c "from uar.core.uor_integration import get_uor_integrator"`
-2. Verify UOR Foundation assets: `python -c "from uar.core.sigmatics_integration import get_sigmatics_integrator"`
-3. Check for import errors in logs
-4. Reset integrators if needed: `python -c "from uar.core.uor_helpers import UORAssetHelper; UORAssetHelper.reset_all_integrators()"`
+1. Verify UOR runtime seeding works: `python -c "from uar.objects import seed_standard_runtimes, get_default_store; seed_standard_runtimes(get_default_store())"`
+2. Check for import errors in logs
+3. Verify UOR extensions are enabled if needed: `UAR_ENABLE_UOR_EXTENSIONS=true`
+4. Check `UOR_DB_PATH` is writable (default: `uar.sqlite3`)
 
 ## Boot Sequence Flowchart
 
@@ -552,11 +561,14 @@ START
 [API Health Check] → (fail) → EXIT
   ↓
 [FastAPI Lifespan Startup]
-  ├─ [Initialize UOR Integrator]
-  ├─ [Initialize UOR Foundation Assets]
-  ├─ [Initialize Skill Registry]
-  ├─ [Initialize Cache Layer]
-  └─ [Initialize Guardrails]
+  ├─ [Orphaned Temp Cleanup]
+  ├─ [UOR Runtime Seeding]
+  ├─ [External Plugin Loading]
+  ├─ [Production Security Checks]
+  ├─ [OpenTelemetry Tracing Setup]
+  ├─ [Environment Validation]
+  ├─ [Advanced Config Validation]
+  └─ [Background Retention Purge]
   ↓
 [Start Web UI] (if full-stack)
   ↓
@@ -576,7 +588,7 @@ START
 END
 ```
 
-## Latest Boot Capture (May 20, 2026)
+## Latest Boot Capture (May 29, 2026)
 
 ### Startup Command
 
@@ -590,7 +602,9 @@ python -m uvicorn uar.api.server:app --host 127.0.0.1 --port 8000
 ```text
 INFO:     Started server process [73490]
 INFO:     Waiting for application startup.
-2026-05-20 22:09:06,567 - uar.api.server - INFO - UAR API starting up...
+2026-05-29 06:04:00,000 - uar.api.server - INFO - Booting UAR 1.1.0 (aligned with UOR v0.5.2)
+2026-05-29 06:04:00,200 - uar.core.recipes - INFO - All recipe skills validated successfully
+2026-05-29 06:04:00,300 - uar.api.lifespan - INFO - UAR API starting up...
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000
 ```
@@ -599,29 +613,28 @@ INFO:     Uvicorn running on http://127.0.0.1:8000
 
 | Endpoint | Status | Response |
 |---|---|---|
-| `GET /api/health` | 200 | `{"status":"healthy","version":"1.0.0"}` |
+| `GET /api/health` | 200 | `{"status":"healthy","version":"1.1.0","uor_upstream_version":"v0.5.2"}` |
 | `GET /api/health/live` | 200 | `{"status":"alive"}` |
 | `GET /api/health/ready` | 200 | `{"status":"ready","checks":{"skills_loaded":true,"disk_writable":true,"ollama_reachable":true,"circuit_breakers":true,"open_circuits":[]}}` |
 | `GET /api/health/circuit-breakers` | 200 | All circuits `closed` (openai, lm_studio, anthropic, gemini, mistral, groq) |
 | `GET /api/metrics/json` | 200 | `{"uptime_seconds":9.81,"total_requests":6,"total_errors":0.0,"endpoints":{...}}` |
-| `GET /api/uar/skills` | 200 | 1 registered skill (context-dependent; full registry available) |
+| `GET /api/uar/skills` | 200 | 127 registered skills |
+| `GET /api/uar/recipes` | 200 | 11 built-in recipes |
 
 ### Running Process
 
 ```bash
-$ cat /tmp/uar_server.pid
-73490
 $ lsof -ti:8000
 73490
 ```
 
 ### Known Boot Notes
 
-- **Recipe warnings**: Several default recipes reference optional skills (graphrag, autonomi, uor ecosystem) that are not registered when optional dependencies are absent. This is expected and non-fatal.
-- **Disk writable check**: Resolved in commit `828044f` — `JsonRunStore.path.parent` is used instead of the non-existent `store.runs_dir` attribute.
+- **Optional dependency warnings**: `unstructured` and `docling` warnings are expected on lean installs — they are optional heavy dependencies for enhanced document ingestion.
+- **Recipe warnings**: Several default recipes reference optional skills (graphrag, autonomi, uor ecosystem) that return graceful errors when optional dependencies are absent. This is expected and non-fatal.
 
 ## Related Documentation
 
-- [BOOT_AND_SHUTDOWN.md](./BOOT_AND_SHUTDOWN.md) - Comprehensive boot and shutdown documentation
+- [BOOT_CAPTURE.md](./BOOT_CAPTURE.md) - Live boot log with endpoint reference
+- [BOOT_AND_SHUTDOWN.md](./BOOT_AND_SHUTDOWN.md) - Legacy boot and shutdown documentation (see BOOT_SEQUENCE.md for current info)
 - [UOR_INTEGRATION_GUIDE.md](../uar/core/UOR_INTEGRATION_GUIDE.md) - UOR integration documentation
-- [UOR_FOUNDATION_ASSETS_GUIDE.md](../uar/core/UOR_FOUNDATION_ASSETS_GUIDE.md) - UOR Foundation assets documentation

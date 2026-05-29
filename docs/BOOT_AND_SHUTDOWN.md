@@ -1,23 +1,26 @@
 # UAR Boot and Shutdown Processes
 
-This document describes the complete boot and shutdown processes for Universal Agent Runtime (UAR) across different deployment modes.
+> **DEPRECATED — This document is kept for historical reference.**
+> **For current, authoritative boot documentation, see [`BOOT_SEQUENCE.md`](./BOOT_SEQUENCE.md).**
 
-## Table of Contents
+This document previously described the complete boot and shutdown processes for Universal Agent Runtime (UAR). The content has been consolidated and updated in `BOOT_SEQUENCE.md`.
 
-- [Boot Processes](#boot-processes)
-  - [Local Development Boot](#local-development-boot)
-  - [Docker Boot](#docker-boot)
-  - [Application Lifespan](#application-lifespan)
-- [Shutdown Processes](#shutdown-processes)
-  - [Graceful Shutdown](#graceful-shutdown)
-  - [Signal Handling](#signal-handling)
-  - [Cleanup Operations](#cleanup-operations)
-- [Environment Validation](#environment-validation)
-- [Troubleshooting](#troubleshooting)
+## Quick Reference
+
+| File | Purpose |
+|------|---------|
+| [`BOOT_SEQUENCE.md`](./BOOT_SEQUENCE.md) | Authoritative boot sequence, environment variables, and troubleshooting |
+| [`BOOT_CAPTURE.md`](./BOOT_CAPTURE.md) | Live boot logs and API endpoint reference |
+| `boot.sh` | Full-stack boot (API + Web UI) |
+| `start.sh` | API-only boot with auto-reload |
+| `scripts/quickstart.sh` | Automated quickstart with Ollama |
+| `scripts/first_run.sh` | First-run wizard |
 
 ---
 
-## Boot Processes
+## Legacy Content (Historical)
+
+The following sections are preserved from the original document. **For current information, refer to `BOOT_SEQUENCE.md`.**
 
 ### Local Development Boot
 

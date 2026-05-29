@@ -1,6 +1,6 @@
 # UAR Boot & API Capture
 
-> Captured live from UAR **v1.1.0** (aligned with UOR v0.5.2) on 2026-05-27.  
+> Captured live from UAR **v1.1.0** (aligned with UOR v0.5.2) on 2026-05-29.  
 > All output is real — server booted, endpoints hit, responses recorded verbatim.
 
 ---
@@ -182,7 +182,7 @@ curl -N -X POST http://127.0.0.1:8000/api/uar/stream \
 curl http://127.0.0.1:8000/api/uar/skills
 ```
 
-Returns 124 registered skills at boot (all built-in). Full alphabetical list:
+Returns 127 registered skills at boot (all built-in). Full alphabetical list:
 
 ```
 agent_workflow, airflow_dag, alm_analyze, alm_generate, alm_verify,
@@ -230,17 +230,17 @@ dependency is not installed — they do not crash the server.
 
 | ID | Label | Skills |
 |---|---|---|
-| `review` | 🦁 Ollama review | `doc_ingest`, `ollama_generate` |
+| `review` | � Ollama review | `doc_ingest`, `ollama_generate` |
 | `deps` | 🕸️ Dep map | `doc_ingest`, `dependency_map`, `sum_review` |
 | `gr_index` | 📚 GraphRAG index | `graphrag_index` |
 | `gr_query` | 🔎 GraphRAG query | `graphrag_query` |
-| `gr_full` | 🔭 GraphRAG full | `graphrag_index`, `graphrag_query` |
-| `security` | 🔒 Security audit | `security_audit` |
-| `ml_pipeline` | 🤖 ML pipeline | `flaml_auto`, `mlflow_track` |
-| `quantum` | ⚛️ Quantum circuit | `quantum_circuit` |
-| `blockchain` | 🔗 Blockchain tx | `solana_tx` |
-| `vision` | 👁️ Vision pipeline | `opencv_process`, `yolo_detect` |
-| `data_pipeline` | 📊 Data pipeline | `dbt_transform`, `spark_process` |
+| `gr_full` | ⚡ Full pipeline | `graphrag_index`, `graphrag_query` |
+| `auto_up` | ☁️ Autonomi upload | `autonomi_upload` |
+| `auto_down` | ☁️ Autonomi download | `autonomi_download` |
+| `auto_status` | ☁️ Autonomi status | `autonomi_status` |
+| `eco_status` | 🌐 Ecosystem status | `uor_ecosystem_status` |
+| `eco_canon` | 🌐 Canonicalize | `uor_addr_canonicalize` |
+| `eco_foundation` | 🌐 Foundation verify | `uor_foundation_verify` |
 
 Recipes can be composed with individual skills in a single run via
 `execution_order` in the request body.
@@ -316,7 +316,7 @@ evaluator regardless.
 
 ## 8. Full route map
 
-69 routes registered at boot:
+77 routes registered at boot:
 
 ```
 GET    /agents
@@ -349,12 +349,13 @@ GET    /api/advanced/orchestrator/status
 POST   /api/cache/invalidate
 GET    /api/cache/stats
 GET    /api/health
-GET    /api/health/circuit-breakers     (authenticated)
-GET    /api/health/dashboard            (authenticated)
+GET    /api/health/circuit-breakers          (authenticated)
+POST   /api/health/circuit-breakers/{service_name}/reset
+GET    /api/health/dashboard                 (authenticated)
 GET    /api/health/live
 GET    /api/health/ready
-GET    /api/metrics                     (METRICS_API_KEY if set)
-GET    /api/metrics/json                (METRICS_API_KEY if set)
+GET    /api/metrics                          (METRICS_API_KEY if set)
+GET    /api/metrics/json                     (METRICS_API_KEY if set)
 GET    /api/provenance/{run_id}
 POST   /api/sandbox/eval
 GET    /api/sandbox/health
@@ -372,9 +373,13 @@ PUT    /api/uar/recipes/{recipe_id}
 DELETE /api/uar/recipes/{recipe_id}
 POST   /api/uar/run
 GET    /api/uar/runs
+POST   /api/uar/runs/bulk-delete
+GET    /api/uar/runs/{run_id}/compare/{other_run_id}
 GET    /api/uar/runs/{run_id}/timeline
 GET    /api/uar/skills
+GET    /api/uar/skills/ping
 POST   /api/uar/stream
+GET    /api/uar/stream/ws
 GET    /ecosystem/status
 GET    /metrics
 POST   /objects
@@ -386,6 +391,7 @@ POST   /runtimes/register
 POST   /runtimes/seed
 GET    /runtimes/{name}
 POST   /workflows/run
+GET    /ws/run
 ```
 
 Interactive API docs: `http://127.0.0.1:8000/docs` (Swagger UI)  
@@ -430,5 +436,12 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 | `UAR_CONTEXT_DISK_OVERFLOW` | `false` | Spill `PipelineContext` events to disk |
 | `UAR_HIERARCHICAL_EXECUTION` | `false` | Recipe nested-execution mode |
 | `BACKPRESSURE_ENABLED` | `true` | Adaptive SSE backpressure |
+| `SHUTDOWN_GRACE_SECONDS` | `30` | Grace period for connection drain |
+| `METRICS_ENABLED` | `true` | Enable metrics collection |
+| `METRICS_PORT` | `9090` | Prometheus metrics port |
+| `UAR_ENABLE_UOR_EXTENSIONS` | `false` | Enable optional UOR extensions |
+| `UOR_DB_PATH` | `uar.sqlite3` | UOR object store path |
+| `SECURITY_HEADERS` | unset | Set to `enabled` for security headers |
+| `UAR_GZIP_MIN_SIZE` | `1024` | Minimum response size for GZip (bytes) |
 
 Copy `.env.example` to `.env` and edit before first run.
