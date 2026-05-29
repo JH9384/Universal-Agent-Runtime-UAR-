@@ -1456,6 +1456,14 @@
   background: #5a6268;
 }
 
+:global(.dark) .clearEventsButton {
+  background: #cc5500;
+}
+
+:global(.dark) .clearEventsButton:hover {
+  background: #b34700;
+}
+
 .runStatus {
   margin-left: 16px;
   font-size: 13px;
