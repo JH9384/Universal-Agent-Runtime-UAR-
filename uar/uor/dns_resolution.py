@@ -238,7 +238,9 @@ class UORDNSResolver:
             dynamic DNS server configuration.
         """
         logger.warning(
-            f"DNS registration not implemented for {digest} at {location.get_url()}"  # noqa: E501
+            "DNS registration not implemented for %s at %s",
+            digest,
+            location.get_url(),
         )
         logger.warning(
             "DNS registration requires dynamic DNS server configuration"

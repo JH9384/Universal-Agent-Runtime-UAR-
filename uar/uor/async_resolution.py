@@ -86,7 +86,10 @@ class AsyncObjectResolver:
                 if obj is not None:
                     return obj
                 logger.warning(
-                    f"Attempt {attempt + 1}/{max_retries} failed for {digest}"
+                    "Attempt %s/%s failed for %s",
+                    attempt + 1,
+                    max_retries,
+                    digest,
                 )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(backoff * (2**attempt))

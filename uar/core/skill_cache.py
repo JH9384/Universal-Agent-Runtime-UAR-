@@ -220,6 +220,7 @@ class RedisSkillCache:
             logger.warning("Corrupted cache entry for key %s", key)
             return None
         except Exception:
+            logger.warning("Redis cache get failed, treating as miss")
             return None
 
     def set(
@@ -284,6 +285,7 @@ class RedisSkillCache:
                     logger.exception("Redis key delete failed")
             return removed
         except Exception:
+            logger.warning("Redis cache invalidate failed")
             return 0
 
     def stats(self) -> Dict[str, Any]:
@@ -296,6 +298,7 @@ class RedisSkillCache:
                 "skills": "unknown (Redis scan)",
             }
         except Exception:
+            logger.warning("Redis cache stats failed")
             return {"size": 0, "maxsize": self._maxsize, "skills": []}
 
 

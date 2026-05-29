@@ -140,8 +140,10 @@ class Agent:
         message.recipient_id = recipient.agent_id
 
         logger.info(
-            f"Agent {self.agent_id} sending {message.type.value} to "
-            f"{recipient.agent_id}"
+            "Agent %s sending %s to %s",
+            self.agent_id,
+            message.type.value,
+            recipient.agent_id,
         )
 
         return await recipient.receive_message(message)

@@ -338,13 +338,14 @@ class RedisCacheBackend(CacheBackend):
         """Increment failure counter and trip the circuit breaker."""
         with self._lock:
             self._failure_count += 1
-            self._last_failure_time = time.time()
+            self._last_failure_time = time.monotonic()
             if self._failure_count >= 5:
                 self._circuit_tripped = True
                 logger.error(
                     "Redis cache circuit breaker TRIPPED after "
-                    "5 consecutive failures. "
-                    f"Bypassing Redis cache for 30s. Last error: {exc}"
+                    "5 consecutive failures. Bypassing Redis cache "
+                    "for 30s. Last error: %s",
+                    exc,
                 )
 
     def _record_success(self) -> None:

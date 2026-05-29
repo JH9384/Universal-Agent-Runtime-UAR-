@@ -82,8 +82,9 @@ class AtomicLanguageModelSkill:
                 self.client = httpx.Client(timeout=timeout, limits=limits)
             except (OSError, ValueError) as e:
                 logger.warning(
-                    f"Failed to create httpx client: {e}. "
-                    "Falling back to mock responses."
+                    "Failed to create httpx client: %s. "
+                    "Falling back to mock responses.",
+                    e,
                 )
                 self.client = None  # type: ignore
         else:
@@ -114,8 +115,9 @@ class AtomicLanguageModelSkill:
         :return: A dictionary containing formal analysis results.
         """
         logger.info(
-            f"Calling ALM service at {self.base_url}/validate "
-            f"with spec: {grammar_spec[:50]}..."
+            "Calling ALM service at %s/validate with spec: %s...",
+            self.base_url,
+            grammar_spec[:50],
         )
         if self.client is None:
             logger.warning(
@@ -176,8 +178,11 @@ class AtomicLanguageModelSkill:
         :return: A list of generated tokens/strings.
         """
         logger.info(
-            f"Calling ALM service at {self.base_url}/generate "
-            f"with prefix: '{prefix}' and count: {count}..."
+            "Calling ALM service at %s/generate with prefix: "
+            "'%s' and count: %s...",
+            self.base_url,
+            prefix,
+            count,
         )
         if self.client is None:
             logger.warning(
@@ -230,8 +235,9 @@ class AtomicLanguageModelSkill:
         :return: A dictionary with validation status and error details.
         """
         logger.info(
-            f"Calling ALM service at {self.base_url}/predict "
-            f"with text: '{text[:50]}...'"
+            "Calling ALM service at %s/predict with text: '%s...'",
+            self.base_url,
+            text[:50],
         )
         if self.client is None:
             logger.warning(

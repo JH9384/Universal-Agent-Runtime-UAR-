@@ -60,11 +60,13 @@ def _with_timeout(fn, timeout: float) -> Dict[str, Any]:
             _result = fn()
         except Exception as e:
             _exc = e
+            logger.warning("Math computation failed: %s", e)
 
     t = threading.Thread(target=_target, daemon=True)
     t.start()
     t.join(timeout=timeout)
     if t.is_alive():
+        logger.warning("Math computation timed out after %ss", timeout)
         return {"success": False, "error": "Computation timed out"}
     if _exc is not None:
         return {"success": False, "error": str(_exc)}

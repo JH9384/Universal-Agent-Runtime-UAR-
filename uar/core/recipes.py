@@ -204,8 +204,10 @@ def migrate_recipe(recipe: Dict[str, Any]) -> Dict[str, Any]:
     # Unknown version: return as-is but log a warning.
     # The caller should decide whether to reject or accept.
     logger.warning(
-        f"Recipe '{recipe.get('id', '<unknown>')}' has unknown version "
-        f"'{version}'. Passing through without migration."
+        "Recipe '%s' has unknown version '%s'. "
+        "Passing through without migration.",
+        recipe.get('id', '<unknown>'),
+        version,
     )
     return recipe
 
@@ -235,14 +237,18 @@ def validate_recipes() -> None:
                     for sub in skill:
                         if not registry.is_registered(sub):
                             logger.warning(
-                                f"Recipe '{recipe_id}' references "
-                                f"unregistered skill: {sub}"
+                                "Recipe '%s' references "
+                                "unregistered skill: %s",
+                                recipe_id,
+                                sub,
                             )
                             all_valid = False
                 elif not registry.is_registered(skill):
                     logger.warning(
-                        f"Recipe '{recipe_id}' references unregistered "
-                        f"skill: {skill}"
+                        "Recipe '%s' references "
+                        "unregistered skill: %s",
+                        recipe_id,
+                        skill,
                     )
                     all_valid = False
 

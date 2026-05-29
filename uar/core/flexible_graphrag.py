@@ -337,8 +337,9 @@ class FlexibleGraphRAG:
             )
 
         logger.info(
-            f"Graph built: {len(self.entities)} entities, "
-            f"{len(self.relations)} relations"
+            "Graph built: %s entities, %s relations",
+            len(self.entities),
+            len(self.relations),
         )
 
     def search_vector(

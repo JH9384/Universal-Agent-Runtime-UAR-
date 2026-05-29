@@ -86,7 +86,7 @@ async def _stream_binary_visualization(
             )
     except Exception:
         # Binary streaming is best-effort; JSON event already sent
-        pass
+        logger.warning("Binary streaming failed, skipping", exc_info=True)
 
 
 @router.websocket("/api/uar/stream/ws")
@@ -206,8 +206,9 @@ async def stream_goal_ws(websocket: WebSocket):
         json_size = len(json.dumps(data))
         if json_size > max_body_size:
             logger.warning(
-                f"WebSocket request too large: {json_size} bytes > "
-                f"{max_body_size}"
+                "WebSocket request too large: %s bytes > %s",
+                json_size,
+                max_body_size,
             )
             await websocket.send_json(
                 create_event(
@@ -290,8 +291,9 @@ async def stream_goal_ws(websocket: WebSocket):
                 allowed = bool(_rl_result[0])  # type: ignore[index,assignment]
             except Exception as rate_limit_error:
                 logger.error(
-                    f"[{request_id}] Rate limit check failed: "
-                    f"{str(rate_limit_error)}"
+                    "[%s] Rate limit check failed: %s",
+                    request_id,
+                    rate_limit_error,
                 )
                 await websocket.send_json(
                     create_event(
@@ -315,7 +317,8 @@ async def stream_goal_ws(websocket: WebSocket):
 
         if not allowed:
             logger.warning(
-                f"WebSocket rate limit exceeded for {rate_limit_key}"
+                "WebSocket rate limit exceeded for %s",
+                rate_limit_key,
             )
             await websocket.send_json(
                 create_event(
@@ -338,15 +341,17 @@ async def stream_goal_ws(websocket: WebSocket):
             except Exception as close_error:
                 # If close fails, try without code
                 logger.warning(
-                    f"[{request_id}] WebSocket close with code failed: "
-                    f"{str(close_error)}"
+                    "[%s] WebSocket close with code failed: %s",
+                    request_id,
+                    close_error,
                 )
                 try:
                     await websocket.close()
                 except Exception as fallback_error:
                     logger.error(
-                        f"[{request_id}] WebSocket close fallback failed: "
-                        f"{str(fallback_error)}"
+                        "[%s] WebSocket close fallback failed: %s",
+                        request_id,
+                        fallback_error,
                     )
             return
 
@@ -409,7 +414,9 @@ async def stream_goal_ws(websocket: WebSocket):
             )
         except Exception as e:
             logger.error(
-                f"[{request_id}] WebSocket error: {str(e)}",
+                "[%s] WebSocket error: %s",
+                request_id,
+                e,
                 extra={
                     "request_id": request_id,
                     "client_host": (
@@ -561,7 +568,9 @@ async def stream_goal(
                         last_hb = time.time()
                 except Exception as e:
                     logger.error(
-                        f"[{request_id}] Stream error: {e}",
+                        "[%s] Stream error: %s",
+                        request_id,
+                        e,
                         exc_info=True,
                     )
                     yield _sse_emit(
@@ -654,7 +663,9 @@ async def stream_goal(
         except Exception as e:
             await _release_sse_connection()
             logger.error(
-                f"[{request_id}] Unexpected stream error: {str(e)}",
+                "[%s] Unexpected stream error: %s",
+                request_id,
+                e,
                 exc_info=True,
             )
             raise HTTPException(
@@ -853,6 +864,10 @@ async def websocket_run(websocket: WebSocket):
                         )
                     )
                 except Exception:
+                    logger.warning(
+                        "Heartbeat send failed, stopping heartbeat loop",
+                        exc_info=True,
+                    )
                     break
 
         heartbeat_task = asyncio.create_task(_heartbeat())
@@ -892,10 +907,10 @@ async def websocket_run(websocket: WebSocket):
             ):
                 batch.append(event)
                 if batch_deadline is None:
-                    batch_deadline = time.time() + WS_BATCH_TIMEOUT
+                    batch_deadline = time.monotonic() + WS_BATCH_TIMEOUT
                 if len(batch) >= WS_BATCH_SIZE:
                     await _flush_batch()
-                elif time.time() >= batch_deadline:
+                elif time.monotonic() >= batch_deadline:
                     await _flush_batch()
                 # Terminal events must reach client immediately
                 if event.get("type") in ("complete", "error"):

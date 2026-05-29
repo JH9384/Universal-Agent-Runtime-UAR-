@@ -61,16 +61,22 @@ def with_retry(
                     if attempt < max_retries:
                         backoff = min(backoff_base**attempt, max_backoff)
                         logger.warning(
-                            f"Retry {attempt + 1}/{max_retries} for "
-                            f"{func.__name__} after {backoff}s: {exc}"
+                            "Retry %s/%s for %s after %ss: %s",
+                            attempt + 1,
+                            max_retries,
+                            func.__name__,
+                            backoff,
+                            exc,
                         )
                         if on_retry:
                             on_retry(attempt + 1, exc)
                         time.sleep(backoff)
                     else:
                         logger.error(
-                            f"Max retries ({max_retries}) exceeded for "
-                            f"{func.__name__}: {exc}"
+                            "Max retries (%s) exceeded for %s: %s",
+                            max_retries,
+                            func.__name__,
+                            exc,
                         )
                         raise
 

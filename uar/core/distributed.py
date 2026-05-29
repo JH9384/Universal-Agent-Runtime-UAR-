@@ -114,10 +114,13 @@ class WorkerPool:
                 metadata={},
             )
             ctx = PipelineContext(goal=goal)
-            ctx.data.update(task.ctx_data)
-            fn = registry.get(task.skill_name)
-            result = fn(ctx)
-            duration = (time.time() - t0) * 1000
+            try:
+                ctx.data.update(task.ctx_data)
+                fn = registry.get(task.skill_name)
+                result = fn(ctx)
+                duration = (time.time() - t0) * 1000
+            finally:
+                ctx.close()
 
             # Update health
             with self._health_lock:
@@ -138,7 +141,14 @@ class WorkerPool:
                 result=result,
                 duration_ms=duration,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Task %s (%s) failed: %s",
+                task.task_id,
+                task.skill_name,
+                exc,
+                exc_info=True,
+            )
             duration = (time.time() - t0) * 1000
             with self._health_lock:
                 h = self._health.setdefault(
@@ -182,7 +192,13 @@ class WorkerPool:
             try:
                 result = future.result(timeout=self.timeout)
                 results.append(result)
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "Task %s (%s) timeout/error: %s",
+                    task.task_id,
+                    task.skill_name,
+                    exc,
+                )
                 results.append(
                     WorkerResult(
                         task_id=task.task_id,

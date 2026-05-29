@@ -78,8 +78,9 @@ def with_circuit_breaker(
                 return cb.call(func, *args, **kwargs)
             except CircuitBreakerOpenError as e:
                 logger.warning(
-                    f"Circuit breaker open for {service_name}, "
-                    f"skipping {func.__name__}"
+                    "Circuit breaker open for %s, skipping %s",
+                    service_name,
+                    func.__name__,
                 )
                 # Re-raise as SkillExecutionError to maintain contract
                 raise SkillExecutionError(

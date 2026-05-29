@@ -170,6 +170,9 @@ def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             return copy.deepcopy(data)
         except Exception:
+            logger.warning(
+                "copy.deepcopy snapshot failed, returning empty dict"
+            )
             return {}
     try:
         import io
@@ -179,6 +182,10 @@ def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             return copy.deepcopy(data)
         except Exception:
+            logger.warning(
+                "Pickle and deepcopy snapshot both failed, "
+                "returning empty dict"
+            )
             return {}
 
 
@@ -257,6 +264,7 @@ def _validate_input_guardrails_core(
                 )
         except Exception:
             # Fallback to string length if size estimation fails
+            logger.warning("Size estimation failed, falling back to str len")
             data_str = str(ctx.data)
             if len(data_str) > 10_000_000:  # 10MB
                 violations.append(
@@ -755,8 +763,9 @@ def make_executor_event(
     validation_errors = validate_event(event)
     if validation_errors:
         logger.warning(
-            f"Event schema validation failed: {validation_errors} "
-            f"for event: {event}"
+            "Event schema validation failed: %s for event: %s",
+            validation_errors,
+            event,
         )
     return event
 
@@ -1188,8 +1197,9 @@ class Executor:
                             + ", ".join(output_violations)
                         )
                         logger.warning(
-                            f"Cached result guardrails failed for "
-                            f"{skill_name}: {error_msg}"
+                            "Cached result guardrails failed for %s: %s",
+                            skill_name,
+                            error_msg,
                         )
                         # Treat cache miss and execute normally
                         cached_result = None
@@ -1425,6 +1435,8 @@ class Executor:
                                 skip_to_recipe_end = active_recipe_stack[-1]
                             else:
                                 execution_broken = True
+                        finally:
+                            _release_coalesce_lock()
             else:
                 # Parallel execution for group of skills
                 yield _ev("parallel_start", payload={"skills": skill_group})
@@ -1460,8 +1472,9 @@ class Executor:
                                 + ", ".join(output_violations)
                             )
                             logger.warning(
-                                f"Cached result guardrails failed for "
-                                f"{skill_name}: {error_msg}"
+                                "Cached result guardrails failed for %s: %s",
+                                skill_name,
+                                error_msg,
                             )
                             # Treat cache miss and execute normally
                             cached_result = None
@@ -1490,6 +1503,9 @@ class Executor:
                     future_to_skill = {}
                     future_to_start_time: Dict[
                         concurrent.futures.Future, float
+                    ] = {}
+                    future_to_ctx_copy: Dict[
+                        concurrent.futures.Future, Any
                     ] = {}
                     for skill_name in skills_to_execute:
                         # Input guardrails check before parallel execution
@@ -1538,6 +1554,7 @@ class Executor:
                         )
                         future_to_skill[future] = skill_name
                         future_to_start_time[future] = _skill_t0
+                        future_to_ctx_copy[future] = ctx_copy
 
                     # Track if any skill failed for fail_fast logic
                     any_failed = False
@@ -1547,6 +1564,7 @@ class Executor:
                     ):
                         skill_name = future_to_skill[future]
                         _skill_t0 = future_to_start_time.get(future, 0)
+                        ctx_copy = future_to_ctx_copy.pop(future, None)
                         try:
                             result = future.result()
 
@@ -1612,12 +1630,21 @@ class Executor:
                             any_failed = True
                             if fail_fast:
                                 break
+                        finally:
+                            if ctx_copy is not None:
+                                ctx_copy.close()
 
                     # Cancel remaining futures if fail_fast and any failed
                     if fail_fast and any_failed:
                         for future in future_to_skill:
                             if not future.done():
                                 future.cancel()
+                            # Close any unprocessed context copies
+                            remaining_ctx = future_to_ctx_copy.pop(
+                                future, None
+                            )
+                            if remaining_ctx is not None:
+                                remaining_ctx.close()
                         logger.info(
                             "Cancelled remaining parallel skills due to "
                             "fail_fast=True and skill failure"

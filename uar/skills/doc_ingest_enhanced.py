@@ -402,7 +402,9 @@ def _read_file_enhanced(
         except Exception as e:
             # Fall back to simple text reading on error
             logger.warning(
-                f"Advanced extraction failed for {file_path}, falling back: {e}"  # noqa: E501
+                "Advanced extraction failed for %s, falling back: %s",
+                file_path,
+                e,
             )
             try:
                 with open(

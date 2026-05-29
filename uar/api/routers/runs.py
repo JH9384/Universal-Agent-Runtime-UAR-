@@ -75,8 +75,9 @@ async def run_goal(
                 cached = _idempotency_get(req.idempotency_key)
                 if cached is not None:
                     logger.info(
-                        f"[{request_id}] Idempotency hit: "
-                        f"{req.idempotency_key}"
+                        "[%s] Idempotency hit: %s",
+                        request_id,
+                        req.idempotency_key,
                     )
                     return cached
 
@@ -97,7 +98,9 @@ async def run_goal(
 
             store.append(result)
             logger.info(
-                f"[{request_id}] Run completed successfully: {result.run_id}"
+                "[%s] Run completed successfully: %s",
+                request_id,
+                result.run_id,
             )
 
             return result
@@ -145,7 +148,9 @@ async def run_goal(
             ) from e
         except Exception as e:
             logger.error(
-                f"[{request_id}] Unexpected error in run_goal: {str(e)}",
+                "[%s] Unexpected error in run_goal: %s",
+                request_id,
+                e,
                 exc_info=True,
             )
             raise HTTPException(
@@ -271,14 +276,16 @@ async def list_runs(
         user_id = user_info["user"] if user_info else None
         runs = store.list_records(user_id=user_id)
         logger.info(
-            f"[{request_id}] Listed {len(runs)} runs "
-            f"for user {user_id or 'anonymous'}"
+            "[%s] Listed %s runs for user %s",
+            request_id,
+            len(runs),
+            user_id or "anonymous",
         )
         return runs
 
     except Exception as e:
         logger.error(
-            f"[{request_id}] Error listing runs: {str(e)}", exc_info=True
+            "[%s] Error listing runs: %s", request_id, e, exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

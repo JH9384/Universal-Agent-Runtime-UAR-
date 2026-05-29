@@ -131,12 +131,14 @@ def _load_skill_rate_limits() -> Dict[str, Dict[str, int]]:
                     }
                 except ValueError:
                     logger.warning(
-                        f"Skipping invalid skill rate limit entry "
-                        f"(non-numeric values): {skill_entry}"
+                        "Skipping invalid skill rate limit entry "
+                        "(non-numeric values): %s",
+                        skill_entry,
                     )
             else:
                 logger.warning(
-                    f"Skipping invalid skill rate limit entry: {skill_entry}"
+                    "Skipping invalid skill rate limit entry: %s",
+                    skill_entry,
                 )
 
     # Merge with defaults (env vars override defaults)
@@ -343,12 +345,13 @@ class RedisRateLimiter:
         import redis
 
         window_start = time.time() - window
+        _rl_key = f"uar:ratelimit:{key}"
         try:
             self._redis.zremrangebyscore(
-                f"uar:ratelimit:{key}", 0, window_start
+                _rl_key, 0, window_start
             )
             current = int(
-                self._redis.zcard(f"uar:ratelimit:{key}")  # type: ignore[arg-type]
+                self._redis.zcard(_rl_key)  # type: ignore[arg-type]
             )
         except redis.RedisError:
             return limit
@@ -427,7 +430,8 @@ def _load_api_keys() -> Dict[str, Dict]:
                 tier = parts[2].strip() if len(parts) > 2 else "authenticated"
                 if not key or not user:
                     logger.warning(
-                        f"Skipping invalid API key entry: {key_entry}"
+                        "Skipping invalid API key entry: %s",
+                        key_entry,
                     )
                     continue
                 api_keys[key] = {"user": user, "tier": tier}
@@ -663,7 +667,8 @@ def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
 
     if not key_valid:
         logger.warning(
-            f"Invalid API key attempted: {credentials.credentials[:8]}..."
+            "Invalid API key attempted: %s...",
+            credentials.credentials[:8],
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -733,10 +738,13 @@ def request_logging_middleware(request: Request, user_info: Optional[Dict]):
 
     user_str = f"user:{user_info['user']}" if user_info else "anonymous"
     logger.info(
-        f"[cid={correlation_id}][req={request_id}] {request.method} "
-        f"{safe_url} "
-        f"from {request.client.host if request.client else 'unknown'} "
-        f"({user_str})"
+        "[cid=%s][req=%s] %s %s from %s (%s)",
+        correlation_id,
+        request_id,
+        request.method,
+        safe_url,
+        request.client.host if request.client else "unknown",
+        user_str,
     )
 
     return request_id
@@ -753,7 +761,10 @@ def error_handler_middleware(func):
             raise  # Re-raise HTTP exceptions (already properly formatted)
         except Exception as e:
             logger.error(
-                f"Unhandled error in {func.__name__}: {str(e)}", exc_info=True
+                "Unhandled error in %s: %s",
+                func.__name__,
+                e,
+                exc_info=True,
             )
             # Try to get request from args/kwargs for request_id
             request_id = "unknown"
@@ -826,8 +837,9 @@ def apply_middleware(app):
             try:
                 if int(content_length) > max_body_size:
                     logger.warning(
-                        f"Request body too large: {content_length} bytes > "
-                        f"{max_body_size}"
+                        "Request body too large: %s bytes > %s",
+                        content_length,
+                        max_body_size,
                     )
                     return JSONResponse(
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE,
@@ -892,10 +904,13 @@ def apply_middleware(app):
             )
 
         logger.info(
-            f"[cid={correlation_id}][req={request_id}] {request.method} "
-            f"{request.url.path} "
-            f"completed in {process_time:.3f}s with status "
-            f"{response.status_code}"
+            "[cid=%s][req=%s] %s %s completed in %.3fs with status %s",
+            correlation_id,
+            request_id,
+            request.method,
+            request.url.path,
+            process_time,
+            response.status_code,
         )
 
         # Echo correlation ID back to caller

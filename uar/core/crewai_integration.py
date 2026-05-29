@@ -312,7 +312,8 @@ class TaskOrchestrator:
                 # Circular dependency or missing dependency
                 pending = [tid for tid in task_ids if tid not in executed]
                 logger.error(
-                    f"Cannot resolve dependencies for tasks: {pending}"
+                    "Cannot resolve dependencies for tasks: %s",
+                    pending,
                 )
                 break
 

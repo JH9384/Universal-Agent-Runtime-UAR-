@@ -74,8 +74,9 @@ class DigestValidator:
                 )
             else:
                 logger.warning(
-                    f"Digest mismatch: expected {expected_digest}, "
-                    f"got {computed}"
+                    "Digest mismatch: expected %s, got %s",
+                    expected_digest,
+                    computed,
                 )
                 return ValidationResult(
                     is_valid=False,

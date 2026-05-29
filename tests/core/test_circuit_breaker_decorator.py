@@ -17,8 +17,8 @@ from uar.core.exceptions import SkillExecutionError
 
 class TestGetCircuitBreaker:
     def test_creates_instance(self):
-        cb = get_circuit_breaker("test_svc", failure_threshold=2)
-        assert cb.name == "test_svc"
+        cb = get_circuit_breaker("test_svc_decorator", failure_threshold=2)
+        assert cb.name == "test_svc_decorator"
         assert cb.failure_threshold == 2
 
     def test_reuses_existing(self):

@@ -108,8 +108,11 @@ async def http_get(
                 _MAX_DELAY,
             )
             logger.warning(
-                f"HTTP GET {url} attempt {attempt + 1} failed: {exc}. "
-                f"Retrying in {delay:.2f}s"
+                "HTTP GET %s attempt %s failed: %s. Retrying in %.2fs",
+                url,
+                attempt + 1,
+                exc,
+                delay,
             )
             await asyncio.sleep(delay)
     raise last_exc
@@ -141,8 +144,11 @@ async def http_post(
                 _MAX_DELAY,
             )
             logger.warning(
-                f"HTTP POST {url} attempt {attempt + 1} failed: {exc}. "
-                f"Retrying in {delay:.2f}s"
+                "HTTP POST %s attempt %s failed: %s. Retrying in %.2fs",
+                url,
+                attempt + 1,
+                exc,
+                delay,
             )
             await asyncio.sleep(delay)
     raise last_exc

@@ -16,8 +16,8 @@ repos:
 
   - repo: local
     hooks:
-      - id: no-fstring-logging
-        name: Check for f-string in logging calls
+      - id: bug-pattern-check
+        name: Check for recurring bug patterns
         entry: ./scripts/check_no_fstring_logging.sh
         language: script
         files: \.py$

@@ -186,8 +186,9 @@ class UORIntegrator:
         current_digest = uor_obj.compute_digest()
         if current_digest not in expected_digest_chain:
             logger.warning(
-                f"Digest mismatch: expected one of {expected_digest_chain}, "
-                f"got {current_digest}"
+                "Digest mismatch: expected one of %s, got %s",
+                expected_digest_chain,
+                current_digest,
             )
             return False
         return True

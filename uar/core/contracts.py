@@ -66,7 +66,10 @@ class PipelineContext:
 
     def close(self) -> None:
         if self._overflow_file is not None:
-            self._overflow_file.close()
+            try:
+                self._overflow_file.close()
+            except Exception:
+                pass
             object.__setattr__(self, "_overflow_file", None)
 
     def __del__(self) -> None:

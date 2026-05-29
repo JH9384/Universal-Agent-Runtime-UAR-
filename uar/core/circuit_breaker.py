@@ -34,7 +34,7 @@ class CircuitBreaker:
 
         self._state = State.CLOSED
         self._failures = 0
-        self._last_failure_time = 0.0
+        self._last_failure_time = time.monotonic()
         self._half_open_count = 0
         self._pending_calls = 0
         self._lock = threading.Lock()
@@ -47,7 +47,8 @@ class CircuitBreaker:
 
     def _transition(self):
         if self._state == State.OPEN:
-            if time.time() - self._last_failure_time >= self.recovery_timeout:
+            elapsed = time.monotonic() - self._last_failure_time
+            if elapsed >= self.recovery_timeout:
                 self._state = State.HALF_OPEN
                 self._half_open_count = 0
                 logger.info(
@@ -77,7 +78,7 @@ class CircuitBreaker:
             with self._lock:
                 self._pending_calls -= 1
                 self._failures += 1
-                self._last_failure_time = time.time()
+                self._last_failure_time = time.monotonic()
                 if self._state == State.HALF_OPEN:
                     # In half-open, any failure opens the circuit immediately
                     self._state = State.OPEN

@@ -37,8 +37,9 @@ async def _retention_purge_loop() -> None:
             removed = store.purge_old_records(config.run_retention_days)
             if removed > 0:
                 logger.info(
-                    f"Purged {removed} run records older than "
-                    f"{config.run_retention_days} days"
+                    "Purged %s run records older than %s days",
+                    removed,
+                    config.run_retention_days,
                 )
         except asyncio.CancelledError:
             break
@@ -144,22 +145,25 @@ def create_lifespan(ws_conn_counter):
                 pass
         logger.info(
             "UAR API shutting down, draining active connections "
-            f"({SHUTDOWN_SLEEP}s grace period)..."
+            "(%ss grace period)...",
+            SHUTDOWN_SLEEP,
         )
-        start_shutdown = time.time()
-        while time.time() - start_shutdown < SHUTDOWN_SLEEP:
+        start_shutdown = time.monotonic()
+        while time.monotonic() - start_shutdown < SHUTDOWN_SLEEP:
             ws_active = ws_conn_counter.count
             if ws_active == 0:
                 logger.info("All connections drained cleanly")
                 break
             logger.info(
-                f"Waiting for {ws_active} active WebSocket(s) to close..."
+                "Waiting for %s active WebSocket(s) to close...",
+                ws_active,
             )
             await asyncio.sleep(1.0)
         else:
             logger.warning(
-                f"Shutdown grace period expired with "
-                f"{ws_conn_counter.count} active connection(s) remaining"
+                "Shutdown grace period expired with %s active "
+                "connection(s) remaining",
+                ws_conn_counter.count,
             )
         # Shutdown metrics collector flush thread
         try:
