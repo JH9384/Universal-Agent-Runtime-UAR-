@@ -563,8 +563,9 @@
 
 .projectRoot {
   margin-left: 12px;
-  font-size: 0.8rem;
-  color: #666;
+  font-size: 11px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
 }
 
 .projectRoot a {
@@ -675,7 +676,7 @@
 }
 
 :global(.dark) .projectRoot {
-  color: #aaa;
+  color: #e5e5e5;
 }
 
 :global(.dark) .uorIcon {
