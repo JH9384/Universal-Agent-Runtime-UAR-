@@ -572,6 +572,17 @@
   text-decoration: none;
 }
 
+.uorIcon {
+  border-radius: 4px;
+  padding: 2px;
+  background: transparent;
+  vertical-align: middle;
+}
+
+.uorFallbackIcon {
+  font-size: 16px;
+}
+
 /* Help box */
 .helpBox {
   margin-bottom: 1.5rem;
@@ -665,6 +676,10 @@
 
 :global(.dark) .projectRoot {
   color: #aaa;
+}
+
+:global(.dark) .uorIcon {
+  background: #f0f0f0;
 }
 
 :global(.dark) .helpBox {

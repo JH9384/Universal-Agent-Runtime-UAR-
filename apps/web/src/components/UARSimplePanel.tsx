@@ -123,6 +123,7 @@ export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps)
   const [darkMode, setDarkMode] = useDarkMode()
   const [showHelp, setShowHelp] = useState(false)
   const [skillGuideOpen, setSkillGuideOpen] = useState(false)
+  const [uorImageError, setUorImageError] = useState(false)
   const [editableSkills, setEditableSkills] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem(SKILLS_KEY)
@@ -419,7 +420,7 @@ export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps)
             {modeLabel}
           </button>
         )}
-        <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">🔗</a></span>
+        <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" className={styles.uorIcon} onError={() => setUorImageError(true)} />}</a></span>
       </div>
 
       {showHelp && (
