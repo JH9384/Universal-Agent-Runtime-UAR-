@@ -1456,12 +1456,12 @@
   background: #5a6268;
 }
 
-:global(.dark) .clearEventsButton {
+:global(.dark) .presetsContainer .clearEventsButton {
   background: #a0522d;
   color: #fff;
 }
 
-:global(.dark) .clearEventsButton:hover {
+:global(.dark) .presetsContainer .clearEventsButton:hover {
   background: #8b4513;
 }
 
