@@ -666,6 +666,9 @@ def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
             user_info = API_KEYS[credentials.credentials].copy()
 
     if not key_valid:
+        if _is_dev_mode():
+            # In dev mode, invalid key → anonymous (same as no key)
+            return None
         logger.warning(
             "Invalid API key attempted: %s...",
             credentials.credentials[:8],

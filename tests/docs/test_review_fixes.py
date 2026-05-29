@@ -195,8 +195,8 @@ class TestRequireAuthOrDevInvalidKey:
     """Invalid API keys in dev mode must be treated as anonymous."""
 
     @pytest.fixture
-    def dev_env(self):
-        env = {"ENVIRONMENT": "development"}
+    def dev_env(self, tmp_path):
+        env = {"ENVIRONMENT": "development", "PROJECT_ROOT": str(tmp_path)}
         with patch.dict(os.environ, env, clear=False):
             yield
 

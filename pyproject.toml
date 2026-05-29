@@ -41,6 +41,7 @@ dev = [
   "pytest-randomly>=3.15,<4.0",
   "pytest-timeout>=2.2,<3.0",
   "pytest-socket>=0.7,<1.0",
+  "pytest-benchmark>=4.0,<5.0",
   "hypothesis>=6.0,<7.0",
   "ruff>=0.1,<1.0",
   "mypy>=1.0,<2.0",
