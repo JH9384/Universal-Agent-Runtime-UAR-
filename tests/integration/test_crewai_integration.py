@@ -2,7 +2,7 @@
 Tests for CrewAI role-based multi-agent patterns integration.
 """
 
-import asyncio
+import pytest
 
 from uar.core.crewai_integration import (
     AgentRole,
@@ -15,6 +15,7 @@ from uar.core.crewai_integration import (
 )
 
 
+@pytest.mark.crewai
 def test_agent_task_creation():
     """Test creating an agent task."""
     task = AgentTask(
@@ -28,6 +29,7 @@ def test_agent_task_creation():
     assert task.id is not None
 
 
+@pytest.mark.crewai
 def test_role_based_agent_creation():
     """Test creating a role-based agent."""
     agent = RoleBasedAgent(
@@ -43,6 +45,7 @@ def test_role_based_agent_creation():
     assert agent.active is True
 
 
+@pytest.mark.crewai
 def test_role_based_agent_task_assignment():
     """Test assigning tasks to a role-based agent."""
     agent = RoleBasedAgent(
@@ -58,6 +61,7 @@ def test_role_based_agent_task_assignment():
     assert agent.assigned_tasks[0].agent_id == "test_agent"
 
 
+@pytest.mark.crewai
 def test_task_orchestrator_registration():
     """Test registering agents with task orchestrator."""
     orchestrator = TaskOrchestrator()
@@ -72,6 +76,7 @@ def test_task_orchestrator_registration():
     assert orchestrator.agents["test_agent"] == agent
 
 
+@pytest.mark.crewai
 def test_task_orchestrator_task_creation():
     """Test creating tasks with the orchestrator."""
     orchestrator = TaskOrchestrator()
@@ -85,6 +90,7 @@ def test_task_orchestrator_task_creation():
     assert task.description == "Test task"
 
 
+@pytest.mark.crewai
 def test_task_orchestrator_task_assignment():
     """Test assigning tasks to specific agents."""
     orchestrator = TaskOrchestrator()
@@ -101,6 +107,7 @@ def test_task_orchestrator_task_assignment():
     assert task.agent_id == "test_agent"
 
 
+@pytest.mark.crewai
 def test_task_orchestrator_role_assignment():
     """Test assigning tasks by role."""
     orchestrator = TaskOrchestrator()
@@ -117,6 +124,7 @@ def test_task_orchestrator_role_assignment():
     assert task.agent_id == "test_agent"
 
 
+@pytest.mark.crewai
 def test_task_orchestrator_status():
     """Test getting orchestrator status."""
     orchestrator = TaskOrchestrator()
@@ -136,6 +144,7 @@ def test_task_orchestrator_status():
     assert status["task_count"] == 1
 
 
+@pytest.mark.crewai
 def test_get_task_orchestrator_singleton():
     """Test global task orchestrator singleton."""
     orchestrator1 = get_task_orchestrator()
@@ -144,6 +153,7 @@ def test_get_task_orchestrator_singleton():
     assert orchestrator1 is orchestrator2
 
 
+@pytest.mark.crewai
 def test_create_standard_agent():
     """Test creating a standard agent."""
     agent = create_standard_agent(
@@ -156,15 +166,15 @@ def test_create_standard_agent():
     assert agent.name == "Researcher"
 
 
-def test_execute_standard_workflow():
+@pytest.mark.crewai
+@pytest.mark.asyncio
+async def test_execute_standard_workflow():
     """Test executing a standard workflow."""
     _ = get_task_orchestrator()
 
-    result = asyncio.run(
-        execute_standard_workflow(
-            workflow_type="research_analyze_write",
-            input_data={"topic": "Test topic"},
-        )
+    result = await execute_standard_workflow(
+        workflow_type="research_analyze_write",
+        input_data={"topic": "Test topic"},
     )
 
     assert result["status"] in ["completed", "partial"]

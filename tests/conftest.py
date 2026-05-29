@@ -15,16 +15,18 @@ def pytest_configure(config):
         ("api", "Tests for FastAPI endpoints (uses TestClient)"),
         ("store", "Tests for persistence layer (JSON, SQLite, Postgres)"),
         ("skills", "Tests for individual skill functions"),
+        (
+            "crewai",
+            "Tests for CrewAI integration and role-based agent patterns",
+        ),
     ]
     for marker, description in markers:
         config.addinivalue_line("markers", f"{marker}: {description}")
 
 
 def pytest_collection_modifyitems(config, items):
-    """Move schemathesis and crewai tests to the end to avoid
-    async state pollution from other tests.
-    """
-    priority_names = {"test_schemathesis_fuzz", "test_crewai_integration"}
+    """Move schemathesis tests to the end to avoid fuzz-state pollution."""
+    priority_names = {"test_schemathesis_fuzz"}
     priority = []
     rest = []
     for item in items:

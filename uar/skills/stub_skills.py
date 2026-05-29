@@ -20,7 +20,6 @@ _STUBS: Dict[str, str] = {
     "auto_status": "autonomi",
     "auto_up": "autonomi",
     "autogluon_ml": "autogluon",
-    "cern_root": "uproot",
     "crypto_analyze": "pycryptodome",
     "dbt_transform": "dbt-core",
     "deps": "",

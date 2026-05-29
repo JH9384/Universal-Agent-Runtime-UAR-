@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 
 def _sphere_mesh(
@@ -267,6 +268,8 @@ def _hyperboloid_mesh(
     }
 
 
+@register_skill("data_viz_3d")
+@skill_guard("Data viz 3d")
 def data_viz_3d(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate 3D mesh data for parametric surfaces.
 
@@ -314,4 +317,4 @@ def data_viz_3d(ctx: PipelineContext) -> Dict[str, Any]:
     }
 
 
-register_skill("data_viz_3d")(data_viz_3d)
+

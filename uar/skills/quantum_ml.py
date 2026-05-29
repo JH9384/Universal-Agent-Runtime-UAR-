@@ -29,7 +29,7 @@ from uar.core.skill_utils import require_package, skill_guard
 
 
 @register_skill("quantum_ml")
-@skill_guard("Quantum ML", status="failed")
+@skill_guard("Quantum ML")
 def quantum_ml(ctx: PipelineContext) -> Dict[str, Any]:
     """Quantum machine learning with PennyLane.
 

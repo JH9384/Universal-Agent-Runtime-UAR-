@@ -28,94 +28,281 @@ def _cb(name: str) -> CircuitBreaker:
 # ---------------------------------------------------------------------------
 
 @register_skill("scipy_opt")
-@skill_guard("Scipy Opt", status="failed")
+@skill_guard("Scipy Opt")
 def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
     """SciPy optimization and linear algebra.
 
+    When SciPy is installed native routines are used; otherwise
+    SymPy provides symbolic and small-scale numerical fallbacks.
+
     Metadata:
-        opt_operation: 'minimize', 'root', 'linprog', 'eig'
-        opt_function:  objective function as Python expression (for minimize)
+        opt_operation: 'minimize', 'maximize', 'integrate',
+                       'root', 'linprog', 'eig', 'solve_linear'
+        opt_function / opt_expression:
+                       objective or expression string
         opt_bounds:    list of [min, max] bounds (for minimize)
-        opt_constraints: list of constraint dicts (for linprog)
-        opt_matrix_a:  matrix A for linear systems / eigenvalue problems
-        opt_matrix_b:  matrix B (optional)
+        opt_constraints: list of constraint strings (for linprog)
+        opt_matrix_a / opt_matrix:
+                       matrix for eigenvalue / linear-system ops
+        opt_rhs:       right-hand-side vector for linear systems
+        opt_variable:  variable name for symbolic ops (default 'x')
     """
-    err = require_package("scipy")
-    if err:
-        return err
-
-    import numpy as np
-    import scipy.optimize as opt
-    import scipy.linalg as la
-
     meta = ctx.goal.metadata or {}
     operation = meta.get("opt_operation", "minimize")
 
-    if operation == "minimize":
-        expr = meta.get("opt_function", "x[0]**2 + x[1]**2")
-        bounds = meta.get("opt_bounds")
-        x0 = np.array(meta.get("opt_initial", [1.0, 1.0]))
+    # --- SciPy path ---
+    scipy_err = require_package("scipy")
+    if scipy_err is None:
+        import numpy as np
+        import scipy.optimize as opt
+        import scipy.linalg as la
 
-        def f(x):
-            return safe_eval(
-                expr,
-                {
-                    "np": np, "x": x,
-                    "sin": np.sin, "cos": np.cos,
-                    "exp": np.exp, "log": np.log,
-                },
+        if operation == "minimize":
+            expr = meta.get("opt_function", "x[0]**2 + x[1]**2")
+            bounds = meta.get("opt_bounds")
+            x0 = np.array(meta.get("opt_initial", [1.0, 1.0]))
+
+            def _f(x):
+                return safe_eval(
+                    expr,
+                    {
+                        "np": np, "x": x,
+                        "sin": np.sin, "cos": np.cos,
+                        "exp": np.exp, "log": np.log,
+                    },
+                )
+            res = opt.minimize(_f, x0, bounds=bounds)
+            return {
+                "status": "completed",
+                "success": res.success,
+                "x": res.x.tolist(),
+                "fun": float(res.fun),
+                "nit": int(res.nit),
+            }
+
+        elif operation == "root":
+            expr = meta.get("opt_function", "x**2 - 4")
+            x0_scalar = float(meta.get("opt_initial", 1.0))
+
+            def _f(x):
+                return safe_eval(expr, {"np": np, "x": x})
+            res = opt.root_scalar(_f, x0=x0_scalar, method="newton")
+            return {
+                "status": "completed",
+                "success": res.converged,
+                "root": float(res.root),
+                "iterations": int(res.iterations),
+            }
+
+        elif operation == "linprog":
+            c = np.array(meta.get("opt_objective", [1.0, -1.0]))
+            A_ub = np.array(meta.get("opt_ineq_matrix", [[1.0, 1.0]]))
+            b_ub = np.array(meta.get("opt_ineq_rhs", [1.0]))
+            res = opt.linprog(
+                c, A_ub=A_ub, b_ub=b_ub, bounds=meta.get("opt_bounds")
             )
-        res = opt.minimize(f, x0, bounds=bounds)
+            return {
+                "status": "completed",
+                "success": res.success,
+                "x": res.x.tolist(),
+                "fun": float(res.fun),
+            }
+
+        elif operation == "eig":
+            A = np.array(meta.get("opt_matrix_a", [[1, 2], [3, 4]]))
+            w, v = la.eig(A)
+            return {
+                "status": "completed",
+                "eigenvalues": w.tolist(),
+                "eigenvectors": v.tolist(),
+            }
+
+        else:
+            return {
+                "status": "failed",
+                "error": "Unknown operation",
+            }
+
+    # --- SymPy fallback ---
+    import sympy as sp
+
+    var_name = str(meta.get("opt_variable", "x"))
+    x = sp.Symbol(var_name, real=True)
+
+    def _sympify(s: str):
+        return sp.sympify(s, locals={var_name: x})
+
+    if operation in ("minimize", "maximize"):
+        expr_str = str(meta.get("opt_function", "x**2"))
+        expr = _sympify(expr_str)
+        fprime = sp.diff(expr, x)
+        critical = sp.solve(fprime, x)
+        bounds = meta.get("opt_bounds")
+        candidates = []
+        for c in critical:
+            val = float(sp.N(c))
+            if bounds is None or (bounds[0] <= val <= bounds[1]):
+                candidates.append((val, float(sp.N(expr.subs(x, c)))))
+        if bounds is not None:
+            for b in bounds:
+                candidates.append((b, float(sp.N(expr.subs(x, b)))))
+        if not candidates:
+            return {"status": "failed", "error": "no critical points"}
+        if operation == "minimize":
+            best = min(candidates, key=lambda t: t[1])
+        else:
+            best = max(candidates, key=lambda t: t[1])
         return {
             "status": "completed",
-            "success": res.success,
-            "x": res.x.tolist(),
-            "fun": float(res.fun),
-            "nit": int(res.nit),
+            "method": "sympy_critical_points",
+            "optimum": best[0],
+            "value": best[1],
+            "critical_points": [c[0] for c in candidates],
         }
 
-    elif operation == "root":
-        expr = meta.get("opt_function", "x**2 - 4")
-        x0_scalar = float(meta.get("opt_initial", 1.0))
-
-        def f(x):
-            return safe_eval(expr, {"np": np, "x": x})
-        res = opt.root_scalar(f, x0=x0_scalar, method="newton")
+    elif operation == "integrate":
+        expr_str = str(meta.get("opt_function", "x**2"))
+        expr = _sympify(expr_str)
+        limits = meta.get("opt_bounds")
+        if limits and len(limits) == 2:
+            a, b = float(limits[0]), float(limits[1])
+            indefinite = sp.integrate(expr, x)
+            val = float(sp.N(indefinite.subs(x, b))) - float(
+                sp.N(indefinite.subs(x, a))
+            )
+            return {
+                "status": "completed",
+                "method": "sympy_definite",
+                "symbolic": str(indefinite),
+                "value": val,
+            }
+        indefinite = sp.integrate(expr, x)
         return {
             "status": "completed",
-            "success": res.converged,
-            "root": float(res.root),
-            "iterations": int(res.iterations),
-        }
-
-    elif operation == "linprog":
-        c = np.array(meta.get("opt_objective", [1.0, -1.0]))
-        A_ub = np.array(meta.get("opt_ineq_matrix", [[1.0, 1.0]]))
-        b_ub = np.array(meta.get("opt_ineq_rhs", [1.0]))
-        res = opt.linprog(
-            c, A_ub=A_ub, b_ub=b_ub, bounds=meta.get("opt_bounds")
-        )
-        return {
-            "status": "completed",
-            "success": res.success,
-            "x": res.x.tolist(),
-            "fun": float(res.fun),
+            "method": "sympy_indefinite",
+            "symbolic": str(indefinite),
         }
 
     elif operation == "eig":
-        A = np.array(meta.get("opt_matrix_a", [[1, 2], [3, 4]]))
-        w, v = la.eig(A)
+        matrix = meta.get("opt_matrix_a", [[1, 0], [0, 1]])
+        M = sp.Matrix(matrix)
+        if M.rows != M.cols:
+            return {"status": "failed", "error": "matrix must be square"}
+        ev = M.eigenvals()
+        values = []
+        for val, mult in ev.items():
+            values.append({
+                "value": complex(val) if val.is_complex else float(sp.N(val)),
+                "multiplicity": int(mult),
+            })
         return {
             "status": "completed",
-            "eigenvalues": w.tolist(),
-            "eigenvectors": v.tolist(),
+            "method": "sympy_eigenvals",
+            "eigenvalues": values,
+            "determinant": float(sp.N(M.det())),
+        }
+
+    elif operation == "solve_linear":
+        A = meta.get("opt_matrix", [])
+        b = meta.get("opt_rhs", [])
+        M = sp.Matrix(A)
+        rhs = sp.Matrix(b)
+        if M.cols != len(b):
+            return {
+                "status": "failed",
+                "error": "matrix columns must match rhs length",
+            }
+        try:
+            sol = M.LUsolve(rhs)
+            return {
+                "status": "completed",
+                "method": "sympy_LU",
+                "solution": [float(sp.N(v)) for v in sol],
+            }
+        except Exception as exc:
+            return {"status": "failed", "error": str(exc)}
+
+    elif operation == "root":
+        expr_str = str(meta.get("opt_function", "x**2 - 4"))
+        expr = _sympify(expr_str)
+        fprime = sp.diff(expr, x)
+        initial = float(meta.get("opt_initial", 1.0))
+        current = initial
+        for _ in range(1000):
+            fx = float(sp.N(expr.subs(x, current)))
+            dfx = float(sp.N(fprime.subs(x, current)))
+            if abs(dfx) < 1e-15:
+                break
+            nxt = current - fx / dfx
+            if abs(nxt - current) < 1e-12:
+                return {
+                    "status": "completed",
+                    "method": "sympy_newton",
+                    "root": nxt,
+                }
+            current = nxt
+        return {"status": "failed", "error": "Newton did not converge"}
+
+    elif operation == "linprog":
+        obj_str = str(meta.get("opt_function", "x"))
+        constraints = meta.get("opt_constraints", [])
+        obj_expr = _sympify(obj_str)
+        best_val = float("inf")
+        best_x = None
+        for v in [float(i) / 100 for i in range(-1000, 1001)]:
+            ok = True
+            for c in constraints:
+                try:
+                    lhs, op, rhs = c.replace(" ", "").partition("<=")
+                    if not op:
+                        lhs, op, rhs = c.replace(" ", "").partition("<")
+                    if not op:
+                        lhs, op, rhs = c.replace(" ", "").partition(">=")
+                    if not op:
+                        lhs, op, rhs = c.replace(" ", "").partition(">")
+                    if not op:
+                        lhs, op, rhs = c.replace(" ", "").partition("=")
+                    lhs_val = float(
+                        sp.N(sp.sympify(lhs).subs(x, v))
+                    )
+                    rhs_val = float(
+                        sp.N(sp.sympify(rhs).subs(x, v))
+                    )
+                    if "<=" in c and lhs_val > rhs_val + 1e-9:
+                        ok = False
+                        break
+                    if "<" in c and lhs_val >= rhs_val - 1e-9:
+                        ok = False
+                        break
+                    if ">=" in c and lhs_val < rhs_val - 1e-9:
+                        ok = False
+                        break
+                    if ">" in c and lhs_val <= rhs_val + 1e-9:
+                        ok = False
+                        break
+                    if "=" in c and abs(lhs_val - rhs_val) > 1e-6:
+                        ok = False
+                        break
+                except Exception:
+                    ok = False
+                    break
+            if not ok:
+                continue
+            val = float(sp.N(obj_expr.subs(x, v)))
+            if val < best_val:
+                best_val = val
+                best_x = v
+        if best_x is None:
+            return {"status": "failed", "error": "no feasible point"}
+        return {
+            "status": "completed",
+            "method": "sympy_grid_search",
+            "optimum": best_x,
+            "value": best_val,
         }
 
     else:
-        return {
-            "status": "failed",
-            "error": "Unknown operation",
-        }
+        return {"status": "failed", "error": f"Unknown operation: {operation}"}
 
 
 # ---------------------------------------------------------------------------
@@ -123,48 +310,88 @@ def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @register_skill("diff_eq_solve")
-@skill_guard("Diff Eq Solve", status="failed")
+@skill_guard("Diff Eq Solve")
 def diff_eq_solve(ctx: PipelineContext) -> Dict[str, Any]:
-    """Solve ordinary differential equations with SciPy.
+    """Solve ordinary differential equations.
+
+    SciPy ``solve_ivp`` is used when available; otherwise SymPy ``dsolve``
+    provides symbolic solutions.
 
     Metadata:
-        de_equation: right-hand side f(t, y) as Python expression using y and t
-        de_y0:       initial conditions (list)
-        de_t_span:   time span [t0, tf]
-        de_t_eval:   evaluation points (optional list)
-        de_method:   'RK45', 'RK23', 'DOP853', 'Radau', 'BDF', 'LSODA'
+        de_equation:  equation string (SymPy) or RHS f(t, y) (SciPy)
+        de_function:  function name for SymPy (default 'f')
+        de_variable:  independent variable for SymPy (default 'x')
+        de_initial:   initial conditions dict for SymPy, e.g. {"f(0)": 1}
+        de_y0:        initial conditions list for SciPy
+        de_t_span:    time span [t0, tf] for SciPy
+        de_t_eval:    evaluation points for SciPy
+        de_method:    'RK45', 'RK23', etc. for SciPy
     """
-    err = require_package("scipy")
-    if err:
-        return err
-
-    import numpy as np
-    from scipy.integrate import solve_ivp
-
     meta = ctx.goal.metadata or {}
-    equation = meta.get("de_equation", "-0.5 * y")
-    y0 = meta.get("de_y0", [1.0])
-    t_span = meta.get("de_t_span", [0.0, 10.0])
-    t_eval = meta.get("de_t_eval")
-    method = meta.get("de_method", "RK45")
 
-    def f(t, y):
-        return safe_eval(
-            equation,
-            {
-                "np": np, "t": t, "y": y,
-                "sin": np.sin, "cos": np.cos, "exp": np.exp,
-            },
-        )
+    # --- SciPy numerical path ---
+    scipy_err = require_package("scipy")
+    if scipy_err is None:
+        import numpy as np
+        from scipy.integrate import solve_ivp
 
-    sol = solve_ivp(f, t_span, y0, method=method, t_eval=t_eval)
+        equation = meta.get("de_equation", "-0.5 * y")
+        y0 = meta.get("de_y0", [1.0])
+        t_span = meta.get("de_t_span", [0.0, 10.0])
+        t_eval = meta.get("de_t_eval")
+        method = meta.get("de_method", "RK45")
+
+        def _f(t, y):
+            return safe_eval(
+                equation,
+                {
+                    "np": np, "t": t, "y": y,
+                    "sin": np.sin, "cos": np.cos, "exp": np.exp,
+                },
+            )
+
+        sol = solve_ivp(_f, t_span, y0, method=method, t_eval=t_eval)
+        return {
+            "status": "completed",
+            "success": sol.success,
+            "t": sol.t.tolist(),
+            "y": sol.y.tolist(),
+            "nfev": int(sol.nfev),
+            "message": sol.message,
+        }
+
+    # --- SymPy symbolic fallback ---
+    import sympy as sp
+
+    eq_str = str(meta.get("de_equation", "f(x).diff(x) - f(x)"))
+    func_name = str(meta.get("de_function", "f"))
+    var_name = str(meta.get("de_variable", "x"))
+    ics_raw = meta.get("de_initial")
+    ics = dict(ics_raw) if isinstance(ics_raw, dict) else None
+
+    x = sp.Symbol(var_name, real=True)
+    f = sp.Function(func_name)
+    eq = sp.sympify(eq_str, locals={func_name: f, var_name: x})
+    if not isinstance(eq, sp.Eq):
+        eq = sp.Eq(eq, 0)
+
+    try:
+        sol = sp.dsolve(eq, f(x), ics=ics) if ics else sp.dsolve(eq, f(x))
+    except Exception as exc:
+        return {"status": "failed", "error": f"dsolve failed: {exc}"}
+
+    if isinstance(sol, list):
+        return {
+            "status": "completed",
+            "method": "sympy_dsolve",
+            "general_solution": [str(s.rhs) for s in sol],
+            "num_solutions": len(sol),
+        }
+
     return {
         "status": "completed",
-        "success": sol.success,
-        "t": sol.t.tolist(),
-        "y": sol.y.tolist(),
-        "nfev": int(sol.nfev),
-        "message": sol.message,
+        "method": "sympy_dsolve",
+        "solution": str(sol.rhs),
     }
 
 
@@ -173,7 +400,7 @@ def diff_eq_solve(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @register_skill("quantum_circuit")
-@skill_guard("Quantum Circuit", status="failed")
+@skill_guard("Quantum Circuit")
 def quantum_circuit(ctx: PipelineContext) -> Dict[str, Any]:
     """Build and simulate quantum circuits with Qiskit.
 
@@ -251,7 +478,7 @@ def quantum_circuit(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @register_skill("chem_analysis")
-@skill_guard("Chem Analysis", status="failed")
+@skill_guard("Chem Analysis")
 def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
     """Molecular analysis with RDKit.
 
@@ -330,7 +557,7 @@ def chem_analysis(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @register_skill("bio_compute")
-@skill_guard("Bio Compute", status="failed")
+@skill_guard("Bio Compute")
 def bio_compute(ctx: PipelineContext) -> Dict[str, Any]:
     """Bioinformatics with Biopython.
 
@@ -394,7 +621,7 @@ def bio_compute(ctx: PipelineContext) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @register_skill("relativity")
-@skill_guard("Relativity", status="failed")
+@skill_guard("Relativity")
 def relativity(ctx: PipelineContext) -> Dict[str, Any]:
     """General relativity calculations with SymPy.
 

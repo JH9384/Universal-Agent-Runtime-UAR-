@@ -503,17 +503,19 @@ def test_chromadb_store_missing_dependency():
 # ---------------------------------------------------------------------------
 
 def test_scipy_opt_missing_dependency():
-    ctx = _ctx({"opt_operation": "minimize"})
+    ctx = _ctx({"opt_operation": "minimize", "opt_function": "x**2"})
     result = stem_extended.scipy_opt(ctx)
-    assert result["status"] == "failed"
-    assert "scipy" in result["error"].lower()
+    # SymPy fallback works without SciPy
+    assert result["status"] == "completed"
+    assert result.get("method", "").startswith("sympy")
 
 
 def test_diff_eq_solve_missing_dependency():
-    ctx = _ctx({"ode_function": "-y"})
+    ctx = _ctx({"de_equation": "f(x).diff(x) - f(x)"})
     result = stem_extended.diff_eq_solve(ctx)
-    assert result["status"] == "failed"
-    assert "scipy" in result["error"].lower()
+    # SymPy fallback works without SciPy
+    assert result["status"] == "completed"
+    assert result.get("method", "").startswith("sympy")
 
 
 def test_quantum_circuit_missing_dependency():

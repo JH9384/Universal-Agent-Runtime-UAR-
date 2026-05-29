@@ -19,6 +19,8 @@ from uar.core.crewai_integration import (
     get_task_orchestrator,
 )
 
+pytestmark = pytest.mark.crewai
+
 
 class TestAgentRole:
     """AgentRole enum."""
