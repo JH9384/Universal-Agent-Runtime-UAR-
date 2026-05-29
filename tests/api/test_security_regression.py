@@ -23,6 +23,12 @@ from uar.api.server import app  # noqa: E402
 client = TestClient(app)
 
 
+@pytest.fixture
+def production_env():
+    with patch.dict(os.environ, {"ENVIRONMENT": "production"}, clear=False):
+        yield
+
+
 @pytest.fixture(autouse=True)
 def setup_api_keys():
     with patch.dict(
@@ -45,7 +51,7 @@ def setup_api_keys():
 # ── ping_skill auth ────────────────────────────────────────────────────────
 
 
-def test_ping_skill_invalid_auth_rejected():
+def test_ping_skill_invalid_auth_rejected(production_env):
     """ping_skill must reject requests with invalid credentials."""
     response = client.post(
         "/api/uar/skills/ping",
@@ -69,7 +75,7 @@ def test_ping_skill_with_valid_auth_succeeds():
 # ── compare_runs auth + ownership ──────────────────────────────────────────
 
 
-def test_compare_runs_invalid_auth_rejected():
+def test_compare_runs_invalid_auth_rejected(production_env):
     response = client.get(
         "/api/uar/runs/fake/compare/other",
         headers={"Authorization": "Bearer invalid-key"},
@@ -147,7 +153,7 @@ def test_compare_runs_returns_deep_diff_fields():
 # ── bulk_delete auth + ownership ────────────────────────────────────────────
 
 
-def test_bulk_delete_invalid_auth_rejected():
+def test_bulk_delete_invalid_auth_rejected(production_env):
     response = client.post(
         "/api/uar/runs/bulk-delete",
         json={"older_than_days": 0},
@@ -224,7 +230,7 @@ def test_reset_circuit_breaker_unknown_returns_404():
     assert data["detail"]["error"] == "not_found"
 
 
-def test_reset_circuit_breaker_invalid_auth_rejected():
+def test_reset_circuit_breaker_invalid_auth_rejected(production_env):
     """Reset with invalid bearer token should 401 before 404 check."""
     response = client.post(
         "/api/health/circuit-breakers/test_svc/reset",

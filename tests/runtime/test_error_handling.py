@@ -1,5 +1,6 @@
 """Integration tests for error handling and edge cases"""
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,12 @@ from uar.core.validation import (
 )
 
 client = TestClient(app)
+
+
+@pytest.fixture
+def production_env():
+    with patch.dict(os.environ, {"ENVIRONMENT": "production"}, clear=False):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -245,7 +252,7 @@ class TestRateLimiting:
             "Authenticated user should not be rate limited"
         )
 
-    def test_invalid_api_key(self):
+    def test_invalid_api_key(self, production_env):
         """Test invalid API key"""
         headers = {"Authorization": "Bearer invalid-key"}
         response = client.post(
