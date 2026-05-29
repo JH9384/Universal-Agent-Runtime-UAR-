@@ -2551,10 +2551,11 @@ body {
 .skillSearchWrap {
   position: relative;
   margin-bottom: 8px;
+  display: flex;
 }
 
 .skillSearchInput {
-  width: 100%;
+  flex: 1;
   padding: 8px 28px 8px 10px;
   border: 1px solid #b2dfdb;
   border-radius: 6px;

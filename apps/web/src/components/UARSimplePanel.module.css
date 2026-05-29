@@ -108,6 +108,244 @@
   cursor: not-allowed;
 }
 
+/* Skills section header with Edit button */
+.skillsSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.editSkillsButton {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.editSkillsButton:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.editSkillsButtonActive {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.editSkillsButtonActive:hover:not(:disabled) {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+/* Chip wrapper for edit mode */
+.chipWrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chipEditInput {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  border: 2px solid #2563eb;
+  border-radius: 999px;
+  outline: none;
+  background: #fff;
+  color: #333;
+  font-family: inherit;
+  min-width: 120px;
+}
+
+.chipRemove {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  background: #fff;
+  color: #dc2626;
+  cursor: pointer;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.chipRemove:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+/* Recipe chip */
+.recipeChip {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.recipeChip:hover:not(:disabled) {
+  background: #fde68a;
+  border-color: #d97706;
+  color: #78350f;
+}
+
+/* Add mode toggle */
+.addModeToggle {
+  display: flex;
+  gap: 2px;
+}
+
+.addModeButton {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.addModeButtonActive {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.addModeButton:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.addModeButton:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+/* Add skill row */
+.addSkillRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  align-items: center;
+}
+
+.addSkillSelect {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  outline: none;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  appearance: auto;
+}
+
+.addSkillSelect:focus {
+  border-color: #2563eb;
+}
+
+.addSkillInput {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.addSkillInput:focus {
+  border-color: #2563eb;
+}
+
+.addSkillButton {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.addSkillButton:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.addSkillButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dark mode overrides for skill editing */
+:global(.dark) .editSkillsButton {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #aaa;
+}
+
+:global(.dark) .editSkillsButton:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+:global(.dark) .editSkillsButtonActive {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+:global(.dark) .chipEditInput {
+  background: #000;
+  color: #fff;
+  border-color: #3b82f6;
+}
+
+:global(.dark) .chipRemove {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #f87171;
+}
+
+:global(.dark) .chipRemove:hover:not(:disabled) {
+  background: #3d1a1a;
+  border-color: #f87171;
+}
+
+:global(.dark) .addSkillSelect {
+  background: #000;
+  color: #fff;
+  border-color: #444;
+}
+
+:global(.dark) .addSkillSelect:focus {
+  border-color: #2563eb;
+}
+
+:global(.dark) .addSkillInput {
+  background: #000;
+  color: #fff;
+  border-color: #444;
+}
+
+:global(.dark) .addSkillInput:focus {
+  border-color: #2563eb;
+}
+
+:global(.dark) .addSkillInput::placeholder {
+  color: #888;
+}
+
 .actionSection {
   display: flex;
   align-items: center;
@@ -226,6 +464,420 @@
 .statusFail {
   background: #fee2e2;
   color: #991b1b;
+}
+
+:global(.dark) .panel {
+  background: #000;
+  color: #fff;
+}
+
+:global(.dark) .header h1 {
+  color: #fff;
+}
+
+:global(.dark) .subtitle {
+  color: #aaa;
+}
+
+:global(.dark) .label {
+  color: #aaa;
+}
+
+:global(.dark) .goalInput {
+  background: #000;
+  color: #fff;
+  border-color: #444;
+}
+
+:global(.dark) .goalInput:focus {
+  border-color: #2563eb;
+}
+
+:global(.dark) .chip {
+  background: #2d2d2d;
+  border-color: #505050;
+  color: #e5e5e5;
+}
+
+:global(.dark) .chip:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+:global(.dark) .status {
+  color: #aaa;
+}
+
+:global(.dark) .errorSection {
+  background: #2d1a1a;
+  border-color: #5a2a2a;
+}
+
+:global(.dark) .errorText {
+  color: #f87171;
+}
+
+:global(.dark) .resultBox {
+  background: #1a1a1a;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+:global(.dark) .historyItem {
+  border-bottom-color: #333;
+}
+
+/* Header bar (from advanced panel) */
+.headerBar {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e3e5e8;
+  background: #f8f9fa;
+  margin: -2rem -1.5rem 1.5rem;
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  flex: 1;
+}
+
+.skillGuideButton {
+  margin-left: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.skillGuideButton:hover {
+  background: #f8f9fa;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.projectRoot {
+  margin-left: 12px;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.projectRoot a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Help box */
+.helpBox {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border: 1px solid #e3e5e8;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.helpSection {
+  margin-bottom: 0.5rem;
+}
+
+.helpSection:last-child {
+  margin-bottom: 0;
+}
+
+.helpList {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  color: #555;
+}
+
+.helpList li {
+  margin-bottom: 0.3rem;
+}
+
+/* Skill guide modal */
+.skillGuideModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.skillGuideModalContent {
+  width: min(800px, 90vw);
+  max-height: 90vh;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.skillGuideModalHeader {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e3e5e8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1rem;
+}
+
+.skillGuideModalBody {
+  overflow: auto;
+  flex: 1;
+  padding: 16px;
+}
+
+.modalCloseButton {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+}
+
+.modalCloseButton:hover {
+  background: #f8f9fa;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+/* Dark mode overrides for header */
+:global(.dark) .headerBar {
+  background: #2d2d2d;
+  border-bottom-color: #404040;
+}
+
+:global(.dark) .headerTitle {
+  color: #fff;
+}
+
+:global(.dark) .skillGuideButton {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #e5e5e5;
+}
+
+:global(.dark) .skillGuideButton:hover {
+  background: #4d4d4d;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+:global(.dark) .projectRoot {
+  color: #aaa;
+}
+
+:global(.dark) .helpBox {
+  background: #2d2d2d;
+  border-color: #404040;
+}
+
+:global(.dark) .helpList {
+  color: #e5e5e5;
+}
+
+:global(.dark) .skillGuideModalContent {
+  background: #1a1a1a;
+}
+
+:global(.dark) .skillGuideModalHeader {
+  background: #2d2d2d;
+  border-bottom-color: #404040;
+  color: #fff;
+}
+
+:global(.dark) .modalCloseButton {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #e5e5e5;
+}
+
+:global(.dark) .recipeChip {
+  background: #3d3510;
+  border-color: #5a4d1a;
+  color: #e8d890;
+}
+
+:global(.dark) .recipeChip:hover:not(:disabled) {
+  background: #4d4518;
+  border-color: #7a6d2a;
+  color: #f8e8a0;
+}
+
+:global(.dark) .addModeButton {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #aaa;
+}
+
+:global(.dark) .addModeButtonActive {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.selectedRecipeItem {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+:global(.dark) .selectedRecipeItem {
+  background: #3d3510;
+  border-color: #5a4d1a;
+}
+
+:global(.dark) .historyGoal {
+  color: #fff;
+}
+
+:global(.dark) .historyTime {
+  color: #888;
+}
+
+/* Selected skills display (like recipe builder) */
+.selectedSkillsBox {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border: 1px solid #e3e5e8;
+  border-radius: 0.5rem;
+}
+
+.selectedSkillsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e3e5e8;
+}
+
+.selectedSkillsLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.clearSkillsButton {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clearSkillsButton:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+.selectedSkillsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.selectedSkillItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  font-size: 0.85rem;
+}
+
+.selectedSkillIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.selectedSkillName {
+  flex: 1;
+  color: #333;
+  font-family: monospace;
+}
+
+.removeSkillButton {
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.removeSkillButton:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+/* Dark mode overrides for selected skills */
+:global(.dark) .selectedSkillsBox {
+  background: #2d2d2d;
+  border-color: #404040;
+}
+
+:global(.dark) .selectedSkillsHeader {
+  border-bottom-color: #404040;
+}
+
+:global(.dark) .selectedSkillsLabel {
+  color: #aaa;
+}
+
+:global(.dark) .clearSkillsButton {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #f87171;
+}
+
+:global(.dark) .selectedSkillItem {
+  background: #1a1a1a;
+  border-color: #404040;
+}
+
+:global(.dark) .selectedSkillName {
+  color: #e5e5e5;
+}
+
+:global(.dark) .removeSkillButton {
+  background: #3d3d3d;
+  border-color: #505050;
+  color: #aaa;
 }
 
 .historyTime {

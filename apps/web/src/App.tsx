@@ -8,9 +8,10 @@ const MODE_KEY = 'uar.ui.mode'
 export default function App() {
   const [advanced, setAdvanced] = useState(() => {
     try {
-      return localStorage.getItem(MODE_KEY) === 'advanced'
+      const saved = localStorage.getItem(MODE_KEY)
+      return saved === null || saved === 'advanced'
     } catch {
-      return false
+      return true
     }
   })
 
@@ -27,18 +28,10 @@ export default function App() {
   return (
     <div className={styles.container}>
       {advanced ? (
-        <UARPanel />
+        <UARPanel onToggleMode={toggleMode} modeLabel="Simple" />
       ) : (
-        <UARSimplePanel />
+        <UARSimplePanel onToggleMode={toggleMode} modeLabel="Advanced" />
       )}
-      <button
-        type="button"
-        className={styles.modeToggle}
-        onClick={toggleMode}
-        aria-label={advanced ? 'Switch to simple mode' : 'Switch to advanced mode'}
-      >
-        {advanced ? 'Simple' : 'Advanced'}
-      </button>
     </div>
   )
 }
