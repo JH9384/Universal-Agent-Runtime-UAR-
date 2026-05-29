@@ -28,3 +28,7 @@ overview_architecture.puml
 
 # Python build artifacts
 *.egg-info/
+
+# Coverage artifacts
+.coverage
+.coverage.*
