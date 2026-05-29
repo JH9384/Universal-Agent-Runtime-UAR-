@@ -12,9 +12,10 @@ for f in "$@"; do
     python3 -c "
 import re, sys
 
+errors = []
+
 def fail(msg):
-    print(f'ERROR in {fname}: {msg}')
-    sys.exit(1)
+    errors.append(f'ERROR in {fname}: {msg}')
 
 fname = '$f'
 try:
@@ -34,7 +35,7 @@ if re.search(
 # Heuristic: find 'except Exception:' blocks that lack logger/logging
 # and do NOT re-raise the exception.
 for block in re.finditer(
-    r'except\s+Exception\s*:\s*\n((?:\s+.*\n)*)',
+    r'except\s+Exception\s*:(?:\s*#.*)?\s*\n((?:\s+.*\n)*)',
     content,
 ):
     body = block.group(1)
@@ -59,6 +60,10 @@ if re.search(
 if re.search(r'getattr\([^,]*,\s*["\x27]id["\x27]', content):
     fail('getattr(..., \"id\", ...) — verify field name matches object schema')
 
+for err in errors:
+    print(err)
+if errors:
+    sys.exit(1)
 " 2>/dev/null || failed=1
 done
 exit $failed
