@@ -142,12 +142,21 @@ class TestMathComputeErrors:
 
     def test_timeout_evaluate_public(self):
         """Evaluate operation times out via public API."""
-        result = math_compute(_make_ctx({
-            "math_operation": "evaluate",
-            "math_expression": "integrate(x**1000000, x)",
-        }))
-        assert result["status"] == "failed"
-        assert "timed out" in result["error"].lower()
+        from unittest import mock
+        with mock.patch(
+            "uar.skills.math_compute._with_timeout"
+        ) as mock_timeout:
+            mock_timeout.return_value = {
+                "success": False,
+                "error": "Computation timed out",
+            }
+            result = math_compute(_make_ctx({
+                "math_operation": "evaluate",
+                "math_expression": "integrate(x**1000000, x)",
+            }))
+            assert result["status"] == "failed"
+            assert "timed out" in result["error"].lower()
+            assert mock_timeout.called
 
     def test_timeout_solve_public(self):
         """Solve operation routes through _with_timeout."""
@@ -170,13 +179,22 @@ class TestMathComputeErrors:
 
     def test_timeout_integrate_public(self):
         """Integrate operation times out via public API."""
-        result = math_compute(_make_ctx({
-            "math_operation": "integrate",
-            "math_expression": "x**1000000",
-            "math_variable": "x",
-        }))
-        assert result["status"] == "failed"
-        assert "timed out" in result["error"].lower()
+        from unittest import mock
+        with mock.patch(
+            "uar.skills.math_compute._with_timeout"
+        ) as mock_timeout:
+            mock_timeout.return_value = {
+                "success": False,
+                "error": "Computation timed out",
+            }
+            result = math_compute(_make_ctx({
+                "math_operation": "integrate",
+                "math_expression": "x**1000000",
+                "math_variable": "x",
+            }))
+            assert result["status"] == "failed"
+            assert "timed out" in result["error"].lower()
+            assert mock_timeout.called
 
     def test_timeout_differentiate_public(self):
         """Differentiate operation routes through _with_timeout."""

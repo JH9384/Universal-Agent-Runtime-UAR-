@@ -20,6 +20,21 @@ def pytest_configure(config):
         config.addinivalue_line("markers", f"{marker}: {description}")
 
 
+def pytest_collection_modifyitems(config, items):
+    """Move schemathesis and crewai tests to the end to avoid
+    async state pollution from other tests.
+    """
+    priority_names = {"test_schemathesis_fuzz", "test_crewai_integration"}
+    priority = []
+    rest = []
+    for item in items:
+        if any(p in item.nodeid for p in priority_names):
+            priority.append(item)
+        else:
+            rest.append(item)
+    items[:] = rest + priority
+
+
 @pytest.fixture(autouse=True)
 def reset_rate_limiter():
     """Reset rate limiter state between tests to ensure isolation."""
