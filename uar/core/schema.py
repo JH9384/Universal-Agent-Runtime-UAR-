@@ -46,6 +46,34 @@ EVENT_SCHEMAS: Dict[str, List[str]] = {
         "schema_version", "type", "run_id", "goal_id", "timestamp",
         "error",
     ],
+    "orchestration_plan": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "payload",
+    ],
+    "recipe_skipped": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "payload",
+    ],
+    "recipe_retry": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "payload",
+    ],
+    "parallel_start": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "payload",
+    ],
+    "parallel_complete": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "payload",
+    ],
+    "partial_result": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "payload",
+    ],
+    "skill_retry": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "skill", "payload",
+    ],
 }
 
 # Optional fields that may appear

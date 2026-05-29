@@ -9,7 +9,7 @@ UAR is both an **agent runtime** (goal-driven, event-streamed, observable) and a
 ### Execution Engine
 - **Modular Runtime**: 124+ skill-based execution engine with circuit breaker protection
 - **Event Streaming**: Real-time execution monitoring via Server-Sent Events and WebSocket
-- **Hierarchical Execution**: Recipes as discrete nested units with snapshot/retry/params scoping
+- **Hierarchical Execution**: Recipes as discrete nested units with snapshot/retry/params scoping (opt-in via `UAR_HIERARCHICAL_EXECUTION=true`)
 - **Recipe-Level Caching**: Context mutations cached per recipe ID and parameters
 - **Replay & Persistence**: JSONL-based run storage with event reconstruction for full audit trails
 
@@ -198,9 +198,10 @@ result = molecular_visualization(ctx)
 
 ## Available Skills
 
-**124 skills registered** across 9 categories. Skills marked with **(stub)** are
-placeholder wrappers that check for optional dependencies and return availability
-status. All others are fully implemented.
+**127 skill names registered** across 15 categories (116 unique implementations
+plus 11 aliases). All skills have full implementations; optional-dependency
+skills gracefully return a dependency-check response when their required package
+is not installed.
 
 ### Document Processing
 
@@ -211,6 +212,7 @@ status. All others are fully implemented.
 | `section_sum` | Document section summarization | — |
 | `sum_review` | Summary review and validation | — |
 | `dependency_map` | Code dependency analysis | — |
+| `code_analysis` | Multi-language static analysis (Python, JS, Go, Rust, etc.) | — |
 
 ### AI / LLM Providers
 
@@ -251,6 +253,8 @@ status. All others are fully implemented.
 | `graphrag_query` | Query GraphRAG index (local/global) | `advanced-rag` |
 | `flexible_graphrag` | Flexible GraphRAG configuration | `advanced-rag` |
 | `chromadb_store` | ChromaDB vector storage | `chromadb` |
+| `llamaindex_rag` | LlamaIndex RAG indexing and querying | `llama-index` |
+| `llamaindex_query` | LlamaIndex standalone query | `llama-index` |
 
 ### STEM & Scientific Computing
 
@@ -275,6 +279,11 @@ status. All others are fully implemented.
 | `chem_analysis` | Molecular analysis with RDKit | `rdkit` |
 | `bio_compute` | Bioinformatics with Biopython | `biopython` |
 | `relativity` | General relativity calculations (SymPy/EinsteinPy) | `sympy` |
+| `math_plot` | 2D mathematical plotting (functions, parametric, polar) | `matplotlib` |
+| `math_plot_3d` | 3D surface, wireframe, and parametric plots | `matplotlib` |
+| `crypto_analyze` | Cryptographic analysis: hash ID, entropy, key strength | `pycryptodome` |
+| `quantum_ml` | Quantum neural networks, VQE, QAOA (PennyLane) | `pennylane` |
+| `cern_root` | Read CERN ROOT files and extract TTree data | `uproot` |
 
 ### Computer Vision
 
@@ -282,12 +291,43 @@ status. All others are fully implemented.
 |-------|-------------|--------------|
 | `opencv_process` | OpenCV image processing | `opencv-python` |
 | `yolo_detect` | YOLO object detection | `ultralytics` |
+| `face_recognize` | Face recognition and comparison | `face-recognition` |
+| `video_analyze` | Frame extraction, motion detection, histogram | `opencv-python` |
 
 ### ML & Data
 
 | Skill | Description | Dependencies |
 |-------|-------------|--------------|
 | `optuna_tune` | Hyperparameter tuning with Optuna | `optuna` |
+| `chromadb_store` | ChromaDB vector storage operations | `chromadb` |
+| `flaml_auto` | Automated ML with FLAML | `flaml` |
+| `pycaret_ml` | Automated ML pipeline with PyCaret | `pycaret` |
+| `autogluon_ml` | Automated ML with AutoGluon | `autogluon` |
+
+### Data Engineering
+
+| Skill | Description | Dependencies |
+|-------|-------------|--------------|
+| `airflow_dag` | Validate and inspect Airflow DAG files | `apache-airflow` |
+| `dbt_transform` | Compile dbt project and list models | `dbt-core` |
+| `snowflake_etl` | Execute queries via Snowflake connector | `snowflake-connector-python` |
+| `spark_process` | Create Spark session, run SQL, return schema | `pyspark` |
+
+### Security
+
+| Skill | Description | Dependencies |
+|-------|-------------|--------------|
+| `security_audit` | Run bandit and safety audits | `bandit` |
+| `pentest_scan` | Network penetration testing with python-nmap | `python-nmap` |
+| `osint_recon` | WHOIS, DNS, and Shodan reconnaissance | `shodan`, `whois` |
+
+### Blockchain
+
+| Skill | Description | Dependencies |
+|-------|-------------|--------------|
+| `solana_tx` | Solana keypair, balance, test-transfer | `solana` |
+| `smart_contract` | Deploy minimal contract via web3 (testnet only) | `web3` |
+| `nft_mint` | Mint ERC-721 on local testnet | `web3` |
 
 ### Hardware & Maker
 
@@ -295,6 +335,17 @@ status. All others are fully implemented.
 |-------|-------------|--------------|
 | `micropython` | MicroPython firmware utilities | `esptool` |
 | `platformio` | PlatformIO project builder | `platformio` |
+
+### MLOps & Pipelines
+
+| Skill | Description | Dependencies |
+|-------|-------------|--------------|
+| `mlflow_track` | Log params, metrics, artifacts to MLflow | `mlflow` |
+| `mlflow_deploy` | Load registered model from MLflow | `mlflow` |
+| `model_reg` | Register and stage model in MLflow | `mlflow` |
+| `kubeflow_pipe` | Compile KFP pipeline to YAML | `kfp` |
+| `dagster_pipeline` | Dagster pipeline (requires `dagster`) | `dagster` |
+| `dagster_status` | Dagster status check | `dagster` |
 
 ### UOR Ecosystem
 
@@ -314,6 +365,7 @@ status. All others are fully implemented.
 | `anunix_health` | Check Anunix host health (placeholder) | — |
 | `anunix_run` | Run command on Anunix (placeholder) | — |
 | `uor_ecosystem_status` | Check all UOR ecosystem integrations | `httpx` |
+| `uor_foundation_verify` | Call live UOR Foundation API verify endpoint | `httpx` |
 
 ### Autonomi (Decentralized Storage)
 
@@ -331,37 +383,22 @@ status. All others are fully implemented.
 | `alm_generate` | Generate token sequences from prefix | — |
 | `alm_verify` | Validate text against ALM grammar | — |
 
-### Stub / Placeholder Skills
+### Agent Orchestration
 
-These skills are registered but currently return dependency-check status. They
-become fully functional when the required package is installed:
+| Skill | Description | Dependencies |
+|-------|-------------|--------------|
+| `agent_workflow` | Multi-agent workflow execution | `autogen` |
+| `crewai_task` | CrewAI single task execution | `crewai` |
+| `crewai_workflow` | CrewAI multi-agent workflow | `crewai` |
 
-| Skill | Required Package |
-|-------|------------------|
-| `agent_workflow` | `autogen` |
-| `crewai_task`, `crewai_workflow` | `crewai` |
-| `llamaindex_rag`, `llamaindex_query` | `llama-index` |
-| `dagster_pipeline`, `dagster_status` | `dagster` |
-| `mlflow_track`, `mlflow_deploy`, `model_reg` | `mlflow` |
-| `kubeflow_pipe` | `kfp` |
-| `airflow_dag` | `apache-airflow` |
-| `dbt_transform` | `dbt-core` |
-| `snowflake_etl` | `snowflake-connector-python` |
-| `spark_process` | `pyspark` |
-| `pentest_scan` | `python-nmap` |
-| `osint_recon` | `shodan` |
-| `crypto_analyze` | `pycryptodome` |
-| `security_audit` | `bandit` |
-| `face_recognize` | `face-recognition` |
-| `video_analyze` | `moviepy` |
-| `solana_tx` | `solana` |
-| `smart_contract` | `web3` |
-| `nft_mint` | `web3` |
-| `autogluon_ml` | `autogluon` |
-| `pycaret_ml` | `pycaret` |
-| `flaml_auto` | `flaml` |
-| `quantum_ml` | `pennylane` |
-| `cern_root` | `uproot` |
+### Governance & Multi-Agent
+
+| Skill | Description | Dependencies |
+|-------|-------------|--------------|
+| `guardrail_check` | Validate input/output against guardrail rules | — |
+| `blackboard_message` | Post or read messages on shared blackboard | — |
+| `blackboard_status` | Read blackboard state and agent positions | — |
+| `budget_status` | Check multi-agent budget and spending limits | — |
 
 ### Optional Skill Dependencies
 

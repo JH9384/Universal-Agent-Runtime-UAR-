@@ -21,51 +21,53 @@ def _ctx(meta: dict) -> PipelineContext:
 
 
 class TestLlamaIndexRagMissingPackage:
-    """llamaindex_rag when llama-index not installed."""
+    """llamaindex_rag falls back to UAR-native without llama-index."""
 
-    def test_returns_error(self):
+    def test_uses_native_fallback(self):
         with patch(
             "uar.skills.advanced_integrations.require_package",
             return_value={"status": "failed", "error": "missing"},
         ):
             result = llamaindex_rag(_ctx({}))
-        assert result["status"] == "failed"
+        assert result["status"] == "completed"
+        assert result["metadata"]["mode"] == "uar_native"
 
 
 class TestLlamaIndexQueryMissingPackage:
-    """llamaindex_query when llama-index not installed."""
+    """llamaindex_query falls back to UAR-native without llama-index."""
 
-    def test_returns_error(self):
+    def test_uses_native_fallback(self):
         with patch(
             "uar.skills.advanced_integrations.require_package",
             return_value={"status": "failed", "error": "missing"},
         ):
             result = llamaindex_query(_ctx({}))
-        assert result["status"] == "failed"
+        assert result["status"] == "completed"
+        assert result["metadata"]["mode"] == "uar_native"
 
 
 class TestDagsterPipelineMissingPackage:
-    """dagster_pipeline when dagster not installed."""
+    """dagster_pipeline uses UAR-native without dagster."""
 
-    def test_returns_error(self):
+    def test_uses_native_fallback(self):
         with patch(
             "uar.skills.advanced_integrations.require_package",
             return_value={"status": "failed", "error": "missing"},
         ):
             result = dagster_pipeline(_ctx({}))
-        assert result["status"] == "failed"
+        assert result["status"] == "completed"
 
 
 class TestDagsterStatusMissingPackage:
-    """dagster_status when dagster not installed."""
+    """dagster_status uses UAR-native without dagster."""
 
-    def test_returns_error(self):
+    def test_uses_native_fallback(self):
         with patch(
             "uar.skills.advanced_integrations.require_package",
             return_value={"status": "failed", "error": "missing"},
         ):
             result = dagster_status(_ctx({}))
-        assert result["status"] == "failed"
+        assert result["status"] == "completed"
 
 
 class TestFlexibleGraphragMissingPackage:

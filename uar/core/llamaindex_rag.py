@@ -348,6 +348,62 @@ class LlamaIndexRAG:
         except Exception:
             logger.exception("Failed to setup query engine")
 
+    def _native_query(self, query_text: str, top_k: int = 5) -> RAGResult:
+        """UAR-native fallback: keyword overlap scoring on loaded docs."""
+        import re
+
+        query_words = set(
+            w.lower()
+            for w in re.findall(r"[a-zA-Z]+", query_text)
+            if len(w) > 2
+        )
+        scored: List[tuple[float, Any]] = []
+        for doc in self.documents:
+            text = getattr(doc, "text", str(doc))
+            doc_words = set(
+                w.lower()
+                for w in re.findall(r"[a-zA-Z]+", text)
+                if len(w) > 2
+            )
+            overlap = len(query_words & doc_words)
+            score = overlap / max(len(query_words), 1)
+            scored.append((score, doc))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        top = scored[:top_k]
+
+        retrieved_nodes = []
+        for score, doc in top:
+            text = getattr(doc, "text", str(doc))[:500]
+            meta = getattr(doc, "metadata", {})
+            retrieved_nodes.append(
+                RetrievedNode(
+                    node_id=getattr(doc, "id_", str(hash(text))),
+                    text=text,
+                    metadata=meta if isinstance(meta, dict) else {},
+                    score=score,
+                    source=meta.get("file_name", "")
+                    if isinstance(meta, dict)
+                    else "",
+                )
+            )
+
+        response = "LlamaIndex not installed. UAR-native keyword search used."
+        if top and top[0][0] > 0:
+            response += f" Best match score: {top[0][0]:.2f}."
+
+        return RAGResult(
+            query=query_text,
+            response=response,
+            retrieved_nodes=retrieved_nodes,
+            metadata={
+                "mode": "uar_native",
+                "documents_searched": len(self.documents),
+                "retrieval_strategy": "keyword_overlap",
+            },
+            confidence=top[0][0] if top else 0.0,
+        )
+
     def query(
         self,
         query_text: str,
@@ -356,11 +412,9 @@ class LlamaIndexRAG:
     ) -> RAGResult:
         """Query the RAG system."""
         if not LLAMAINDEX_AVAILABLE:
-            return RAGResult(
-                query=query_text,
-                response="LlamaIndex not available",
-                confidence=0.0,
-            )
+            # UAR-native fallback: basic keyword overlap on loaded documents
+            _tk = top_k or self.config.top_k
+            return self._native_query(query_text, top_k=_tk)
 
         if not self.query_engine:
             self.setup_query_engine()
@@ -427,11 +481,8 @@ class LlamaIndexRAG:
     ) -> RAGResult:
         """Execute a hybrid query combining vector and keyword search."""
         if not LLAMAINDEX_AVAILABLE:
-            return RAGResult(
-                query=query_text,
-                response="LlamaIndex not available",
-                confidence=0.0,
-            )
+            _tk = top_k or self.config.top_k
+            return self._native_query(query_text, top_k=_tk)
 
         # This would implement fusion retrieval
         # For now, fall back to regular query
@@ -447,11 +498,7 @@ class LlamaIndexRAG:
     ) -> RAGResult:
         """Query using knowledge graph."""
         if not LLAMAINDEX_AVAILABLE:
-            return RAGResult(
-                query=query_text,
-                response="LlamaIndex not available",
-                confidence=0.0,
-            )
+            return self._native_query(query_text, top_k=self.config.top_k)
 
         if not self.kg_index:
             logger.warning("Knowledge graph index not available")

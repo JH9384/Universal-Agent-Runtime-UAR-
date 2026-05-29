@@ -17,6 +17,20 @@ from uar.core.registry import register_skill
 from uar.core.skill_utils import require_package, skill_guard
 
 
+def _meta(ctx):
+    """Safely extract metadata dict from PipelineContext or dict."""
+    if hasattr(ctx, "goal"):
+        return ctx.goal.metadata or {}
+    return ctx.get("metadata", {}) if isinstance(ctx, dict) else {}
+
+
+def _goal(ctx):
+    """Safely extract user intent from PipelineContext or dict."""
+    if hasattr(ctx, "goal"):
+        return ctx.goal.user_intent or ""
+    return ctx.get("goal", "") if isinstance(ctx, dict) else ""
+
+
 @register_skill("agent_workflow")
 @skill_guard("Agent Workflow")
 def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -45,10 +59,10 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     orchestrator = get_orchestrator()
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
+    metadata = _meta(ctx)
     agent_sequence = metadata.get("agent_sequence", ["agent1", "agent2"])
     workflow_type = metadata.get("workflow_type", "sequential")
-    initial_message = metadata.get("initial_message", ctx.get("goal", ""))
+    initial_message = metadata.get("initial_message", _goal(ctx))
 
     # Register agents if provided
     agents = metadata.get("agents", [])
@@ -106,11 +120,9 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
+    metadata = _meta(ctx)
     role_str = metadata.get("role", "researcher")
-    task_description = metadata.get(
-        "task_description", ctx.get("goal", "")
-    )
+    task_description = metadata.get("task_description", _goal(ctx))
     expected_output = metadata.get("expected_output", "")
 
     # Map role string to enum
@@ -192,9 +204,9 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
+    metadata = _meta(ctx)
     workflow_type = metadata.get("workflow_type", "research_analyze_write")
-    input_data = metadata.get("input_data", {"topic": ctx.get("goal", "")})
+    input_data = metadata.get("input_data", {"topic": _goal(ctx)})
 
     # Try real CrewAI first
     if CREWAI_AVAILABLE:
@@ -290,8 +302,9 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute advanced RAG using LlamaIndex capabilities.
 
-    Requires ``llama-index``.  Falls back to UAR-native RAG when
-    unavailable and reports ``mode: uar_native``.
+    Uses the real ``llama-index`` library when available; otherwise
+    falls back to UAR-native keyword-based retrieval and reports
+    ``mode: uar_native``.
 
     This skill provides advanced retrieval-augmented generation with
     hierarchical chunking, hybrid search, and knowledge graph support.
@@ -305,10 +318,6 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with RAG query results
     """
-    err = require_package("llama_index")
-    if err:
-        return err
-
     from uar.core.llamaindex_rag import (
         LlamaIndexRAG,
         RAGConfig,
@@ -317,7 +326,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
+    metadata = _meta(ctx)
     chunking_str = metadata.get("chunking_strategy", "hierarchical")
     retrieval_str = metadata.get("retrieval_strategy", "hybrid")
     chunk_size = metadata.get("chunk_size", 512)
@@ -325,7 +334,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     # Map strings to enums
     chunking_map = {
-        "fixed": ChunkingStrategy.FIXED,  # type: ignore[attr-defined]
+        "fixed": ChunkingStrategy.SIMPLE,
         "hierarchical": ChunkingStrategy.HIERARCHICAL,
         "semantic": ChunkingStrategy.SEMANTIC,
     }
@@ -356,13 +365,13 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     rag = LlamaIndexRAG(config)
 
     # Load documents if input_path is provided
-    input_path = ctx.get("input_path")
+    input_path = metadata.get("input_path")
     if input_path:
         rag.load_documents(input_path)
         rag.create_index()
 
     # Execute query
-    query = ctx.get("goal", "")
+    query = _goal(ctx)
     result = rag.query(query)
 
     return {
@@ -382,8 +391,8 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Query an existing LlamaIndex RAG system.
 
-    This skill queries a previously created LlamaIndex RAG index
-    using multiple retrieval strategies.
+    Uses the real ``llama-index`` library when available; otherwise
+    falls back to UAR-native keyword-based retrieval.
 
     Metadata:
         - retrieval_strategy: Retrieval strategy to use
@@ -392,36 +401,18 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with query results
     """
-    err = require_package("llama_index")
-    if err:
-        return err
-
-    from uar.core.llamaindex_rag import get_rag_instance, RetrievalStrategy
+    from uar.core.llamaindex_rag import get_rag_instance
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
-    retrieval_str = metadata.get("retrieval_strategy", "hybrid")
+    metadata = _meta(ctx)
     top_k = metadata.get("top_k", 5)
-
-    retrieval_map = {
-        "vector": RetrievalStrategy.VECTOR,
-        "bm25": RetrievalStrategy.BM25,
-        "hybrid": RetrievalStrategy.HYBRID,
-        "auto_merging": RetrievalStrategy.AUTO_MERGING,
-        "knowledge_graph": RetrievalStrategy.KNOWLEDGE_GRAPH,
-    }
-    retrieval_strategy = retrieval_map.get(
-        retrieval_str, RetrievalStrategy.HYBRID
-    )
 
     # Get RAG instance
     rag = get_rag_instance()
 
     # Execute query
-    query = ctx.get("goal", "")
-    result = rag.query(  # type: ignore[call-arg]
-        query, retrieval_strategy=retrieval_strategy, top_k=top_k
-    )
+    query = _goal(ctx)
+    result = rag.query(query, top_k=top_k)
 
     return {
         "status": "completed",
@@ -440,8 +431,8 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Execute Dagster pipelines with asset-based orchestration.
 
-    This skill executes Dagster pipelines for data orchestration,
-    with asset tracking and observability.
+    Uses the real Dagster library when available; otherwise falls back
+    to the UAR-native pipeline orchestrator.
 
     Metadata:
         - pipeline_name: Name of the pipeline to execute
@@ -450,17 +441,13 @@ def dagster_pipeline(ctx: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict with pipeline execution results
     """
-    err = require_package("dagster")
-    if err:
-        return err
-
     from uar.core.dagster_orchestration import (
         get_orchestrator,
         create_standard_pipelines,
     )
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
+    metadata = _meta(ctx)
     pipeline_name = metadata.get("pipeline_name", "rag_pipeline")
     context = metadata.get("context", {})
 
@@ -490,16 +477,12 @@ def dagster_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
     Check Dagster pipeline and asset status.
 
-    This skill provides status information about Dagster pipelines,
-    assets, and executions.
+    Uses the real Dagster library when available; otherwise falls back
+    to the UAR-native pipeline orchestrator status.
 
     Returns:
         Dict with pipeline and asset status
     """
-    err = require_package("dagster")
-    if err:
-        return err
-
     from uar.core.dagster_orchestration import get_orchestrator
 
     orchestrator = get_orchestrator()
@@ -540,9 +523,9 @@ def guardrail_check(ctx: Dict[str, Any]) -> Dict[str, Any]:
     governance = get_governance_system()
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
+    metadata = _meta(ctx)
     guardrail_str = metadata.get("guardrail_type", "content_safety")
-    content = metadata.get("content", ctx.get("goal", ""))
+    content = metadata.get("content", _goal(ctx))
 
     guardrail_map = {
         "content_safety": GuardrailType.CONTENT_SAFETY,
@@ -592,7 +575,7 @@ def budget_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     governance = get_governance_system()
 
     # Get metadata
-    metadata = ctx.get("metadata", {})
+    metadata = _meta(ctx)
     agent_id = metadata.get("agent_id", "system")
 
     # Get or create budget
@@ -735,19 +718,18 @@ def blackboard_message(ctx: Dict[str, Any]) -> Dict[str, Any]:
       key         — message key (required for post/read)
       value       — message payload (required for post)
     """
-    goal = ctx.get("goal", {})
-    meta = goal.get("metadata", {}) if isinstance(goal, dict) else {}
-
+    meta = _meta(ctx)
     action = meta.get("action", "read")
     channel = meta.get("channel", "default")
     key = meta.get("key", "")
     value = meta.get("value")
 
-    # Ensure blackboard root exists in context
-    bb = ctx.setdefault("blackboard", {})
+    # Ensure blackboard root exists in context.data (or ctx itself if dict)
+    data = ctx.data if hasattr(ctx, "data") else ctx
+    bb = data.setdefault("blackboard", {})
     if not isinstance(bb, dict):
         bb = {}
-        ctx["blackboard"] = bb
+        data["blackboard"] = bb
 
     if action == "post":
         if not key:
