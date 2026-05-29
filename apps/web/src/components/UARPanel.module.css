@@ -1457,12 +1457,13 @@
 }
 
 :global(.dark) .presetsContainer .clearEventsButton {
-  background: #a0522d;
-  color: #fff;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
 }
 
 :global(.dark) .presetsContainer .clearEventsButton:hover {
-  background: #8b4513;
+  background: var(--color-surface-hover);
 }
 
 .runStatus {
