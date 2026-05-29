@@ -713,6 +713,10 @@
   cursor: not-allowed;
 }
 
+:global(.dark) .iconButton {
+  color: #fff;
+}
+
 /* FilePicker styles */
 .modalOverlay {
   position: fixed;
