@@ -1445,7 +1445,7 @@
 
 .clearEventsButton {
   padding: 10px 16px;
-  background: #8B4513;
+  background: #6c757d;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -1453,16 +1453,16 @@
 }
 
 .clearEventsButton:hover {
-  background: #A0522D;
+  background: #5a6268;
 }
 
 :global(.dark) .clearEventsButton {
-  background: #8B4513;
+  background: #a0522d;
   color: #fff;
 }
 
 :global(.dark) .clearEventsButton:hover {
-  background: #A0522D;
+  background: #8b4513;
 }
 
 .runStatus {
