@@ -642,6 +642,21 @@
   margin-top: 20px;
 }
 
+.presetsContainer button,
+.presetsContainer select {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-right: 6px;
+}
+
+:global(.dark) .presetsContainer button,
+:global(.dark) .presetsContainer select {
+  background: #3d3d3d;
+  color: #fff;
+  border: 1px solid #505050;
+}
+
 .presetsContainerCompact {
   margin-top: 6px;
 }
