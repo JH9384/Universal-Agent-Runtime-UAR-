@@ -281,6 +281,7 @@ class TestRedisRateLimiterStub:
     """RedisRateLimiter interface without live Redis."""
 
     def test_init_requires_valid_redis_url(self):
+        pytest.importorskip("redis")
         with pytest.raises(ValueError, match="Redis URL must specify"):
             RedisRateLimiter(redis_url="invalid-url")
 
