@@ -168,7 +168,7 @@
 }
 
 :global(.dark) .filterButton:hover {
-  background: #3d3d3d;
+  background: #a0522d;
 }
 
 :global(.dark) .filterButton.active {
@@ -184,7 +184,7 @@
 }
 
 :global(.dark) .skillCard:hover {
-  background: #3d3d3d;
+  background: #a0522d;
 }
 
 :global(.dark) .skillCategory {
@@ -208,7 +208,7 @@
 }
 
 :global(.dark) .closeButton:hover {
-  background: #3d3d3d;
+  background: #a0522d;
 }
 
 :global(.dark) .modalCategory {

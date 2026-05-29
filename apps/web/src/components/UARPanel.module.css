@@ -453,7 +453,7 @@
 }
 
 :global(.dark) .libraryPopupItem:hover {
-  background: #1a1a1a;
+  background: #a0522d;
 }
 
 .libraryPopupItem:hover {
@@ -527,7 +527,7 @@
 }
 
 :global(.dark) .libraryItem:hover {
-  background: #1a1a1a;
+  background: #a0522d;
 }
 
 :global(.dark) .libraryItemSelected {
@@ -811,7 +811,7 @@
 }
 
 :global(.dark) .presetButton:hover {
-  background-color: #4a4a4a;
+  background-color: #a0522d;
 }
 
 .presetButton:hover {
@@ -1225,7 +1225,7 @@
 }
 
 :global(.dark) .skillGroupHeader:hover {
-  background-color: #4a4a4a;
+  background-color: #a0522d;
 }
 
 :global(.dark) .skillGroupName {
@@ -1463,7 +1463,7 @@
 }
 
 :global(.dark) .presetsContainer .clearEventsButton:hover {
-  background: var(--color-surface-hover);
+  background: #a0522d;
 }
 
 .runStatus {
@@ -1846,7 +1846,7 @@
 }
 
 :global(.dark) .button:hover {
-  background-color: #4d4d4d;
+  background-color: #a0522d;
 }
 
 :global(.dark) .eventItem {
@@ -1901,7 +1901,7 @@
 }
 
 :global(.dark) .tipsPopupSectionHeader:hover {
-  background-color: #3d3d3d;
+  background-color: #a0522d;
 }
 
 :global(.dark) .tipsPopupSectionContent {
@@ -1961,7 +1961,7 @@
 }
 
 :global(.dark) .builderToggleButton:hover {
-  background-color: #4d4d4d;
+  background-color: #a0522d;
 }
 
 :global(.dark) .builderToggleActive {
@@ -1982,7 +1982,7 @@
 }
 
 :global(.dark) .builderPaletteChip:hover {
-  background-color: #3b82f6;
+  background-color: #a0522d;
   color: white;
 }
 
@@ -2031,7 +2031,7 @@
 }
 
 :global(.dark) .collapsibleHeader:hover {
-  background-color: #3d3d3d;
+  background-color: #a0522d;
 }
 
 :global(.dark) .collapsibleTitle {
