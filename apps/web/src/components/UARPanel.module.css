@@ -351,7 +351,7 @@
 }
 
 .pickButton:hover {
-  background: #0b5ed7;
+  background: #cc5500;
 }
 
 .pickButton:disabled {
@@ -815,7 +815,8 @@
 }
 
 .presetButton:hover {
-  background: #f0f0f0;
+  background: #cc5500;
+  color: #fff;
 }
 
 .navRow {
@@ -866,7 +867,7 @@
 }
 
 .createFolderButton:hover:not(:disabled) {
-  background: #0b5ed7;
+  background: #cc5500;
 }
 
 .createFolderButton:disabled {
@@ -1055,7 +1056,8 @@
 }
 
 .footerButton:hover {
-  background: #f0f0f0;
+  background: #cc5500;
+  color: #fff;
 }
 
 .primaryButton {
@@ -1068,7 +1070,7 @@
 }
 
 .primaryButton:hover {
-  background: #0056b3;
+  background: #cc5500;
 }
 
 .primaryButton:disabled {
@@ -1420,7 +1422,7 @@
 }
 
 .runButton:hover {
-  background: #218838;
+  background: #cc5500;
 }
 
 .runButton:disabled {
@@ -1440,7 +1442,7 @@
 }
 
 .stopButton:hover {
-  background: #c82333;
+  background: #cc5500;
 }
 
 .clearEventsButton {
@@ -1453,7 +1455,7 @@
 }
 
 .clearEventsButton:hover {
-  background: #5a6268;
+  background: #cc5500;
 }
 
 :global(.dark) .presetsContainer .clearEventsButton {
@@ -1785,9 +1787,9 @@
 }
 
 .smallButton:hover {
-  background: #f97316;
+  background: #cc5500;
   color: #fff;
-  border-color: #f97316;
+  border: 1px solid #cc5500;
 }
 
 .marginBottom6 {
