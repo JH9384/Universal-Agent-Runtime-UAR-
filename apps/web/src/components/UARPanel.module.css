@@ -436,6 +436,16 @@ body {
   transition: background 0.2s;
 }
 
+:global(.dark) .libraryPopupItem {
+  background: #000;
+  border-color: #444;
+  color: #fff;
+}
+
+:global(.dark) .libraryPopupItem:hover {
+  background: #1a1a1a;
+}
+
 .libraryPopupItem:hover {
   background: #f8f9fa;
 }
@@ -799,6 +809,13 @@ body {
   gap: 8px;
 }
 
+.recipeMetaColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
 .createFolderInput {
   flex: 1;
   padding: 6px;
@@ -809,10 +826,10 @@ body {
 }
 
 .createFolderButton {
-  padding: 6px 12px;
+  padding: 4px 10px;
   background: #0d6efd;
   color: #fff;
-  border: none;
+  border: 1px solid #0d6efd;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
@@ -994,11 +1011,18 @@ body {
 }
 
 .footerButton {
-  padding: 6px 14px;
+  padding: 4px 10px;
   background: none;
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
+  font-size: 12px;
+}
+
+:global(.dark) .footerButton {
+  background-color: #d1d5db;
+  color: #1f2937;
+  border-color: #9ca3af;
 }
 
 .footerButton:hover {
@@ -1052,6 +1076,16 @@ body {
   align-items: center;
 }
 
+:global(.dark) .orderChip {
+  background-color: #3d3d3d;
+  border-color: #505050;
+  color: #e5e5e5;
+}
+
+:global(.dark) .orderChipAction {
+  color: #e5e5e5;
+}
+
 .orderChip {
   display: inline-flex;
   align-items: center;
@@ -1062,6 +1096,7 @@ body {
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: grab;
+  color: #000;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -1308,6 +1343,17 @@ body {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+:global(.dark) .advancedOverride {
+  color: #fff;
+}
+
+:global(.dark) .advancedOverrideInput,
+:global(.dark) .advancedOverrideSelect {
+  background: #000;
+  color: #fff;
+  border-color: #444;
 }
 
 .advancedOverride {
@@ -1673,6 +1719,12 @@ body {
   margin-top: 4px;
 }
 
+:global(.dark) .smallButton {
+  background: #3d3d3d;
+  color: #fff;
+  border: 1px solid #505050;
+}
+
 .smallButton {
   font-size: 11px;
   padding: 2px 8px;
@@ -1821,6 +1873,31 @@ body {
 
 :global(.dark) .uorIcon {
   background: #f0f0f0;
+}
+
+:global(.dark) .createFolderRow {
+  background-color: #2d2d2d;
+  border-bottom-color: #404040;
+}
+
+:global(.dark) .createFolderInput {
+  background-color: #000;
+  color: #fff;
+  border-color: #444;
+}
+
+:global(.dark) .createFolderInput::placeholder {
+  color: #aaa;
+}
+
+:global(.dark) .builderPaletteSkills {
+  background-color: #1a1a1a;
+  border-color: #404040;
+}
+
+:global(.dark) .builderCanvas {
+  background-color: #1a1a1a;
+  border-color: #404040;
 }
 
 :global(.dark) .builderToggleButton {
@@ -2018,6 +2095,16 @@ body {
   border-color: #505050;
   color: #e5e5e5;
   box-shadow: 0 1px 0 rgba(0,0,0,0.3);
+}
+
+:global(.dark) .skillGuideModalContent {
+  background: #1a1a1a;
+}
+
+:global(.dark) .skillGuideModalHeader {
+  background: #2d2d2d;
+  border-bottom-color: #404040;
+  color: #fff;
 }
 
 .builderToggle {

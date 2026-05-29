@@ -152,13 +152,81 @@
   font-family: monospace;
 }
 
-.prerequisite {
-  display: inline-block;
-  font-size: 11px;
-  padding: 2px 8px;
-  margin: 2px;
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 4px;
-  color: #856404;
+:global(.dark) .container {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+:global(.dark) .filterLabel {
+  color: #aaa;
+}
+
+:global(.dark) .filterButton {
+  background: #2d2d2d;
+  border-color: #505050;
+  color: #e5e5e5;
+}
+
+:global(.dark) .filterButton:hover {
+  background: #3d3d3d;
+}
+
+:global(.dark) .filterButton.active {
+  background: #1e3a5f;
+  color: #6db3f2;
+  border-color: #2a5a8a;
+}
+
+:global(.dark) .skillCard {
+  background: #2d2d2d;
+  border-color: #404040;
+  color: #fff;
+}
+
+:global(.dark) .skillCard:hover {
+  background: #3d3d3d;
+}
+
+:global(.dark) .skillCategory {
+  background: #404040;
+  color: #e5e5e5;
+}
+
+:global(.dark) .skillDescription {
+  color: #aaa;
+}
+
+:global(.dark) .modalContent {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+:global(.dark) .closeButton {
+  background: #2d2d2d;
+  border-color: #505050;
+  color: #fff;
+}
+
+:global(.dark) .closeButton:hover {
+  background: #3d3d3d;
+}
+
+:global(.dark) .modalCategory {
+  background: #404040;
+  color: #e5e5e5;
+}
+
+:global(.dark) .modalLabel {
+  color: #aaa;
+}
+
+:global(.dark) .exampleBox {
+  background: #2d2d2d;
+  color: #e5e5e5;
+}
+
+:global(.dark) .prerequisite {
+  background: #3d3510;
+  border-color: #5a4d1a;
+  color: #e8d890;
 }

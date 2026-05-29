@@ -3660,27 +3660,124 @@ export function UARPanel() {
             <div className={styles.modalBody}>
               {editingRecipe ? (
                 <div className={styles.createFolderRow}>
-                  <input
-                    type="text"
-                    className={styles.createFolderInput}
-                    placeholder="Recipe label"
-                    value={editRecipeLabel}
-                    onChange={(e) => setEditRecipeLabel(e.target.value)}
-                  />
-                  <div className={styles.builderToggle}>
+                  <div className={styles.recipeMetaColumn}>
+                    <input
+                      type="text"
+                      className={styles.createFolderInput}
+                      placeholder="Recipe label"
+                      value={editRecipeLabel}
+                      onChange={(e) => setEditRecipeLabel(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      className={styles.createFolderInput}
+                      placeholder="Hover Tooltip"
+                      value={editRecipeHint}
+                      onChange={(e) => setEditRecipeHint(e.target.value)}
+                    />
+                    <div className={styles.builderToggle}>
+                      <button
+                        className={`${styles.builderToggleButton} ${builderMode ? styles.builderToggleActive : ''}`}
+                        onClick={() => setBuilderMode(true)}
+                        type="button"
+                      >
+                        🧱 Builder
+                      </button>
+                      <button
+                        className={`${styles.builderToggleButton} ${!builderMode ? styles.builderToggleActive : ''}`}
+                        onClick={() => setBuilderMode(false)}
+                        type="button"
+                      >
+                        📝 Text
+                      </button>
+                    </div>
                     <button
-                      className={`${styles.builderToggleButton} ${builderMode ? styles.builderToggleActive : ''}`}
-                      onClick={() => setBuilderMode(true)}
-                      type="button"
+                      className={styles.createFolderButton}
+                      onClick={async () => {
+                        const skills = builderMode ? [...builderSkills] : editRecipeSkills.split(',').map(s => s.trim()).filter(s => s)
+
+                        // Validate recipe skills against backend registry
+                        const validSkillSet = new Set(
+                          backendSkills.length > 0
+                            ? backendSkills
+                            : AVAILABLE_SKILLS.map(s => s.id)
+                        )
+                        const invalidSkills = skills.filter(s => !validSkillSet.has(s))
+                        if (invalidSkills.length > 0) {
+                          setError({
+                            message: `Invalid skills in recipe: ${invalidSkills.join(', ')}`,
+                            timestamp: Date.now(),
+                          })
+                          return
+                        }
+
+                        const newRecipe: Recipe = {
+                          id: editingRecipe.id || `custom_${Date.now()}`,
+                          label: editRecipeLabel || editingRecipe.label,
+                          skills,
+                          hint: editRecipeHint || editingRecipe.hint
+                        }
+
+                        // Try to persist to backend (user recipes only)
+                        const isNew = !editingRecipe.id
+                        const url = isNew
+                          ? '/api/uar/recipes'
+                          : `/api/uar/recipes/${editingRecipe.id}`
+                        const method = isNew ? 'POST' : 'PUT'
+                        try {
+                          const res = await fetch(url, {
+                            method,
+                            headers: authHeaders({ 'Content-Type': 'application/json' }),
+                            body: JSON.stringify(newRecipe),
+                          })
+                          if (!res.ok && res.status !== 403 && res.status !== 409) {
+                            console.warn('Failed to save recipe to backend:', res.status)
+                          }
+                        } catch (e) {
+                          console.warn('Recipe backend sync failed:', e)
+                        }
+
+                        setRecipes((prev) => {
+                          let newRecipes
+                          if (editingRecipe.id) {
+                            // Update existing recipe
+                            newRecipes = prev.map(r => r.id === editingRecipe.id ? newRecipe : r)
+                          } else {
+                            // Add new recipe
+                            newRecipes = [...prev, newRecipe]
+                          }
+                          try {
+                            getLocalStorage()?.setItem(RECIPES_KEY, JSON.stringify(newRecipes))
+                          } catch {
+                            /* ignore quota errors */
+                          }
+                          setRecipeHistory((history) => {
+                            const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
+                            setRecipeHistoryIndex((idx) => idx + 1)
+                            return newHistory
+                          })
+                          return newRecipes
+                        })
+                        setEditingRecipe(null)
+                        setEditRecipeLabel('')
+                        setEditRecipeSkills('')
+                        setBuilderSkills([])
+                        setEditRecipeHint('')
+                      }}
                     >
-                      🧱 Builder
+                      Save
                     </button>
                     <button
-                      className={`${styles.builderToggleButton} ${!builderMode ? styles.builderToggleActive : ''}`}
-                      onClick={() => setBuilderMode(false)}
-                      type="button"
+                      className={styles.footerButton}
+                      onClick={() => {
+                        setEditingRecipe(null)
+                        setEditRecipeLabel('')
+                        setEditRecipeSkills('')
+                        setBuilderSkills([])
+                        setEditRecipeHint('')
+                      }}
                     >
-                      📝 Text
+                      Cancel
                     </button>
                   </div>
                   {builderMode ? (
@@ -3789,101 +3886,6 @@ export function UARPanel() {
                       }}
                     />
                   )}
-                  <input
-                    type="text"
-                    className={styles.createFolderInput}
-                    placeholder="Hint"
-                    value={editRecipeHint}
-                    onChange={(e) => setEditRecipeHint(e.target.value)}
-                  />
-                  <button
-                    className={styles.createFolderButton}
-                    onClick={async () => {
-                      const skills = builderMode ? [...builderSkills] : editRecipeSkills.split(',').map(s => s.trim()).filter(s => s)
-
-                      // Validate recipe skills against backend registry
-                      const validSkillSet = new Set(
-                        backendSkills.length > 0
-                          ? backendSkills
-                          : AVAILABLE_SKILLS.map(s => s.id)
-                      )
-                      const invalidSkills = skills.filter(s => !validSkillSet.has(s))
-                      if (invalidSkills.length > 0) {
-                        setError({
-                          message: `Invalid skills in recipe: ${invalidSkills.join(', ')}`,
-                          timestamp: Date.now(),
-                        })
-                        return
-                      }
-
-                      const newRecipe: Recipe = {
-                        id: editingRecipe.id || `custom_${Date.now()}`,
-                        label: editRecipeLabel || editingRecipe.label,
-                        skills,
-                        hint: editRecipeHint || editingRecipe.hint
-                      }
-
-                      // Try to persist to backend (user recipes only)
-                      const isNew = !editingRecipe.id
-                      const url = isNew
-                        ? '/api/uar/recipes'
-                        : `/api/uar/recipes/${editingRecipe.id}`
-                      const method = isNew ? 'POST' : 'PUT'
-                      try {
-                        const res = await fetch(url, {
-                          method,
-                          headers: authHeaders({ 'Content-Type': 'application/json' }),
-                          body: JSON.stringify(newRecipe),
-                        })
-                        if (!res.ok && res.status !== 403 && res.status !== 409) {
-                          console.warn('Failed to save recipe to backend:', res.status)
-                        }
-                      } catch (e) {
-                        console.warn('Recipe backend sync failed:', e)
-                      }
-
-                      setRecipes((prev) => {
-                        let newRecipes
-                        if (editingRecipe.id) {
-                          // Update existing recipe
-                          newRecipes = prev.map(r => r.id === editingRecipe.id ? newRecipe : r)
-                        } else {
-                          // Add new recipe
-                          newRecipes = [...prev, newRecipe]
-                        }
-                        try {
-                          getLocalStorage()?.setItem(RECIPES_KEY, JSON.stringify(newRecipes))
-                        } catch {
-                          /* ignore quota errors */
-                        }
-                        setRecipeHistory((history) => {
-                          const newHistory = [...history.slice(0, recipeHistoryIndexRef.current + 1), newRecipes]
-                          setRecipeHistoryIndex((idx) => idx + 1)
-                          return newHistory
-                        })
-                        return newRecipes
-                      })
-                      setEditingRecipe(null)
-                      setEditRecipeLabel('')
-                      setEditRecipeSkills('')
-                      setBuilderSkills([])
-                      setEditRecipeHint('')
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    className={styles.footerButton}
-                    onClick={() => {
-                      setEditingRecipe(null)
-                      setEditRecipeLabel('')
-                      setEditRecipeSkills('')
-                      setBuilderSkills([])
-                      setEditRecipeHint('')
-                    }}
-                  >
-                    Cancel
-                  </button>
                 </div>
               ) : (
                 <div className={styles.libraryPopupList}>
