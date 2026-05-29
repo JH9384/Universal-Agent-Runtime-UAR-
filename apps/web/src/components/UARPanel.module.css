@@ -1601,6 +1601,12 @@
   padding: 4px 8px;
 }
 
+:global(.dark) .eventFilterSelect {
+  background: #000;
+  color: #fff;
+  border-color: #404040;
+}
+
 .runsEmptyMessage {
   color: #6c757d;
   text-align: center;
