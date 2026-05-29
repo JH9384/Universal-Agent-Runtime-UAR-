@@ -666,15 +666,15 @@
 }
 
 :global(.dark) .skillGuideButton {
-  background: #a0522d;
-  border-color: #8b4513;
-  color: #fff;
+  background: #000;
+  border-color: #404040;
+  color: #e5e5e5;
 }
 
 :global(.dark) .skillGuideButton:hover {
-  background: #8b4513;
-  border-color: #cd853f;
-  color: #fff;
+  background: #1a1a1a;
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 :global(.dark) .projectRoot {
