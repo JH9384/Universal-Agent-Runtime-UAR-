@@ -1989,6 +1989,7 @@
 
 /* CollapsibleSection dark mode */
 :global(.dark) .collapsibleBox {
+  background-color: #1a1a1a;
   border-color: #404040;
 }
 
