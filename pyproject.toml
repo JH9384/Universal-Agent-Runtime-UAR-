@@ -70,7 +70,7 @@ advanced = [
   "unstructured[local-inference]>=0.12,<1.0",
   "docling>=2.0,<3.0",
   "autogen>=0.4,<1.0",
-  "crewai>=0.80,<1.0",
+  "crewai>=0.80,<2.0",
   "llama-index>=0.10,<1.0",
   "llama-index-graph-stores-neo4j>=0.1,<1.0",
   "dagster>=1.7,<2.0",
@@ -86,7 +86,7 @@ doc-processing = [
 ]
 agent-orchestration = [
   "autogen>=0.4,<1.0",
-  "crewai>=0.80,<1.0",
+  "crewai>=0.80,<2.0",
 ]
 advanced-rag = [
   "llama-index>=0.10,<1.0",
