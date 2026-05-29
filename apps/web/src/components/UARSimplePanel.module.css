@@ -297,6 +297,7 @@
 :global(.dark) .editSkillsButton:hover:not(:disabled) {
   border-color: #3b82f6;
   color: #3b82f6;
+  background: #a0522d;
 }
 
 :global(.dark) .editSkillsButtonActive {
@@ -318,7 +319,7 @@
 }
 
 :global(.dark) .chipRemove:hover:not(:disabled) {
-  background: #3d1a1a;
+  background: #a0522d;
   border-color: #f87171;
 }
 
@@ -502,6 +503,7 @@
 :global(.dark) .chip:hover:not(:disabled) {
   border-color: #3b82f6;
   color: #3b82f6;
+  background: #a0522d;
 }
 
 :global(.dark) .status {
@@ -715,7 +717,7 @@
 }
 
 :global(.dark) .recipeChip:hover:not(:disabled) {
-  background: #4d4518;
+  background: #a0522d;
   border-color: #7a6d2a;
   color: #f8e8a0;
 }

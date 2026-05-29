@@ -811,7 +811,7 @@
 }
 
 :global(.dark) .presetButton:hover {
-  background-color: #a0522d;
+  background: #a0522d;
 }
 
 .presetButton:hover {
@@ -1225,7 +1225,7 @@
 }
 
 :global(.dark) .skillGroupHeader:hover {
-  background-color: #a0522d;
+  background: #a0522d;
 }
 
 :global(.dark) .skillGroupName {
@@ -1846,7 +1846,7 @@
 }
 
 :global(.dark) .button:hover {
-  background-color: #a0522d;
+  background: #a0522d;
 }
 
 :global(.dark) .eventItem {
@@ -1889,6 +1889,7 @@
 
 :global(.dark) .tipsPopupClose:hover {
   color: #e5e5e5;
+  background: #a0522d;
 }
 
 :global(.dark) .tipsPopupSection {
@@ -1901,7 +1902,7 @@
 }
 
 :global(.dark) .tipsPopupSectionHeader:hover {
-  background-color: #a0522d;
+  background: #a0522d;
 }
 
 :global(.dark) .tipsPopupSectionContent {
@@ -1961,7 +1962,7 @@
 }
 
 :global(.dark) .builderToggleButton:hover {
-  background-color: #a0522d;
+  background: #a0522d;
 }
 
 :global(.dark) .builderToggleActive {
@@ -1982,7 +1983,7 @@
 }
 
 :global(.dark) .builderPaletteChip:hover {
-  background-color: #a0522d;
+  background: #a0522d;
   color: white;
 }
 
@@ -2016,6 +2017,7 @@
 
 :global(.dark) .builderRecipeChipRemove:hover {
   color: #f87171;
+  background: #a0522d;
 }
 
 /* CollapsibleSection dark mode */
@@ -2031,7 +2033,7 @@
 }
 
 :global(.dark) .collapsibleHeader:hover {
-  background-color: #a0522d;
+  background: #a0522d;
 }
 
 :global(.dark) .collapsibleTitle {
@@ -2071,6 +2073,7 @@
 
 :global(.dark) .drawerClose:hover {
   color: #e5e5e5;
+  background: #a0522d;
 }
 
 :global(.dark) .drawerSection {
@@ -2124,6 +2127,7 @@
 
 :global(.dark) .modeCard:hover {
   border-color: #666;
+  background: #a0522d;
 }
 
 :global(.dark) .modeCardActive {
