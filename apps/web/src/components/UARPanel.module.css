@@ -101,6 +101,17 @@
   background: var(--color-surface-hover);
 }
 
+:global(.dark) .skillGuideButton {
+  background: #a0522d;
+  border-color: #8b4513;
+  color: #fff;
+}
+
+:global(.dark) .skillGuideButton:hover {
+  background: #8b4513;
+  border-color: #cd853f;
+}
+
 .libraryLink {
   margin-left: var(--space-2);
   color: var(--color-link);
