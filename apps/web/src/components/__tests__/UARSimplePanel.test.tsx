@@ -35,7 +35,8 @@ describe('UARSimplePanel', () => {
 
   it('renders skill chips', () => {
     render(<UARSimplePanel />)
-    expect(screen.getByText('openai chat')).toBeInTheDocument()
+    // openai_chat is pre-selected, so it appears in both chips and selected list
+    expect(screen.getAllByText('openai chat')[0]).toBeInTheDocument()
     expect(screen.getByText('section sum')).toBeInTheDocument()
   })
 
