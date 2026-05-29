@@ -228,3 +228,4 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 79
+extend-exclude = ["tests/bug_patterns/eval_files/"]

@@ -1774,9 +1774,9 @@
 }
 
 :global(.dark) .smallButton {
-  background: #2563eb;
+  background: #3d3d3d;
   color: #fff;
-  border: 1px solid #2563eb;
+  border: 1px solid #505050;
 }
 
 .smallButton {
