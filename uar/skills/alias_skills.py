@@ -1,4 +1,4 @@
-"""Alias skills — thin wrappers that register alternative names for existing skills.
+"""Alias skills — thin wrappers that register alternative names.
 
 Imported before stub_skills so aliases take precedence over stubs.
 """

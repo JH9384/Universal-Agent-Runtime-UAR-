@@ -282,8 +282,8 @@ def face_recognize(ctx: PipelineContext) -> Dict[str, Any]:
             "operation": operation,
             "face_count": len(face_locations),
             "face_locations": [
-                {"top": t, "right": r, "bottom": b, "left": l}
-                for t, r, b, l in face_locations
+                {"top": t, "right": r, "bottom": b, "left": left}
+                for t, r, b, left in face_locations
             ],
         }
 
