@@ -102,6 +102,39 @@ class TestEventService:
         assert parsed["run_id"] == "r1"
         assert "<object" in parsed["payload"]["obj"]
 
+    def test_pack_with_msgpack(self):
+        svc = EventService()
+        ev = svc.create("test", "r1")
+        mock_msgpack = MagicMock()
+        mock_msgpack.packb.return_value = b"\x81\xa3type\xa4test"
+        with patch(
+            "uar.services.events._has_msgpack", True
+        ), patch.dict("sys.modules", {"msgpack": mock_msgpack}):
+            data = svc.pack(ev)
+        mock_msgpack.packb.assert_called_once()
+        assert data == b"\x81\xa3type\xa4test"
+
+    def test_pack_without_msgpack(self):
+        svc = EventService()
+        ev = svc.create("test", "r1")
+        with patch("uar.services.events._has_msgpack", False):
+            data = svc.pack(ev)
+        assert isinstance(data, bytes)
+        assert b"test" in data
+
+    def test_sync_context_manager(self):
+        with EventService() as svc:
+            assert isinstance(svc, EventService)
+            ev = svc.create("test", "r1")
+            assert ev["type"] == "test"
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager(self):
+        async with EventService() as svc:
+            assert isinstance(svc, EventService)
+            ev = svc.create("test", "r1")
+            assert ev["type"] == "test"
+
 
 # ------------------------------------------------------------------
 # AuthService

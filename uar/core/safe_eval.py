@@ -136,7 +136,7 @@ def _eval_slice_constant(node: ast.AST) -> Optional[str]:
     string constants so that concatenated dunder names are detected.
     """
     # Unwrap Python < 3.9 Index wrapper
-    if isinstance(node, ast.Index):
+    if isinstance(node, ast.Index):  # pragma: no cover
         node = node.value  # type: ignore[attr-defined, assignment]
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value

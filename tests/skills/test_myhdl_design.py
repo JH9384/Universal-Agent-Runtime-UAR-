@@ -3,6 +3,8 @@
 Covers _parse_python_hdl, _generate_verilog_stub, and myhdl_design.
 """
 
+from unittest.mock import patch
+
 from uar.core.contracts import GoalSpec, PipelineContext
 from uar.skills.myhdl_design import (
     _parse_python_hdl,
@@ -76,3 +78,15 @@ class TestMyhdlDesignSkill:
     def test_default_module_name(self):
         result = myhdl_design(_ctx({"source": "s = Signal(0)"}))
         assert result["result"]["module_name"] == "myhdl_module"
+
+    def test_myhdl_available(self):
+        with patch(
+            "uar.skills.myhdl_design.require_package",
+            return_value=None,
+        ):
+            result = myhdl_design(_ctx({
+                "source": "clk = Signal(bool(0))",
+                "module_name": "counter",
+            }))
+        assert result["status"] == "completed"
+        assert "MyHDL is available" in result["result"]["note"]

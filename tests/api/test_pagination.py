@@ -5,6 +5,7 @@ import pytest
 from uar.core.pagination import (
     CursorPaginator,
     CursorToken,
+    PaginatedResponse,
     maybe_paginate,
 )
 
@@ -27,6 +28,26 @@ class TestCursorToken:
         encoded = token.encode()
         decoded = CursorToken.decode(encoded)
         assert decoded.offset == 0
+
+    def test_decode_invalid_token(self):
+        with pytest.raises(ValueError, match="Invalid cursor token"):
+            CursorToken.decode("not-valid-base64!!!")
+
+
+class TestPaginatedResponse:
+    def test_to_dict(self):
+        resp = PaginatedResponse(
+            data=[1, 2],
+            total=10,
+            page_size=2,
+            next_cursor="n",
+            previous_cursor="p",
+            has_more=True,
+        )
+        d = resp.to_dict()
+        assert d["data"] == [1, 2]
+        assert d["total"] == 10
+        assert d["has_more"] is True
 
 
 class TestCursorPaginator:
@@ -61,6 +82,16 @@ class TestCursorPaginator:
         new_paginator = CursorPaginator(data, page_size=3)
         with pytest.raises(ValueError, match="checksum mismatch"):
             new_paginator.next_page(p1.next_cursor)
+
+    def test_checksum_non_serializable(self):
+        class Unserializable:
+            def __repr__(self):
+                return "Unserializable()"
+
+        data = [Unserializable()]
+        paginator = CursorPaginator(data, page_size=1)
+        page = paginator.first_page()
+        assert page.data == [data[0]]
 
     def test_all_pages(self):
         data = list(range(25))

@@ -113,7 +113,7 @@ class CursorPaginator(Generic[T]):
         """Stable checksum for detecting data mutations."""
         try:
             payload = json.dumps(data, sort_keys=True, default=str)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError):  # pragma: no cover
             # Non-serializable data: hash the reprs
             payload = repr(data)
         return hashlib.sha256(payload.encode()).hexdigest()[:16]

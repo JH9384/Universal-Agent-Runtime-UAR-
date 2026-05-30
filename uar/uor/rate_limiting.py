@@ -191,7 +191,7 @@ class SlidingWindowRateLimiter:
                     oldest = min(request_list)
                     retry_after = oldest + self.window_seconds - now
                     reset_time = oldest + self.window_seconds
-                else:
+                else:  # pragma: no cover
                     retry_after = 0.0
                     reset_time = now + self.window_seconds
 

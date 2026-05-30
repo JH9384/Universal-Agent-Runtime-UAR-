@@ -122,7 +122,34 @@ class TestUORSchemaValidator:
             mock_open.return_value.__enter__.return_value = mock_resp
             assert v.load_uor_foundation_schema() is False
 
+    def test_load_uor_foundation_schema_url_error(self):
+        v = UORSchemaValidator()
+        import urllib.error
+        with patch(
+            "urllib.request.urlopen",
+            side_effect=urllib.error.URLError("no network"),
+        ):
+            assert v.load_uor_foundation_schema() is False
+
     def test_load_uor_foundation_schema_network_error(self):
         v = UORSchemaValidator()
         with patch("urllib.request.urlopen", side_effect=Exception("fail")):
             assert v.load_uor_foundation_schema() is False
+
+    def test_load_schemas_from_directory_bad_json(self, tmp_path):
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json")
+        v = UORSchemaValidator(str(tmp_path))
+        # Should not raise; bad file is skipped
+        assert "bad" not in v.schemas
+
+    def test_validate_no_required_no_properties(self):
+        v = UORSchemaValidator()
+        v.load_schema("simple", {"type": "object"})
+        ok, errs = v.validate({}, "simple")
+        assert ok is True
+        assert errs == []
+
+    def test_check_type_unknown(self):
+        v = UORSchemaValidator()
+        assert v._check_type("any", "unknown_type") is True

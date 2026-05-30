@@ -85,6 +85,18 @@ class TestExecuteSingleTask:
                     task_description="Do research",
                 )
 
+    def test_raises_when_no_llm_workflow(self):
+        with patch(
+            "uar.core.crewai_real._crewai_available",
+            return_value=True,
+        ):
+            with pytest.raises(CrewAIRealError, match="no LLM"):
+                execute_crew_workflow(
+                    task_specs=[{
+                        "role": AgentRole.RESEARCHER, "description": "x",
+                    }],
+                )
+
     def test_real_path_with_mocked_crewai(self):
         mock_crew = MagicMock()
         mock_crew.kickoff.return_value = "Mocked crew output"

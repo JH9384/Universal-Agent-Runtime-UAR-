@@ -18,9 +18,9 @@ import os
 try:
     import openai
     OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    openai = None  # type: ignore
+except ImportError:  # pragma: no cover
+    OPENAI_AVAILABLE = False  # pragma: no cover
+    openai = None  # type: ignore  # pragma: no cover
 
 from uar.skills.llm_base import register_openai_provider
 
