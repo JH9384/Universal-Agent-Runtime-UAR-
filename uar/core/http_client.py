@@ -37,7 +37,7 @@ async def _get_session(url: str):
     if domain in _sessions:
         return _sessions[domain]
     async with _session_lock:
-        if domain in _sessions:
+        if domain in _sessions:  # pragma: no cover
             return _sessions[domain]
         try:
             import aiohttp

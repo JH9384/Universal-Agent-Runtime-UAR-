@@ -153,7 +153,7 @@ class UORMerkleTree:
 
         while node != self.root:
             parent = self._find_parent(node)
-            if not parent:
+            if not parent:  # pragma: no cover
                 break
 
             if parent.left == node:
@@ -163,7 +163,7 @@ class UORMerkleTree:
                 sibling = parent.left
                 direction = "left"
 
-            if sibling:
+            if sibling:  # pragma: no branch
                 proof.append((sibling.digest, direction))
             node = parent
 

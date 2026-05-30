@@ -186,3 +186,42 @@ async def test_http_get_all_retries_fail():
         with patch("asyncio.sleep", return_value=None):
             with pytest.raises(ConnectionError):
                 await http_get("http://example.com")
+
+
+@pytest.mark.asyncio
+async def test_http_get_max_retries_zero():
+    class FakeSession:
+        def get(self, url, **kw):
+            raise ConnectionError("fail")
+
+    with patch("uar.core.http_client._MAX_RETRIES", 0):
+        with patch("uar.core.http_client._get_session") as m:
+            m.return_value = FakeSession()
+            with pytest.raises(RuntimeError, match="No attempts made"):
+                await http_get("http://example.com")
+
+
+@pytest.mark.asyncio
+async def test_http_post_all_retries_fail():
+    class FakeSession:
+        def post(self, url, **kw):
+            raise ConnectionError("always fails")
+
+    with patch("uar.core.http_client._get_session") as m:
+        m.return_value = FakeSession()
+        with patch("asyncio.sleep", return_value=None):
+            with pytest.raises(ConnectionError):
+                await http_post("http://example.com")
+
+
+@pytest.mark.asyncio
+async def test_http_post_max_retries_zero():
+    class FakeSession:
+        def post(self, url, **kw):
+            raise ConnectionError("fail")
+
+    with patch("uar.core.http_client._MAX_RETRIES", 0):
+        with patch("uar.core.http_client._get_session") as m:
+            m.return_value = FakeSession()
+            with pytest.raises(RuntimeError, match="No attempts made"):
+                await http_post("http://example.com")
