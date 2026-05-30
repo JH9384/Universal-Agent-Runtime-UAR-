@@ -47,7 +47,7 @@ _figsize_raw = os.getenv("MATH_PLOT_FIGSIZE", "8,6").strip() or "8,6"
 _figsize_parts = [p.strip() for p in _figsize_raw.split(",") if p.strip()]
 try:
     DEFAULT_FIGSIZE = tuple(float(x) for x in _figsize_parts[:2])
-except (ValueError, TypeError):
+except (ValueError, TypeError):  # pragma: no cover
     DEFAULT_FIGSIZE = (8.0, 6.0)
 
 

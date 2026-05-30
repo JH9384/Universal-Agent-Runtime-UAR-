@@ -185,3 +185,60 @@ class TestMathPlot3DEdgeCases:
         assert mp3d._parse_range(None) == (-5.0, 5.0)
         # Single-element list falls through to default
         assert mp3d._parse_range([1]) == (-5.0, 5.0)
+
+    def test_invalid_figsize_env(self):
+        import subprocess
+        import sys
+        code = (
+            "import os; os.environ['MATH_PLOT_FIGSIZE'] = 'bad'; "
+            "import uar.skills.math_plot_3d as m; "
+            "print(m.DEFAULT_FIGSIZE)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "(8.0, 6.0)" in result.stdout
+
+    def test_wireframe_with_title(self):
+        result = mp3d.math_plot_3d(_ctx({
+            "plot_3d_type": "wireframe",
+            "plot_3d_expression": "x*y",
+            "plot_3d_title": "Wire Test",
+        }))
+        assert result["status"] == "completed"
+
+    def test_wireframe_eval_error(self):
+        from unittest.mock import patch
+        with patch(
+            "uar.skills.math_plot_3d.safe_eval",
+            side_effect=ValueError("bad"),
+        ):
+            result = mp3d.math_plot_3d(_ctx({
+                "plot_3d_type": "wireframe",
+                "plot_3d_expression": "x*y",
+            }))
+        assert result["status"] == "completed"
+        assert "image_base64" in result
+
+    def test_parametric_with_title(self):
+        result = mp3d.math_plot_3d(_ctx({
+            "plot_3d_type": "parametric_curve",
+            "plot_3d_parametric": {"x": "t", "y": "t", "z": "t"},
+            "plot_3d_title": "Param Test",
+        }))
+        assert result["status"] == "completed"
+
+    def test_parametric_eval_error(self):
+        from unittest.mock import patch
+        with patch(
+            "uar.skills.math_plot_3d.safe_eval",
+            side_effect=ValueError("bad"),
+        ):
+            result = mp3d.math_plot_3d(_ctx({
+                "plot_3d_type": "parametric_curve",
+                "plot_3d_parametric": {"x": "t", "y": "t", "z": "t"},
+            }))
+        assert result["status"] == "completed"
+        assert "image_base64" in result

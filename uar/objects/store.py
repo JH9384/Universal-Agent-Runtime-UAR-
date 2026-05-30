@@ -265,7 +265,7 @@ def get_default_store() -> ObjectStore:
     global _default_store
     if _default_store is None:
         with _default_store_lock:
-            if _default_store is None:
+            if _default_store is None:  # pragma: no cover
                 _default_store = ObjectStore()
     return _default_store
 

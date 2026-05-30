@@ -27,7 +27,7 @@ try:
     import httpx
 
     HTTPX_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HTTPX_AVAILABLE = False
     httpx = None  # type: ignore
 

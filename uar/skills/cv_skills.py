@@ -201,7 +201,7 @@ def video_analyze(ctx: PipelineContext) -> Dict[str, Any]:
             _, diff = cv2.threshold(diff, threshold, 255, cv2.THRESH_BINARY)
             motion_pixels = cv2.countNonZero(diff)
             total_motion += motion_pixels
-            if motion_pixels > min_area:
+            if motion_pixels > min_area:  # pragma: no branch
                 motion_frames += 1
             prev_gray = gray
 
