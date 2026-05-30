@@ -304,6 +304,16 @@ def test_quantum_circuit_custom_gates():
     assert any(g["type"] == "control" for g in gates)
 
 
+def test_quantum_circuit_with_measurements():
+    # qubits=1, depth=3 triggers the MEASURE gate branch
+    # (H uses step 0, no CNOTs, RZ uses step 1, MEASURE at step 2)
+    ctx = _ctx({"qubits": 1, "depth": 3})
+    result = quantum_circuit_visualization.quantum_circuit_visualization(ctx)
+    assert result["status"] == "completed"
+    gates = result["result"]["gates"]
+    assert any(g["type"] == "MEASURE" for g in gates)
+
+
 # ---------------------------------------------------------------------------
 # physics_compute
 # ---------------------------------------------------------------------------
