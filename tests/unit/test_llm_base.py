@@ -105,6 +105,22 @@ class TestMakeClientGetter:
             client = getter()
         assert client is mock_client
 
+    def test_client_cls_none(self):
+        mod = MagicMock()
+        del mod.OpenAI
+        getter = make_client_getter(
+            module=mod,
+            api_key_env="TEST_KEY",
+            timeout_env="TEST_TIMEOUT",
+        )
+
+        def _getenv(k, _d=None):
+            return "key123" if k == "TEST_KEY" else None
+
+        with patch("os.getenv", side_effect=_getenv):
+            client = getter()
+        assert client is None
+
     def test_api_key_not_required(self):
         mod = MagicMock()
         mock_client = MagicMock()
@@ -114,6 +130,20 @@ class TestMakeClientGetter:
             api_key_env="TEST_KEY",
             timeout_env="TEST_TIMEOUT",
             api_key_required=False,
+        )
+        with patch("os.getenv", return_value=None):
+            client = getter()
+        assert client is mock_client
+
+    def test_api_key_in_extra_kwargs(self):
+        mod = MagicMock()
+        mock_client = MagicMock()
+        mod.OpenAI.return_value = mock_client
+        getter = make_client_getter(
+            module=mod,
+            api_key_env="TEST_KEY",
+            timeout_env="TEST_TIMEOUT",
+            extra_client_kwargs={"api_key": "preset"},
         )
         with patch("os.getenv", return_value=None):
             client = getter()
@@ -255,6 +285,33 @@ class TestChatSkill:
         result = skill(ctx)
         assert result["status"] == "failed"
 
+    def test_messages_from_metadata(self):
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = "hi"
+        mock_resp.choices[0].finish_reason = "stop"
+        mock_resp.usage = None
+
+        client = MagicMock()
+        client.chat.completions.create.return_value = mock_resp
+        get_client = MagicMock(return_value=client)
+        get_model = MagicMock(return_value="m1")
+        get_temp = MagicMock(return_value=0.7)
+        get_max = MagicMock(return_value=100)
+
+        skill = _chat_skill("test", get_client, get_model, get_temp, get_max)
+        ctx = MagicMock()
+        ctx.goal.metadata = {
+            "messages": [{"role": "system", "content": "sys"}]
+        }
+        ctx.goal.objective = "hello"
+        result = skill(ctx)
+        assert result["status"] == "completed"
+        args = client.chat.completions.create.call_args
+        assert args.kwargs["messages"] == [
+            {"role": "system", "content": "sys"}
+        ]
+
 
 class TestCompletionSkill:
     def test_no_client(self):
@@ -294,6 +351,25 @@ class TestCompletionSkill:
         result = skill(ctx)
         assert result["status"] == "completed"
         assert result["text"] == "world"
+
+    def test_empty_choices(self):
+        mock_resp = MagicMock()
+        mock_resp.choices = []
+        client = MagicMock()
+        client.completions.create.return_value = mock_resp
+        get_client = MagicMock(return_value=client)
+        get_model = MagicMock(return_value="m1")
+        get_temp = MagicMock(return_value=0.7)
+        get_max = MagicMock(return_value=100)
+
+        skill = _completion_skill(
+            "test", get_client, get_model, get_temp, get_max
+        )
+        ctx = MagicMock()
+        ctx.goal.metadata = {}
+        ctx.goal.objective = "hello"
+        result = skill(ctx)
+        assert result["status"] == "failed"
 
 
 class TestEmbeddingSkill:

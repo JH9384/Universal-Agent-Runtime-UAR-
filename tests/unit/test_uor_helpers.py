@@ -105,6 +105,22 @@ class TestUORAssetHelper:
         assert result["policy_digest"] == "ed1"
         assert result["prism_digest"] == "pd1"
 
+    def test_create_pipeline_defaults(self):
+        with patch("uar.core.uor_helpers.wrap_input_data") as wrap:
+            mock_uor = MagicMock()
+            mock_uor.digest = "d1"
+            wrap.return_value = mock_uor
+            with patch("uar.core.uor_helpers.get_uor_ecosystem") as gue:
+                eco = MagicMock()
+                eco.status.return_value = {"ok": True}
+                gue.return_value = eco
+                result = UORAssetHelper.create_computation_pipeline(
+                    {"x": 1}
+                )
+        assert result["input_digest"] == "d1"
+        assert "sigil_digest" not in result
+        assert "embedding_digest" not in result
+
     def test_get_ecosystem_status(self):
         with patch("uar.core.uor_helpers.get_uor_ecosystem") as gue:
             eco = MagicMock()
@@ -239,6 +255,22 @@ class TestUORValidationHelper:
         obj2.provenance = [{"digest": "dx"}]
         result = UORValidationHelper.validate_uor_chain([obj1, obj2])
         assert "Break at index 1" in result["chain_breaks"]
+
+    def test_invalid_object_in_chain(self):
+        obj1 = MagicMock()
+        obj1.digest = "d1"
+        obj1.size = 10
+        obj1.media_type = "text"
+        obj1.provenance = [{"source": "s1"}]
+        obj2 = MagicMock()
+        obj2.digest = None
+        obj2.size = None
+        obj2.media_type = None
+        obj2.provenance = []
+        result = UORValidationHelper.validate_uor_chain([obj1, obj2])
+        assert result["valid"] is False
+        assert len(result["errors"]) > 0
+        assert any("Object 1:" in e for e in result["errors"])
 
 
 class TestConvenienceFunctions:

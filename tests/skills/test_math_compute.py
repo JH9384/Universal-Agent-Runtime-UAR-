@@ -238,6 +238,18 @@ class TestMathComputeErrors:
         assert result["status"] == "failed"
         assert "required" in result["error"].lower()
 
+    def test_with_timeout_triggered(self):
+        from uar.skills.math_compute import _with_timeout
+        import time
+
+        def slow_fn():
+            time.sleep(0.5)
+            return {"success": True, "result": 42}
+
+        result = _with_timeout(slow_fn, timeout=0.01)
+        assert result["success"] is False
+        assert "timed out" in result["error"].lower()
+
 
 class TestMathComputeLatex:
     """LaTeX output generation."""
