@@ -192,6 +192,26 @@ class TestFuzzMaliciousExpressions:
             safe_eval_with_numpy(expr)
 
 
+class TestInternalHelpers:
+    """Direct tests for internal helper functions."""
+
+    def test_disallowed_string_in_nested(self):
+        import ast
+        from uar.core.safe_eval import _disallowed_string_in
+
+        tree = ast.parse("a + '__class__'")
+        result = _disallowed_string_in(tree)
+        assert result == "__class__"
+
+    def test_eval_slice_constant_index_wrapper(self):
+        import ast
+        from uar.core.safe_eval import _eval_slice_constant
+
+        node = ast.Index(value=ast.Constant(value="foo"))
+        result = _eval_slice_constant(node)
+        assert result == "foo"
+
+
 class TestMaxLength:
     def test_long_expression_rejected(self):
         with pytest.raises(SafeEvalError):

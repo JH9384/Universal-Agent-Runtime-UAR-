@@ -85,6 +85,20 @@ class TestAuditLoggerWrite:
             assert "details" not in record
             assert "request_id" not in record
 
+    def test_write_calls_fsync(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            logger = AuditLogger(path=path)
+            with patch("os.fsync") as mock_fsync:
+                logger.write(
+                    event_type="test",
+                    actor="system",
+                    action="check",
+                    resource="/health",
+                    outcome="success",
+                )
+            mock_fsync.assert_called_once()
+
 
 class TestAuditLoggerList:
     """Reading audit records."""
@@ -149,6 +163,17 @@ class TestAuditLoggerList:
             records = logger.list_records()
             assert len(records) == 1
             assert records[0]["event_type"] == "ok"
+
+    def test_list_empty_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            with open(path, "w") as f:
+                f.write('{"event_type": "ok"}\n')
+                f.write("\n")
+                f.write('{"event_type": "ok2"}\n')
+            logger = AuditLogger(path=path)
+            records = logger.list_records()
+            assert len(records) == 2
 
 
 class TestGetAuditLogger:

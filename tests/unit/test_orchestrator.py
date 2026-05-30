@@ -181,3 +181,52 @@ class TestBuildOrchestrationPlan:
         finally:
             registry._skills.pop("test_orchestrator_noop", None)
             registry._trie.remove("test_orchestrator_noop")
+
+    def test_registered_skill_metadata_with_deps(self):
+        """DAG path must also mark registered skills correctly."""
+        from uar.core.registry import registry
+
+        def _noop(ctx):
+            return "ok"
+
+        registry.register("test_orchestrator_dag", _noop)
+        try:
+            strategy = StrategySpec(
+                goal_id="g1", ordered_skills=["test_orchestrator_dag", "a"]
+            )
+            deps = {
+                "test_orchestrator_dag": {"reads": [], "writes": ["x"]},
+                "a": {"reads": ["y"], "writes": ["a"]},  # y never written
+            }
+            plan = build_orchestration_plan(strategy, deps)
+            assert plan.nodes[0].metadata == {"registered": True}
+            assert plan.nodes[1].depends_on == []  # y not in written_by
+        finally:
+            registry._skills.pop("test_orchestrator_dag", None)
+            registry._trie.remove("test_orchestrator_dag")
+
+    def test_duplicate_dependency_skipped(self):
+        """Two reads from same writer → second skips duplicate dep."""
+        from uar.core.registry import registry
+
+        def _noop(ctx):
+            return "ok"
+
+        registry.register("test_orchestrator_w", _noop)
+        registry.register("test_orchestrator_r", _noop)
+        try:
+            strategy = StrategySpec(
+                goal_id="g1",
+                ordered_skills=["test_orchestrator_w", "test_orchestrator_r"],
+            )
+            deps = {
+                "test_orchestrator_w": {"reads": [], "writes": ["x", "y"]},
+                "test_orchestrator_r": {"reads": ["x", "y"], "writes": ["z"]},
+            }
+            plan = build_orchestration_plan(strategy, deps)
+            reader_node = plan.nodes[1]
+            assert len(reader_node.depends_on) == 1
+        finally:
+            for name in ("test_orchestrator_w", "test_orchestrator_r"):
+                registry._skills.pop(name, None)
+                registry._trie.remove(name)

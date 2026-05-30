@@ -80,6 +80,18 @@ class TestUORVectorOps:
         new_v = ops.apply_transformation(v, xf)
         np.testing.assert_array_equal(new_v.data, v.data)
 
+    def test_apply_transformation_mismatched_matrix(self):
+        ops = UORVectorOps()
+        v = ops.create_vector(np.array([1.0, 2.0, 3.0]))
+        matrix = np.array([2.0])  # 1x1 for 3-element vector
+        xf = Transformation(
+            transformation_type=TransformationType.LINEAR,
+            group_element=type("GE", (), {"matrix": matrix})(),
+            parameters={},
+        )
+        new_v = ops.apply_transformation(v, xf)
+        np.testing.assert_array_equal(new_v.data, v.data)
+
     def test_batch_similarity(self):
         ops = UORVectorOps()
         query = ops.create_vector(np.array([1.0, 0.0]))

@@ -78,3 +78,20 @@ class TestVerilatorSim:
             )
         assert result["status"] == "completed"
         assert result["result"]["lint_issues"] == []
+
+    def test_no_module_declaration(self):
+        with patch("uar.skills.verilator_sim._check_verilator") as mock:
+            mock.return_value = {
+                "available": True, "version": "5.0"
+            }
+            result = verilator_sim(_ctx({"source": "assign a = b;"}))
+        assert "module" in result["result"]["lint_issues"][0].lower()
+
+    def test_mismatched_braces(self):
+        with patch("uar.skills.verilator_sim._check_verilator") as mock:
+            mock.return_value = {
+                "available": True, "version": "5.0"
+            }
+            result = verilator_sim(_ctx({"source": "module test(); {"}))
+        issues = result["result"]["lint_issues"]
+        assert any("braces" in i.lower() for i in issues)
