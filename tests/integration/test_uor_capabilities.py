@@ -272,6 +272,50 @@ class TestExecutionRecords:
         assert stats["total_executions"] == 1
         assert stats["success_count"] == 1
 
+    def test_get_statistics_empty(self):
+        emitter = ExecutionRecordEmitter()
+        stats = emitter.get_statistics()
+        assert stats["total_executions"] == 0
+        assert stats["average_duration_ms"] == 0
+
+    def test_to_uor_envelope_with_error(self):
+        emitter = ExecutionRecordEmitter()
+        record = emitter.create_record(
+            execution_id="exec_1",
+            skill="test_skill",
+            input_content={},
+            output_content={},
+            status="failure",
+            error="something broke",
+        )
+        envelope = emitter.to_uor_envelope(record)
+        assert envelope["content"]["error"] == "something broke"
+
+    def test_build_derivation_graph(self):
+        emitter = ExecutionRecordEmitter()
+        emitter.create_record(
+            execution_id="exec_1",
+            skill="skill_a",
+            input_content={"a": 1},
+            output_content={"b": 2},
+        )
+        graph = emitter.build_derivation_graph()
+        assert graph["node_count"] == 1
+        assert graph["edge_count"] == 2
+
+    def test_query_by_status(self):
+        emitter = ExecutionRecordEmitter()
+        emitter.create_record(
+            execution_id="exec_1",
+            skill="skill_a",
+            input_content={},
+            output_content={},
+            status="failure",
+        )
+        results = emitter.query_by_status("failure")
+        assert len(results) == 1
+        assert results[0].status == "failure"
+
 
 class TestSchemaValidation:
     """Test schema validation."""

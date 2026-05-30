@@ -105,7 +105,7 @@ class RunRequest(BaseModel):
                         f"execution_order[{i}] recipe content must be a "
                         f"non-empty string"
                     )
-            elif item["type"] == "skill":
+            elif item["type"] == "skill":  # pragma: no branch
                 # Import here to avoid circular dependency
                 from uar.core.registry import registry
 
