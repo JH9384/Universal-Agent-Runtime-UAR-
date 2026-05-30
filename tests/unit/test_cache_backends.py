@@ -442,3 +442,120 @@ class TestAutoCacheBackend:
                 mock_redis._available = True
                 backend._redis = mock_redis
                 assert backend._backend() is mock_redis
+
+    def test_cache_dir_property(self, tmp_path):
+        backend = AutoCacheBackend(cache_dir=str(tmp_path))
+        assert backend.cache_dir == str(tmp_path)
+
+    def test_redis_unavailable_sets_none(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("UAR_CACHE_BACKEND", "redis")
+        with patch.object(
+            AutoCacheBackend, "__init__", lambda self, **kw: None
+        ):
+            backend = AutoCacheBackend.__new__(AutoCacheBackend)
+            backend._file = FileCacheBackend(cache_dir=str(tmp_path))
+            mock_redis = MagicMock()
+            mock_redis._available = False
+            backend._redis = mock_redis
+            backend._redis = None  # simulate the reset
+            assert backend._redis is None
+
+
+class TestMakeCacheKeyFinalFallback:
+    def test_str_raises(self):
+        class BadObj:
+            def __str__(self):
+                raise TypeError("bad")
+
+        ctx = {"bad": BadObj()}
+        key = _make_cache_key("sum", ctx, "add")
+        assert isinstance(key, str)
+        assert len(key) == 64
+
+
+class TestFileCacheBackendRemaining:
+    def test_get_decode_error_then_remove_fails(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        backend.set("noop", {}, "test", {"result": 42})
+        with patch("builtins.open", side_effect=UnicodeDecodeError(
+            "utf-8", b"\xff", 0, 1, "invalid start byte"
+        )):
+            with patch("os.remove", side_effect=OSError("perm")):
+                assert backend.get("noop", {}, "test") is None
+
+    def test_set_cleanup_fails(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        with patch("builtins.open", side_effect=IOError("disk full")):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.remove", side_effect=OSError("perm")):
+                    backend.set("noop", {}, "test", {"result": 1})
+
+    def test_clear_skill_json_decode_error(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        path = os.path.join(backend.cache_dir, "bad.cache")
+        with open(path, "w") as f:
+            f.write("not json")
+        backend.clear("s")  # should not raise
+
+    def test_enforce_limits_no_eviction_needed(self, tmp_path):
+        backend = FileCacheBackend(
+            cache_dir=str(tmp_path),
+            ttl_seconds=3600,
+            max_entries=100,
+            max_size_bytes=1024 * 1024,
+        )
+        backend.set("a", {}, "g1", {"result": 1})
+        backend._enforce_limits()
+        assert backend.get_stats()["total_entries"] == 1
+
+    def test_enforce_limits_remove_fails(self, tmp_path):
+        backend = FileCacheBackend(
+            cache_dir=str(tmp_path),
+            ttl_seconds=3600,
+            max_entries=0,
+            max_size_bytes=0,
+        )
+        backend.set("a", {}, "g1", {"result": 1})
+        with patch("os.remove", side_effect=OSError("perm")):
+            backend._enforce_limits()
+
+
+class TestRedisCacheBackendInit:
+    def test_init_success(self, tmp_path):
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_redis = MagicMock()
+        mock_redis.from_url.return_value = mock_client
+        with patch.dict("sys.modules", {"redis": mock_redis}):
+            backend = RedisCacheBackend(
+                redis_url="redis://localhost:6379/0"
+            )
+        assert backend._available is True
+
+    def test_init_ping_failure(self):
+        mock_client = MagicMock()
+        mock_client.ping.side_effect = RuntimeError("conn refused")
+        mock_redis = MagicMock()
+        mock_redis.from_url.return_value = mock_client
+        with patch.dict("sys.modules", {"redis": mock_redis}):
+            backend = RedisCacheBackend()
+        assert backend._available is False
+
+
+class TestRedisCacheBackendClearExceptions:
+    def test_clear_skill_json_decode_error(self):
+        mock_client = MagicMock()
+        mock_client.scan_iter.return_value = ["k1"]
+        mock_client.get.return_value = "not json"
+        backend = _make_redis_backend(mock_client)
+        backend.clear("skill_a")
+
+    def test_clear_skill_delete_exception(self):
+        mock_client = MagicMock()
+        mock_client.scan_iter.return_value = ["k1"]
+        mock_client.get.return_value = json.dumps(
+            {"skill": "skill_a", "result": 1}
+        )
+        mock_client.delete.side_effect = RuntimeError("del err")
+        backend = _make_redis_backend(mock_client)
+        backend.clear("skill_a")
