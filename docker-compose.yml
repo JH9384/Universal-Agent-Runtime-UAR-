@@ -28,10 +28,38 @@ services:
     restart: "no"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
+      interval: 5s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 40s
+
+  uar-web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://uar-api:8000
+    depends_on:
+      uar-api:
+        condition: service_healthy
+    profiles:
+      - web
+
+  uar-dashboard:
+    build:
+      context: ./apps/operator-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - VITE_API_URL=http://uar-api:8000
+    depends_on:
+      uar-api:
+        condition: service_healthy
+    profiles:
+      - dashboard
 
   # Optional: Redis for rate limiting in dev
   redis:

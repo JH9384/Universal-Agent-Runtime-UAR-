@@ -1,9 +1,10 @@
-.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate api web up up-full clean release version sync-version check-version
+.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate api web dashboard up up-full up-all clean release version sync-version check-version
 
 PYTHON ?= python3.12
 API_HOST ?= 127.0.0.1
 API_PORT ?= 8000
 WEB_DIR := apps/web
+DASHBOARD_DIR := apps/operator-dashboard
 VERSION_FILE := VERSION
 VENV ?= .venv
 VENV_PYTHON := $(VENV)/bin/python
@@ -29,8 +30,10 @@ help:
 	@echo "  make validate-uor     Validate pinned UOR artifacts (SHACL + JSON Schema)"
 	@echo "  make api              Start the FastAPI runtime server"
 	@echo "  make web              Start the staged web UI"
+	@echo "  make dashboard        Start the Mission Control dashboard"
 	@echo "  make up               One-command runtime launch: install + API"
 	@echo "  make up-full          One-command full launch: install + API + staged UI"
+	@echo "  make up-all           One-command full launch: install + API + staged UI + dashboard"
 	@echo "  make version          Show current version"
 	@echo "  make check-version    Verify VERSION matches pyproject.toml"
 	@echo "  make sync-version     Sync VERSION into pyproject.toml"
@@ -104,12 +107,27 @@ api:
 web-build:
 	cd $(WEB_DIR) && npm install && npm run build
 
+dashboard-build:
+	cd $(DASHBOARD_DIR) && npm install && npm run build
+
 up: install api
 
 up-full: install
 	@echo "Starting staged web UI and API runtime"
 	@(cd $(WEB_DIR) && npm install && npm run dev) & \
 	uvicorn uar.api.server:app --reload --host $(API_HOST) --port $(API_PORT)
+
+up-all: install
+	@echo "Starting API, staged web UI, and Mission Control"
+	@(cd $(DASHBOARD_DIR) && npm install && npm run dev) & \
+	(cd $(WEB_DIR) && npm install && npm run dev) & \
+	uvicorn uar.api.server:app --reload --host $(API_HOST) --port $(API_PORT)
+
+web:
+	cd $(WEB_DIR) && npm install && npm run dev
+
+dashboard:
+	cd $(DASHBOARD_DIR) && npm install && npm run dev
 
 version:
 	@cat $(VERSION_FILE)
@@ -135,5 +153,8 @@ clean:
 	rm -rf $(WEB_DIR)/dist
 	rm -rf $(WEB_DIR)/node_modules/.vite
 	rm -rf $(WEB_DIR)/node_modules/.cache
+	rm -rf $(DASHBOARD_DIR)/dist
+	rm -rf $(DASHBOARD_DIR)/node_modules/.vite
+	rm -rf $(DASHBOARD_DIR)/node_modules/.cache
 	rm -rf .mypy_cache
 	rm -rf .ruff_cache
