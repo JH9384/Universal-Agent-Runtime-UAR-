@@ -131,6 +131,45 @@ class TestScipyOptMocked:
                 )
         assert result["status"] == "failed"
 
+    def test_maximize_falls_to_unknown(self):
+        np, opt, la = self._mock_modules()
+        with patch.dict("sys.modules", self._setup_scipy(np, opt, la)):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = scipy_opt(
+                    _ctx({"opt_operation": "maximize"})
+                )
+        assert result["status"] == "failed"
+        assert "Unknown operation" in result["error"]
+
+    def test_integrate_falls_to_unknown(self):
+        np, opt, la = self._mock_modules()
+        with patch.dict("sys.modules", self._setup_scipy(np, opt, la)):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = scipy_opt(
+                    _ctx({"opt_operation": "integrate"})
+                )
+        assert result["status"] == "failed"
+        assert "Unknown operation" in result["error"]
+
+    def test_solve_linear_falls_to_unknown(self):
+        np, opt, la = self._mock_modules()
+        with patch.dict("sys.modules", self._setup_scipy(np, opt, la)):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = scipy_opt(
+                    _ctx({"opt_operation": "solve_linear"})
+                )
+        assert result["status"] == "failed"
+        assert "Unknown operation" in result["error"]
+
 
 class TestDiffEqSolveMocked:
     """diff_eq_solve with mocked scipy."""
@@ -164,11 +203,45 @@ class TestDiffEqSolveMocked:
         assert result["status"] == "completed"
         assert result["success"] is True
 
+    def test_with_t_eval_and_method(self):
+        np = MagicMock()
+        sol = MagicMock()
+        sol.success = True
+        sol.t = MagicMock()
+        sol.t.tolist.return_value = [0, 5, 10]
+        sol.y = MagicMock()
+        sol.y.tolist.return_value = [[1, 0.5, 0.25]]
+        sol.nfev = 10
+        sol.message = "ok"
+        solve_ivp = MagicMock(return_value=sol)
+        with patch.dict("sys.modules", {
+            "numpy": np,
+            "scipy.integrate": MagicMock(solve_ivp=solve_ivp),
+        }):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = diff_eq_solve(
+                    _ctx({
+                        "de_equation": "-0.5 * y",
+                        "de_y0": [1.0],
+                        "de_t_span": [0.0, 10.0],
+                        "de_t_eval": [0, 5, 10],
+                        "de_method": "RK23",
+                    })
+                )
+        assert result["status"] == "completed"
+        solve_ivp.assert_called_once()
+        call_kwargs = solve_ivp.call_args[1]
+        assert call_kwargs["method"] == "RK23"
+        assert call_kwargs["t_eval"] == [0, 5, 10]
+
 
 class TestQuantumCircuitMocked:
     """quantum_circuit with mocked qiskit."""
 
-    def test_basic(self):
+    def _setup(self):
         qc = MagicMock()
         qc.depth.return_value = 5
         qc.size.return_value = 10
@@ -186,10 +259,14 @@ class TestQuantumCircuitMocked:
         mock_aer = MagicMock()
         mock_aer.AerSimulator.return_value = simulator
 
-        with patch.dict("sys.modules", {
+        return {
             "qiskit": mock_qiskit,
             "qiskit_aer": mock_aer,
-        }):
+        }, qc
+
+    def test_basic(self):
+        modules, qc = self._setup()
+        with patch.dict("sys.modules", modules):
             with patch(
                 "uar.skills.stem_extended.require_package",
                 return_value=None,
@@ -206,6 +283,39 @@ class TestQuantumCircuitMocked:
                 )
         assert result["status"] == "completed"
         assert result["qubits"] == 2
+
+    def test_all_gate_types(self):
+        modules, qc = self._setup()
+        gates = [
+            {"name": "X", "targets": [0]},
+            {"name": "Y", "targets": [0]},
+            {"name": "Z", "targets": [0]},
+            {"name": "RX", "targets": [0], "param": 0.5},
+            {"name": "RY", "targets": [0], "param": 0.5},
+            {"name": "RZ", "targets": [0], "param": 0.5},
+            {"name": "T", "targets": [0]},
+            {"name": "S", "targets": [0]},
+            {"name": "SWAP", "targets": [0, 1]},
+            {"name": "MEASURE", "targets": [0], "classical": 0},
+        ]
+        with patch.dict("sys.modules", modules):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = quantum_circuit(
+                    _ctx({"qc_qubits": 2, "qc_gates": gates})
+                )
+        assert result["status"] == "completed"
+        assert result["gates_executed"] == len(gates)
+
+    def test_require_package_missing(self):
+        with patch(
+            "uar.skills.stem_extended.require_package",
+            return_value={"status": "failed", "error": "missing"},
+        ):
+            result = quantum_circuit(_ctx({}))
+        assert result["status"] == "failed"
 
 
 class TestChemAnalysisMocked:
@@ -274,6 +384,91 @@ class TestChemAnalysisMocked:
                         "chem_operation": "descriptors",
                     })
                 )
+        assert result["status"] == "failed"
+
+    def test_fingerprints(self):
+        mol = MagicMock()
+        Chem = MagicMock()
+        Chem.MolFromSmiles.return_value = mol
+        AllChem = MagicMock()
+        fp = MagicMock()
+        fp.ToBitString = MagicMock(return_value="1010")
+        AllChem.GetMorganFingerprintAsBitVect = MagicMock(return_value=fp)
+        with patch.dict("sys.modules", self._setup_rdkit(
+            Chem, MagicMock(), AllChem
+        )):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = chem_analysis(
+                    _ctx({
+                        "chem_smiles": "CCO",
+                        "chem_operation": "fingerprints",
+                    })
+                )
+        assert result["status"] == "completed"
+        assert "fingerprint" in result
+
+    def test_conformer(self):
+        mol = MagicMock()
+        mol.GetNumAtoms.return_value = 2
+        conf = MagicMock()
+        pos = MagicMock()
+        pos.x = 1.0
+        pos.y = 2.0
+        pos.z = 3.0
+        conf.GetAtomPosition.return_value = pos
+        mol.GetConformer.return_value = conf
+        atom = MagicMock()
+        atom.GetSymbol.return_value = "C"
+        mol.GetAtomWithIdx.return_value = atom
+
+        Chem = MagicMock()
+        Chem.MolFromSmiles.return_value = mol
+        Chem.AddHs.return_value = mol
+        AllChem = MagicMock()
+        with patch.dict("sys.modules", self._setup_rdkit(
+            Chem, MagicMock(), AllChem
+        )):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = chem_analysis(
+                    _ctx({
+                        "chem_smiles": "CC",
+                        "chem_operation": "conformer",
+                    })
+                )
+        assert result["status"] == "completed"
+        assert "atoms" in result
+
+    def test_unknown_operation(self):
+        mol = MagicMock()
+        Chem = MagicMock()
+        Chem.MolFromSmiles.return_value = mol
+        with patch.dict("sys.modules", self._setup_rdkit(
+            Chem, MagicMock(), MagicMock()
+        )):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = chem_analysis(
+                    _ctx({
+                        "chem_smiles": "CCO",
+                        "chem_operation": "unknown",
+                    })
+                )
+        assert result["status"] == "failed"
+
+    def test_require_package_missing(self):
+        with patch(
+            "uar.skills.stem_extended.require_package",
+            return_value={"status": "failed", "error": "missing"},
+        ):
+            result = chem_analysis(_ctx({}))
         assert result["status"] == "failed"
 
 
@@ -375,6 +570,14 @@ class TestBioComputeMocked:
                 )
         assert result["status"] == "failed"
 
+    def test_require_package_missing(self):
+        with patch(
+            "uar.skills.stem_extended.require_package",
+            return_value={"status": "failed", "error": "missing"},
+        ):
+            result = bio_compute(_ctx({}))
+        assert result["status"] == "failed"
+
 
 class TestRelativityMocked:
     """relativity with mocked sympy."""
@@ -466,3 +669,36 @@ class TestRelativityMocked:
                     })
                 )
         assert result["status"] == "failed"
+
+    def test_require_package_missing(self):
+        with patch(
+            "uar.skills.stem_extended.require_package",
+            return_value={"status": "failed", "error": "missing"},
+        ):
+            result = relativity(_ctx({}))
+        assert result["status"] == "failed"
+
+    def test_single_coord_symbol(self):
+        sp = MagicMock()
+        sym = MagicMock()
+        sp.symbols.return_value = sym
+        diag = MagicMock()
+        diag.inv.return_value = MagicMock()
+        sp.diag.return_value = diag
+        sp.diff = MagicMock(return_value=0)
+        sp.MutableDenseNDimArray.zeros.return_value = MagicMock()
+        sp.simplify = MagicMock(return_value=0)
+
+        with patch.dict("sys.modules", {"sympy": sp}):
+            with patch(
+                "uar.skills.stem_extended.require_package",
+                return_value=None,
+            ):
+                result = relativity(
+                    _ctx({
+                        "rel_metric": "minkowski",
+                        "rel_operation": "christoffel",
+                        "rel_coords": "t",
+                    })
+                )
+        assert result["status"] == "completed"

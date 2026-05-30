@@ -263,24 +263,27 @@ def scipy_opt(ctx: PipelineContext) -> Dict[str, Any]:
                     if not op:
                         lhs, op, rhs = c.replace(" ", "").partition("=")
                     lhs_val = float(
-                        sp.N(sp.sympify(lhs).subs(x, v))
+                        sp.N(_sympify(lhs).subs(x, v))
                     )
                     rhs_val = float(
-                        sp.N(sp.sympify(rhs).subs(x, v))
+                        sp.N(_sympify(rhs).subs(x, v))
                     )
                     if "<=" in c and lhs_val > rhs_val + 1e-9:
                         ok = False
                         break
-                    if "<" in c and lhs_val >= rhs_val - 1e-9:
+                    if "<" in c and ">" not in c and lhs_val >= rhs_val - 1e-9:
                         ok = False
                         break
                     if ">=" in c and lhs_val < rhs_val - 1e-9:
                         ok = False
                         break
-                    if ">" in c and lhs_val <= rhs_val + 1e-9:
+                    if ">" in c and "=" not in c and lhs_val <= rhs_val + 1e-9:
                         ok = False
                         break
-                    if "=" in c and abs(lhs_val - rhs_val) > 1e-6:
+                    if (
+                        "=" in c and "<" not in c and ">" not in c
+                        and abs(lhs_val - rhs_val) > 1e-6
+                    ):
                         ok = False
                         break
                 except Exception:
@@ -701,4 +704,3 @@ def relativity(ctx: PipelineContext) -> Dict[str, Any]:
             "status": "failed",
             "error": "Unknown operation",
         }
-

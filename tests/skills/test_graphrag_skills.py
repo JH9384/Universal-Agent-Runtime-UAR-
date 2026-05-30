@@ -14,6 +14,7 @@ from uar.skills.graphrag_skills import (
     _get_graph_schema_version,
     _set_graph_schema_version,
     _check_schema_compatibility,
+    _check_ollama_health,
     _stage_inputs,
     _run_cli_impl,
     _write_settings,
@@ -276,8 +277,46 @@ class TestGraphragQueryValidation:
             assert "the answer is 42" in result["response"]
 
 
+class TestOllamaHealth:
+    """_check_ollama_health edge cases."""
+
+    def test_invalid_scheme_fallback(self):
+        with patch.dict(os.environ, {"OLLAMA_HOST": "ftp://bad"}):
+            with patch("httpx.get") as mock_get:
+                mock_get.return_value = MagicMock(is_success=True)
+                ok, msg = _check_ollama_health()
+        assert ok is True
+        # Should fall back to http://127.0.0.1:11434
+        args = mock_get.call_args
+        assert "127.0.0.1" in args[0][0]
+
+    def test_error_response(self):
+        with patch("httpx.get") as mock_get:
+            mock_get.return_value = MagicMock(is_success=False)
+            ok, msg = _check_ollama_health()
+        assert ok is False
+        assert "error" in msg.lower()
+
+    def test_exception(self):
+        with patch("httpx.get") as mock_get:
+            mock_get.side_effect = Exception("conn refused")
+            ok, msg = _check_ollama_health()
+        assert ok is False
+        assert "unreachable" in msg.lower()
+
+
 class TestGraphragIndexValidation:
     """graphrag_index validation paths."""
+
+    def test_index_ollama_health_fail(self, tmp_path):
+        with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
+            with patch(
+                "uar.skills.graphrag_skills._check_ollama_health",
+                return_value=(False, "down"),
+            ):
+                result = graphrag_index(_make_ctx())
+        assert result["status"] == "failed"
+        assert "Ollama" in result["error"]
 
     def test_index_missing_input_path(self, tmp_path, monkeypatch):
         with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
@@ -327,6 +366,108 @@ class TestGraphragIndexValidation:
                     )
                 assert result["status"] == "failed"
                 assert "No ingestible files" in result["error"]
+
+    def test_index_path_security_violation(self, tmp_path):
+        with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
+            with patch("uar.skills.graphrag_skills.ALLOWED_ROOT", tmp_path):
+                _ensure_workspace()
+                with patch(
+                    "uar.skills.graphrag_skills._check_ollama_health",
+                    return_value=(True, ""),
+                ):
+                    result = graphrag_index(
+                        _make_ctx({
+                            "input_path": str(tmp_path / ".." / "outside"),
+                        })
+                    )
+                assert result["status"] == "failed"
+                assert "security" in result["error"].lower()
+
+    def test_index_schema_mismatch(self, tmp_path):
+        with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
+            with patch("uar.skills.graphrag_skills.ALLOWED_ROOT", tmp_path):
+                _ensure_workspace()
+                _set_graph_schema_version(tmp_path, "v0-old")
+                src = tmp_path / "src"
+                src.mkdir()
+                (src / "doc.txt").write_text("hello")
+                with patch(
+                    "uar.skills.graphrag_skills._check_ollama_health",
+                    return_value=(True, ""),
+                ):
+                    result = graphrag_index(
+                        _make_ctx({"input_path": str(src)})
+                    )
+                assert result["status"] == "failed"
+                assert "schema" in result["error"].lower()
+
+    def test_index_success(self, tmp_path):
+        with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
+            with patch("uar.skills.graphrag_skills.ALLOWED_ROOT", tmp_path):
+                _ensure_workspace()
+                src = tmp_path / "src"
+                src.mkdir()
+                (src / "doc.txt").write_text("hello world")
+                with patch(
+                    "uar.skills.graphrag_skills._check_ollama_health",
+                    return_value=(True, ""),
+                ):
+                    with patch(
+                        "uar.skills.graphrag_skills._run_cli",
+                        return_value={
+                            "returncode": 0,
+                            "stdout": "ok",
+                            "stderr": "",
+                        },
+                    ):
+                        result = graphrag_index(
+                            _make_ctx({"input_path": str(src)})
+                        )
+                assert result["status"] == "completed"
+                assert result["files_staged"] == 1
+
+
+class TestGraphragQueryLimits:
+    """graphrag_query size and schema limit paths."""
+
+    def test_query_schema_mismatch(self, tmp_path):
+        with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
+            _ensure_workspace()
+            _set_graph_schema_version(tmp_path, "v0-old")
+            result = graphrag_query(
+                _make_ctx({"graphrag_query": "test"})
+            )
+        assert result["status"] == "failed"
+        assert "schema" in result["error"].lower()
+
+    def test_query_cli_failure(self, tmp_path):
+        with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
+            _ensure_workspace()
+            with patch(
+                "uar.skills.graphrag_skills._run_cli",
+                return_value={
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": "error msg",
+                },
+            ):
+                result = graphrag_query(
+                    _make_ctx({"graphrag_query": "test"})
+                )
+        assert result["status"] == "failed"
+        assert "error msg" in result["stderr_tail"]
+
+
+class TestWorkspaceEdgeCases:
+    """_ensure_workspace edge cases."""
+
+    def test_env_file_already_exists(self, tmp_path):
+        with patch.dict(os.environ, {"UAR_GRAPHRAG_ROOT": str(tmp_path)}):
+            _ensure_workspace()
+            env_file = tmp_path / ".env"
+            env_file.write_text("EXISTING=1\n")
+            _ensure_workspace()
+            assert "EXISTING=1" in env_file.read_text()
 
 
 class TestWriteSettings:

@@ -275,6 +275,14 @@ class TestRateLimitService:
         assert result is False
         mock_ws.close.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_ws_close_if_denied_swallows_close_exception(self):
+        svc = RateLimitService()
+        mock_ws = MagicMock()
+        mock_ws.close = AsyncMock(side_effect=RuntimeError("ws broken"))
+        result = await svc.ws_close_if_denied(False, mock_ws)
+        assert result is False
+
 
 # ------------------------------------------------------------------
 # GoalExecutionService (async)

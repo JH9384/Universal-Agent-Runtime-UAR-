@@ -36,3 +36,37 @@ class TestRegisterExceptionHandlers:
         register_exception_handlers(app)
         handler = app.exception_handlers.get(UARError)
         assert handler is not None
+
+
+class TestHandlerBodies:
+    """Invoke registered handlers to cover handler body lines."""
+
+    def test_validation_error_handler_body(self):
+        app = FastAPI()
+        register_exception_handlers(app)
+        handler = app.exception_handlers[ValidationError]
+        exc = ValidationError("bad field", "FIELD_ERR")
+        import asyncio
+        response = asyncio.run(handler(None, exc))
+        assert response.status_code == 400
+        assert b"FIELD_ERR" in response.body
+
+    def test_path_security_error_handler_body(self):
+        app = FastAPI()
+        register_exception_handlers(app)
+        handler = app.exception_handlers[PathSecurityError]
+        exc = PathSecurityError("/etc/passwd", " traversal")
+        import asyncio
+        response = asyncio.run(handler(None, exc))
+        assert response.status_code == 400
+        assert b"Path security violation" in response.body
+
+    def test_uar_error_handler_body(self):
+        app = FastAPI()
+        register_exception_handlers(app)
+        handler = app.exception_handlers[UARError]
+        exc = UARError("boom")
+        import asyncio
+        response = asyncio.run(handler(None, exc))
+        assert response.status_code == 500
+        assert b"Internal error" in response.body

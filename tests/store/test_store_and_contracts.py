@@ -578,3 +578,46 @@ def test_skill_guard_default_status_is_error():
 
     result = boom(None)
     assert result["status"] == "error"
+
+
+def test_pipeline_context_del_exception_path(monkeypatch):
+    """__del__ must swallow exceptions in close() and logger.warning()."""
+    from unittest.mock import patch
+
+    goal = GoalSpec(id="g", user_intent="t", objective="t")
+    ctx = PipelineContext(goal=goal)
+
+    with patch(
+        "uar.core.contracts.PipelineContext.close",
+        side_effect=RuntimeError("close boom"),
+    ):
+        with patch(
+            "uar.core.contracts.logger.warning",
+            side_effect=RuntimeError("log boom"),
+        ):
+            # Must not raise despite both close() and logger.warning() failing
+            ctx.__del__()
+
+
+def test_pipeline_context_overflow_emit_saves_oldest():
+    """When deque is full, emit must write the oldest event to overflow."""
+    import tempfile
+
+    goal = GoalSpec(id="g", user_intent="t", objective="t")
+    ctx = PipelineContext(goal=goal, _max_events=2)
+    fd, path = tempfile.mkstemp(suffix=".jsonl")
+    os.close(fd)
+    overflow = open(path, "a")
+    object.__setattr__(ctx, "_overflow_file", overflow)
+
+    ctx.emit("a", {"n": 1})
+    ctx.emit("b", {"n": 2})
+    ctx.emit("c", {"n": 3})
+
+    overflow.close()
+    with open(path) as f:
+        lines = [json.loads(line) for line in f]
+    os.unlink(path)
+
+    assert len(lines) == 1
+    assert lines[0]["type"] == "a"

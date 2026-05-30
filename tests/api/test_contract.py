@@ -8,6 +8,7 @@ backend routes and frontend API clients early.
 import pytest
 from fastapi.testclient import TestClient
 
+from uar.api.responses import error_response, error_detail_response
 from uar.api.server import app
 
 # Endpoints that the frontend TypeScript client is known to call.
@@ -77,3 +78,46 @@ def test_run_request_has_execution_order(client):
     assert (
         "execution_order" in props
     ), "RunRequest missing execution_order field"
+
+
+# ---------------------------------------------------------------------------
+# Response helpers
+# ---------------------------------------------------------------------------
+
+
+def test_error_response_with_request_id():
+    """error_response must include request_id when provided."""
+    resp = error_response(
+        400, "BAD", "bad request", request_id="req-123"
+    )
+    assert resp.status_code == 400
+    assert (
+        resp.body
+        == b'{"error":"BAD","message":"bad request","request_id":"req-123"}'
+    )
+
+
+def test_error_response_without_request_id():
+    """error_response must omit request_id when not provided."""
+    resp = error_response(500, "ERR", "oops")
+    assert resp.status_code == 500
+    body = resp.body
+    assert b"request_id" not in body
+
+
+def test_error_detail_response_without_request_id():
+    """error_detail_response must wrap payload in 'detail' key."""
+    resp = error_detail_response(400, "BAD", "bad request")
+    assert resp.status_code == 400
+    assert b'"detail"' in resp.body
+    assert b"request_id" not in resp.body
+
+
+def test_error_detail_response_with_request_id():
+    """error_detail_response must include request_id when provided."""
+    resp = error_detail_response(
+        500, "ERR", "oops", request_id="req-456"
+    )
+    assert resp.status_code == 500
+    assert b'"detail"' in resp.body
+    assert b"req-456" in resp.body
