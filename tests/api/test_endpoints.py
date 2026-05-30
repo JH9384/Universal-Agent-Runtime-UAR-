@@ -203,6 +203,51 @@ def test_delete_recipe_wrong_owner_returns_403():
     assert r.json()["detail"]["error"] == "forbidden"
 
 
+def test_create_recipe_invalid_skills_returns_400():
+    """Recipe with 'skills must be' error returns 400."""
+    from unittest.mock import patch
+
+    with patch(
+        "uar.api.server._recipe_svc.create",
+        side_effect=ValueError("Skills must be a list"),
+    ):
+        r = client.post(
+            "/api/uar/recipes",
+            json={"id": "bad_skills", "label": "X", "skills": "not_list"},
+            headers=AUTH_HEADERS,
+        )
+    assert r.status_code == 400
+    assert r.json()["detail"]["error"] == "invalid_skills"
+
+
+def test_create_recipe_unexpected_error_returns_500():
+    """Unexpected recipe service error returns 500."""
+    from unittest.mock import patch
+
+    with patch(
+        "uar.api.server._recipe_svc.create",
+        side_effect=ValueError("something broke"),
+    ):
+        r = client.post(
+            "/api/uar/recipes",
+            json={"id": "boom", "label": "X", "skills": ["a"]},
+            headers=AUTH_HEADERS,
+        )
+    assert r.status_code == 500
+    assert r.json()["detail"]["error"] == "internal"
+
+
+def test_create_recipe_non_string_id_returns_400():
+    """Recipe id that is not a string returns 400."""
+    r = client.post(
+        "/api/uar/recipes",
+        json={"id": 123, "label": "X", "skills": ["a"]},
+        headers=AUTH_HEADERS,
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"]["error"] == "missing_id"
+
+
 def test_unexpected_exception_not_masked_by_recipe_handler():
     """Programming errors (AttributeError etc.) must NOT be caught by the
     domain exception handler — they should propagate uncaught so we know

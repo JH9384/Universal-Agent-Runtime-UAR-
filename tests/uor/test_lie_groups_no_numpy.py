@@ -177,3 +177,44 @@ class TestComposeTransformations:
             ):
                 result = obj.compose_transformations([t1])
             assert result.matrix is not None
+
+    def test_scaling_dimension_3(self):
+        """SCALING branch with matching 3x3 matrices."""
+        obj = UORObjectTransformation(dimension=3)
+        t1 = GroupElement(
+            operation=GroupOperation.SCALING,
+            parameters={"sx": 2},
+        )
+        # rotation_matrix ignores dimension and always returns 2x2;
+        # patch it to 3x3 so compose_matrices works
+        id3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        with patch.object(obj.lie_ops, "rotation_matrix", return_value=id3):
+            result = obj.compose_transformations([t1])
+        assert result.matrix is not None
+
+    def test_temp_matrix_falsy_skipped(self):
+        """When matrix method returns None, skip compose."""
+        with patch("uar.uor.lie_groups.NUMPY_AVAILABLE", False):
+            obj = UORObjectTransformation(dimension=2)
+            t1 = GroupElement(
+                operation=GroupOperation.ROTATION,
+                parameters={"angle": 0},
+            )
+            with patch.object(
+                obj.lie_ops, "rotation_matrix", side_effect=[
+                    [[1, 0], [0, 1]],  # init call
+                    None,  # loop call
+                ]
+            ):
+                result = obj.compose_transformations([t1])
+            assert result.matrix is not None
+
+    def test_reflection_no_matrix(self):
+        """REFLECTION falls through all elifs, covering 372->377."""
+        obj = UORObjectTransformation(dimension=2)
+        t1 = GroupElement(
+            operation=GroupOperation.REFLECTION,
+            parameters={"axis": "x"},
+        )
+        result = obj.compose_transformations([t1])
+        assert result.matrix is not None

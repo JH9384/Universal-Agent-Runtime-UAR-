@@ -1,5 +1,7 @@
 """Tests for UOR capabilities."""
 
+import pytest
+
 from uar.uor.identity import (
     bnot,
     neg,
@@ -174,6 +176,25 @@ class TestLinkRelations:
         vocab = LinkRelationVocabulary()
         desc = vocab.get_description("contains")
         assert len(desc) > 0
+
+    def test_get_all_relations(self):
+        vocab = LinkRelationVocabulary()
+        relations = vocab.get_all_relations()
+        assert isinstance(relations, list)
+        assert "contains" in relations
+
+    def test_create_link_with_properties(self):
+        vocab = LinkRelationVocabulary()
+        link = vocab.create_link(
+            "contains", "target1", {"strength": 0.8}
+        )
+        assert link["rel"] == "contains"
+        assert link["strength"] == 0.8
+
+    def test_create_link_invalid_relation(self):
+        vocab = LinkRelationVocabulary()
+        with pytest.raises(ValueError, match="Invalid relation"):
+            vocab.create_link("invalid", "target1")
 
     def test_get_inverse(self):
         """Test getting inverse relation."""

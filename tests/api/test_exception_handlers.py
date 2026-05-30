@@ -6,7 +6,13 @@ Covers register_exception_handlers.
 from fastapi import FastAPI
 
 from uar.api.exception_handlers import register_exception_handlers
-from uar.core.exceptions import ValidationError, PathSecurityError, UARError
+from uar.core.exceptions import (
+    ValidationError,
+    PathSecurityError,
+    UARError,
+    ExternalServiceError,
+    ConfigInvalidError,
+)
 
 
 class TestRegisterExceptionHandlers:
@@ -70,3 +76,12 @@ class TestHandlerBodies:
         response = asyncio.run(handler(None, exc))
         assert response.status_code == 500
         assert b"Internal error" in response.body
+
+    def test_external_service_error(self):
+        exc = ExternalServiceError("ollama", "conn refused")
+        assert exc.service == "ollama"
+        assert "ollama" in str(exc)
+
+    def test_config_invalid_error(self):
+        exc = ConfigInvalidError("bad port")
+        assert "bad port" in str(exc)
