@@ -104,6 +104,13 @@ class TestValidate:
             issues = cfg.validate()
             assert any("Max file size" in i for i in issues)
 
+    def test_invalid_port_in_validate(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            cfg = Config()
+            cfg.api_port = 999999
+            issues = cfg.validate()
+            assert any("Invalid API port" in i for i in issues)
+
     def test_production_with_default_secret(self):
         env = {
             "ENVIRONMENT": "production",

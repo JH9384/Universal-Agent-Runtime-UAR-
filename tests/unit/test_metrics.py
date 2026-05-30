@@ -222,22 +222,11 @@ class TestLogAlphaException:
     """_LOG_ALPHA bad env var fallback."""
 
     def test_log_alpha_bad_env(self):
-        # Inline the exception logic without reloading the module
+        import importlib
         with patch.dict(os.environ, {"UAR_METRIC_HISTOGRAM_ALPHA": "bad"}):
-            try:
-                val = max(
-                    0.0001,
-                    min(
-                        float(
-                            os.getenv("UAR_METRIC_HISTOGRAM_ALPHA", "0.01")
-                            .strip() or "0.01"
-                        ),
-                        1.0,
-                    ),
-                )
-            except (ValueError, TypeError):
-                val = 0.01
-        assert val == 0.01
+            import uar.api.metrics as metrics_mod
+            importlib.reload(metrics_mod)
+        assert metrics_mod._LOG_ALPHA == 0.01
 
 
 class TestWindowDisabled:
@@ -450,4 +439,6 @@ class TestTimedNoRecordError:
 class TestGlobal:
     def test_get_metrics_collector(self):
         mc = get_metrics_collector()
-        assert isinstance(mc, MetricsCollector)
+        # Use duck-type check because module reload can change class identity
+        assert mc.__class__.__name__ == "MetricsCollector"
+        assert hasattr(mc, "record_request")

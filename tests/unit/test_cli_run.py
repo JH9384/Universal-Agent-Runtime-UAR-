@@ -89,6 +89,28 @@ class TestCmdList:
         captured = capsys.readouterr()
         assert "r1" in captured.out
 
+    def test_with_records_and_errors(self, capsys):
+        args = argparse.Namespace()
+        mock_record = MagicMock()
+        with patch("uar.cli.run.get_store") as mock_get_store:
+            mock_store = MagicMock()
+            mock_store.list_all.return_value = [{}]
+            mock_get_store.return_value = mock_store
+            with patch("uar.cli.run.run_record_from_dict") as mock_from:
+                mock_from.return_value = mock_record
+                with patch("uar.cli.run.replay_summary") as mock_summary:
+                    mock_summary.return_value = {
+                        "run_id": "r1",
+                        "goal_id": "g1",
+                        "status": "completed",
+                        "skills": ["s1"],
+                        "event_count": 0,
+                        "errors": ["e1", "e2"],
+                    }
+                    cmd_list(args)
+        captured = capsys.readouterr()
+        assert "Errors:" in captured.out
+
 
 class TestCmdReplay:
     def test_empty(self, capsys):
@@ -141,6 +163,58 @@ class TestCmdReplay:
         captured = capsys.readouterr()
         assert "r1" in captured.out
         assert "Event stream" in captured.out
+
+    def test_replay_with_event_error(self, capsys):
+        args = argparse.Namespace(index=1, verbose=True)
+        mock_record = MagicMock()
+        mock_record.events = [
+            {"type": "error", "skill": "s1", "timestamp": "t1",
+             "error": "boom"}
+        ]
+        with patch("uar.cli.run.get_store") as mock_get_store:
+            mock_store = MagicMock()
+            mock_store.list_all.return_value = [{}]
+            mock_get_store.return_value = mock_store
+            with patch("uar.cli.run.run_record_from_dict") as mock_from:
+                mock_from.return_value = mock_record
+                with patch("uar.cli.run.replay_summary") as mock_summary:
+                    mock_summary.return_value = {
+                        "run_id": "r1",
+                        "goal_id": "g1",
+                        "status": "error",
+                        "skills": ["s1"],
+                        "event_count": 1,
+                        "outputs": {},
+                    }
+                    cmd_replay(args)
+        captured = capsys.readouterr()
+        assert "boom" in captured.out
+
+    def test_replay_not_verbose(self, capsys):
+        args = argparse.Namespace(index=1, verbose=False)
+        mock_record = MagicMock()
+        mock_record.events = [
+            {"type": "start", "skill": "s1", "timestamp": "t1"}
+        ]
+        with patch("uar.cli.run.get_store") as mock_get_store:
+            mock_store = MagicMock()
+            mock_store.list_all.return_value = [{}]
+            mock_get_store.return_value = mock_store
+            with patch("uar.cli.run.run_record_from_dict") as mock_from:
+                mock_from.return_value = mock_record
+                with patch("uar.cli.run.replay_summary") as mock_summary:
+                    mock_summary.return_value = {
+                        "run_id": "r1",
+                        "goal_id": "g1",
+                        "status": "completed",
+                        "skills": ["s1"],
+                        "event_count": 1,
+                        "outputs": {"result": "ok"},
+                    }
+                    cmd_replay(args)
+        captured = capsys.readouterr()
+        assert "r1" in captured.out
+        assert "Event stream" not in captured.out
 
 
 class TestMain:
