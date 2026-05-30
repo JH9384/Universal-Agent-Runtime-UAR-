@@ -73,6 +73,23 @@ class TestCircuitBreakers:
         assert "circuits" in data
         assert "status" in data
 
+    def test_list_circuit_breakers_with_open(self):
+        _reset_all_circuit_breakers()
+        from uar.core.circuit_breaker_decorator import (
+            get_circuit_breaker,
+        )
+
+        cb = get_circuit_breaker("test_open_svc")
+        cb._state = cb._state.__class__("open")
+        cb._last_failure_time = __import__("time").time()
+        response = client.get(
+            "/api/health/circuit-breakers",
+            headers={"Authorization": "Bearer dev-key-12345"},
+        )
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "degraded"
+
     def test_reset_circuit_breaker(self):
         _reset_all_circuit_breakers()
         from uar.core.circuit_breaker_decorator import (
@@ -119,3 +136,58 @@ class TestHealthDashboard:
         with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
             response = client.get("/api/health/dashboard")
             assert response.status_code == 401
+
+
+class TestReadinessProbeEdgeCases:
+    def test_ready_disk_error(self):
+        with patch(
+            "uar.api.routers.health.os.unlink",
+            side_effect=OSError("perm denied"),
+        ):
+            response = client.get("/api/health/ready")
+        assert response.status_code == 503
+        assert response.json()["checks"]["disk_writable"] is False
+
+
+class TestCircuitBreakerAuth:
+    def test_circuit_breakers_unauthorized_in_production(self):
+        with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
+            response = client.get("/api/health/circuit-breakers")
+            assert response.status_code == 401
+
+    def test_reset_unauthorized_in_production(self):
+        with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
+            response = client.post(
+                "/api/health/circuit-breakers/test/reset"
+            )
+            assert response.status_code == 401
+
+    def test_reset_forbidden_non_admin(self):
+        with patch.dict(
+            "uar.api.middleware.API_KEYS",
+            {"dev-key": {"user": "viewer", "tier": "free"}},
+            clear=True,
+        ), patch.dict("os.environ", {"ENVIRONMENT": "production"}):
+            response = client.post(
+                "/api/health/circuit-breakers/test/reset",
+                headers={"Authorization": "Bearer dev-key"},
+            )
+            assert response.status_code == 403
+
+
+class TestHealthDashboardEdgeCases:
+    def test_dashboard_skill_error(self):
+        from uar.core.registry import registry
+        with patch.object(
+            registry, "list", return_value=["bad_skill"],
+        ), patch.object(
+            registry, "get", side_effect=Exception("skill broken"),
+        ):
+            response = client.get(
+                "/api/health/dashboard",
+                headers={"Authorization": "Bearer dev-key-12345"},
+            )
+        assert response.status_code == 200
+        skills = response.json()["skills"]
+        bad = [s for s in skills if s["name"] == "bad_skill"]
+        assert bad[0]["available"] is False

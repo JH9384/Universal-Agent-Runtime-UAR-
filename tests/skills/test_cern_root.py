@@ -23,10 +23,11 @@ class TestCernRootMocked:
         tree.arrays.return_value = {"x": arr, "y": arr}
 
         file = MagicMock()
-        ttree_cls = MagicMock()
-        ttree_cls.__name__ = "TTree"
-        ttree_inst = MagicMock()
-        ttree_inst.__class__ = ttree_cls
+
+        class _FakeTTree:
+            pass
+
+        ttree_inst = _FakeTTree()
         file.items.return_value = [("events", ttree_inst)]
         file.__getitem__ = MagicMock(return_value=tree)
 
@@ -35,7 +36,7 @@ class TestCernRootMocked:
         uproot.open.return_value.__exit__ = MagicMock(return_value=False)
         uproot.behaviors = MagicMock()
         uproot.behaviors.TTree = MagicMock()
-        uproot.behaviors.TTree.TTree = ttree_cls
+        uproot.behaviors.TTree.TTree = _FakeTTree
 
         return uproot
 
@@ -82,6 +83,68 @@ class TestCernRootMocked:
                 result = cern_root(_ctx({}))
         assert result["status"] == "failed"
         assert "root_file_path" in result["error"]
+
+    def test_auto_discover_tree(self):
+        uproot = self._mock_uproot()
+        with patch.dict("sys.modules", {"uproot": uproot}):
+            with patch(
+                "uar.skills.cern_root.require_package",
+                return_value=None,
+            ):
+                result = cern_root(
+                    _ctx({"root_file_path": "/tmp/test.root"})
+                )
+        assert result["status"] == "completed"
+        assert result["tree"] == "events"
+
+    def test_no_ttree_found(self):
+        uproot = self._mock_uproot()
+        file = uproot.open.return_value.__enter__.return_value
+        file.items.return_value = [("not_a_tree", "string")]
+        with patch.dict("sys.modules", {"uproot": uproot}):
+            with patch(
+                "uar.skills.cern_root.require_package",
+                return_value=None,
+            ):
+                result = cern_root(
+                    _ctx({"root_file_path": "/tmp/test.root"})
+                )
+        assert result["status"] == "failed"
+        assert "no TTree" in result["error"]
+
+    def test_array_without_tolist(self):
+        uproot = self._mock_uproot()
+        tree = uproot.open.return_value.__enter__.return_value.__getitem__(
+            "events"
+        )
+        arr_no_tolist = MagicMock()
+        del arr_no_tolist.tolist  # no tolist attribute
+        tree.arrays.return_value = {"x": arr_no_tolist}
+        with patch.dict("sys.modules", {"uproot": uproot}):
+            with patch(
+                "uar.skills.cern_root.require_package",
+                return_value=None,
+            ):
+                result = cern_root(
+                    _ctx({
+                        "root_file_path": "/tmp/test.root",
+                        "root_tree_name": "events",
+                    })
+                )
+        assert result["status"] == "completed"
+
+    def test_uproot_raises(self):
+        uproot = self._mock_uproot()
+        uproot.open.side_effect = RuntimeError("file missing")
+        with patch.dict("sys.modules", {"uproot": uproot}):
+            with patch(
+                "uar.skills.cern_root.require_package",
+                return_value=None,
+            ):
+                result = cern_root(
+                    _ctx({"root_file_path": "/tmp/test.root"})
+                )
+        assert result["status"] == "failed"
 
     def test_missing_dependency(self):
         with patch(

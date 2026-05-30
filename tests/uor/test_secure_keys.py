@@ -5,7 +5,6 @@ Covers KeyMetadata, SecureKeyStore, and KeyManager.
 
 import importlib.util
 import os
-from unittest.mock import patch
 
 import pytest
 
@@ -107,17 +106,20 @@ class TestKeyManagerGenerate:
     def test_unsupported_algorithm(self):
         store = SecureKeyStore(prefix="TEST_KM_")
         mgr = KeyManager(key_store=store)
-        with patch.dict("sys.modules", {"cryptography": None}):
-            with patch("builtins.__import__", side_effect=ImportError):
-                with patch.object(
-                    mgr, "key_store", store
-                ):
-                    # This will either raise NotImplementedError
-                    # or ValueError depending on crypto availability
-                    try:
-                        mgr.generate_key_pair("test", algorithm="ecdsa")
-                    except (NotImplementedError, ValueError):
-                        pass
+        with pytest.raises(ValueError, match="Unsupported algorithm"):
+            mgr.generate_key_pair("test", algorithm="ecdsa")
+
+    def test_sign_exception(self):
+        store = SecureKeyStore(prefix="TEST_KM_")
+        store.store_key("bad_private", "not-a-valid-key")
+        mgr = KeyManager(key_store=store)
+        assert mgr.sign_data("bad", b"data") is None
+
+    def test_verify_exception(self):
+        store = SecureKeyStore(prefix="TEST_KM_")
+        store.store_key("bad_public", "not-a-valid-key")
+        mgr = KeyManager(key_store=store)
+        assert mgr.verify_signature("bad", b"data", "sig") is False
 
 
 class TestSignVerify:
@@ -148,6 +150,19 @@ class TestSignVerify:
         assert mgr.verify_signature("verify_test", data, "bad_sig") is False
         store.delete_key("verify_test_private")
         store.delete_key("verify_test_public")
+
+    @pytest.mark.skipif(
+        not CRYPTO_AVAILABLE, reason="cryptography not installed"
+    )
+    def test_verify_wrong_data(self):
+        store = SecureKeyStore(prefix="TEST_SV_")
+        mgr = KeyManager(key_store=store)
+        mgr.generate_key_pair("wrong_data", algorithm="rsa", key_size=1024)
+        sig = mgr.sign_data("wrong_data", b"original")
+        assert sig is not None
+        assert mgr.verify_signature("wrong_data", b"tampered", sig) is False
+        store.delete_key("wrong_data_private")
+        store.delete_key("wrong_data_public")
 
     def test_sign_missing_key(self):
         store = SecureKeyStore(prefix="TEST_SV_")
