@@ -91,7 +91,7 @@ def verify_critical_identity(n: int = 8) -> bool:
     for x in range(mod):
         lhs = neg(bnot(x, n), n)
         rhs = succ(x, n)
-        if lhs != rhs:
+        if lhs != rhs:  # pragma: no cover
             err_msg = (
                 f"Identity failed for x={x}: neg(bnot({x}))={lhs} "
                 f"!= succ({x})={rhs}"

@@ -3,6 +3,8 @@
 Covers AsyncObjectResolver, AsyncObjectProcessor, AsyncBatchValidator.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from uar.uor.async_resolution import (
@@ -76,6 +78,18 @@ class TestAsyncObjectResolver:
         result = await resolver.fetch_with_retry(
             "abc", fetch, max_retries=2, backoff=0.01
         )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_fetch_with_retry_exception(self):
+        resolver = AsyncObjectResolver(max_concurrent=2)
+
+        with patch.object(
+            resolver, "fetch_object", side_effect=RuntimeError("network down")
+        ):
+            result = await resolver.fetch_with_retry(
+                "abc", lambda d: None, max_retries=2, backoff=0.01
+            )
         assert result is None
 
     @pytest.mark.asyncio

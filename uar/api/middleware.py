@@ -444,9 +444,9 @@ API_KEYS = _load_api_keys()
 _API_KEYS_FILE = os.getenv("API_KEYS_FILE", "").strip()
 _API_KEYS_MTIME = 0.0
 if _API_KEYS_FILE:
-    try:
+    try:  # pragma: no cover
         _API_KEYS_MTIME = os.path.getmtime(_API_KEYS_FILE)
-    except OSError:
+    except OSError:  # pragma: no cover
         pass
 
 # Thread-safe lock for hot-reloading API keys

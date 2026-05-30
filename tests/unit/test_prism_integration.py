@@ -6,6 +6,9 @@ from uar.core.prism_integration import (
     PrismFacet,
     Prism,
     PrismIntegrator,
+    create_prism,
+    get_prism_integrator,
+    reset_prism_integrator,
 )
 
 
@@ -13,6 +16,10 @@ class TestPrismFacet:
     def test_default_metadata(self):
         f = PrismFacet("f1", "test", "hello")
         assert f.metadata == {}
+
+    def test_provided_metadata(self):
+        f = PrismFacet("f1", "test", "hello", metadata={"k": "v"})
+        assert f.metadata == {"k": "v"}
 
     def test_transform_uppercase(self):
         f = PrismFacet("f1", "test", "hello")
@@ -43,6 +50,19 @@ class TestPrism:
     def test_default_metadata(self):
         p = Prism("p1", [])
         assert p.metadata == {}
+
+    def test_provided_metadata(self):
+        p = Prism("p1", [], metadata={"k": "v"})
+        assert p.metadata == {"k": "v"}
+
+    def test_get_facet_found(self):
+        f = PrismFacet("f1", "test", "hello")
+        p = Prism("p1", [f])
+        assert p.get_facet("f1") is f
+
+    def test_get_facet_not_found(self):
+        p = Prism("p1", [])
+        assert p.get_facet("missing") is None
 
     def test_add_facet(self):
         p = Prism("p1", [])
@@ -87,3 +107,16 @@ class TestPrismIntegrator:
         pi = PrismIntegrator()
         result = pi.refract_data("unknown", "data")
         assert result == []
+
+
+class TestGlobalFunctions:
+    def test_get_prism_integrator_singleton(self):
+        reset_prism_integrator()
+        pi1 = get_prism_integrator()
+        pi2 = get_prism_integrator()
+        assert pi1 is pi2
+
+    def test_create_prism_convenience(self):
+        reset_prism_integrator()
+        p = create_prism("cp1")
+        assert p.prism_id == "cp1"
