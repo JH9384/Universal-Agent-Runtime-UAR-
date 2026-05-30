@@ -216,3 +216,62 @@ class TestComplexityEstimation:
         comp = result["result"]["complexity"]["estimated_complexity"]
         # 'try' matches (1), 'except' is not in pattern list
         assert comp >= 1
+
+
+class TestImportExtraction:
+    """Cover JS require() and C without #include branches."""
+
+    def test_javascript_require_imports(self):
+        source = (
+            "const fs = require('fs');\n"
+            "const path = require(\"path\");\n"
+        )
+        result = code_analysis(_ctx({
+            "code_source": source, "code_language": "javascript"
+        }))
+        imports = result["result"]["imports"]
+        assert "fs" in imports
+        assert "path" in imports
+
+    def test_javascript_import_from(self):
+        source = "import React from 'react';\n"
+        result = code_analysis(_ctx({
+            "code_source": source, "code_language": "javascript"
+        }))
+        imports = result["result"]["imports"]
+        assert "react" in imports
+
+    def test_c_no_include(self):
+        source = "int main() { return 0; }\n"
+        result = code_analysis(_ctx({
+            "code_source": source, "code_language": "c"
+        }))
+        assert result["result"]["imports"] == []
+
+    def test_unknown_language_falls_through(self):
+        source = "some random code\n"
+        result = code_analysis(_ctx({
+            "code_source": source, "code_language": "unknown"
+        }))
+        assert result["result"]["language"] == "unknown"
+        assert result["result"]["functions"] == []
+        assert result["result"]["classes"] == []
+        assert result["result"]["imports"] == []
+
+
+class TestIssueDetection:
+    """Cover empty catch block detection."""
+
+    def test_empty_catch_cpp(self):
+        source = (
+            "int main() {\n"
+            "    try {\n"
+            "        foo();\n"
+            "    } catch (...) { }\n"
+            "}\n"
+        )
+        result = code_analysis(_ctx({
+            "code_source": source, "code_language": "cpp"
+        }))
+        issues = result["result"]["issues"]
+        assert any(i["type"] == "empty_catch" for i in issues)

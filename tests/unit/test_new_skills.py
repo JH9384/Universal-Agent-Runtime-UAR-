@@ -149,6 +149,69 @@ endmodule
     assert result["metrics"]["outputs"] == 1
 
 
+def test_fpga_verify_multi_bit_and_no_match_rhs():
+    """Multi-bit input + assign RHS that does not reference any input."""
+    source = """
+module test(a, y);
+  input [3:0] a;
+  output y;
+  assign y = 1'b1;
+endmodule
+"""
+    ctx = _ctx({"source": source, "num_vectors": 4})
+    result = fpga_verify.fpga_verify(ctx)
+    assert result["status"] == "completed"
+    assert result["metrics"]["inputs"] == 1
+    assert result["metrics"]["outputs"] == 1
+
+
+def test_fpga_verify_output_out_of_range():
+    """Wide input assigned to narrow output triggers width violation."""
+    source = """
+module test(a, y);
+  input [3:0] a;
+  output [0:0] y;
+  assign y = a;
+endmodule
+"""
+    ctx = _ctx({"source": source, "num_vectors": 4})
+    result = fpga_verify.fpga_verify(ctx)
+    assert result["status"] == "completed"
+    assert result["result"]["failed"] > 0
+    assert len(result["result"]["assertions"]) > 0
+
+
+def test_fpga_verify_intermediate_wire():
+    """Assign to a wire that is not a declared output port."""
+    source = """
+module test(a, y);
+  input a;
+  output y;
+  wire w;
+  assign w = a;
+  assign y = w;
+endmodule
+"""
+    ctx = _ctx({"source": source, "num_vectors": 2})
+    result = fpga_verify.fpga_verify(ctx)
+    assert result["status"] == "completed"
+    assert result["metrics"]["outputs"] == 1
+
+
+def test_fpga_verify_empty_port_name():
+    """Port declaration with trailing comma produces empty name."""
+    source = """
+module test(a, y);
+  input a, ;
+  output y;
+  assign y = a;
+endmodule
+"""
+    ctx = _ctx({"source": source, "num_vectors": 2})
+    result = fpga_verify.fpga_verify(ctx)
+    assert result["status"] == "completed"
+
+
 # ---------------------------------------------------------------------------
 # myhdl_design
 # ---------------------------------------------------------------------------

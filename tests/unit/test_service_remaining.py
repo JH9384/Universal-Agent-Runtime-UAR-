@@ -14,6 +14,7 @@ from uar.objects.service import (
     inference_analyze,
     locator_query,
     object_value,
+    register_runtime_object,
     resolve_runtime,
     seed_standard_runtimes,
     workflow_run,
@@ -69,6 +70,19 @@ class TestResolveRuntime:
         store = _make_store()
         with pytest.raises(SandboxError):
             resolve_runtime(store, None, None)
+
+    def test_runtime_not_found(self):
+        store = _make_store()
+        store.get_runtime_digest.return_value = None
+        with pytest.raises(KeyError):
+            resolve_runtime(store, "missing", None)
+
+
+class TestRegisterRuntimeObject:
+    def test_empty_name(self):
+        store = _make_store()
+        with pytest.raises(SandboxError, match="name is required"):
+            register_runtime_object(store, name="   ", code="1+1")
 
 
 class TestObjectValue:
@@ -173,6 +187,17 @@ class TestExecuteRuntime:
                 parameters={},
             )
         assert result["status"] == "completed"
+
+    def test_no_code_raises(self):
+        store = _make_store()
+        with pytest.raises(SandboxError):
+            execute_runtime(
+                store,
+                runtime_name=None,
+                runtime_object=None,
+                inputs=[],
+                parameters={},
+            )
 
 
 class TestWorkflowRun:
