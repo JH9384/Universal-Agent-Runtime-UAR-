@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from uar.version import get_uar_version
 from uar.compat.uor_version import get_uor_version
 from uar.api.advanced_endpoints import router as advanced_router
@@ -117,6 +118,15 @@ app.add_middleware(
     allow_methods=[CORS_ALLOW_METHODS] if CORS_ALLOW_METHODS != "*" else ["*"],
     allow_headers=[CORS_ALLOW_HEADERS] if CORS_ALLOW_HEADERS != "*" else ["*"],
 )
+
+# Trusted Host validation (production only — blocks Host header spoofing)
+_trusted_hosts_env = os.getenv("TRUSTED_HOSTS", "").strip()
+if _trusted_hosts_env:
+    _hosts = [h.strip() for h in _trusted_hosts_env.split(",") if h.strip()]
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=_hosts,
+    )
 
 # Apply request logging, body parsing, and size-limit middleware
 apply_middleware(app)

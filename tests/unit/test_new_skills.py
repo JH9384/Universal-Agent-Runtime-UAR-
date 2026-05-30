@@ -372,6 +372,24 @@ def test_molecular_visualization_unknown_defaults_to_water():
     assert result["result"]["atom_count"] == 3  # falls back to water
 
 
+def test_molecular_visualization_smiles_ethanol():
+    ctx = _ctx({"smiles": "CCO"})
+    result = molecular_visualization.molecular_visualization(ctx)
+    assert result["status"] == "completed"
+    assert result["result"]["smiles"] == "CCO"
+    assert result["result"]["source"] == "smiles"
+    # With RDKit: C2H6O = 9 atoms; fallback parser: 3 heavy atoms
+    assert result["result"]["atom_count"] in (3, 9)
+
+
+def test_molecular_visualization_smiles_caffeine():
+    ctx = _ctx({"smiles": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C"})
+    result = molecular_visualization.molecular_visualization(ctx)
+    assert result["status"] == "completed"
+    assert result["result"]["source"] == "smiles"
+    assert result["result"]["atom_count"] > 0
+
+
 # ---------------------------------------------------------------------------
 # verilator_sim
 # ---------------------------------------------------------------------------

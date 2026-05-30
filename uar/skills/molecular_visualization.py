@@ -130,6 +130,98 @@ def _generate_protein_backbone(
     return atoms
 
 
+def _parse_smiles_basic(smiles: str) -> List[Dict[str, Any]]:
+    """Basic SMILES parser for common atoms (no ring closures, no stereo).
+
+    Falls back when RDKit is not installed.  Recognizes:
+    - Element symbols: C, N, O, S, P, F, Cl, Br, I, H
+    - Aromatic lower-case: c, n, o, s
+    - Single bonds (implicit), double (=), triple (#)
+    - Branches in parentheses
+    """
+    atoms: List[Dict[str, Any]] = []
+    # Simple linear layout: place atoms along X axis with random-ish
+    # Y/Z offsets so bonds don't perfectly overlap.
+    idx = 0
+    i = 0
+    bond_lengths = {"-": 1.54, "=": 1.34, "#": 1.20}
+    current_bond = "-"
+    x = 0.0
+    while i < len(smiles):
+        ch = smiles[i]
+        # Two-letter symbols
+        if i + 1 < len(smiles) and smiles[i:i + 2] in ("Cl", "Br"):
+            el = smiles[i:i + 2]
+            i += 2
+        elif ch == "c":
+            el = "C"
+            i += 1
+        elif ch == "n":
+            el = "N"
+            i += 1
+        elif ch == "o":
+            el = "O"
+            i += 1
+        elif ch == "s":
+            el = "S"
+            i += 1
+        elif ch.upper() in "CNOPSFIH" and ch.isalpha():
+            el = ch.upper()
+            i += 1
+        elif ch in "=-#":
+            current_bond = ch
+            i += 1
+            continue
+        elif ch in "()[]":
+            i += 1
+            continue
+        elif ch.isdigit():
+            i += 1
+            continue
+        else:
+            i += 1
+            continue
+
+        bl = bond_lengths.get(current_bond, 1.54)
+        # Add small random offset in Y/Z for visual separation
+        y = (idx % 3 - 1) * 0.3
+        z = (idx % 2 - 0.5) * 0.2
+        atoms.append({"element": el, "x": x, "y": y, "z": z})
+        x += bl
+        idx += 1
+        current_bond = "-"
+    return atoms
+
+
+def _rdkit_generate(smiles: str) -> List[Dict[str, Any]] | None:
+    """Use RDKit to generate accurate 3D coordinates from SMILES."""
+    try:
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
+    except ImportError:
+        return None
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+
+    mol = Chem.AddHs(mol)
+    AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+    AllChem.MMFFOptimizeMolecule(mol)
+    conformer = mol.GetConformer()
+    atoms: List[Dict[str, Any]] = []
+    for i in range(mol.GetNumAtoms()):
+        atom = mol.GetAtomWithIdx(i)
+        pos = conformer.GetAtomPosition(i)
+        atoms.append({
+            "element": atom.GetSymbol(),
+            "x": pos.x,
+            "y": pos.y,
+            "z": pos.z,
+        })
+    return atoms
+
+
 def molecular_visualization(
     ctx: PipelineContext,
 ) -> Dict[str, Any]:
@@ -137,17 +229,27 @@ def molecular_visualization(
 
     Parameters (from ctx.goal.metadata):
         molecule: str - molecule name (water, methane, benzene, caffeine)
-        or "protein" for backbone
+            or "protein" for backbone
+        smiles: str - SMILES string (takes priority over molecule name)
         residues: int - for protein backbone (default: 10)
     """
     params = ctx.goal.metadata or {}
     molecule = str(params.get("molecule", "water"))
     residues = int(params.get("residues", 10))
+    smiles = str(params.get("smiles", "")).strip()
 
-    if molecule == "protein":
+    if smiles:
+        # Try RDKit first for accurate geometry
+        atoms = _rdkit_generate(smiles)
+        if atoms is None:
+            atoms = _parse_smiles_basic(smiles)
+        source = "smiles"
+    elif molecule == "protein":
         atoms = _generate_protein_backbone(residues)
+        source = "protein_backbone"
     else:
         atoms = _MOLECULES.get(molecule, _MOLECULES["water"])
+        source = "hardcoded"
 
     bonds = _compute_bonds(atoms)
 
@@ -175,6 +277,8 @@ def molecular_visualization(
             "atoms": centered,
             "bonds": bonds,
             "molecule": molecule,
+            "smiles": smiles,
+            "source": source,
             "atom_count": len(atoms),
             "bond_count": len(bonds),
         },
