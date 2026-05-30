@@ -140,6 +140,99 @@ class TestObjectModes:
         assert updated.content == {"key": "new_value"}
         assert updated.version == 2
 
+    def test_can_transition_mode_false(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.IMMUTABLE_SINGULAR,
+            content="x",
+        )
+        assert enforcer.can_transition_mode(
+            obj, ObjectMode.MUTABLE_SINGULAR
+        ) is False
+
+    def test_can_transition_mode_true(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.MUTABLE_SINGULAR,
+            content="x",
+        )
+        assert enforcer.can_transition_mode(
+            obj, ObjectMode.MUTABLE_SINGULAR
+        ) is True
+
+    def test_update_content_immutable_raises(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.IMMUTABLE_SINGULAR,
+            content="x",
+        )
+        with pytest.raises(ValueError, match="Cannot modify"):
+            enforcer.update_content(obj, "y")
+
+    def test_update_content_no_history(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.MUTABLE_SINGULAR,
+            content="old",
+        )
+        updated = enforcer.update_content(obj, "new", preserve_history=False)
+        assert updated.content == "new"
+        assert len(updated.version_history) == 0
+
+    def test_add_array_element_wrong_mode_raises(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.MUTABLE_SINGULAR,
+            content="x",
+        )
+        with pytest.raises(ValueError, match="MUTABLE_ARRAY"):
+            enforcer.add_array_element(obj, "y")
+
+    def test_remove_array_element_wrong_mode_raises(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.MUTABLE_SINGULAR,
+            content="x",
+        )
+        with pytest.raises(ValueError, match="MUTABLE_ARRAY"):
+            enforcer.remove_array_element(obj, 0)
+
+    def test_remove_array_element_bad_index(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.MUTABLE_ARRAY,
+            content="base",
+            array_elements=["a"],
+        )
+        with pytest.raises(ValueError, match="Invalid index"):
+            enforcer.remove_array_element(obj, 5)
+
+    def test_get_array_elements_non_array(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.IMMUTABLE_SINGULAR,
+            content="x",
+        )
+        assert enforcer.get_array_elements(obj) == []
+
+    def test_get_array_elements_array_mode(self):
+        enforcer = ObjectModeEnforcer()
+        obj = UORObject(
+            digest="sha256:abc123",
+            mode=ObjectMode.MUTABLE_ARRAY,
+            content="base",
+            array_elements=["a", "b"],
+        )
+        assert enforcer.get_array_elements(obj) == ["a", "b"]
+
     def test_array_operations(self):
         """Test mutable array operations."""
         enforcer = ObjectModeEnforcer()

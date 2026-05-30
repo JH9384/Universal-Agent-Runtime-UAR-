@@ -275,6 +275,39 @@ class TestRecipeService:
         assert "a" in alice_recipes
         assert "b" not in alice_recipes
 
+    def test_load_corrupted_not_dict(self, svc):
+        svc._path.write_text("[1, 2, 3]")
+        data = svc.load()
+        assert data == {}
+
+    def test_load_invalid_json(self, svc):
+        svc._path.write_text("not json")
+        data = svc.load()
+        assert data == {}
+
+    def test_load_oserror(self, svc):
+        from unittest.mock import patch
+        svc._path.write_text("{}")
+        with patch("builtins.open", side_effect=OSError("permission")):
+            data = svc.load()
+        assert data == {}
+
+    def test_list_all_skips_seen(self, svc):
+        canon_id = list(DEFAULT_RECIPES.keys())[0]
+        svc.save({canon_id: {"skills": ["doc_ingest"], "user_id": "u1"}})
+        recipes = svc.list_all(user_id="u1")
+        ids = [r["id"] for r in recipes if r["id"] == canon_id]
+        assert ids.count(canon_id) == 1
+
+    def test_get_user(self, svc):
+        svc.create("r1", {"skills": ["doc_ingest"]}, "u1")
+        recipe = svc.get_user("r1")
+        assert recipe is not None
+        assert recipe["user_id"] == "u1"
+
+    def test_get_user_missing(self, svc):
+        assert svc.get_user("missing") is None
+
 
 # ------------------------------------------------------------------
 # RateLimitService
