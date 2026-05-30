@@ -218,6 +218,32 @@ class TestCrewAI:
         assert resp.json()["role"] == "researcher"
         assert resp.json()["name"] == "Test"
 
+    def test_create_agent_with_description(self):
+        with patch(
+            "uar.core.crewai_integration.get_task_orchestrator",
+            return_value=self._mock_orchestrator(),
+        ):
+            resp = client.post(
+                "/api/advanced/crewai/agent"
+                "?role=researcher&agent_id=a2&name=Test2"
+                "&description=A+test+agent"
+            )
+        assert resp.status_code == 200
+        assert resp.json()["agent_id"] == "a2"
+        assert resp.json()["description"] == "A test agent"
+
+    def test_create_agent_no_name(self):
+        with patch(
+            "uar.core.crewai_integration.get_task_orchestrator",
+            return_value=self._mock_orchestrator(),
+        ):
+            resp = client.post(
+                "/api/advanced/crewai/agent"
+                "?role=researcher&agent_id=a3&description=desc"
+            )
+        assert resp.status_code == 200
+        assert resp.json()["agent_id"] == "a3"
+
     def test_execute_workflow(self):
         def _mock_workflow(*args, **kwargs):
             return {"status": "completed"}

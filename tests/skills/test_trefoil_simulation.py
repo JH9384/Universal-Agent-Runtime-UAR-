@@ -1,6 +1,7 @@
 """Tests for uar.skills.trefoil_simulation."""
 
 import math
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -156,6 +157,19 @@ class TestCliffordTorusExpanded:
     def test_basic(self):
         x, y, z = _clifford_torus_expanded(0.0, 0.0, 1.0)
         assert isinstance(x, float)
+
+
+class TestEquilibrium:
+    def test_equilibrium_false(self):
+        with patch(
+            "uar.skills.trefoil_simulation.np.linalg.norm",
+            return_value=0.1,
+        ):
+            result = compute_trefoil_simulation(
+                num_points=10,
+                num_trefoils=1,
+            )
+        assert result["equilibrium"] is False
 
 
 class TestComputeTrefoilSimulation:

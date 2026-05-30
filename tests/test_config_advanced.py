@@ -72,6 +72,13 @@ class TestValidateOpenAI:
         assert result["valid"] is False
         assert any("BASE_URL" in i for i in result["issues"])
 
+    def test_unusual_key_format(self):
+        env = {"OPENAI_API_KEY": "not-sk-prefix"}
+        with patch.dict("os.environ", env, clear=True):
+            result = validate_openai_config()
+        assert result["valid"] is True
+        assert any("format unusual" in w for w in result["warnings"])
+
 
 class TestValidateBudget:
     """Budget configuration validation."""
@@ -115,6 +122,47 @@ class TestValidateBudget:
             result = validate_budget_config()
         assert result["valid"] is False
 
+    def test_normal_max_tokens(self):
+        """0 < tokens <= 10000000 branch."""
+        env = {"DEFAULT_MAX_TOKENS": "5000"}
+        with patch.dict("os.environ", env, clear=True):
+            result = validate_budget_config()
+        assert result["valid"] is True
+        assert result["warnings"] == []
+        assert result["issues"] == []
+
+    def test_negative_max_api_calls(self):
+        env = {"DEFAULT_MAX_API_CALLS": "-1"}
+        with patch.dict("os.environ", env, clear=True):
+            result = validate_budget_config()
+        assert result["valid"] is False
+        assert any("positive" in i.lower() for i in result["issues"])
+
+    def test_negative_max_cost(self):
+        env = {"DEFAULT_MAX_COST_USD": "-1"}
+        with patch.dict("os.environ", env, clear=True):
+            result = validate_budget_config()
+        assert result["valid"] is False
+        assert any("positive" in i.lower() for i in result["issues"])
+
+    def test_positive_max_api_calls(self):
+        """Positive max_api_calls, no issues or warnings."""
+        env = {"DEFAULT_MAX_TOKENS": "100", "DEFAULT_MAX_API_CALLS": "5"}
+        with patch.dict("os.environ", env, clear=True):
+            result = validate_budget_config()
+        assert result["valid"] is True
+        assert result["issues"] == []
+        assert result["warnings"] == []
+
+    def test_positive_max_cost(self):
+        """Positive max_cost, no issues or warnings."""
+        env = {"DEFAULT_MAX_TOKENS": "100", "DEFAULT_MAX_COST_USD": "5.0"}
+        with patch.dict("os.environ", env, clear=True):
+            result = validate_budget_config()
+        assert result["valid"] is True
+        assert result["issues"] == []
+        assert result["warnings"] == []
+
 
 class TestValidateDagster:
     """Dagster configuration validation."""
@@ -135,6 +183,14 @@ class TestValidateDagster:
         with patch.dict("os.environ", env, clear=True):
             result = validate_dagster_config()
         assert result["valid"] is False
+
+    def test_dagster_home_set(self):
+        """DAGSTER_HOME set, no postgres vars → valid, no warning."""
+        env = {"DAGSTER_HOME": "/opt/dagster"}
+        with patch.dict("os.environ", env, clear=True):
+            result = validate_dagster_config()
+        assert result["valid"] is True
+        assert result["warnings"] == []
 
 
 class TestValidateAdvanced:
@@ -178,3 +234,16 @@ class TestSetupDefaultBudget:
         with patch.dict("os.environ", env, clear=True):
             setup_default_budget_config()
             assert os.environ["DEFAULT_MAX_TOKENS"] == "50000"
+
+    def test_all_existing(self):
+        """All three vars already set → no changes."""
+        env = {
+            "DEFAULT_MAX_TOKENS": "1",
+            "DEFAULT_MAX_API_CALLS": "2",
+            "DEFAULT_MAX_COST_USD": "3",
+        }
+        with patch.dict("os.environ", env, clear=True):
+            setup_default_budget_config()
+            assert os.environ["DEFAULT_MAX_TOKENS"] == "1"
+            assert os.environ["DEFAULT_MAX_API_CALLS"] == "2"
+            assert os.environ["DEFAULT_MAX_COST_USD"] == "3"

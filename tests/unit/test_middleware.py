@@ -310,9 +310,63 @@ class TestMaybeReloadApiKeys:
         f.write_text("k:u")
         with patch("uar.api.middleware._API_KEYS_FILE", str(f)):
             with patch("uar.api.middleware._API_KEYS_MTIME", 0.0):
-                _maybe_reload_api_keys()
-                f.write_text("")  # empty file -> empty keys
-                _maybe_reload_api_keys()  # new_keys is empty
+                with patch(
+                    "uar.api.middleware.os.path.getmtime",
+                    side_effect=[1.0, 2.0],
+                ):
+                    _maybe_reload_api_keys()
+                    _maybe_reload_api_keys()  # new_keys is empty
+
+    def test_reload_returns_empty_keys(self, tmp_path):
+        f = tmp_path / "keys.txt"
+        f.write_text("k:u")
+        with patch("uar.api.middleware._API_KEYS_FILE", str(f)):
+            with patch("uar.api.middleware._API_KEYS_MTIME", 0.0):
+                with patch(
+                    "uar.api.middleware.os.path.getmtime", return_value=2.0
+                ):
+                    with patch(
+                        "uar.api.middleware._load_api_keys",
+                        return_value={},
+                    ):
+                        _maybe_reload_api_keys()
+
+    def test_module_level_api_keys_file_env(self, tmp_path):
+        """Module import with API_KEYS_FILE set covers lines 447-450."""
+        import subprocess
+        import sys
+        f = tmp_path / "keys.txt"
+        f.write_text("k:u")
+        script = (
+            f'import os; os.environ["API_KEYS_FILE"] = "{f}"; '
+            f'import uar.api.middleware as mw; '
+            f'print(mw._API_KEYS_FILE)'
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert str(f) in result.stdout
+
+    def test_module_level_api_keys_file_missing(self, tmp_path):
+        """Module import with missing API_KEYS_FILE covers OSError."""
+        import subprocess
+        import sys
+        missing = str(tmp_path / "nonexistent")
+        script = (
+            f'import os; os.environ["API_KEYS_FILE"] = "{missing}"; '
+            f'import uar.api.middleware as mw; '
+            f'print(mw._API_KEYS_FILE)'
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert missing in result.stdout
 
 
 # ---------------------------------------------------------------------------
