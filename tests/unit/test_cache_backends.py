@@ -46,6 +46,14 @@ def test_make_cache_key_fallback_frozenset_fails():
     assert len(key) == 64
 
 
+def test_make_cache_key_hash_fallback_fails():
+    """When hash(frozenset) fails, log and use simpler fallback."""
+    ctx = {"nested": {"a": object()}}
+    key = _make_cache_key("sum", ctx, "add")
+    assert isinstance(key, str)
+    assert len(key) == 64
+
+
 # ---------------------------------------------------------------------------
 # FileCacheBackend
 # ---------------------------------------------------------------------------
@@ -162,6 +170,54 @@ class TestFileCacheBackend:
             f.write("not json")
         backend._enforce_limits()
         assert not os.path.exists(path)
+
+    def test_get_oserror_on_remove(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path), ttl_seconds=0)
+        backend.set("noop", {}, "test", {"result": 42})
+        time.sleep(0.01)
+        with patch("os.remove", side_effect=OSError("perm")):
+            assert backend.get("noop", {}, "test") is None
+
+    def test_get_oserror_on_decode(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        backend.set("noop", {}, "test", {"result": 42})
+        with patch("builtins.open", side_effect=UnicodeDecodeError(
+            "utf-8", b"\xff", 0, 1, "invalid start byte"
+        )):
+            assert backend.get("noop", {}, "test") is None
+
+    def test_set_type_error(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        with patch("builtins.open", side_effect=TypeError("bad")):
+            backend.set("noop", {}, "test", {"result": 1})
+
+    def test_set_oserror_cleanup(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        with patch("builtins.open", side_effect=IOError("disk full")):
+            backend.set("noop", {}, "test", {"result": 1})
+
+    def test_clear_by_skill_oserror(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        backend.set("s", {}, "g", {"result": 1})
+        with patch("os.remove", side_effect=OSError("perm")):
+            backend.clear("s")  # should not raise
+
+    def test_clear_all_oserror(self, tmp_path):
+        backend = FileCacheBackend(cache_dir=str(tmp_path))
+        backend.set("s", {}, "g", {"result": 1})
+        with patch("os.remove", side_effect=OSError("perm")):
+            backend.clear()  # should not raise
+
+    def test_enforce_limits_max_size(self, tmp_path):
+        backend = FileCacheBackend(
+            cache_dir=str(tmp_path),
+            ttl_seconds=3600,
+            max_entries=100,
+            max_size_bytes=1,
+        )
+        backend.set("a", {}, "g1", {"result": "x" * 100})
+        backend._enforce_limits()
+        assert backend.get_stats()["total_entries"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -372,3 +428,17 @@ class TestAutoCacheBackend:
         assert "file_stats" in stats
         assert "redis_stats" in stats
         assert stats["active_backend"] == "file"
+
+    def test_redis_available(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("UAR_CACHE_BACKEND", "redis")
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        with patch.dict("sys.modules", {"redis": MagicMock()}):
+            with patch.object(
+                AutoCacheBackend, "__init__", lambda self, **kw: None
+            ):
+                backend = AutoCacheBackend.__new__(AutoCacheBackend)
+                backend._file = FileCacheBackend(cache_dir=str(tmp_path))
+                mock_redis = MagicMock()
+                mock_redis._available = True
+                backend._redis = mock_redis
+                assert backend._backend() is mock_redis
