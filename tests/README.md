@@ -61,22 +61,26 @@ This pattern is used for skills that wrap optional packages:
 
 ## Test Organization
 
-| Directory            | Purpose                                           | Count |
-|----------------------|---------------------------------------------------|-------|
-| `tests/unit/`        | Pure unit tests (no external deps, fast)            | 15    |
-| `tests/api/`         | FastAPI endpoint tests (uses TestClient)          | 11    |
-| `tests/security/`    | Auth, sandbox, path traversal, guardrails           | 8     |
-| `tests/store/`       | Persistence layer (JSON, SQLite, Postgres)          | 4     |
-| `tests/integration/` | Cross-system integration (UOR, CrewAI, GraphRAG)     | 14    |
-| `tests/skills/`      | Individual skill function tests                    | 4     |
-| `tests/recipes/`     | Recipe system tests                                | 2     |
-| `tests/runtime/`     | Execution runtime (executor, planner, replay)       | 12    |
-| `tests/cli/`         | Command-line interface tests                       | 1     |
-| `tests/performance/` | Benchmarks, smoke tests, performance tuning         | 5     |
-| `tests/docs/`        | Documentation consistency and alignment            | 5     |
-| `tests/regression/`  | Review regression tracking                         | 1     |
-| `tests/conformance/` | UOR invariants and specification conformance         | 1     |
-| `tests/hardening/`   | Operational resilience (oscillation, starvation)     | 5     |
+| Directory | Purpose | Files | Approx. Tests |
+|-----------|---------|-------|---------------|
+| `tests/unit/` | Pure unit tests (no external deps, fast) | 21 | ~250 |
+| `tests/api/` | FastAPI endpoint tests (uses TestClient) | 17 | ~120 |
+| `tests/security/` | Auth, sandbox, path traversal, guardrails | 7 | ~80 |
+| `tests/store/` | Persistence layer (JSON, SQLite, Postgres) | 5 | ~65 |
+| `tests/integration/` | Cross-system integration (UOR, CrewAI, GraphRAG) | 14 | ~160 |
+| `tests/skills/` | Individual skill function tests | 32 | ~350 |
+| `tests/recipes/` | Recipe system tests | 2 | ~20 |
+| `tests/runtime/` | Execution runtime (executor, planner, replay) | 13 | ~200 |
+| `tests/cli/` | Command-line interface tests | 1 | ~10 |
+| `tests/performance/` | Benchmarks, smoke tests, performance tuning | 3 | ~200 |
+| `tests/docs/` | Documentation consistency and alignment | 5 | ~35 |
+| `tests/regression/` | Review regression tracking | 2 | ~10 |
+| `tests/conformance/` | UOR invariants and specification conformance | 1 | ~15 |
+| `tests/hardening/` | Operational resilience (oscillation, starvation) | 5 | ~50 |
+| `tests/core/` | CrewAI integration and core framework tests | 9 | ~100 |
+| `tests/uor/` | UOR ecosystem integration (DNS, Lie groups, etc.) | 10 | ~100 |
+| `tests/objects/` | Object layer and ALM client tests | 1 | ~35 |
+| **Total** | | **154** | **~2288** |
 
 ## Pytest Markers
 
