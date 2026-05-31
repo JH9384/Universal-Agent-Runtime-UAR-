@@ -16,6 +16,7 @@ from uar.api.routers.docs import (  # noqa: F401
     _cleanup_orphaned_temp_files,
 )
 from uar.api.goal_builder import _build_goal  # noqa: F401
+from .middleware import require_auth  # noqa: F401
 
 # Re-export all shared state for backward compatibility with tests
 # that patch names in uar.api.server.

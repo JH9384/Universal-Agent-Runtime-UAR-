@@ -375,12 +375,12 @@ def test_idempotency_cache_hit_returns_same_result():
 
 def test_gzip_minimum_size_honors_env_var():
     """Setting UAR_GZIP_MIN_SIZE should affect the middleware threshold."""
-    import uar.api.server as server_mod
+    import uar.boot as boot_mod
 
-    # The middleware is registered at module import time with
+    # The middleware is registered by uar.boot.create_app() with
     # minimum_size=max(0, int(os.getenv(...)))
     # We verify the env var is read by checking the constant source.
-    src = open(server_mod.__file__).read()
+    src = open(boot_mod.__file__).read()
     assert "UAR_GZIP_MIN_SIZE" in src
     assert 'int(os.getenv("UAR_GZIP_MIN_SIZE", "1024")' in src
 
