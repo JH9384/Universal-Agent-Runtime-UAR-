@@ -22,10 +22,15 @@ import argparse
 import asyncio
 import logging
 import os
+import shutil
+import socket
+import subprocess
+import sys
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -440,18 +445,363 @@ def create_app(ctx: Optional[BootContext] = None) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# CLI entry point (for shell-script delegation)
+# System-level orchestration (previously in shell scripts only)
+# ---------------------------------------------------------------------------
+
+
+def is_port_bound(port: int, host: str = "127.0.0.1") -> bool:
+    """Return True if *host:port* is already listening."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex((host, port)) == 0
+
+
+def find_free_port(start: int = 8000, host: str = "127.0.0.1") -> int:
+    """Return the first free port at or after *start*."""
+    port = start
+    while is_port_bound(port, host):
+        logger.info("Port %s in use, trying %s", port, port + 1)
+        port += 1
+    return port
+
+
+async def wait_for_health(
+    url: str,
+    *,
+    attempts: int = 40,
+    interval: float = 0.25,
+    timeout: float = 10.0,
+) -> bool:
+    """Poll *url* until it returns 200 or limits are exhausted.
+
+    Returns True if healthy, False otherwise.
+    """
+    import urllib.request
+
+    for i in range(attempts):
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as resp:
+                if resp.status == 200:
+                    return True
+        except Exception:
+            pass
+        await asyncio.sleep(interval)
+    return False
+
+
+def validate_prerequisites() -> List[str]:
+    """Check that node, npm, and a suitable Python are available.
+
+    Returns a list of missing prerequisite descriptions.
+    """
+    missing: List[str] = []
+
+    if sys.version_info < (3, 10):
+        missing.append(
+            f"Python 3.10+ required (found {sys.version_info.major}."
+            f"{sys.version_info.minor})"
+        )
+
+    if shutil.which("node") is None:
+        missing.append("node not found (install from nodejs.org)")
+    if shutil.which("npm") is None:
+        missing.append("npm not found")
+
+    return missing
+
+
+def ensure_directories(paths: List[Path]) -> None:
+    """Create directories if they do not already exist."""
+    for p in paths:
+        p.mkdir(parents=True, exist_ok=True)
+        logger.debug("Ensured directory: %s", p)
+
+
+def open_browser(url: str) -> None:
+    """Open *url* in the default browser (macOS / Linux / Windows)."""
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["open", url], check=False)
+        elif sys.platform.startswith("linux"):
+            subprocess.run(["xdg-open", url], check=False)
+        elif sys.platform == "win32":
+            subprocess.run(["start", url], shell=True, check=False)
+    except Exception as exc:
+        logger.warning("Could not open browser: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Service supervisor
+# ---------------------------------------------------------------------------
+
+class ServiceSupervisor:
+    """Start, monitor, and stop external service processes.
+
+    Replaces the PID-tracking logic in ``boot.sh``.
+    """
+
+    def __init__(self) -> None:
+        self._procs: Dict[str, subprocess.Popen] = {}
+
+    def start(
+        self,
+        name: str,
+        cmd: List[str],
+        *,
+        cwd: Optional[Path] = None,
+        log_path: Optional[Path] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> int:
+        """Start a named service and return its PID."""
+        if name in self._procs:
+            raise RuntimeError(f"Service '{name}' already running")
+
+        kwargs: Dict[str, Any] = {}
+        if cwd is not None:
+            kwargs["cwd"] = str(cwd)
+        if env is not None:
+            kwargs["env"] = {**os.environ, **env}
+        if log_path is not None:
+            fp = open(log_path, "a")
+            kwargs["stdout"] = fp
+            kwargs["stderr"] = subprocess.STDOUT
+
+        proc = subprocess.Popen(cmd, **kwargs)
+        self._procs[name] = proc
+        logger.info("Started %s (pid=%s)", name, proc.pid)
+        return proc.pid
+
+    def is_running(self, name: str) -> bool:
+        """Return True if the named service is still alive."""
+        proc = self._procs.get(name)
+        if proc is None:
+            return False
+        return proc.poll() is None
+
+    async def health_check(
+        self, name: str, url: str, **poll_kwargs: Any
+    ) -> bool:
+        """Poll a service's health endpoint.
+
+        Logs a warning and returns False on failure.
+        """
+        if not self.is_running(name):
+            logger.error("Service '%s' exited before health check", name)
+            return False
+
+        ok = await wait_for_health(url, **poll_kwargs)
+        if ok:
+            logger.info("Health check passed for %s", name)
+        else:
+            logger.error("Health check timed out for %s", name)
+        return ok
+
+    def stop_all(self) -> None:
+        """Send SIGTERM to all tracked processes and wait for exit."""
+        logger.info("Stopping all supervised services...")
+        for name, proc in list(self._procs.items()):
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=2)
+                except Exception as exc:
+                    logger.warning("Error stopping %s: %s", name, exc)
+            if hasattr(proc, "stdout") and proc.stdout:
+                proc.stdout.close()
+            logger.info("Stopped %s", name)
+        self._procs.clear()
+
+
+# ---------------------------------------------------------------------------
+# Full-stack boot orchestrator
+# ---------------------------------------------------------------------------
+
+async def boot_full_stack(
+    *,
+    api_port: int = 8000,
+    web_port: int = 5173,
+    dashboard_port: int = 3001,
+    host: str = "127.0.0.1",
+    open_browser_ui: bool = True,
+    start_web: bool = True,
+    start_dashboard: bool = True,
+) -> ServiceSupervisor:
+    """Boot API + optional Web + optional Dashboard with health checks.
+
+    This is the Python equivalent of ``./boot.sh``.
+    """
+    _configure_logging()
+    _boot_message()
+
+    # Prerequisites
+    missing = validate_prerequisites()
+    if missing:
+        for m in missing:
+            logger.error("Prerequisite missing: %s", m)
+        raise RuntimeError(
+            f"Boot aborted: {len(missing)} prerequisite(s) missing"
+        )
+
+    # Resolve free ports
+    api_port = find_free_port(api_port, host)
+    if start_web:
+        web_port = find_free_port(web_port, host)
+    if start_dashboard:
+        dashboard_port = find_free_port(dashboard_port, host)
+
+    api_url = f"http://{host}:{api_port}"
+    web_url = f"http://{host}:{web_port}" if start_web else None
+    dashboard_url = (
+        f"http://{host}:{dashboard_port}" if start_dashboard else None
+    )
+
+    logger.info(
+        "Ports: API=%s Web=%s Dashboard=%s",
+        api_port,
+        web_port if start_web else "(skipped)",
+        dashboard_port if start_dashboard else "(skipped)",
+    )
+
+    # Boot context + FastAPI app (context is created inside create_app)
+    _ = boot()  # noqa: F841 — side-effect only (skills, validation)
+
+    # Determine Python executable
+    python_exe = sys.executable
+
+    supervisor = ServiceSupervisor()
+
+    try:
+        # Start API
+        api_log = Path("/tmp") / "uar_api.log"
+        supervisor.start(
+            "api",
+            [
+                python_exe,
+                "-m",
+                "uvicorn",
+                "uar.api.server:app",
+                "--host",
+                host,
+                "--port",
+                str(api_port),
+            ],
+            log_path=api_log,
+        )
+
+        ok = await supervisor.health_check(
+            "api", f"{api_url}/api/health", attempts=40, interval=0.25
+        )
+        if not ok:
+            raise RuntimeError("API health check failed")
+
+        # Start Web UI
+        if start_web:
+            web_dir = Path(__file__).parent.parent / "apps" / "web"
+            if web_dir.exists():
+                web_log = Path("/tmp") / "uar_web.log"
+                supervisor.start(
+                    "web",
+                    [
+                        "npm",
+                        "run",
+                        "dev",
+                        "--",
+                        "--port",
+                        str(web_port),
+                        "--host",
+                        host,
+                    ],
+                    cwd=web_dir,
+                    log_path=web_log,
+                )
+                await supervisor.health_check(
+                    "web", web_url, attempts=40, interval=0.5
+                )
+                if open_browser_ui:
+                    open_browser(web_url)
+            else:
+                logger.warning("Web UI directory not found: %s", web_dir)
+
+        # Start Dashboard
+        if start_dashboard:
+            dash_dir = (
+                Path(__file__).parent.parent
+                / "apps"
+                / "operator-dashboard"
+            )
+            if dash_dir.exists():
+                dash_log = Path("/tmp") / "uar_dashboard.log"
+                supervisor.start(
+                    "dashboard",
+                    ["npm", "run", "dev"],
+                    cwd=dash_dir,
+                    log_path=dash_log,
+                )
+                await supervisor.health_check(
+                    "dashboard",
+                    dashboard_url,
+                    attempts=40,
+                    interval=0.5,
+                )
+                if open_browser_ui:
+                    open_browser(dashboard_url)
+            else:
+                logger.warning(
+                    "Dashboard directory not found: %s", dash_dir
+                )
+
+    except Exception:
+        supervisor.stop_all()
+        raise
+
+    logger.info(
+        "UAR is running\n"
+        "  API:       %s\n"
+        "  Web UI:    %s\n"
+        "  Dashboard: %s\n"
+        "  Health:    %s/api/health\n"
+        "  Logs:      tail -f /tmp/uar_*.log",
+        api_url,
+        web_url or "(skipped)",
+        dashboard_url or "(skipped)",
+        api_url,
+    )
+
+    return supervisor
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point (replaces boot.sh / start.sh)
 # ---------------------------------------------------------------------------
 
 def boot_cli() -> None:
     """Command-line entry point: ``python -m uar.boot``."""
-    parser = argparse.ArgumentParser(description="Boot the UAR API server")
-    parser.add_argument("--port", type=int, default=8000, help="API port")
-    parser.add_argument("--host", default="127.0.0.1", help="Bind address")
+    parser = argparse.ArgumentParser(
+        description="Boot the UAR API server (or full stack)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8000, help="API port"
+    )
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Bind address"
+    )
     parser.add_argument(
         "--reload", action="store_true", help="Enable auto-reload"
     )
     parser.add_argument("--env-file", help="Path to .env file")
+    parser.add_argument(
+        "--services",
+        default="api",
+        help="Comma-separated: api,web,dashboard",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Skip browser auto-open",
+    )
     args = parser.parse_args()
 
     if args.env_file and os.path.isfile(args.env_file):
@@ -460,15 +810,48 @@ def boot_cli() -> None:
         dotenv.load_dotenv(args.env_file)
         logger.info("Loaded environment from %s", args.env_file)
 
-    import uvicorn
+    services = {s.strip() for s in args.services.split(",")}
+    start_web = "web" in services
+    start_dashboard = "dashboard" in services
 
-    app = create_app()
-    uvicorn.run(
-        app,
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-    )
+    if start_web or start_dashboard:
+        # Full-stack orchestration
+        async def _monitor(supervisor: ServiceSupervisor) -> None:
+            """Wait for any supervised service to exit."""
+            try:
+                while True:
+                    await asyncio.sleep(1)
+                    if not any(
+                        supervisor.is_running(name)
+                        for name in supervisor._procs
+                    ):
+                        break
+            except KeyboardInterrupt:
+                pass
+            finally:
+                supervisor.stop_all()
+
+        supervisor = asyncio.run(
+            boot_full_stack(
+                api_port=args.port,
+                host=args.host,
+                open_browser_ui=not args.no_browser,
+                start_web=start_web,
+                start_dashboard=start_dashboard,
+            )
+        )
+        asyncio.run(_monitor(supervisor))
+    else:
+        # API-only (simple path)
+        import uvicorn
+
+        app = create_app()
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+        )
 
 
 if __name__ == "__main__":
