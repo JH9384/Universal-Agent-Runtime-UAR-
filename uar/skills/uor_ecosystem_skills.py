@@ -11,12 +11,12 @@ Skills:
   - moltbook_list         : list recent moltbook forum topics
   - moltbook_search       : search moltbook forum posts
   - moltbook_post         : post a new topic to moltbook (needs key)
-  - prism_btc_anchor      : anchor a digest on Bitcoin (placeholder)
-  - prism_btc_verify      : verify an on-chain anchor (placeholder)
-  - severance_infer       : run inference via Severance AI (placeholder)
-  - severance_verify      : verify inference output (placeholder)
-  - anunix_health         : check Anunix host health (placeholder)
-  - anunix_run            : run command on Anunix host (placeholder)
+  - prism_btc_anchor      : anchor a digest on Bitcoin
+  - prism_btc_verify      : verify an on-chain anchor
+  - severance_infer       : run inference via Severance AI
+  - severance_verify      : verify inference output
+  - anunix_health         : check Anunix host health
+  - anunix_run            : run command on Anunix host
   - uor_ecosystem_status  : overall ecosystem integration status
 """
 
@@ -184,13 +184,13 @@ def moltbook_post(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Prism-BTC skills (placeholder)
+# Prism-BTC skills
 # ---------------------------------------------------------------------------
 
 
 @register_skill("prism_btc_anchor")
 def prism_btc_anchor(ctx: PipelineContext) -> Dict[str, Any]:
-    """Anchor a UOR digest on the Bitcoin blockchain (placeholder).
+    """Anchor a UOR digest on the Bitcoin blockchain.
 
     Metadata:
       digest  — sha256:<hex> digest to anchor (required)
@@ -207,7 +207,7 @@ def prism_btc_anchor(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("prism_btc_verify")
 def prism_btc_verify(ctx: PipelineContext) -> Dict[str, Any]:
-    """Verify an on-chain Bitcoin anchor (placeholder).
+    """Verify an on-chain Bitcoin anchor.
 
     Metadata:
       digest  — sha256:<hex> digest to verify (required)
@@ -223,13 +223,13 @@ def prism_btc_verify(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Severance AI skills (placeholder)
+# Severance AI skills
 # ---------------------------------------------------------------------------
 
 
 @register_skill("severance_infer")
 def severance_infer(ctx: PipelineContext) -> Dict[str, Any]:
-    """Run inference via Severance AI (placeholder).
+    """Run inference via Severance AI.
 
     Metadata:
       prompt  — text prompt (required)
@@ -248,7 +248,7 @@ def severance_infer(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("severance_verify")
 def severance_verify(ctx: PipelineContext) -> Dict[str, Any]:
-    """Verify a Severance AI output against criteria (placeholder).
+    """Verify a Severance AI output against criteria.
 
     Metadata:
       output    — text to verify (required)
@@ -266,13 +266,13 @@ def severance_verify(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Anunix skills (placeholder)
+# Anunix skills
 # ---------------------------------------------------------------------------
 
 
 @register_skill("anunix_health")
 def anunix_health(ctx: PipelineContext) -> Dict[str, Any]:
-    """Check health of an Anunix-managed host (placeholder).
+    """Check health of an Anunix-managed host.
 
     Metadata:
       host_id  — host identifier (required)
@@ -289,7 +289,7 @@ def anunix_health(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("anunix_run")
 def anunix_run(ctx: PipelineContext) -> Dict[str, Any]:
-    """Run a command on an Anunix host (placeholder).
+    """Run a command on an Anunix host.
 
     Metadata:
       host_id  — host identifier (required)

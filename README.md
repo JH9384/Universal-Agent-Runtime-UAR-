@@ -198,8 +198,8 @@ result = molecular_visualization(ctx)
 
 ## Available Skills
 
-**127 skill names registered** across 15 categories (116 unique implementations
-plus 11 aliases). All skills have full implementations; optional-dependency
+**127 skill names registered** across 15 categories (117 unique implementations
+plus 10 aliases). All skills have full implementations; optional-dependency
 skills gracefully return a dependency-check response when their required package
 is not installed.
 
@@ -358,12 +358,12 @@ is not installed.
 | `moltbook_list` | List topics from moltbook.com/m/uor | `httpx` |
 | `moltbook_search` | Search moltbook forum posts | `httpx` |
 | `moltbook_post` | Post to moltbook forum | `httpx` |
-| `prism_btc_anchor` | Anchor UOR digest on Bitcoin (placeholder) | — |
-| `prism_btc_verify` | Verify Bitcoin anchor (placeholder) | — |
-| `severance_infer` | Run inference via Severance AI (placeholder) | — |
-| `severance_verify` | Verify Severance output (placeholder) | — |
-| `anunix_health` | Check Anunix host health (placeholder) | — |
-| `anunix_run` | Run command on Anunix (placeholder) | — |
+| `prism_btc_anchor` | Anchor UOR digest on Bitcoin (mock when unconfigured) | — |
+| `prism_btc_verify` | Verify Bitcoin anchor (mock when unconfigured) | — |
+| `severance_infer` | Run inference via Severance AI (falls back to local LLM) | — |
+| `severance_verify` | Verify Severance output (local heuristic when unconfigured) | — |
+| `anunix_health` | Check Anunix host health (local when unconfigured) | — |
+| `anunix_run` | Run command on Anunix (sandboxed local when unconfigured) | — |
 | `uor_ecosystem_status` | Check all UOR ecosystem integrations | `httpx` |
 | `uor_foundation_verify` | Call live UOR Foundation API verify endpoint | `httpx` |
 

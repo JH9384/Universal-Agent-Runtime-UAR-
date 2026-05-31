@@ -39,15 +39,15 @@ Audit of **17 UI skill groups** against actual backend implementations.
 
 ---
 
-## 3. Multi-Agent — THEATER ❌
+## 3. Multi-Agent — REAL ✅
 
 | Skill | Status | Evidence |
 |-------|--------|----------|
-| `agent_workflow` | ❌ Cosplay | Uses UAR's own `Agent` class, not AutoGen |
-| `crewai_task` | ❌ Cosplay | Uses UAR's `RoleBasedAgent`, not CrewAI library |
-| `crewai_workflow` | ❌ Cosplay | Same — CrewAI terminology on UAR-native code |
+| `agent_workflow` | ✅ Real | Tries real AutoGen `GroupChat` first; falls back to UAR-native |
+| `crewai_task` | ✅ Real | Tries real `crewai.Agent`/`Task` first; falls back to UAR-native |
+| `crewai_workflow` | ✅ Real | Tries real `crewai.Crew` first; falls back to UAR-native |
 
-**Files**: `uar/core/crewai_integration.py`, `uar/core/agent_framework.py`, `uar/skills/advanced_integrations.py`
+**Files**: `uar/core/crewai_integration.py`, `uar/core/crewai_real.py`, `uar/core/agent_framework.py`, `uar/skills/advanced_integrations.py`
 
 ---
 
@@ -122,9 +122,9 @@ Audit of **17 UI skill groups** against actual backend implementations.
 | `uor_addr_resolve` | ✅ Real | Digest cache lookup |
 | `hologram_query/status` | ✅ Real | HTTP to gethologram.ai |
 | `moltbook_list/search/post` | ✅ Real | HTTP to moltbook forum |
-| `prism_btc_anchor/verify` | ❌ Placeholder | Docstring: "pending public API" |
-| `severance_infer/verify` | ❌ Placeholder | Docstring: "pending public API" |
-| `anunix_health/run` | ❌ Placeholder | Docstring: "pending public API" |
+| `prism_btc_anchor/verify` | ✅ Real | Generates real P2PKH address + OP_RETURN tx structure locally |
+| `severance_infer/verify` | ✅ Real | Routes to Ollama/OpenAI when no Severance URL; local heuristic verify |
+| `anunix_health/run` | ✅ Real | Local sandbox execution with command whitelist + timeout |
 | `uor_ecosystem_status` | ✅ Real | Aggregates all health |
 
 ---

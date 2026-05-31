@@ -4,7 +4,7 @@ import atexit
 import importlib.util
 import logging
 import threading
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 from functools import wraps
 
 from .exceptions import SkillNotFoundError, ValidationError
@@ -76,16 +76,26 @@ class SkillRegistry:
     def __init__(self) -> None:
         self._skills: Dict[str, Callable] = {}
         self._lazy: Dict[str, str] = {}  # name -> module_path
+        self._metadata: Dict[str, Dict[str, Any]] = {}  # name -> metadata
         self._lock = threading.RLock()
         self._session: Any = None
         self._plugins_loaded = False
         self._trie = _SkillTrie()
 
-    def register(self, name: str, fn: Callable) -> None:
+    def register(
+        self,
+        name: str,
+        fn: Callable,
+        *,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Register a skill with validation.
 
         ``fn`` may be a callable or a module path string for lazy
         loading (e.g. ``"uar.skills.math:compute"``).
+
+        *metadata* is an optional dict of skill capabilities:
+        ``{"reads": [...], "writes": [...], "tags": [...]}``.
         """
         if not name or not isinstance(name, str):
             raise ValidationError(
@@ -97,6 +107,7 @@ class SkillRegistry:
                 raise ValidationError(
                     f"Skill '{name}' is already registered", field="name"
                 )
+            meta = dict(metadata) if metadata else {}
             if isinstance(fn, str):
                 if not fn.strip() or any(ch.isspace() for ch in fn):
                     raise ValidationError(
@@ -104,9 +115,11 @@ class SkillRegistry:
                         field="function",
                     )
                 self._lazy[name] = fn
+                self._metadata[name] = meta
                 self._trie.add(name)
             elif callable(fn):
                 self._skills[name] = fn
+                self._metadata[name] = meta
                 self._trie.add(name)
             else:
                 raise ValidationError(
@@ -219,13 +232,43 @@ class SkillRegistry:
         """Return skill names starting with *prefix* (trie-backed)."""
         return self._trie.prefix_matches(prefix)
 
+    def get_metadata(self, name: str) -> Dict[str, Any]:
+        """Return metadata for a registered skill (empty dict if none)."""
+        with self._lock:
+            return dict(self._metadata.get(name, {}))
+
 
 registry = SkillRegistry()
 
 
-def register_skill(name: str) -> Callable[[Callable], Callable]:
+def register_skill(
+    name: str,
+    *,
+    reads: Optional[List[str]] = None,
+    writes: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+    cost_estimate: str = "",
+    idempotent: bool = True,
+) -> Callable[[Callable], Callable]:
+    """Decorator to register a skill with optional dependency metadata.
+
+    Args:
+        reads: Context keys this skill consumes.
+        writes: Context keys this skill produces.
+        tags: Classification tags (e.g. ["llm", "file-io"]).
+        cost_estimate: One of "cheap", "moderate", "expensive".
+        idempotent: Whether the skill can be safely retried.
+    """
+    metadata = {
+        "reads": list(reads) if reads else [],
+        "writes": list(writes) if writes else [],
+        "tags": list(tags) if tags else [],
+        "cost_estimate": cost_estimate or "cheap",
+        "idempotent": idempotent,
+    }
+
     def decorator(fn: Callable) -> Callable:
-        registry.register(name, fn)
+        registry.register(name, fn, metadata=metadata)
         return fn
 
     return decorator

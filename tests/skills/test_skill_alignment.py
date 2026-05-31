@@ -21,6 +21,10 @@ import uar.skills  # noqa — registers all standard skills
 from uar.core.registry import registry
 
 
+# Snapshot registry at import time (before any tests run) so we don't
+# include skills that are dynamically registered by other tests.
+_BASELINE_SKILLS: Set[str] = set(registry.list())
+
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 PANEL_PATH = (
     PROJECT_ROOT / "apps" / "web" / "src" / "components" / "UARPanel.tsx"
@@ -77,7 +81,7 @@ class TestSkillAlignment:
     @pytest.fixture(scope="class")
     def backend_skills(self) -> Set[str]:
         """All skills registered in the backend registry."""
-        return set(registry.list())
+        return _BASELINE_SKILLS
 
     @pytest.fixture(scope="class")
     def frontend_skills(self) -> Set[str]:
@@ -130,6 +134,12 @@ class TestSkillAlignment:
             "gr_index",        # alias
             "gr_query",        # alias
             "slow_skill",      # test-only fixture
+            "reader_a",        # test-only scheduler fixture
+            "reader_b",        # test-only scheduler fixture
+            "writer_x",        # test-only scheduler fixture
+            "writer_y",        # test-only scheduler fixture
+            "consumer_ab",     # test-only scheduler fixture
+            "noop_skill",      # test-only scheduler fixture
         }
         missing = backend_skills - frontend_skills - allowed_missing
         assert not missing, (
@@ -162,6 +172,8 @@ class TestSkillAlignment:
             "auto_up", "auto_down", "auto_status",
             "gr_full", "gr_index", "gr_query",
             "slow_skill",      # test-only fixture
+            "reader_a", "reader_b", "writer_x", "writer_y",
+            "consumer_ab", "noop_skill",
         }
         real_skills = backend_skills - stub_skills - internal
         missing = real_skills - guide_skills

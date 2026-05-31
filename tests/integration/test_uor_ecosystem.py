@@ -94,43 +94,72 @@ class TestMoltbookClient:
 
 
 class TestPrismBTCClient:
-    def test_anchor_placeholder(self):
+    def test_anchor_computes_real_bitcoin_address(self):
         client = PrismBTCClient()
         result = client.anchor_digest("sha256:abc123")
-        assert result["status"] == "placeholder"
+        assert result["status"] == "completed"
+        assert result["mode"] == "local_computed"
         assert result["digest"] == "sha256:abc123"
+        assert result["bitcoin_address"].startswith("1")
+        assert "transaction_hex" in result
+        assert result["mock_transaction"]["version"] == 2
 
-    def test_verify_placeholder(self):
+    def test_verify_reproduces_address(self):
         client = PrismBTCClient()
         result = client.verify_anchor("sha256:abc123")
-        assert result["status"] == "placeholder"
+        assert result["status"] == "completed"
+        assert result["mode"] == "local_computed"
+        assert result["bitcoin_address"].startswith("1")
+        assert result["verified_on_chain"] is False
 
 
 class TestSeveranceAIClient:
-    def test_infer_placeholder(self):
+    def test_infer_fallback_to_local(self):
         client = SeveranceAIClient()
         result = client.infer("hello", model="default")
-        assert result["status"] == "placeholder"
-        assert result["prompt"] == "hello"
+        assert result["status"] == "completed"
+        assert result["mode"] in ("uar_native", "ollama_local", "openai_api")
 
-    def test_verify_output_placeholder(self):
+    def test_verify_output_local_checks(self):
         client = SeveranceAIClient()
-        result = client.verify_output("output", {"check": True})
-        assert result["status"] == "placeholder"
+        result = client.verify_output(
+            "output text", {"contains": "text", "max_length": 100}
+        )
+        assert result["status"] == "completed"
+        assert result["mode"] == "local_verified"
+        assert result["checks"]["contains"]["passed"] is True
+        assert result["passed"] is True
 
 
 class TestAnunixClient:
-    def test_health_check_placeholder(self):
+    def test_health_check_local(self):
         client = AnunixClient()
         result = client.health_check("host-1")
-        assert result["status"] == "placeholder"
+        assert result["status"] == "completed"
+        assert result["mode"] == "local"
         assert result["host_id"] == "host-1"
+        assert "platform" in result
 
-    def test_run_command_placeholder(self):
+    def test_run_command_local_sandbox(self):
         client = AnunixClient()
-        result = client.run_command("host-1", "uptime")
-        assert result["status"] == "placeholder"
-        assert result["command"] == "uptime"
+        result = client.run_command("host-1", "echo hello")
+        assert result["status"] == "completed"
+        assert result["mode"] == "local_sandbox"
+        assert result["command"] == "echo hello"
+        assert result["stdout"].strip() == "hello"
+        assert result["returncode"] == 0
+
+    def test_run_command_blocked_dangerous(self):
+        client = AnunixClient()
+        result = client.run_command("host-1", "rm -rf /")
+        assert result["status"] == "failed"
+        assert "Blocked dangerous pattern" in result["stderr"]
+
+    def test_run_command_blocked_disallowed(self):
+        client = AnunixClient()
+        result = client.run_command("host-1", "wget example.com")
+        assert result["status"] == "failed"
+        assert "not in local allowlist" in result["stderr"]
 
 
 class TestUOREcosystem:

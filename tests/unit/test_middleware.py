@@ -150,16 +150,20 @@ class TestRedisRateLimiter:
     def test_redis_is_allowed_denied(self):
         mock_redis = MagicMock()
         mock_redis.eval.return_value = [6, 0]
-        rl = self._make_rl(mock_redis)
-        allowed, remaining = rl.is_allowed("k", 5, 60)
+        fake_mod = type("mod", (), {"RedisError": FakeRedisError})()
+        with patch.dict("sys.modules", {"redis": fake_mod}):
+            rl = self._make_rl(mock_redis)
+            allowed, remaining = rl.is_allowed("k", 5, 60)
         assert allowed is False
         assert remaining == 0
 
     def test_redis_is_allowed_success(self):
         mock_redis = MagicMock()
         mock_redis.eval.return_value = [3, 1]
-        rl = self._make_rl(mock_redis)
-        allowed, remaining = rl.is_allowed("k", 5, 60)
+        fake_mod = type("mod", (), {"RedisError": FakeRedisError})()
+        with patch.dict("sys.modules", {"redis": fake_mod}):
+            rl = self._make_rl(mock_redis)
+            allowed, remaining = rl.is_allowed("k", 5, 60)
         assert allowed is True
         assert remaining == 2
 
@@ -174,8 +178,10 @@ class TestRedisRateLimiter:
     def test_redis_get_remaining_success(self):
         mock_redis = MagicMock()
         mock_redis.zcard.return_value = 3
-        rl = self._make_rl(mock_redis)
-        assert rl.get_remaining("k", 5, 60) == 2
+        fake_mod = type("mod", (), {"RedisError": FakeRedisError})()
+        with patch.dict("sys.modules", {"redis": fake_mod}):
+            rl = self._make_rl(mock_redis)
+            assert rl.get_remaining("k", 5, 60) == 2
 
 
 class TestCreateRateLimiter:

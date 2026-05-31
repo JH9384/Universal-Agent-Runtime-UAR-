@@ -104,7 +104,20 @@ class TestBenchmarkStores:
         self, benchmark, sqlite_store, sample_record
     ):
         """Benchmark SqliteRunStore.append (hot path)."""
-        benchmark(sqlite_store.append, sample_record)
+        import itertools
+
+        counter = itertools.count()
+
+        def _append_unique():
+            rec = RunRecord(
+                run_id=f"bench-run-{next(counter)}",
+                goal_id=sample_record.goal_id,
+                skills=list(sample_record.skills),
+                status=sample_record.status,
+            )
+            sqlite_store.append(rec)
+
+        benchmark(_append_unique)
 
     def test_benchmark_json_get_by_run_id(
         self, benchmark, json_store, sample_record

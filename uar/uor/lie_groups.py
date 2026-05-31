@@ -31,6 +31,14 @@ class GroupOperation(Enum):
     COMPOSITION = "composition"
     INVERSION = "inversion"
 
+    def __eq__(self, other):
+        if isinstance(other, GroupOperation):
+            return self.value == other.value
+        return self.value == other
+
+    def __hash__(self):
+        return hash(self.value)
+
 
 @dataclass
 class GroupElement:

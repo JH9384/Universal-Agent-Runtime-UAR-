@@ -161,19 +161,21 @@ class TestPentestScanSuccess:
     def test_scan_success(self):
         ctx = MagicMock()
         ctx.goal.metadata = {"scan_target": "127.0.0.1"}
+        mock_scanner = MagicMock()
+        mock_scanner.all_hosts.return_value = ["127.0.0.1"]
+        mock_scanner.__getitem__ = lambda s, h: MagicMock(
+            state=lambda: "up",
+            all_protocols=lambda: ["tcp"],
+            __getitem__=lambda s, p: {22: MagicMock(
+                get=lambda k: "open" if k == "state" else "ssh"
+            )},
+        )
+        mock_nmap = MagicMock()
+        mock_nmap.PortScanner.return_value = mock_scanner
         with patch(
             "uar.skills.mlops_security.require_package", return_value=None
         ):
-            mock_scanner = MagicMock()
-            mock_scanner.all_hosts.return_value = ["127.0.0.1"]
-            mock_scanner.__getitem__ = lambda s, h: MagicMock(
-                state=lambda: "up",
-                all_protocols=lambda: ["tcp"],
-                __getitem__=lambda s, p: {22: MagicMock(
-                    get=lambda k: "open" if k == "state" else "ssh"
-                )},
-            )
-            with patch("nmap.PortScanner", return_value=mock_scanner):
+            with patch.dict("sys.modules", {"nmap": mock_nmap}):
                 result = pentest_scan(ctx)
         assert result["status"] == "completed"
         assert result["hosts_scanned"] >= 0
@@ -302,7 +304,8 @@ class TestMLflowDeploySuccess:
         with patch(
             "uar.skills.mlops_security.require_package", return_value=None
         ):
-            result = mlflow_deploy(ctx)
+            with patch.dict("sys.modules", {"mlflow": MagicMock()}):
+                result = mlflow_deploy(ctx)
         assert result["status"] == "failed"
 
     def test_with_version(self):
@@ -356,7 +359,8 @@ class TestModelReg:
         with patch(
             "uar.skills.mlops_security.require_package", return_value=None
         ):
-            result = model_reg(ctx)
+            with patch.dict("sys.modules", {"mlflow": MagicMock()}):
+                result = model_reg(ctx)
         assert result["status"] == "failed"
 
     def test_success(self):

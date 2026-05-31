@@ -16,7 +16,7 @@ This file is intentionally blunt. These are real limits, not aspirational gaps.
 ## Workflows
 
 - **Parallel waves, not arbitrary DAGs.** The planner groups skills into sequential waves; within a wave, skills run concurrently. True arbitrary DAG scheduling (e.g., skill B depends on skill A's output) is not yet implemented.
-- **Recipe nesting is one level deep in the executor.** Frontend supports nested recipes in `execution_order`, but the executor flattens recipes into a skill list. Full hierarchical tree execution is deferred.
+- **Recipe nesting is bounded, not infinite.** The executor supports nested recipes up to `MAX_RECIPE_DEPTH` (10 levels) via `_execute_items` when `UAR_HIERARCHICAL_EXECUTION=true` or `metadata.use_hierarchical=true`. The default flat path expands recipes with boundary markers (`recipe_start` / `recipe_end`).
 - **No conditional branching at runtime.** Recipe conditions (`exists`, `equals`, `not_equals`) control whether a recipe runs, not mid-stream branching.
 
 ## Storage

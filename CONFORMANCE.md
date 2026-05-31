@@ -37,7 +37,7 @@ backed by `uar/objects/` (SQLite-persisted, thread-safe). The previous
 - Runtime registry survives reload
 
 ## Known Gaps
-- No DAG execution
+- DAG scheduling is opt-in (`UAR_SCHEDULER=dag`); default remains greedy sequential grouping
 - No concurrency safety
 - Sandbox is process/resource constrained, not full OS/container isolation
 - Modular extraction is partial and not canonical yet

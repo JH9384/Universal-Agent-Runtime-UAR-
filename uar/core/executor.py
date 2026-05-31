@@ -27,7 +27,16 @@ from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .recipes import DEFAULT_RECIPES
 from .registry import registry
 from .schema import validate_event
+from .scheduler import schedule as dag_schedule
 from .validation import validate_timeout
+
+# Scheduler strategy: "sequential" | "greedy" | "dag"
+# - sequential: one skill at a time (safest, default)
+# - greedy: coarse parallel groups based on context-modifying barriers
+# - dag: full dependency-aware scheduling via Kahn's algorithm
+_UAR_SCHEDULER = (
+    os.getenv("UAR_SCHEDULER", "greedy").lower().strip() or "greedy"
+)
 
 # GC hint threshold: trigger gc.collect() after runs with many events
 # to reduce memory pressure from accumulated intermediate objects.
@@ -1024,7 +1033,29 @@ class Executor:
         enable_parallel = getattr(goal, "metadata", {}).get(
             "enable_parallel", True
         )
-        if enable_parallel and strategy.waves:
+        if _UAR_SCHEDULER == "dag" and enable_parallel:
+            # Full dependency-aware DAG scheduling
+            try:
+                skill_groups = dag_schedule(
+                    strategy.ordered_skills, registry
+                )
+            except Exception:
+                logger.exception("DAG scheduling failed, falling back")
+                skill_groups = _get_parallel_groups(
+                    strategy.ordered_skills
+                )
+            else:
+                # Emit parallel_wave event for UI tracking
+                for wi, wave in enumerate(skill_groups):
+                    if len(wave) > 1:
+                        yield _ev(
+                            "parallel_wave",
+                            payload={
+                                "wave_index": wi,
+                                "skills": wave,
+                            },
+                        )
+        elif enable_parallel and strategy.waves:
             # DAG-aware parallel waves from orchestration plan
             skill_groups: List[List[str]] = []
             for g in strategy.waves:

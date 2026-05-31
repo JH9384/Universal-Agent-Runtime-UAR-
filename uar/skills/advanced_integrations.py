@@ -35,22 +35,141 @@ def _goal(ctx):
 @skill_guard("Agent Workflow")
 def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Execute multi-agent workflows using Microsoft Agent Framework patterns.
+    Execute multi-agent workflows using Microsoft AutoGen or UAR-native.
 
-    This skill orchestrates multiple agents to collaborate on a task,
-    using agent-to-agent communication and coordination patterns.
+    When ``autogen`` is installed and an LLM key is configured, the skill
+    creates real AutoGen ``AssistantAgent`` / ``UserProxyAgent`` agents
+    and runs a ``GroupChat``.  Otherwise it falls back to the UAR-native
+    agent framework and reports ``mode: uar_native``.
 
     Metadata:
         - agent_sequence: List of agent IDs to execute in order
         - workflow_type: Type of workflow (default: "sequential")
         - initial_message: Starting message for the workflow
+        - llm_config: Optional AutoGen llm_config dict
 
     Returns:
-        Dict with workflow execution results including:
-        - workflow_id: Unique workflow identifier
-        - status: Workflow status (completed, partial, failed)
-        - results: Results from each agent in the sequence
+        Dict with workflow execution results
     """
+    metadata = _meta(ctx)
+    agent_sequence = metadata.get("agent_sequence", ["agent1", "agent2"])
+    workflow_type = metadata.get("workflow_type", "sequential")
+    initial_message = metadata.get("initial_message", _goal(ctx))
+
+    # --- Try real AutoGen first -----------------------------------------
+    try:
+        import importlib.util
+
+        if importlib.util.find_spec("autogen") is not None:
+            from autogen import (  # type: ignore[import]
+                AssistantAgent,
+                UserProxyAgent,
+                GroupChat,
+                GroupChatManager,
+            )
+
+            llm_config = metadata.get("llm_config")
+            if llm_config is None:
+                # Auto-detect a usable LLM backend
+                import os
+
+                if os.getenv("OPENAI_API_KEY"):
+                    llm_config = {
+                        "config_list": [
+                            {
+                                "model": "gpt-4",
+                                "api_key": os.getenv("OPENAI_API_KEY"),
+                            }
+                        ],
+                        "temperature": 0.1,
+                    }
+                elif os.getenv("AZURE_OPENAI_API_KEY"):
+                    llm_config = {
+                        "config_list": [
+                            {
+                                "model": os.getenv(
+                                    "AZURE_OPENAI_MODEL", "gpt-4"
+                                ),
+                                "api_key": os.getenv(
+                                    "AZURE_OPENAI_API_KEY"
+                                ),
+                                "base_url": os.getenv(
+                                    "AZURE_OPENAI_ENDPOINT", ""
+                                ),
+                                "api_type": "azure",
+                                "api_version": "2024-02-01",
+                            }
+                        ],
+                        "temperature": 0.1,
+                    }
+                else:
+                    # No LLM key -> skip AutoGen path
+                    raise RuntimeError("no LLM key configured")
+
+            agents = []
+            user_proxy = UserProxyAgent(
+                name="user_proxy",
+                human_input_mode="NEVER",
+                max_consecutive_auto_reply=10,
+                llm_config=llm_config,
+                system_message="""A user proxy that starts the workflow and
+                aggregates final results.""",
+            )
+            agents.append(user_proxy)
+
+            for idx, agent_id in enumerate(agent_sequence):
+                name = f"agent_{idx}_{agent_id}"
+                agent = AssistantAgent(
+                    name=name,
+                    llm_config=llm_config,
+                    system_message=(
+                        f"You are {agent_id} in a multi-agent workflow. "
+                        f"Respond concisely."
+                    ),
+                )
+                agents.append(agent)
+
+            groupchat = GroupChat(
+                agents=agents,
+                messages=[],
+                max_round=12,
+            )
+            manager = GroupChatManager(
+                groupchat=groupchat,
+                llm_config=llm_config,
+            )
+
+            user_proxy.initiate_chat(
+                manager,
+                message=initial_message,
+            )
+
+            chat_history = [
+                {
+                    "sender": m.get("name", "unknown"),
+                    "content": str(m.get("content", "")),
+                }
+                for m in groupchat.messages
+            ]
+
+            return {
+                "status": "completed",
+                "workflow_type": workflow_type,
+                "agent_sequence": agent_sequence,
+                "mode": "autogen_real",
+                "chat_history": chat_history,
+                "message_count": len(chat_history),
+            }
+    except Exception as exc:
+        # Log and fall through to UAR-native
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "AutoGen workflow failed (%s), falling back to UAR-native",
+            exc,
+        )
+
+    # --- UAR-native fallback ----------------------------------------------
     from uar.core.agent_framework import (
         execute_agent_workflow,
         get_orchestrator,
@@ -58,15 +177,9 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
     orchestrator = get_orchestrator()
 
-    # Get metadata
-    metadata = _meta(ctx)
-    agent_sequence = metadata.get("agent_sequence", ["agent1", "agent2"])
-    workflow_type = metadata.get("workflow_type", "sequential")
-    initial_message = metadata.get("initial_message", _goal(ctx))
-
     # Register agents if provided
-    agents = metadata.get("agents", [])
-    for agent_config in agents:
+    agents_cfg = metadata.get("agents", [])
+    for agent_config in agents_cfg:
         from uar.core.agent_framework import Agent
 
         agent = Agent(
@@ -76,18 +189,20 @@ def agent_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         )
         orchestrator.register_agent(agent)
 
-    # Execute workflow (async function called safely from sync skill)
-    result = run_sync_safe(execute_agent_workflow(
-        workflow_id=f"workflow_{workflow_type}",
-        agent_sequence=agent_sequence,
-        initial_message=initial_message,
-    ))
+    result = run_sync_safe(
+        execute_agent_workflow(
+            workflow_id=f"workflow_{workflow_type}",
+            agent_sequence=agent_sequence,
+            initial_message=initial_message,
+        )
+    )
 
     return {
         "status": "success",
         "workflow_id": result["workflow_id"],
         "workflow_type": workflow_type,
         "agent_sequence": agent_sequence,
+        "mode": "uar_native",
         "results": result.get("results", []),
         "status_code": result.get("status"),
     }

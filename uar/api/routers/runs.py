@@ -23,6 +23,7 @@ from uar.api.middleware import (
 from uar.api.tracing import trace_span
 from uar.core.exceptions import UARError, ValidationError
 from uar.core.planner import SimplePlanner
+from uar.core.replay import replay_summary
 from uar.core.timeline import timeline_from_record
 from uar.memory.base_store import run_record_from_dict
 
@@ -295,6 +296,95 @@ async def list_runs(
                 "request_id": request_id,
             },
         ) from e
+
+
+@router.get("/api/uar/runs/{run_id}")
+async def get_run(
+    run_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Fetch a full run record by ID (includes events)."""
+    from uar.api.server import store
+
+    user_info = auth_middleware(credentials)
+    user = user_info["user"] if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    record = store.get_by_run_id(run_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": "Run not found"},
+        )
+
+    owner = record.get("user_id") or record.get("user", "")
+    if owner and owner != user and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "forbidden", "message": "Access denied"},
+        )
+
+    return record
+
+
+@router.get("/api/uar/runs/{run_id}/events")
+async def get_run_events(
+    run_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Fetch just the event stream for a run."""
+    from uar.api.server import store
+
+    user_info = auth_middleware(credentials)
+    user = user_info["user"] if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    record = store.get_by_run_id(run_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": "Run not found"},
+        )
+
+    owner = record.get("user_id") or record.get("user", "")
+    if owner and owner != user and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "forbidden", "message": "Access denied"},
+        )
+
+    events = record.get("events", [])
+    return {"run_id": run_id, "events": events}
+
+
+@router.get("/api/uar/runs/{run_id}/replay")
+async def get_run_replay(
+    run_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Return a replay-friendly summary of a historical run."""
+    from uar.api.server import store
+
+    user_info = auth_middleware(credentials)
+    user = user_info["user"] if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    record = store.get_by_run_id(run_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found", "message": "Run not found"},
+        )
+
+    owner = record.get("user_id") or record.get("user", "")
+    if owner and owner != user and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "forbidden", "message": "Access denied"},
+        )
+
+    rr = run_record_from_dict(record)
+    return replay_summary(rr)
 
 
 @router.get("/api/provenance/{run_id}")

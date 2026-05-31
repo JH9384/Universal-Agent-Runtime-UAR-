@@ -639,3 +639,50 @@ def test_pipeline_context_overflow_emit_saves_oldest():
 
     assert len(lines) == 1
     assert lines[0]["type"] == "a"
+
+
+# ---------------------------------------------------------------------------
+# 16. SqliteRunStore concurrent append stress test
+# ---------------------------------------------------------------------------
+
+
+def test_sqlite_store_concurrent_append_no_database_locked(tmp_path):
+    """Concurrent append from multiple threads must not raise
+    DATABASE IS LOCKED errors thanks to the writer thread queue."""
+    import threading
+    from uar.memory.sqlite_store import SqliteRunStore
+
+    db = tmp_path / "concurrent.db"
+    store = SqliteRunStore(path=str(db))
+    try:
+        errors: list[Exception] = []
+        threads: list[threading.Thread] = []
+
+        def _append_batch(start: int):
+            try:
+                for i in range(start, start + 20):
+                    store.append(
+                        RunRecord(
+                            run_id=f"run-{i}",
+                            goal_id="g",
+                            skills=["noop"],
+                            status="completed",
+                        )
+                    )
+            except Exception as exc:
+                errors.append(exc)
+
+        for t in range(10):
+            th = threading.Thread(target=_append_batch, args=(t * 20,))
+            threads.append(th)
+            th.start()
+
+        for th in threads:
+            th.join()
+
+        store.flush()
+        rows = store.list_records()
+        assert len(rows) == 200, f"Expected 200 rows, got {len(rows)}"
+        assert not errors, f"Exceptions during concurrent append: {errors}"
+    finally:
+        store.close()

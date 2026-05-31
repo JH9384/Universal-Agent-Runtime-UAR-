@@ -338,12 +338,16 @@ class TestSparkProcessRemaining:
         assert result["status"] == "error"
 
     def test_missing_data_path(self):
-        with patch(
-            "uar.skills.data_engineering.require_package",
-            return_value=None,
+        with patch.dict(
+            "sys.modules",
+            {"pyspark": MagicMock(), "pyspark.sql": MagicMock()},
         ):
-            from uar.skills.data_engineering import spark_process
-            result = spark_process(_ctx({}))
+            with patch(
+                "uar.skills.data_engineering.require_package",
+                return_value=None,
+            ):
+                from uar.skills.data_engineering import spark_process
+                result = spark_process(_ctx({}))
         assert result["status"] == "failed"
 
     def test_parquet_format(self):
@@ -464,12 +468,22 @@ class TestSnowflakeEtlRemaining:
         assert result["status"] == "completed"
 
     def test_missing_params(self):
-        with patch(
-            "uar.skills.data_engineering.require_package",
-            return_value=None,
+        mock_connector = MagicMock()
+        mock_snowflake = MagicMock()
+        mock_snowflake.connector = mock_connector
+        with patch.dict(
+            "sys.modules",
+            {
+                "snowflake": mock_snowflake,
+                "snowflake.connector": mock_connector,
+            },
         ):
-            from uar.skills.data_engineering import snowflake_etl
-            result = snowflake_etl(_ctx({"sf_query": "SELECT 1"}))
+            with patch(
+                "uar.skills.data_engineering.require_package",
+                return_value=None,
+            ):
+                from uar.skills.data_engineering import snowflake_etl
+                result = snowflake_etl(_ctx({"sf_query": "SELECT 1"}))
         assert result["status"] == "failed"
 
     def test_no_description(self):

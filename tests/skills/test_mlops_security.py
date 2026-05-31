@@ -66,9 +66,13 @@ class TestOSINTRecon:
     """osint_recon with DNS fallback (no external deps needed)."""
 
     def test_dns_lookup(self):
-        result = osint_recon(
-            _ctx({"recon_target": "example.com", "recon_tools": ["dns"]})
-        )
+        with patch(
+            "socket.gethostbyname",
+            return_value="93.184.216.34",
+        ):
+            result = osint_recon(
+                _ctx({"recon_target": "example.com", "recon_tools": ["dns"]})
+            )
         assert result["status"] == "completed"
         assert result["target"] == "example.com"
         assert "dns" in result["results"]

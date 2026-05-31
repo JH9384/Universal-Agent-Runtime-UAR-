@@ -189,26 +189,32 @@ class TestRedisSkillCache:
         import zlib
         payload = zlib.compress(b'{"value": 42}')
         mock_redis.get.side_effect = [payload, None]
+        mock_bloom = MagicMock()
+        mock_bloom.might_contain.return_value = True
 
         with patch(
             "uar.core.skill_cache._get_redis", return_value=mock_redis
         ):
             with patch("uar.core.skill_cache._HAS_ZSTD", False):
-                cache = RedisSkillCache()
-                result = cache.get("s1", {"a": 1})
-                assert result == {"value": 42}
+                with patch("uar.core.skill_cache._bloom_filter", mock_bloom):
+                    cache = RedisSkillCache()
+                    result = cache.get("s1", {"a": 1})
+                    assert result == {"value": 42}
 
     def test_get_bytes_decode(self):
         from uar.core.skill_cache import RedisSkillCache
         mock_redis = MagicMock()
         mock_redis.get.side_effect = [None, b'{"value": 42}']
+        mock_bloom = MagicMock()
+        mock_bloom.might_contain.return_value = True
 
         with patch(
             "uar.core.skill_cache._get_redis", return_value=mock_redis
         ):
-            cache = RedisSkillCache()
-            result = cache.get("s1", {"a": 1})
-            assert result == {"value": 42}
+            with patch("uar.core.skill_cache._bloom_filter", mock_bloom):
+                cache = RedisSkillCache()
+                result = cache.get("s1", {"a": 1})
+                assert result == {"value": 42}
 
     def test_get_json_error(self):
         from uar.core.skill_cache import RedisSkillCache

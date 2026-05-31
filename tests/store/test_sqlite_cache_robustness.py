@@ -24,6 +24,9 @@ def test_sqlite_hot_cache_eviction_and_fallback(tmp_path):
             )
             store.append(record)
 
+        # Drain writer queue so SQLite has all records
+        store.flush()
+
         # The hot cache should contain exactly 3 items
         assert len(store._hot_cache) == 3
 
@@ -54,6 +57,7 @@ def test_sqlite_hot_cache_hit_retrieval(tmp_path):
         status="completed",
     )
     store.append(record)
+    store.flush()
 
     # Cache hit check
     assert "hot_run" in store._hot_cache
@@ -62,3 +66,5 @@ def test_sqlite_hot_cache_hit_retrieval(tmp_path):
     retrieved = store.get_by_run_id("hot_run")
     assert retrieved is not None
     assert retrieved["run_id"] == "hot_run"
+
+    store.close()

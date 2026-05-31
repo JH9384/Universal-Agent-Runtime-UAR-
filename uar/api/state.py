@@ -150,11 +150,22 @@ _ws_conn_counter = _WebSocketConnectionCounter(
 )
 
 # ------------------------------------------------------------------
-# Run store backend (auto-selected)
+# Run store backend (auto-selected via UAR_STORE_BACKEND)
 # ------------------------------------------------------------------
-if os.getenv("UAR_DATABASE_URL"):
+_UAR_STORE_BACKEND = os.getenv("UAR_STORE_BACKEND", "auto").lower()
+if _UAR_STORE_BACKEND == "postgres" or (
+    _UAR_STORE_BACKEND == "auto" and os.getenv("UAR_DATABASE_URL")
+):
     from uar.memory.postgres_store import PostgresRunStore
+
     store = PostgresRunStore()  # type: ignore[assignment]
+elif _UAR_STORE_BACKEND == "sqlite" or (
+    _UAR_STORE_BACKEND == "auto"
+    and os.getenv("UAR_SQLITE_PATH")
+):
+    from uar.memory.sqlite_store import SqliteRunStore
+
+    store = SqliteRunStore()  # type: ignore[assignment]
 else:
     store = JsonRunStore()  # type: ignore[assignment]
 

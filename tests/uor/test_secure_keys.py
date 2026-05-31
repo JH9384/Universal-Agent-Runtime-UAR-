@@ -103,6 +103,9 @@ class TestKeyManagerGenerate:
         store.delete_key("test_rsa_private")
         store.delete_key("test_rsa_public")
 
+    @pytest.mark.skipif(
+        not CRYPTO_AVAILABLE, reason="cryptography not installed"
+    )
     def test_unsupported_algorithm(self):
         store = SecureKeyStore(prefix="TEST_KM_")
         mgr = KeyManager(key_store=store)

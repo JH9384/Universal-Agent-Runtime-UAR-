@@ -1,7 +1,7 @@
 # UAR Architecture
 
 **Version:** 1.1.0 (see `VERSION` file)  
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-05-30
 
 ---
 
@@ -9,7 +9,7 @@
 
 Universal Agent Runtime (UAR) is a modular, event-driven execution platform that operates as both an **agent runtime** (goal-oriented, event-streamed, observable workflows) and a **browser-accessible scientific computing sandbox** (quantum circuits, molecular dynamics, RISC-V emulation, Verilog simulation, astrophysics computations).
 
-It consists of a Python backend (FastAPI + custom executor with 124+ registered skills) and an optional React frontend, communicating over HTTP and WebSocket. Skills span AI/LLM integration, document processing, hardware emulation, embedded systems, and pure mathematics — all exposed through a unified JSON goal API.
+It consists of a Python backend (FastAPI + custom executor with 127 registered skills) and an optional React frontend, communicating over HTTP and WebSocket. Skills span AI/LLM integration, document processing, hardware emulation, embedded systems, and pure mathematics — all exposed through a unified JSON goal API.
 
 ## 2. High-Level Architecture
 
@@ -183,7 +183,7 @@ sequenceDiagram
             E->>E: Skill execution
             E->>E: Retry / circuit breaker
         end
-        E-->>R: event (skill_start / skill_complete)
+        E-->>R: event (skill_start / skill_complete / recipe_start / recipe_end)
     end
     E->>S: Persist RunRecord
     R-->>C: RunResponse
@@ -212,7 +212,7 @@ WebSocket Connect
          ▼
 ┌─────────────────┐
 │  Executor.stream│  ← Async generator yields events
-│                 │     start → skill_start → skill_complete → metrics → complete
+│                 │     start → recipe_start → skill_start → skill_complete → recipe_end → metrics → complete
 └────────┬────────┘
          │
          ▼
@@ -257,7 +257,7 @@ class RunRecord:
 ```python
 {
     "type": "skill_start" | "skill_complete" | "skill_failed" |
-            "skill_retry" | "recipe_start" | "recipe_complete" |
+            "skill_retry" | "recipe_start" | "recipe_end" |
             "metrics" | "start" | "complete",
     "skill": str,           # Skill name (if applicable)
     "recipe": str,          # Recipe name (if applicable)

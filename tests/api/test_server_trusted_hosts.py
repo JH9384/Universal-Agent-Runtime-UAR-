@@ -6,8 +6,11 @@ from unittest.mock import patch
 
 
 def test_trusted_hosts_env():
+    import uar.api.server as server_mod
     with patch.dict(os.environ, {"TRUSTED_HOSTS": "host1, host2"}):
-        import uar.api.server as server_mod
         importlib.reload(server_mod)
-    # Middleware was added; we just need to confirm reload succeeded
+        assert hasattr(server_mod, "app")
+    # Restore original app without TrustedHostMiddleware so other tests
+    # are not affected by the restricted host list.
+    importlib.reload(server_mod)
     assert hasattr(server_mod, "app")

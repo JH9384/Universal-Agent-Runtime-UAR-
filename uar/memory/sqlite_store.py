@@ -24,8 +24,8 @@ class SqliteRunStore:
     """SQLite run store with indexed columns.
 
     Mirrors the JsonRunStore interface so it can be swapped in
-    transparently. Uses WAL mode and a persistent connection for
-    5-10x concurrent read throughput.
+    transparently. Uses WAL mode, a reader pool for concurrent
+    reads, and a dedicated writer thread for serialized writes.
     """
 
     def __init__(self, path: Optional[str] = None) -> None:
@@ -50,8 +50,22 @@ class SqliteRunStore:
         )
         self._hot_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
         self._hot_cache_lock = threading.Lock()
+        # Writer thread for serialized writes
+        self._writer_queue: queue.Queue = queue.Queue(
+            maxsize=max(
+                1,
+                int(
+                    os.getenv("UAR_SQLITE_WRITER_QUEUE_SIZE", "1000").strip()
+                    or "1000"
+                ),
+            )
+        )
+        self._writer_thread: Optional[threading.Thread] = None
+        self._writer_shutdown = threading.Event()
+        self._writer_exception: Optional[Exception] = None
         self._ensure_table()
         self._init_read_pool()
+        self._start_writer()
 
     def _init_read_pool(self) -> None:
         """Pre-create reader connections for WAL-mode concurrent reads."""
@@ -74,11 +88,129 @@ class SqliteRunStore:
             self._conn = self._connect()
         return self._conn
 
+    # ------------------------------------------------------------------
+    # Writer thread
+    # ------------------------------------------------------------------
+
+    def _start_writer(self) -> None:
+        """Start the background writer thread."""
+        if self._writer_thread is not None:
+            return
+        self._writer_shutdown.clear()
+        self._writer_exception = None
+        self._writer_thread = threading.Thread(
+            target=self._writer_loop, daemon=True
+        )
+        self._writer_thread.start()
+
+    def _writer_loop(self) -> None:
+        """Background thread that serializes all write operations."""
+        conn = self._connect()
+        try:
+            while not self._writer_shutdown.is_set():
+                try:
+                    item = self._writer_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                if item is None:  # sentinel
+                    break
+                # Distinguish async (2-tuple) vs sync (4-tuple) items
+                if len(item) == 4:
+                    op, payload, result_container, event = item
+                else:
+                    op, payload = item
+                    result_container = None
+                    event = None
+                result: Any = None
+                try:
+                    if op == "insert":
+                        conn.execute(
+                            "INSERT INTO uar_runs"
+                            " (run_id, goal_id, user_id, status,"
+                            "  skills, events, outputs, metadata,"
+                            "  uor_address, uor_witness, created_at)"
+                            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                            payload,
+                        )
+                    elif op == "upsert":
+                        conn.execute(
+                            "INSERT INTO uar_runs"
+                            " (run_id, goal_id, user_id, status,"
+                            "  skills, events, outputs, metadata,"
+                            "  uor_address, uor_witness, created_at)"
+                            " VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+                            " ON CONFLICT(run_id) DO UPDATE SET"
+                            "  goal_id=excluded.goal_id,"
+                            "  user_id=excluded.user_id,"
+                            "  status=excluded.status,"
+                            "  skills=excluded.skills,"
+                            "  events=excluded.events,"
+                            "  outputs=excluded.outputs,"
+                            "  metadata=excluded.metadata,"
+                            "  uor_address=excluded.uor_address,"
+                            "  uor_witness=excluded.uor_witness,"
+                            "  created_at=excluded.created_at",
+                            payload,
+                        )
+                    elif op == "delete":
+                        cur = conn.execute(
+                            "DELETE FROM uar_runs WHERE run_id = ?",
+                            (payload,),
+                        )
+                        result = cur.rowcount
+                    elif op == "purge":
+                        cur = conn.execute(
+                            "DELETE FROM uar_runs WHERE CASE"
+                            " WHEN created_at > 1000000000"
+                            " THEN datetime(created_at, 'unixepoch')"
+                            " ELSE datetime(created_at) END"
+                            " < datetime(?, 'unixepoch')",
+                            (payload,),
+                        )
+                        result = cur.rowcount
+                    elif op == "checkpoint":
+                        conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+                except Exception as exc:
+                    self._writer_exception = exc
+                    result = exc
+                finally:
+                    if result_container is not None:
+                        result_container[0] = result
+                    if event is not None:
+                        event.set()
+                    self._writer_queue.task_done()
+        finally:
+            conn.close()
+
+    def _enqueue_write(self, op: str, payload: Any) -> None:
+        """Enqueue a write operation for the background writer thread."""
+        if self._writer_exception is not None:
+            raise self._writer_exception
+        self._writer_queue.put((op, payload), block=True)
+
+    def _enqueue_write_sync(self, op: str, payload: Any) -> Any:
+        """Enqueue a write and block until it completes, returning result."""
+        if self._writer_exception is not None:
+            raise self._writer_exception
+        result_container: List[Any] = [None]
+        event = threading.Event()
+        self._writer_queue.put((op, payload, result_container, event))
+        event.wait(timeout=10.0)
+        return result_container[0]
+
+    def _drain_writer(self, timeout: float = 5.0) -> None:
+        """Wait until the writer queue is empty."""
+        self._writer_queue.join()
+
+    # ------------------------------------------------------------------
+    # Schema
+    # ------------------------------------------------------------------
+
     def _ensure_table(self) -> None:
         ddl = """
         CREATE TABLE IF NOT EXISTS uar_runs (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id       TEXT NOT NULL,
+            run_id       TEXT NOT NULL UNIQUE,
             goal_id      TEXT,
             user_id      TEXT,
             status       TEXT,
@@ -88,7 +220,7 @@ class SqliteRunStore:
             metadata     TEXT,
             uor_address  TEXT,
             uor_witness  TEXT,
-            created_at   REAL DEFAULT (julianday('now'))
+            created_at   REAL DEFAULT (strftime('%s', 'now'))
         );
         CREATE INDEX IF NOT EXISTS idx_runs_run_id ON uar_runs(run_id);
         CREATE INDEX IF NOT EXISTS idx_runs_user  ON uar_runs(user_id);
@@ -113,94 +245,82 @@ class SqliteRunStore:
         finally:
             conn.close()
 
+    # ------------------------------------------------------------------
+    # Write interface (non-blocking enqueue)
+    # ------------------------------------------------------------------
+
     def append(self, record: RunRecord) -> None:
+        import time as _time
+
         witness = getattr(record, "uor_witness", None)
-        data = {
-            "run_id": getattr(record, "run_id", getattr(record, "id", "")),
-            "goal_id": getattr(
+        payload = (
+            getattr(record, "run_id", getattr(record, "id", "")),
+            getattr(
                 record, "goal_id", getattr(record, "goal", {}).get("id", "")
             ),
-            "user_id": getattr(record, "user_id", None),
-            "status": getattr(record, "status", "unknown"),
-            "skills": json.dumps(getattr(record, "skills", [])),
-            "events": json.dumps(getattr(record, "events", [])),
-            "outputs": json.dumps(getattr(record, "outputs", {})),
-            "metadata": json.dumps(getattr(record, "metadata", {})),
-            "uor_address": getattr(record, "uor_address", None),
-            "uor_witness": (
-                json.dumps(witness) if witness is not None else None
-            ),
-        }
-        with self._lock:
-            conn = self._get_conn()
-            conn.execute(
-                "INSERT INTO uar_runs"
-                " (run_id, goal_id, user_id, status,"
-                "  skills, events, outputs, metadata,"
-                "  uor_address, uor_witness)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
-                tuple(data.values()),
-            )
+            getattr(record, "user_id", None),
+            getattr(record, "status", "unknown"),
+            json.dumps(getattr(record, "skills", [])),
+            json.dumps(getattr(record, "events", [])),
+            json.dumps(getattr(record, "outputs", {})),
+            json.dumps(getattr(record, "metadata", {})),
+            getattr(record, "uor_address", None),
+            json.dumps(witness) if witness is not None else None,
+            _time.time(),
+        )
+        self._enqueue_write("insert", payload)
         # Populate hot cache with newly inserted record
-        hot_record = dict(data)
-        hot_record["skills"] = json.loads(hot_record["skills"])
-        hot_record["events"] = json.loads(hot_record["events"])
-        hot_record["outputs"] = json.loads(hot_record["outputs"])
-        hot_record["metadata"] = json.loads(hot_record["metadata"])
-        if hot_record["uor_witness"]:
-            try:
-                hot_record["uor_witness"] = json.loads(
-                    hot_record["uor_witness"]
-                )
-            except json.JSONDecodeError:
-                pass
-        hot_record["created_at"] = None
+        hot_record = {
+            "run_id": payload[0],
+            "goal_id": payload[1],
+            "user_id": payload[2],
+            "status": payload[3],
+            "skills": json.loads(payload[4]),
+            "events": json.loads(payload[5]),
+            "outputs": json.loads(payload[6]),
+            "metadata": json.loads(payload[7]),
+            "uor_address": payload[8],
+            "uor_witness": (
+                json.loads(payload[9]) if payload[9] is not None else None
+            ),
+            "created_at": payload[10],
+        }
         with self._hot_cache_lock:
-            self._hot_cache[data["run_id"]] = hot_record
-            self._hot_cache.move_to_end(data["run_id"])
+            self._hot_cache[hot_record["run_id"]] = hot_record
+            self._hot_cache.move_to_end(hot_record["run_id"])
             while len(self._hot_cache) > self._hot_cache_size:
                 self._hot_cache.popitem(last=False)
 
     def append_many(self, records: List[RunRecord]) -> None:
-        """Bulk insert multiple records in a single transaction."""
+        """Bulk insert multiple records via the writer queue."""
         if not records:
             return
-        sql = (
-            "INSERT INTO uar_runs"
-            " (run_id, goal_id, user_id, status,"
-            "  skills, events, outputs, metadata, uor_address, uor_witness)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)"
-        )
-        rows = []
+        import time as _time
+
         for record in records:
             witness = getattr(record, "uor_witness", None)
-            rows.append(
-                tuple([
-                    getattr(record, "run_id", getattr(record, "id", "")),
-                    getattr(
-                        record,
-                        "goal_id",
-                        getattr(record, "goal", {}).get("id", ""),
-                    ),
-                    getattr(record, "user_id", None),
-                    getattr(record, "status", "unknown"),
-                    json.dumps(getattr(record, "skills", [])),
-                    json.dumps(getattr(record, "events", [])),
-                    json.dumps(getattr(record, "outputs", {})),
-                    json.dumps(getattr(record, "metadata", {})),
-                    getattr(record, "uor_address", None),
-                    (
-                        json.dumps(witness)
-                        if witness is not None
-                        else None
-                    ),
-                ])
+            payload = (
+                getattr(record, "run_id", getattr(record, "id", "")),
+                getattr(
+                    record,
+                    "goal_id",
+                    getattr(record, "goal", {}).get("id", ""),
+                ),
+                getattr(record, "user_id", None),
+                getattr(record, "status", "unknown"),
+                json.dumps(getattr(record, "skills", [])),
+                json.dumps(getattr(record, "events", [])),
+                json.dumps(getattr(record, "outputs", {})),
+                json.dumps(getattr(record, "metadata", {})),
+                getattr(record, "uor_address", None),
+                json.dumps(witness) if witness is not None else None,
+                _time.time(),
             )
-        with self._lock:
-            conn = self._get_conn()
-            conn.execute("BEGIN IMMEDIATE")
-            conn.executemany(sql, rows)
-            conn.execute("COMMIT")
+            self._enqueue_write("insert", payload)
+
+    # ------------------------------------------------------------------
+    # Read interface (unchanged)
+    # ------------------------------------------------------------------
 
     def _get_read_conn(self) -> sqlite3.Connection:
         """Borrow a reader connection from the pool."""
@@ -275,17 +395,16 @@ class SqliteRunStore:
         """Alias for list_records — satisfies RunStoreProtocol."""
         return self.list_records(user_id=user_id, limit=limit)
 
+    # ------------------------------------------------------------------
+    # Delete / purge (enqueue via writer)
+    # ------------------------------------------------------------------
+
     def delete(self, run_id: str) -> bool:
         """Remove a single record by run_id."""
-        with self._lock:
-            conn = self._get_conn()
-            cur = conn.execute(
-                "DELETE FROM uar_runs WHERE run_id = ?", (run_id,)
-            )
-            deleted = cur.rowcount > 0
+        rowcount = self._enqueue_write_sync("delete", run_id)
         with self._hot_cache_lock:
             self._hot_cache.pop(run_id, None)
-        return deleted
+        return bool(rowcount and rowcount > 0)
 
     def purge_old_records(self, retention_days: int) -> int:
         if retention_days <= 0:
@@ -293,32 +412,28 @@ class SqliteRunStore:
         import time
 
         cutoff = time.time() - (retention_days * 86400)
-        with self._lock:
-            conn = self._get_conn()
-            # created_at may be Julian day (default) or Unix epoch.
-            # Heuristic: values > 1e9 are Unix timestamps.
-            cur = conn.execute(
-                "DELETE FROM uar_runs WHERE CASE"
-                " WHEN created_at > 1000000000"
-                " THEN datetime(created_at, 'unixepoch')"
-                " ELSE datetime(created_at) END"
-                " < datetime(?, 'unixepoch')",
-                (cutoff,),
-            )
-            return cur.rowcount
+        rowcount = self._enqueue_write_sync("purge", cutoff)
+        return rowcount if isinstance(rowcount, int) else 0
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
     def flush(self) -> None:
-        """Ensure WAL checkpointed."""
-        with self._lock:
-            if self._conn:
-                self._conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        """Drain the writer queue and checkpoint WAL."""
+        self._drain_writer()
+        self._enqueue_write("checkpoint", None)
 
     def close(self) -> None:
-        """Close persistent and pooled reader connections."""
-        with self._lock:
-            if self._conn:
-                self._conn.close()
-                self._conn = None
+        """Signal writer thread to stop, drain queue, close connections."""
+        if self._writer_thread and self._writer_thread.is_alive():
+            self._writer_shutdown.set()
+            # Sentinel to unblock writer thread
+            try:
+                self._writer_queue.put(None, block=False)
+            except queue.Full:
+                pass
+            self._writer_thread.join(timeout=5.0)
         # Drain and close all reader pool connections
         with self._read_pool_lock:
             while not self._read_pool.empty():
@@ -327,6 +442,10 @@ class SqliteRunStore:
                     conn.close()
                 except queue.Empty:
                     break
+        with self._lock:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
 
 
 def _decode_row(row: Dict[str, Any]) -> Dict[str, Any]:
