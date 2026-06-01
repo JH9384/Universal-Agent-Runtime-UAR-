@@ -22,6 +22,9 @@ import { TimeMachine } from './TimeMachine'
 import { RecommendationInbox } from './RecommendationInbox'
 import { InvestigationFlow } from './InvestigationFlow'
 import { ReportViewer } from './ReportViewer'
+import { OperationalSearch } from './OperationalSearch'
+import { InvestigationReplay } from './InvestigationReplay'
+import { GraphAnalytics } from './GraphAnalytics'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
@@ -626,6 +629,9 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [showInvestigationFlow, setShowInvestigationFlow] = useState(false)
   const [showKnowledgeGraphV2, setShowKnowledgeGraphV2] = useState(false)
   const [showReportViewer, setShowReportViewer] = useState(false)
+  const [showOperationalSearch, setShowOperationalSearch] = useState(false)
+  const [showInvestigationReplay, setShowInvestigationReplay] = useState(false)
+  const [showGraphAnalytics, setShowGraphAnalytics] = useState(false)
   const [compareRunA, setCompareRunA] = useState('')
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
@@ -2681,6 +2687,27 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           >
             {showReportViewer ? 'Hide Reports' : 'Reports'}
           </button>
+          <button
+            onClick={() => { setShowOperationalSearch(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Operational Search"
+          >
+            {showOperationalSearch ? 'Hide Search' : 'Search'}
+          </button>
+          <button
+            onClick={() => { setShowInvestigationReplay(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Investigation Replay"
+          >
+            {showInvestigationReplay ? 'Hide Replay' : 'Replay'}
+          </button>
+          <button
+            onClick={() => { setShowGraphAnalytics(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Graph Analytics"
+          >
+            {showGraphAnalytics ? 'Hide Analytics' : 'Analytics'}
+          </button>
         </div>
         {metrics && !isRunning && (
           <div className={styles.metricsPanel} title="Execution metrics from last run">
@@ -2747,6 +2774,29 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           />
         )}
         {showReportViewer && <ReportViewer />}
+        {showOperationalSearch && (
+          <OperationalSearch
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+            onOpenIncident={() => setShowIncidentWorkbench(true)}
+          />
+        )}
+        {showInvestigationReplay && (
+          <InvestigationReplay
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+          />
+        )}
+        {showGraphAnalytics && (
+          <GraphAnalytics
+            centerId={explorerRunId || undefined}
+            centerType="run"
+          />
+        )}
         <div className={styles.statusText} title="Current system status">
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
           {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}

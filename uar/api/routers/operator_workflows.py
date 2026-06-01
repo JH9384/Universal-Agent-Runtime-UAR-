@@ -1193,3 +1193,370 @@ async def get_burnin_24h_report(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Report generation failed",
         )
+
+
+# ------------------------------------------------------------------
+# E1 — Operational Search
+# ------------------------------------------------------------------
+
+
+@router.get("/api/uar/search")
+async def search_all(
+    q: str = Query(..., min_length=1),
+    types: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Unified search across runs, incidents, recommendations, snapshots, alerts."""
+    auth_middleware(credentials)
+    query = q.lower().strip()
+    wanted_types = set(types.split(",") if types else [])
+    results: List[Dict[str, Any]] = []
+
+    def add_result(rtype: str, obj: Dict[str, Any], score: int = 1) -> None:
+        if wanted_types and rtype not in wanted_types:
+            return
+        obj["_result_type"] = rtype
+        obj["_score"] = score
+        results.append(obj)
+
+    # Runs
+    try:
+        runs = store.list_records(limit=500)
+        for r in runs:
+            rid = str(getattr(r, "run_id", r.get("run_id", "")))
+            if query in rid.lower():
+                add_result(
+                    "run",
+                    {"id": rid, "status": getattr(r, "status", "unknown")},
+                    score=10,
+                )
+    except Exception:
+        pass
+
+    # Incidents
+    for inc in _load_all_incidents():
+        hay = f"{inc.get('title', '')} {inc.get('description', '')} {inc.get('id', '')}"
+        if query in hay.lower():
+            add_result("incident", inc, score=8)
+
+    # Recommendations
+    try:
+        metadata = store.get_recommendation_metadata(limit=5000)
+        for m in metadata:
+            hay = f"{m.get('title', '')} {m.get('category', '')} {m.get('recommendation_id', '')}"
+            if query in hay.lower():
+                add_result("recommendation", m, score=7)
+    except Exception:
+        pass
+
+    # Snapshots
+    for snap in _load_all_snapshots(limit=50):
+        ts_str = str(snap.get("timestamp", ""))
+        run_ids = snap.get("recent_run_ids", [])
+        if query in ts_str or any(query in str(r).lower() for r in run_ids):
+            add_result("snapshot", snap, score=5)
+
+    # Alerts
+    try:
+        for i in range(50):
+            key = f"alert_tracker:alert-{i}"
+            raw = store.get_metadata(key)
+            if raw:
+                ev = json.loads(raw) if isinstance(raw, str) else raw
+                hay = f"{ev.get('type', '')} {ev.get('message', '')}"
+                if query in hay.lower():
+                    add_result("alert", ev, score=6)
+    except Exception:
+        pass
+
+    # Inbox
+    for item in _load_all_inbox_items():
+        hay = f"{item.get('title', '')} {item.get('category', '')}"
+        if query in hay.lower():
+            add_result("inbox", item, score=6)
+
+    results.sort(key=lambda x: -x.get("_score", 0))
+    return {
+        "query": q,
+        "count": len(results),
+        "results": results[:limit],
+    }
+
+
+# ------------------------------------------------------------------
+# E2 — Investigation Replay
+# ------------------------------------------------------------------
+
+_INVESTIGATION_NAMESPACE = "operator:investigation"
+
+
+def _investigation_key(inv_id: str) -> str:
+    return f"{_INVESTIGATION_NAMESPACE}:{inv_id}"
+
+
+def _load_all_investigations() -> List[Dict[str, Any]]:
+    """Load investigation sessions from store metadata."""
+    sessions: List[Dict[str, Any]] = []
+    seen: set = set()
+    try:
+        for i in range(100):
+            test_key = f"{_INVESTIGATION_NAMESPACE}:inv-{i}"
+            raw = store.get_metadata(test_key)
+            if raw:
+                ev = json.loads(raw) if isinstance(raw, str) else raw
+                sid = ev.get("id")
+                if sid and sid not in seen:
+                    seen.add(sid)
+                    sessions.append(ev)
+    except Exception:
+        pass
+    return sorted(sessions, key=lambda x: x.get("started_at", 0), reverse=True)
+
+
+def _persist_investigation(inv: Dict[str, Any]) -> None:
+    key = _investigation_key(inv["id"])
+    try:
+        if hasattr(store, "put_metadata"):
+            store.put_metadata(key, inv)
+        elif hasattr(store, "put_meta"):
+            store.put_meta(key, json.dumps(inv))
+    except Exception as exc:
+        logger.warning("investigation persistence failed: %s", exc)
+
+
+@router.post("/api/uar/investigations")
+async def create_investigation(
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Start a new investigation session."""
+    auth_middleware(credentials)
+    import uuid
+
+    inv_id = f"inv-{uuid.uuid4().hex[:8]}"
+    now = int(time.time())
+    inv = {
+        "id": inv_id,
+        "title": body.get("title", "Untitled Investigation"),
+        "run_id": body.get("run_id"),
+        "incident_id": body.get("incident_id"),
+        "started_at": now,
+        "ended_at": None,
+        "actions": [],
+        "status": "active",
+    }
+    _persist_investigation(inv)
+    return inv
+
+
+@router.get("/api/uar/investigations")
+async def list_investigations(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> List[dict]:
+    """List all investigation sessions."""
+    auth_middleware(credentials)
+    return _load_all_investigations()
+
+
+@router.get("/api/uar/investigations/{inv_id}")
+async def get_investigation(
+    inv_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Get a single investigation session."""
+    auth_middleware(credentials)
+    for inv in _load_all_investigations():
+        if inv.get("id") == inv_id:
+            return inv
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Investigation not found",
+    )
+
+
+@router.post("/api/uar/investigations/{inv_id}/actions")
+async def record_action(
+    inv_id: str,
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Record an operator action during an investigation."""
+    auth_middleware(credentials)
+    for inv in _load_all_investigations():
+        if inv.get("id") == inv_id:
+            action = {
+                "timestamp": int(time.time()),
+                "type": body.get("type", "unknown"),
+                "description": body.get("description", ""),
+                "data": body.get("data"),
+            }
+            inv.setdefault("actions", []).append(action)
+            inv["updated_at"] = int(time.time())
+            _persist_investigation(inv)
+            return action
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Investigation not found",
+    )
+
+
+@router.put("/api/uar/investigations/{inv_id}")
+async def update_investigation(
+    inv_id: str,
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """End or update an investigation session."""
+    auth_middleware(credentials)
+    for inv in _load_all_investigations():
+        if inv.get("id") == inv_id:
+            if "status" in body:
+                inv["status"] = body["status"]
+            if "ended_at" in body:
+                inv["ended_at"] = body["ended_at"]
+            inv["updated_at"] = int(time.time())
+            _persist_investigation(inv)
+            return inv
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Investigation not found",
+    )
+
+
+# ------------------------------------------------------------------
+# E3 — Knowledge Graph Analytics
+# ------------------------------------------------------------------
+
+
+@router.get("/api/uar/graph-analytics/{center_id}")
+async def get_graph_analytics(
+    center_id: str,
+    center_type: str = Query("run"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Compute analytics over the knowledge graph."""
+    auth_middleware(credentials)
+
+    analytics: Dict[str, Any] = {
+        "center_id": center_id,
+        "center_type": center_type,
+        "generated_at": int(time.time()),
+    }
+
+    # Build graph for analysis
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+    seen: set = set()
+
+    def add_node(nid: str, ntype: str, label: str) -> None:
+        if nid not in seen:
+            seen.add(nid)
+            nodes.append({"id": nid, "type": ntype, "label": label})
+
+    def add_edge(src: str, tgt: str, etype: str) -> None:
+        edges.append({"source": src, "target": tgt, "type": etype})
+
+    add_node(center_id, center_type, center_id)
+
+    if center_type == "run":
+        run_id = center_id
+        try:
+            metadata = store.get_recommendation_metadata(limit=5000)
+            for m in metadata:
+                if m.get("run_id") == run_id:
+                    rid = m["recommendation_id"]
+                    add_node(rid, "recommendation", m.get("title", rid))
+                    add_edge(run_id, rid, "has_recommendation")
+        except Exception:
+            pass
+
+    for inc in _load_all_incidents():
+        if center_id in inc.get("linked_run_ids", []):
+            iid = inc["id"]
+            add_node(iid, "incident", inc.get("title", iid))
+            add_edge(center_id, iid, "has_incident")
+
+    # Degree centrality (most connected)
+    degree: Dict[str, int] = {}
+    for e in edges:
+        degree[e["source"]] = degree.get(e["source"], 0) + 1
+        degree[e["target"]] = degree.get(e["target"], 0) + 1
+
+    most_connected = sorted(
+        [{"id": k, "degree": v} for k, v in degree.items()],
+        key=lambda x: -x["degree"],
+    )[:5]
+
+    # Common incident paths: run → recommendation → outcome
+    paths: List[Dict[str, Any]] = []
+    try:
+        outcomes = store.get_outcomes(limit=5000)
+        for o in outcomes:
+            rid = o.get("recommendation_id")
+            if rid and any(e["target"] == rid for e in edges):
+                paths.append(
+                    {
+                        "run": center_id,
+                        "recommendation": rid,
+                        "outcome": o.get("outcome_type", "unknown"),
+                    }
+                )
+    except Exception:
+        pass
+
+    # Trust cluster: group recommendations by trust band
+    clusters: Dict[str, int] = {}
+    try:
+        from uar.core.trust_engine import compute_trust
+
+        outcomes = store.get_outcomes(limit=5000)
+        metadata = store.get_recommendation_metadata(limit=5000)
+        trust_result = compute_trust(outcomes, metadata)
+        for t in trust_result.get("recommendation_types", []):
+            score = t.get("trust_score", 0.0)
+            if score >= 0.80:
+                band = "highly_trusted"
+            elif score >= 0.60:
+                band = "trusted"
+            elif score >= 0.40:
+                band = "watch"
+            elif score >= 0.20:
+                band = "weak"
+            else:
+                band = "untrusted"
+            clusters[band] = clusters.get(band, 0) + 1
+    except Exception:
+        pass
+
+    # Resolution routes: recommendation_type → outcome_type frequency
+    routes: Dict[str, Dict[str, int]] = {}
+    try:
+        outcomes = store.get_outcomes(limit=5000)
+        metadata = store.get_recommendation_metadata(limit=5000)
+        for o in outcomes:
+            rid = o.get("recommendation_id")
+            otype = o.get("outcome_type", "unknown")
+            cat = next(
+                (
+                    m.get("category", "")
+                    for m in metadata
+                    if m.get("recommendation_id") == rid
+                ),
+                "",
+            )
+            if cat:
+                if cat not in routes:
+                    routes[cat] = {}
+                routes[cat][otype] = routes[cat].get(otype, 0) + 1
+    except Exception:
+        pass
+
+    analytics["node_count"] = len(nodes)
+    analytics["edge_count"] = len(edges)
+    analytics["most_connected"] = most_connected
+    analytics["outcome_paths"] = paths[:10]
+    analytics["trust_clusters"] = clusters
+    analytics["resolution_routes"] = routes
+
+    return analytics

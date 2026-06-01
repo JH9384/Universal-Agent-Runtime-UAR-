@@ -1,0 +1,192 @@
+.panel {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--panel-bg, #f8fafc);
+  border: 1px solid var(--panel-border, #e2e8f0);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.searchRow {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.select, .searchInput {
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.85rem;
+}
+
+.searchInput {
+  width: 8rem;
+}
+
+.searchBtn {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.35rem;
+  border: none;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4rem, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.statBox {
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.statValue {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+
+.statLabel {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+}
+
+.sectionTitle {
+  margin: 0.5rem 0 0.35rem 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.connectedRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.connectedId {
+  color: var(--text-primary, #1e293b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.connectedDegree {
+  color: var(--text-muted, #64748b);
+}
+
+.clusterRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+}
+
+.clusterLabel {
+  width: 6rem;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.clusterBarWrap {
+  flex: 1;
+  height: 0.5rem;
+  border-radius: 0.25rem;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.clusterBar {
+  height: 100%;
+  border-radius: 0.25rem;
+  background: #22c55e;
+  transition: width 0.3s ease;
+}
+
+.clusterCount {
+  width: 1.5rem;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pathRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pathRec {
+  color: var(--text-primary, #1e293b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.pathArrow {
+  color: var(--text-muted, #64748b);
+}
+
+.pathOutcome {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.routeBlock {
+  margin-bottom: 0.5rem;
+}
+
+.routeCat {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 0.2rem;
+}
+
+.routeRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+  padding-left: 0.5rem;
+  border-bottom: 1px solid #f8fafc;
+}
+
+.routeCount {
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.loading, .error, .emptyState {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+}

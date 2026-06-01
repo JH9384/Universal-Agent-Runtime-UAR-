@@ -1,0 +1,192 @@
+.panel {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--panel-bg, #f8fafc);
+  border: 1px solid var(--panel-border, #e2e8f0);
+}
+
+.header {
+  margin-bottom: 0.75rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.createForm {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.input {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.85rem;
+  flex: 1;
+  min-width: 8rem;
+}
+
+.createBtn {
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.35rem;
+  border: none;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.sessionList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sessionCard {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #3b82f6;
+}
+
+.sessionClosed {
+  border-left-color: #94a3b8;
+  opacity: 0.85;
+}
+
+.sessionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+
+.sessionId {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+  font-family: monospace;
+}
+
+.statusBadge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+}
+
+.statusActive {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.statusClosed {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.sessionTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+}
+
+.linkBtn {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: none;
+  cursor: pointer;
+  margin-bottom: 0.2rem;
+}
+
+.sessionMeta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 0.3rem;
+}
+
+.sessionActions {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.viewBtn, .endBtn {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+}
+
+.endBtn {
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.replayPanel {
+  margin-top: 0.6rem;
+  padding: 0.6rem;
+  border-radius: 0.4rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.replayTitle {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.actionRow {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.8rem;
+}
+
+.actionTime {
+  color: var(--text-muted, #64748b);
+  font-family: monospace;
+  font-size: 0.75rem;
+  min-width: 4rem;
+}
+
+.actionType {
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.2rem;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  min-width: 4rem;
+  text-align: center;
+}
+
+.actionDesc {
+  flex: 1;
+  color: var(--text-primary, #1e293b);
+}
+
+.noActions {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.loading, .error, .emptyState {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+}
