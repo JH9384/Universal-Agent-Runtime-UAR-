@@ -25,6 +25,7 @@ import { ReportViewer } from './ReportViewer'
 import { OperationalSearch } from './OperationalSearch'
 import { InvestigationReplay } from './InvestigationReplay'
 import { GraphAnalytics } from './GraphAnalytics'
+import { InsightsDashboard } from './InsightsDashboard'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
@@ -632,6 +633,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [showOperationalSearch, setShowOperationalSearch] = useState(false)
   const [showInvestigationReplay, setShowInvestigationReplay] = useState(false)
   const [showGraphAnalytics, setShowGraphAnalytics] = useState(false)
+  const [showInsights, setShowInsights] = useState(false)
   const [compareRunA, setCompareRunA] = useState('')
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
@@ -2708,6 +2710,13 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           >
             {showGraphAnalytics ? 'Hide Analytics' : 'Analytics'}
           </button>
+          <button
+            onClick={() => { setShowInsights(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Insights Dashboard"
+          >
+            {showInsights ? 'Hide Insights' : 'Insights'}
+          </button>
         </div>
         {metrics && !isRunning && (
           <div className={styles.metricsPanel} title="Execution metrics from last run">
@@ -2797,6 +2806,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
             centerType="run"
           />
         )}
+        {showInsights && <InsightsDashboard />}
         <div className={styles.statusText} title="Current system status">
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
           {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
