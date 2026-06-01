@@ -816,6 +816,37 @@ async def get_recommendation_evidence(
     return aggregate_evidence(outcomes, metadata)
 
 
+@router.get("/api/uar/recommendations/trust")
+async def get_recommendation_trust(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Adaptive Trust Scores.
+
+    Omega-7a: Composes effectiveness, calibration, evidence, and drift
+    into a single trust score per recommendation type.  Higher scores
+    indicate recommendations that are historically effective, well
+    calibrated, and backed by ample evidence.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    from uar.api.server import store
+    from uar.core.trust_engine import compute_trust
+
+    outcomes = store.get_outcomes(limit=50000)
+    metadata = store.get_recommendation_metadata(limit=50000)
+    return compute_trust(outcomes, metadata)
+
+
 @router.post("/api/uar/recommendations/feedback")
 async def post_recommendation_feedback(
     body: dict,

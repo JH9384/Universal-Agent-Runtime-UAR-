@@ -394,6 +394,75 @@ When a recommendation is generated, the first `affected_run` is stored alongside
 | Ensemble confidence | Blend multiple heuristics | Ω-6e |
 | A/B testing | Controlled modifier experiments | Ω-6f |
 
+## Adaptive Trust Engine (Ω-7a)
+
+Ω-7a composes effectiveness, calibration, evidence, and drift into a
+single trust score per recommendation type.
+
+### Trust Endpoint
+
+```
+GET /api/uar/recommendations/trust
+```
+
+Returns:
+
+```json
+{
+  "generated_at": 1717234567,
+  "system_calibration_error": 0.05,
+  "recommendation_types": [
+    {
+      "type": "restart_service",
+      "trust_score": 0.82,
+      "effectiveness_component": 0.91,
+      "calibration_component": 0.95,
+      "evidence_component": 0.70,
+      "drift_penalty": 0.05
+    }
+  ]
+}
+```
+
+### Trust Formula
+
+```
+trust = (effectiveness + calibration + evidence) / 3 - drift_penalty
+```
+
+All values clamped to [0, 1].
+
+| Component | Source | Meaning |
+|-----------|--------|---------|
+| `effectiveness_component` | weighted_resolution_rate | How often this type resolves issues |
+| `calibration_component` | 1 - abs(system_calibration_error) | Whether confidence predictions are trustworthy |
+| `evidence_component` | sample_size + replays | How much data backs this type |
+| `drift_penalty` | max(0, -drift) | Penalty when recent effectiveness drops below historical |
+
+### Why Trust Matters
+
+A recommendation can have high confidence but low trust.
+
+Example:
+- Confidence: 0.95 (predicted)
+- Effectiveness: 0.40 (actual)
+- Calibration error: +0.55 (overconfident)
+- Drift: -0.30 (getting worse)
+
+Trust score: ~0.15
+
+The operator should know this before acting.
+
+### Trust Thresholds
+
+| Score | Interpretation |
+|-------|----------------|
+| 0.80+ | Highly trusted — reliable signal |
+| 0.60-0.80 | Trusted — good signal, monitor |
+| 0.40-0.60 | Watch — mixed evidence |
+| 0.20-0.40 | Weak — insufficient evidence or poor calibration |
+| <0.20 | Untrusted — do not rely on |
+
 ## Safety Guarantees
 
 1. **Modifier never exceeds 1.5** — prevents over-confidence

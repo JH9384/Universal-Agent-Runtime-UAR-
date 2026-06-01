@@ -355,3 +355,28 @@ class TestRecommendationEvidence:
             headers=headers,
         )
         assert response.status_code == 404
+
+
+class TestRecommendationTrust:
+    def test_trust_requires_auth(self):
+        response = client.get("/api/uar/recommendations/trust")
+        assert response.status_code == 401
+
+    def test_trust_returns_structure(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.get(
+            "/api/uar/recommendations/trust",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "system_calibration_error" in data
+        assert "recommendation_types" in data
+        assert isinstance(data["recommendation_types"], list)
+        for t in data["recommendation_types"]:
+            assert "type" in t
+            assert "trust_score" in t
+            assert "effectiveness_component" in t
+            assert "calibration_component" in t
+            assert "evidence_component" in t
+            assert "drift_penalty" in t
