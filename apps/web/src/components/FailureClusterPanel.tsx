@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
+import { logAuditEvent } from '../utils/analyticsInstrumentation'
 import styles from './FailureClusterPanel.module.css'
 
 interface SkillCluster {
   skill: string
   count: number
   run_count: number
+  run_ids: string[]
   latest: number
   latest_error?: string
 }
@@ -14,6 +16,7 @@ interface ErrorCluster {
   error: string
   count: number
   run_count: number
+  run_ids: string[]
   skill_count: number
   latest: number
 }
@@ -35,7 +38,27 @@ function MiniBar({ value, max }: { value: number; max: number }) {
   )
 }
 
-export function FailureClusterPanel() {
+interface FailureClusterPanelProps {
+  onOpenReplay?: (runId: string) => void
+}
+
+function ReplayButton({ runIds, onOpen, panel }: { runIds: string[]; onOpen?: (runId: string) => void; panel: string }) {
+  if (!onOpen || runIds.length === 0) return null
+  return (
+    <button
+      className={styles.replayBtn}
+      onClick={() => {
+        logAuditEvent(panel, runIds[0], 'replay_clicked')
+        onOpen(runIds[0])
+      }}
+      title={`Replay ${runIds.length} run(s)`}
+    >
+      ▶ Replay
+    </button>
+  )
+}
+
+export function FailureClusterPanel({ onOpenReplay }: FailureClusterPanelProps) {
   const { data, loading, error } = useApiFetch<FailureClusterResponse>(
     '/api/uar/runs/failure-clusters?hours=24&top=10'
   )
@@ -72,6 +95,7 @@ export function FailureClusterPanel() {
                   <span className={styles.clusterName}>{sc.skill}</span>
                   <span className={styles.clusterCount}>{sc.count} failures</span>
                   <span className={styles.clusterRuns}>{sc.run_count} runs</span>
+                  <ReplayButton runIds={sc.run_ids || []} onOpen={onOpenReplay} panel="failure_cluster" />
                 </div>
                 <MiniBar value={sc.count} max={maxSkillCount} />
                 {sc.latest_error && (
@@ -97,6 +121,7 @@ export function FailureClusterPanel() {
                   <span className={styles.clusterCount}>{ec.count}×</span>
                   <span className={styles.clusterRuns}>{ec.run_count} runs</span>
                   <span className={styles.clusterRuns}>{ec.skill_count} skills</span>
+                  <ReplayButton runIds={ec.run_ids || []} onOpen={onOpenReplay} panel="failure_cluster" />
                 </div>
                 <MiniBar value={ec.count} max={maxErrorCount} />
               </div>

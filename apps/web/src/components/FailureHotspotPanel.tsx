@@ -1,4 +1,5 @@
 import { useApiFetch } from '../hooks/useApiFetch'
+import { logAuditEvent } from '../utils/analyticsInstrumentation'
 import styles from './FailureHotspotPanel.module.css'
 
 interface HotspotNode {
@@ -8,6 +9,7 @@ interface HotspotNode {
   failure_rate: number
   severity: string
   affected_runs: number
+  run_ids: string[]
 }
 
 interface HotspotEdge {
@@ -18,6 +20,7 @@ interface HotspotEdge {
   failure_rate: number
   severity: string
   affected_runs: number
+  run_ids: string[]
 }
 
 interface HotspotResponse {
@@ -51,7 +54,27 @@ function Bar({ rate }: { rate: number }) {
   )
 }
 
-export function FailureHotspotPanel() {
+interface FailureHotspotPanelProps {
+  onOpenReplay?: (runId: string) => void
+}
+
+function ReplayButton({ runIds, onOpen, panel }: { runIds: string[]; onOpen?: (runId: string) => void; panel: string }) {
+  if (!onOpen || runIds.length === 0) return null
+  return (
+    <button
+      className={styles.replayBtn}
+      onClick={() => {
+        logAuditEvent(panel, runIds[0], 'replay_clicked')
+        onOpen(runIds[0])
+      }}
+      title={`Replay ${runIds.length} run(s)`}
+    >
+      ▶ Replay
+    </button>
+  )
+}
+
+export function FailureHotspotPanel({ onOpenReplay }: FailureHotspotPanelProps) {
   const { data, loading, error } = useApiFetch<HotspotResponse>(
     '/api/uar/topology/failure-hotspots?hours=168&top=10'
   )
@@ -89,6 +112,7 @@ export function FailureHotspotPanel() {
                 <span className={`${styles.severityBadge} ${severityClass(n.severity)}`}>
                   {severityLabel(n.severity)}
                 </span>
+                <ReplayButton runIds={n.run_ids || []} onOpen={onOpenReplay} panel="failure_hotspot" />
               </div>
             ))}
           </div>
@@ -117,6 +141,7 @@ export function FailureHotspotPanel() {
                 <span className={`${styles.severityBadge} ${severityClass(e.severity)}`}>
                   {severityLabel(e.severity)}
                 </span>
+                <ReplayButton runIds={e.run_ids || []} onOpen={onOpenReplay} panel="failure_hotspot" />
               </div>
             ))}
           </div>

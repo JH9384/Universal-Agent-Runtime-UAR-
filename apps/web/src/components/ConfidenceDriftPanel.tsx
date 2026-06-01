@@ -11,7 +11,7 @@ interface Contributor {
 interface DriftData {
   window_hours: number
   current_score: number | null
-  previous_score: number | null
+  window_start_score: number | null
   delta: number
   state: string
   confidence_history: number[]
@@ -83,7 +83,7 @@ export function ConfidenceDriftPanel() {
         <div className={styles.scoreRow}>
           <div className={styles.scoreBlock}>
             <span className={styles.scoreLabel}>Previous</span>
-            <span className={styles.scoreValue}>{data.previous_score ?? '—'}</span>
+            <span className={styles.scoreValue}>{data.window_start_score ?? '—'}</span>
           </div>
           <div className={styles.scoreBlock}>
             <span className={styles.scoreLabel}>Current</span>

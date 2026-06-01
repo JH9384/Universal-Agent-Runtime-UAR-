@@ -2610,7 +2610,12 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           <HealthDashboard />
         )}
         {showMissionControl && (
-          <MissionControlWidget />
+          <MissionControlWidget
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+          />
         )}
         <div className={styles.statusText} title="Current system status">
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}

@@ -112,3 +112,72 @@ class TestEventOrderNormalization:
         ]
         with pytest.raises(Exception):
             validate_event_stream(evs)
+
+
+class TestReplayCertification:
+    def test_certify_replay_succeeds_for_valid_record(self):
+        from uar.core.replay import certify_replay
+
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event(
+                "skill_complete", "r1", "g1", skill="a",
+            ),
+            make_executor_event(
+                "complete", "r1", "g1",
+                payload={"status": "completed", "errors": [], "outputs": []},
+            ),
+        ]
+        rec = run_record_from_events(evs)
+        report = certify_replay(rec)
+        assert report["reconstruction_success"] is True
+        assert report["state_hash_matches"] is True
+        assert report["checkpoint_matches"] is True
+        assert report["fidelity_score"] == 100.0
+        assert report["checkpoint_count"] == len(evs)
+
+    def test_reconstruct_with_checkpoints_records_every_event(self):
+        from uar.core.replay import reconstruct_with_checkpoints
+
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event("skill_complete", "r1", "g1", skill="a"),
+            make_executor_event("skill_complete", "r1", "g1", skill="b"),
+            make_executor_event(
+                "complete", "r1", "g1",
+                payload={"status": "completed"},
+            ),
+        ]
+        checkpoints = reconstruct_with_checkpoints(evs)
+        assert len(checkpoints) == len(evs)
+        for i, cp in enumerate(checkpoints):
+            assert cp["index"] == i
+            assert cp["event_type"] == evs[i]["type"]
+            assert isinstance(cp["event_hash"], str)
+            assert isinstance(cp["accumulated_state_hash"], str)
+
+
+class TestReplayCertificationFidelity:
+    def test_certify_preserves_user_id_and_metadata(self):
+        """BUG: certify_replay falsely failed when user_id or metadata
+        were set because run_record_from_events defaulted them to None/{}.
+        """
+        from uar.core.replay import certify_replay
+
+        evs = [
+            make_executor_event("start", "r1", "g1"),
+            make_executor_event(
+                "skill_complete", "r1", "g1", skill="a",
+            ),
+            make_executor_event(
+                "complete", "r1", "g1",
+                payload={"status": "completed", "errors": [], "outputs": []},
+            ),
+        ]
+        rec = run_record_from_events(
+            evs, user_id="alice", metadata={"execution_order": ["a"]}
+        )
+        report = certify_replay(rec)
+        assert report["reconstruction_success"] is True
+        assert report["state_hash_matches"] is True
+        assert report["fidelity_score"] == 100.0

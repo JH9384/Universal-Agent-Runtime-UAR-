@@ -1,4 +1,6 @@
 import { useApiFetch } from '../hooks/useApiFetch'
+import CollapsibleSection from './CollapsibleSection'
+import { AlertBanner } from './AlertBanner'
 import { TopologyWidget } from './TopologyWidget'
 import { TrendPanel } from './TrendPanel'
 import { BurnInHistory } from './BurnInHistory'
@@ -87,7 +89,11 @@ function MiniCard({ title, children, className = '' }: { title: string; children
   )
 }
 
-export function MissionControlWidget() {
+interface MissionControlWidgetProps {
+  onOpenReplay?: (runId: string) => void
+}
+
+export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps) {
   const { data: mc, loading: mcLoading, error: mcError } = useApiFetch<MissionControlSnapshot>(
     '/api/uar/mission-control',
     { interval: 30_000 }
@@ -117,109 +123,119 @@ export function MissionControlWidget() {
     <div className={styles.missionControl}>
       <h3 className={styles.title}>Mission Control</h3>
 
-      {/* Score rings — primary signals */}
-      <div className={styles.scoreRingRow}>
-        {rh && <ScoreRing score={rh.score} label="Runtime Health" tier={rh.tier} />}
-        {rc && typeof rc.score === 'number' && (
-          <ScoreRing score={rc.score} label="Replay Confidence" tier={rc.tier || 'Unknown'} />
-        )}
-        {cert && <ScoreRing score={cert.score} label="Certification" tier={cert.level} />}
-      </div>
+      {/* Overview — always visible */}
+      <div className={styles.sectionWrap}>
+        <CollapsibleSection id="mc-overview" title="Overview" defaultOpen={true}>
+        {/* Alert banner — operator interruption */}
+        <AlertBanner />
 
-      {/* Secondary cards */}
-      <div className={styles.miniCardGrid}>
-        <MiniCard title="Active Runs">
-          <div className={styles.bigNumber}>{mc.active_runs}</div>
-          <div className={styles.bigNumberLabel}>running / pending / queued</div>
-        </MiniCard>
-
-        <MiniCard title="System Health">
-          <div className={styles.skillHealthRow}>
-            <span className={styles.skillHealthOk}>{availableCount}</span>
-            <span className={styles.skillHealthSep}>/</span>
-            <span className={styles.skillHealthTotal}>{totalSkills}</span>
-            <span className={styles.skillHealthLabel}>skills available</span>
-          </div>
-          {openBreakers.length > 0 ? (
-            <div className={styles.alertBadge}>{openBreakers.length} open circuit breaker(s)</div>
-          ) : (
-            <div className={styles.okBadge}>All circuit breakers closed</div>
+        {/* Score rings — primary signals */}
+        <div className={styles.scoreRingRow}>
+          {rh && <ScoreRing score={rh.score} label="Runtime Health" tier={rh.tier} />}
+          {rc && typeof rc.score === 'number' && (
+            <ScoreRing score={rc.score} label="Replay Confidence" tier={rc.tier || 'Unknown'} />
           )}
-        </MiniCard>
-
-        <MiniCard title="Burn-In">
-          {cert?.evidence && typeof cert.evidence.burnin_score === 'number' ? (
-            <>
-              <div className={styles.burninScore}>{cert.evidence.burnin_score as number}%</div>
-              <div className={styles.burninStatus}>
-                {(cert.evidence.burnin_passed as boolean) ? (
-                  <span className={styles.okBadge}>Passed</span>
-                ) : (
-                  <span className={styles.alertBadge}>Not passed</span>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className={styles.muted}>No burn-in report yet</div>
-          )}
-        </MiniCard>
-
-        <MiniCard title={`Warnings (${mc.recent_warnings.length})`}>
-          {mc.recent_warnings.length === 0 ? (
-            <div className={styles.okBadge}>No warnings</div>
-          ) : (
-            <ul className={styles.warningList}>
-              {mc.recent_warnings.slice(0, 5).map((w, i) => (
-                <li key={i} className={styles.warningItem}>{w}</li>
-              ))}
-            </ul>
-          )}
-        </MiniCard>
-      </div>
-
-      {/* Component breakdown */}
-      {rh && rh.components && Object.keys(rh.components).length > 0 && (
-        <div className={styles.componentSection}>
-          <h4 className={styles.sectionTitle}>Component Health</h4>
-          <div className={styles.componentGrid}>
-            {Object.entries(rh.components).map(([name, comp]) => (
-              <div key={name} className={styles.componentItem}>
-                <span className={styles.componentName}>{name}</span>
-                <span className={`${styles.componentScore} ${tierColor(comp.status)}`}>
-                  {comp.score}
-                </span>
-                <span className={styles.componentStatus}>{comp.status}</span>
-              </div>
-            ))}
-          </div>
+          {cert && <ScoreRing score={cert.score} label="Certification" tier={cert.level} />}
         </div>
-      )}
 
-      {/* Confidence Drift */}
-      <ConfidenceDriftPanel />
+        {/* Secondary cards */}
+        <div className={styles.miniCardGrid}>
+          <MiniCard title="Active Runs">
+            <div className={styles.bigNumber}>{mc.active_runs}</div>
+            <div className={styles.bigNumberLabel}>running / pending / queued</div>
+          </MiniCard>
 
-      {/* Trends */}
-      <TrendPanel />
+          <MiniCard title="System Health">
+            <div className={styles.skillHealthRow}>
+              <span className={styles.skillHealthOk}>{availableCount}</span>
+              <span className={styles.skillHealthSep}>/</span>
+              <span className={styles.skillHealthTotal}>{totalSkills}</span>
+              <span className={styles.skillHealthLabel}>skills available</span>
+            </div>
+            {openBreakers.length > 0 ? (
+              <div className={styles.alertBadge}>{openBreakers.length} open circuit breaker(s)</div>
+            ) : (
+              <div className={styles.okBadge}>All circuit breakers closed</div>
+            )}
+          </MiniCard>
 
-      {/* Burn-In History */}
-      <BurnInHistory />
+          <MiniCard title="Burn-In">
+            {cert?.evidence && typeof cert.evidence.burnin_score === 'number' ? (
+              <>
+                <div className={styles.burninScore}>{cert.evidence.burnin_score as number}%</div>
+                <div className={styles.burninStatus}>
+                  {(cert.evidence.burnin_passed as boolean) ? (
+                    <span className={styles.okBadge}>Passed</span>
+                  ) : (
+                    <span className={styles.alertBadge}>Not passed</span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className={styles.muted}>No burn-in report yet</div>
+            )}
+          </MiniCard>
 
-      {/* Failure Clusters */}
-      <FailureClusterPanel />
+          <MiniCard title={`Warnings (${mc.recent_warnings.length})`}>
+            {mc.recent_warnings.length === 0 ? (
+              <div className={styles.okBadge}>No warnings</div>
+            ) : (
+              <ul className={styles.warningList}>
+                {mc.recent_warnings.slice(0, 5).map((w, i) => (
+                  <li key={i} className={styles.warningItem}>{w}</li>
+                ))}
+              </ul>
+            )}
+          </MiniCard>
+        </div>
 
-      {/* Topology */}
-      <div className={styles.topologySection}>
-        <TopologyWidget />
+        {/* Component breakdown */}
+        {rh && rh.components && Object.keys(rh.components).length > 0 && (
+          <div className={styles.componentSection}>
+            <h4 className={styles.sectionTitle}>Component Health</h4>
+            <div className={styles.componentGrid}>
+              {Object.entries(rh.components).map(([name, comp]) => (
+                <div key={name} className={styles.componentItem}>
+                  <span className={styles.componentName}>{name}</span>
+                  <span className={`${styles.componentScore} ${tierColor(comp.status)}`}>
+                    {comp.score}
+                  </span>
+                  <span className={styles.componentStatus}>{comp.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        </CollapsibleSection>
       </div>
 
-      {/* Topology Analytics */}
-      <TopologyAnalyticsPanel />
+      {/* Evidence — drill down */}
+      <div className={styles.sectionWrap}>
+        <CollapsibleSection id="mc-evidence" title="Evidence" defaultOpen={false}>
+        <ConfidenceDriftPanel />
+        <TrendPanel />
+        <BurnInHistory />
+        </CollapsibleSection>
+      </div>
 
-      {/* Failure Hotspots */}
-      <FailureHotspotPanel />
+      {/* Failures — drill down */}
+      <div className={styles.sectionWrap}>
+        <CollapsibleSection id="mc-failures" title="Failures" defaultOpen={false}>
+        <FailureClusterPanel onOpenReplay={onOpenReplay} />
+        <FailureHotspotPanel onOpenReplay={onOpenReplay} />
+        </CollapsibleSection>
+      </div>
 
-      {/* Recipe Intelligence */}
-      <RecipeIntelligencePanel />
+      {/* Topology — drill down */}
+      <div className={styles.sectionWrap}>
+        <CollapsibleSection id="mc-topology" title="Topology" defaultOpen={false}>
+        <div className={styles.topologySection}>
+          <TopologyWidget />
+        </div>
+        <TopologyAnalyticsPanel />
+        <RecipeIntelligencePanel onOpenReplay={onOpenReplay} />
+        </CollapsibleSection>
+      </div>
 
       {/* Footer */}
       <div className={styles.footer}>

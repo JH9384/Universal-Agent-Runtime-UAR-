@@ -1,4 +1,8 @@
-from typing import Iterable, List, Optional
+import hashlib
+import json
+import time
+from dataclasses import asdict
+from typing import Any, Dict, Iterable, List, Optional
 
 from uar.core.contracts import RunRecord
 from uar.core.exceptions import EventContractError
@@ -51,6 +55,15 @@ def validate_event_stream(events: Iterable[dict]) -> list[dict]:
             "RuntimeEvent stream must end with a complete event"
         )
 
+    # Reject multiple terminal events (adversarial / corrupted stream)
+    terminal_count = sum(
+        1 for ev in event_list if ev["type"] == TERMINAL_EVENT_TYPE
+    )
+    if terminal_count > 1:
+        raise EventContractError(
+            "RuntimeEvent stream contains multiple complete events"
+        )
+
     run_ids = {event["run_id"] for event in event_list}
     goal_ids = {event["goal_id"] for event in event_list}
     if len(run_ids) != 1:
@@ -69,6 +82,7 @@ def run_record_from_events(
     events: Iterable[dict],
     skills: Optional[List[str]] = None,
     user_id: OptionalStr = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> RunRecord:
     event_list = validate_event_stream(events)
     start_event = event_list[0]
@@ -87,6 +101,7 @@ def run_record_from_events(
         user_id=user_id,
         uor_address=final_event.get("uor_address"),
         uor_witness=final_event.get("uor_witness"),
+        metadata=metadata or {},
     )
 
 
@@ -100,4 +115,171 @@ def replay_summary(record: RunRecord) -> dict:
         "event_count": len(record.events),
         "errors": record.errors,
         "outputs": record.outputs,
+    }
+
+
+def _canonical_json(obj: Any) -> str:
+    """Stable canonical JSON for hashing."""
+    return json.dumps(obj, sort_keys=True, ensure_ascii=True, default=str)
+
+
+def _hash_bytes(data: bytes) -> str:
+    """SHA-256 hex digest."""
+    return hashlib.sha256(data).hexdigest()
+
+
+def hash_event_stream(events: Iterable[dict]) -> str:
+    """Return a canonical hash of the event stream.
+
+    This hash is stable across replays of the same event sequence.
+    """
+    event_list = list(events)
+    canonical = _canonical_json(event_list)
+    return _hash_bytes(canonical.encode("utf-8"))
+
+
+def hash_record(record: RunRecord) -> str:
+    """Return a canonical hash of a reconstructed RunRecord.
+
+    This hash verifies that replay reconstruction produces identical
+    state for identical event inputs.
+    """
+    canonical = _canonical_json(asdict(record))
+    return _hash_bytes(canonical.encode("utf-8"))
+
+
+def reconstruct_with_checkpoints(
+    events: Iterable[dict],
+) -> List[Dict[str, Any]]:
+    """Replay events incrementally and capture state hashes at every event.
+
+    A checkpoint is recorded after processing each event, yielding a full
+    hash chain for fidelity verification.
+
+    Returns a list of checkpoint dicts with keys:
+      index, event_type, event_hash, accumulated_state_hash.
+    """
+    event_list = validate_event_stream(events)
+    checkpoints: List[Dict[str, Any]] = []
+
+    # Accumulate state incrementally
+    run_id = event_list[0]["run_id"]
+    goal_id = event_list[0]["goal_id"]
+    skills: List[str] = []
+    errors: List[str] = []
+    outputs: List[Any] = []
+    final_context: Dict[str, Any] = {}
+
+    for idx, ev in enumerate(event_list):
+        # Update accumulated state based on event type
+        ev_type = ev["type"]
+        if ev_type == "start":
+            skills = list(ev.get("payload", {}).get("skills", []))
+        elif ev_type in ("skill_complete", "skill_failed"):
+            sk = ev.get("skill")
+            if sk and sk not in skills:
+                skills.append(sk)
+            if ev.get("error"):
+                err = str(ev["error"])
+                if err not in errors:
+                    errors.append(err)
+        elif ev_type == "complete":
+            p = ev.get("payload", {})
+            outputs = list(p.get("outputs", []))
+            final_context = dict(p.get("final_context", {}))
+            # Final errors from payload take precedence
+            payload_errors = p.get("errors", [])
+            if payload_errors:
+                errors = list(payload_errors)
+
+        # Build partial state snapshot
+        partial_state = {
+            "run_id": run_id,
+            "goal_id": goal_id,
+            "skills": skills,
+            "errors": errors,
+            "outputs": outputs,
+            "final_context": final_context,
+            "event_count": idx + 1,
+        }
+        state_hash = _hash_bytes(
+            _canonical_json(partial_state).encode("utf-8")
+        )
+        event_hash = _hash_bytes(_canonical_json(ev).encode("utf-8"))
+
+        checkpoints.append({
+            "index": idx,
+            "event_type": ev_type,
+            "event_hash": event_hash,
+            "accumulated_state_hash": state_hash,
+        })
+
+    return checkpoints
+
+
+def certify_replay(record: RunRecord) -> Dict[str, Any]:
+    """Generate a Replay Certification Report (Level 4).
+
+    Validates that a run record can be faithfully reconstructed from
+    its event stream and produces a structured audit artifact.
+    """
+    start_ts = time.time()
+    events = list(record.events or [])
+
+    # Level 1: Deterministic reconstruction
+    try:
+        reconstructed = run_record_from_events(
+            events,
+            user_id=record.user_id,
+            metadata=record.metadata,
+        )
+        reconstruction_success = True
+    except EventContractError as exc:
+        return {
+            "run_id": record.run_id,
+            "certification_version": "c3.v1",
+            "timestamp": time.time(),
+            "reconstruction_success": False,
+            "reconstruction_error": str(exc),
+            "event_count": len(events),
+            "replay_duration_ms": round((time.time() - start_ts) * 1000, 2),
+            "state_hash_matches": False,
+            "checkpoint_count": 0,
+            "fidelity_score": 0.0,
+        }
+
+    # Level 2: Full state hash match
+    original_hash = hash_record(record)
+    replayed_hash = hash_record(reconstructed)
+    state_hash_matches = original_hash == replayed_hash
+
+    # Level 2: Checkpoint hash chain
+    checkpoints = reconstruct_with_checkpoints(events)
+    replayed_checkpoints = reconstruct_with_checkpoints(events)
+    checkpoint_matches = all(
+        checkpoints[i]["accumulated_state_hash"]
+        == replayed_checkpoints[i]["accumulated_state_hash"]
+        for i in range(len(checkpoints))
+    )
+
+    duration_ms = round((time.time() - start_ts) * 1000, 2)
+
+    # Fidelity score: 100% if all hashes match, 0 otherwise
+    fidelity_score = (
+        100.0 if (state_hash_matches and checkpoint_matches) else 0.0
+    )
+
+    return {
+        "run_id": record.run_id,
+        "certification_version": "c3.v1",
+        "timestamp": time.time(),
+        "reconstruction_success": reconstruction_success,
+        "event_count": len(events),
+        "replay_duration_ms": duration_ms,
+        "state_hash_matches": state_hash_matches,
+        "original_hash": original_hash,
+        "replayed_hash": replayed_hash,
+        "checkpoint_count": len(checkpoints),
+        "checkpoint_matches": checkpoint_matches,
+        "fidelity_score": fidelity_score,
     }

@@ -120,3 +120,19 @@
 .error {
   color: #c0392b;
 }
+
+.replayBtn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.replayBtn:hover {
+  background: #dbeafe;
+}

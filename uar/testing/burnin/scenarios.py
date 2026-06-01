@@ -174,6 +174,7 @@ def _scenario_replay_confidence_direct(
 
     from uar.core.contracts import RunRecord
     from uar.core.replay_confidence import score_replay
+    from uar.core.replay import certify_replay
 
     try:
         store = ctx["store"]
@@ -216,7 +217,9 @@ def _scenario_replay_confidence_direct(
         )
         store.append(record)
         report = score_replay(record)
-        if report.tier in ("Verified", "High", "Medium"):
+        cert = certify_replay(record)
+        fidelity_ok = cert["fidelity_score"] == 100.0
+        if report.tier in ("Verified", "High", "Medium") and fidelity_ok:
             return BurnInEvidence(
                 scenario="replay_confidence",
                 passed=True,

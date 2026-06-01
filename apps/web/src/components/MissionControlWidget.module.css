@@ -253,6 +253,11 @@
   color: var(--text-secondary, #666);
 }
 
+/* Section wrappers for progressive disclosure */
+.sectionWrap {
+  margin-bottom: 10px;
+}
+
 /* Topology */
 .topologySection {
   margin-bottom: 16px;

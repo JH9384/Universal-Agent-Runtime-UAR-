@@ -83,6 +83,23 @@ class TestCompareRuns:
         assert "run_b" in data
         assert "diffs" in data
 
+    def test_compare_has_same_status_and_skills(self, client):
+        response = client.get("/api/uar/runs/r1/compare/r2")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data["same_status"], bool)
+        assert isinstance(data["same_skills"], bool)
+
+    def test_compare_diffs_has_required_fields(self, client):
+        response = client.get("/api/uar/runs/r1/compare/r2")
+        assert response.status_code == 200
+        diffs = response.json()["diffs"]
+        assert "status_changed" in diffs
+        assert "confidence_delta" in diffs
+        assert "failure_delta" in diffs
+        assert "skills_added" in diffs
+        assert "skills_removed" in diffs
+
     def test_compare_not_found(self, client):
         mock_store = MagicMock()
         mock_store.get_by_run_id.return_value = None

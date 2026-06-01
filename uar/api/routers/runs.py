@@ -31,6 +31,18 @@ from uar.memory.base_store import run_record_from_dict
 
 router = APIRouter()
 
+# Deferred import to avoid circular dependency at module load time.
+_ANALYTICS_CACHE = None
+
+
+def _analytics_cache():
+    global _ANALYTICS_CACHE
+    if _ANALYTICS_CACHE is None:
+        from uar.core.analytics_cache import ANALYTICS_CACHE
+        _ANALYTICS_CACHE = ANALYTICS_CACHE
+    return _ANALYTICS_CACHE
+
+
 logger = logging.getLogger("uar.api.runs")
 
 security = HTTPBearer(auto_error=False)
@@ -100,6 +112,7 @@ async def run_goal(
                 _idempotency_set(req.idempotency_key, result)
 
             store.append(result)
+            _analytics_cache().invalidate()
             logger.info(
                 "[%s] Run completed successfully: %s",
                 request_id,
@@ -604,6 +617,8 @@ async def compare_runs(
         "run_a": run_id,
         "run_b": other_run_id,
         "verdict": verdict,
+        "same_status": a["status"] == b["status"],
+        "same_skills": set(a["skills"]) == set(b["skills"]),
         "status": {"a": a["status"], "b": b["status"]},
         "goal_id": {"a": a["goal_id"], "b": b["goal_id"]},
         "confidence": {
@@ -633,6 +648,15 @@ async def compare_runs(
         "failure_skills": {
             "a": failures_a,
             "b": failures_b,
+        },
+        "diffs": {
+            "status_changed": a["status"] != b["status"],
+            "confidence_delta": (
+                (b["confidence_score"] or 0) - (a["confidence_score"] or 0)
+            ),
+            "failure_delta": b["failure_count"] - a["failure_count"],
+            "skills_added": skills_added,
+            "skills_removed": skills_removed,
         },
     }
 
@@ -752,6 +776,7 @@ async def bulk_delete_runs(
 async def get_failure_clusters(
     hours: int = Query(24, ge=1, le=168),
     top: int = Query(10, ge=1, le=50),
+    limit: int = Query(1000, ge=1, le=50000),
     request: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
@@ -771,100 +796,50 @@ async def get_failure_clusters(
     is_admin = user_info.get("tier") == "admin" if user_info else False
 
     import time
+
+    cached = _analytics_cache().get(
+        "failure-clusters", user, is_admin, hours, limit
+    )
+    if cached is not None:
+        return cached
+
     cutoff = time.time() - (hours * 3600)
 
-    # Fetch all runs and filter by time + ownership
-    all_runs = store.list_records(user_id=user if is_admin else user)
+    all_runs = store.list_records(
+        user_id=user if is_admin else user, limit=limit
+    )
     recent_runs = [
         r for r in all_runs
         if r.get("created_at", 0) >= cutoff
         or r.get("timestamp", 0) >= cutoff
     ]
 
-    # Cluster by (skill, error_key)
-    skill_clusters: dict[str, dict] = {}
-    error_clusters: dict[str, dict] = {}
-    total_failures = 0
+    from uar.core.analytics_snapshot import (
+        build_analytics_snapshot,
+        extract_failure_clusters,
+    )
 
-    for run in recent_runs:
-        owner = run.get("user_id") or run.get("user", "")
-        if owner and owner != user and not is_admin:
-            continue
-        run_id = run.get("run_id") or run.get("id", "")
-        events = run.get("events") or []
-        for ev in events:
-            is_fail = ev.get("error") or ev.get("type") == "error"
-            if not is_fail:
-                continue
-            total_failures += 1
-            skill = ev.get("skill", "unknown")
-            err_msg = str(ev.get("error", ev.get("message", "unknown")))
-            err_key = err_msg[:80]  # truncate for clustering key
-
-            # Skill cluster
-            if skill not in skill_clusters:
-                skill_clusters[skill] = {
-                    "skill": skill,
-                    "count": 0,
-                    "runs": set(),
-                    "latest": 0,
-                }
-            sc = skill_clusters[skill]
-            sc["count"] += 1
-            sc["runs"].add(run_id)
-            ts = ev.get("timestamp", run.get("created_at", 0))
-            if ts > sc["latest"]:
-                sc["latest"] = ts
-                sc["latest_error"] = err_msg[:120]
-
-            # Error cluster
-            if err_key not in error_clusters:
-                error_clusters[err_key] = {
-                    "error": err_key,
-                    "count": 0,
-                    "runs": set(),
-                    "skills": set(),
-                    "latest": 0,
-                }
-            ec = error_clusters[err_key]
-            ec["count"] += 1
-            ec["runs"].add(run_id)
-            ec["skills"].add(skill)
-            if ts > ec["latest"]:
-                ec["latest"] = ts
-
-    # Sort and cap
-    skill_list = sorted(
-        skill_clusters.values(),
-        key=lambda x: x["count"],
-        reverse=True,
-    )[:top]
-    error_list = sorted(
-        error_clusters.values(),
-        key=lambda x: x["count"],
-        reverse=True,
-    )[:top]
-
-    # Convert sets to counts for JSON serialization
-    for item in skill_list:
-        item["run_count"] = len(item.pop("runs"))
-    for item in error_list:
-        item["run_count"] = len(item.pop("runs"))
-        item["skill_count"] = len(item.pop("skills"))
-
-    return {
-        "hours": hours,
-        "total_runs_scanned": len(recent_runs),
-        "total_failures": total_failures,
-        "top_skills": skill_list,
-        "top_errors": error_list,
+    snapshot = build_analytics_snapshot(
+        recent_runs, user, is_admin, hours, limit
+    )
+    result = extract_failure_clusters(snapshot, top)
+    result["meta"] = {
+        "runs_loaded": len(all_runs),
+        "runs_analyzed": snapshot.runs_analyzed,
+        "limit": limit,
+        "truncated": len(all_runs) >= limit,
     }
+    _analytics_cache().set(
+        "failure-clusters", user, is_admin, hours, limit, result
+    )
+    return result
 
 
 @router.get("/api/uar/topology/hot-paths")
 async def get_topology_hot_paths(
     hours: int = Query(168, ge=1, le=720),
     top: int = Query(15, ge=1, le=50),
+    limit: int = Query(1000, ge=1, le=50000),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -893,114 +868,50 @@ async def get_topology_hot_paths(
     import time
     user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    cached = _analytics_cache().get(
+        "topology-hot-paths", user, is_admin, hours, limit
+    )
+    if cached is not None:
+        return cached
+
     cutoff = time.time() - (hours * 3600)
 
-    all_runs = store.list_records(user_id=user if is_admin else user)
+    all_runs = store.list_records(
+        user_id=user if is_admin else user, limit=limit
+    )
     recent_runs = [
         r for r in all_runs
         if r.get("created_at", 0) >= cutoff
         or r.get("timestamp", 0) >= cutoff
     ]
 
-    nodes: dict[str, dict] = {}
-    edges: dict[str, dict] = {}
-    recipes: dict[str, dict] = {}
+    from uar.core.analytics_snapshot import (
+        build_analytics_snapshot,
+        extract_topology_hot_paths,
+    )
 
-    for run in recent_runs:
-        owner = run.get("user_id") or run.get("user", "")
-        if owner and owner != user and not is_admin:
-            continue
-
-        status_ok = run.get("status") == "success"
-        skills = run.get("skills") or []
-        meta = run.get("metadata") or {}
-        exec_order = meta.get("execution_order") or []
-
-        # Node counts from skills list
-        for skill in skills:
-            if skill not in nodes:
-                nodes[skill] = {
-                    "skill": skill,
-                    "invocations": 0,
-                    "successes": 0,
-                    "failures": 0,
-                }
-            nodes[skill]["invocations"] += 1
-            if status_ok:
-                nodes[skill]["successes"] += 1
-            else:
-                nodes[skill]["failures"] += 1
-
-        # Edge counts from skill sequence
-        for i in range(len(skills) - 1):
-            src = skills[i]
-            dst = skills[i + 1]
-            key = f"{src}→{dst}"
-            if key not in edges:
-                edges[key] = {
-                    "source": src,
-                    "target": dst,
-                    "transitions": 0,
-                    "failures": 0,
-                }
-            edges[key]["transitions"] += 1
-            if not status_ok:
-                edges[key]["failures"] += 1
-
-        # Recipe counts from execution_order metadata
-        for item in exec_order:
-            if isinstance(item, dict) and item.get("type") == "recipe":
-                rid = item.get("content", item.get("id", "unknown"))
-                if rid not in recipes:
-                    recipes[rid] = {
-                        "recipe": rid,
-                        "executions": 0,
-                        "successes": 0,
-                        "failures": 0,
-                    }
-                recipes[rid]["executions"] += 1
-                if status_ok:
-                    recipes[rid]["successes"] += 1
-                else:
-                    recipes[rid]["failures"] += 1
-
-    # Sort and cap
-    node_list = sorted(
-        nodes.values(), key=lambda x: x["invocations"], reverse=True
-    )[:top]
-    edge_list = sorted(
-        edges.values(), key=lambda x: x["transitions"], reverse=True
-    )[:top]
-    recipe_list = sorted(
-        recipes.values(), key=lambda x: x["executions"], reverse=True
-    )[:top]
-
-    # Compute success rates
-    for n in node_list:
-        total = n["invocations"]
-        n["success_rate"] = round(n["successes"] / total, 2) if total else 0
-    for e in edge_list:
-        total = e["transitions"]
-        e["success_rate"] = round(
-            (total - e["failures"]) / total, 2
-        ) if total else 0
-    for r in recipe_list:
-        total = r["executions"]
-        r["success_rate"] = round(r["successes"] / total, 2) if total else 0
-
-    return {
-        "hours": hours,
-        "total_runs": len(recent_runs),
-        "nodes": node_list,
-        "edges": edge_list,
-        "recipes": recipe_list,
+    snapshot = build_analytics_snapshot(
+        recent_runs, user, is_admin, hours, limit
+    )
+    result = extract_topology_hot_paths(snapshot, top)
+    result["meta"] = {
+        "runs_loaded": len(all_runs),
+        "runs_analyzed": snapshot.runs_analyzed,
+        "limit": limit,
+        "truncated": len(all_runs) >= limit,
     }
+    _analytics_cache().set(
+        "topology-hot-paths", user, is_admin, hours, limit, result
+    )
+    return result
 
 
 @router.get("/api/uar/topology/failure-hotspots")
 async def get_failure_hotspots(
     hours: int = Query(168, ge=1, le=720),
     top: int = Query(10, ge=1, le=50),
+    limit: int = Query(1000, ge=1, le=50000),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -1027,107 +938,40 @@ async def get_failure_hotspots(
     import time
     user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    cached = _analytics_cache().get(
+        "failure-hotspots", user, is_admin, hours, limit
+    )
+    if cached is not None:
+        return cached
+
     cutoff = time.time() - (hours * 3600)
 
-    all_runs = store.list_records(user_id=user if is_admin else user)
+    all_runs = store.list_records(
+        user_id=user if is_admin else user, limit=limit
+    )
     recent_runs = [
         r for r in all_runs
         if r.get("created_at", 0) >= cutoff
         or r.get("timestamp", 0) >= cutoff
     ]
 
-    nodes: dict[str, dict] = {}
-    edges: dict[str, dict] = {}
-    total_failures = 0
+    from uar.core.analytics_snapshot import (
+        build_analytics_snapshot,
+        extract_failure_hotspots,
+    )
 
-    for run in recent_runs:
-        owner = run.get("user_id") or run.get("user", "")
-        if owner and owner != user and not is_admin:
-            continue
-
-        skills = run.get("skills") or []
-        events = run.get("events") or []
-        run_id = run.get("run_id") or run.get("id", "")
-
-        # Identify failing skills in this run
-        failed_skills = set()
-        for ev in events:
-            if ev.get("error") or ev.get("type") == "error":
-                skill = ev.get("skill")
-                if skill:
-                    failed_skills.add(skill)
-        total_failures += len(failed_skills)
-
-        # Node data
-        for skill in skills:
-            if skill not in nodes:
-                nodes[skill] = {
-                    "skill": skill,
-                    "invocations": 0,
-                    "failures": 0,
-                    "affected_runs": set(),
-                }
-            nodes[skill]["invocations"] += 1
-            if skill in failed_skills:
-                nodes[skill]["failures"] += 1
-                nodes[skill]["affected_runs"].add(run_id)
-
-        # Edge data
-        for i in range(len(skills) - 1):
-            src = skills[i]
-            dst = skills[i + 1]
-            key = f"{src}→{dst}"
-            if key not in edges:
-                edges[key] = {
-                    "source": src,
-                    "target": dst,
-                    "transitions": 0,
-                    "failures": 0,
-                    "affected_runs": set(),
-                }
-            edges[key]["transitions"] += 1
-            if src in failed_skills or dst in failed_skills:
-                edges[key]["failures"] += 1
-                edges[key]["affected_runs"].add(run_id)
-
-    # Compute severity
-    def _severity(failure_rate: float) -> str:
-        if failure_rate >= 0.5:
-            return "critical"
-        if failure_rate >= 0.2:
-            return "warning"
-        return "healthy"
-
-    node_list = []
-    for n in nodes.values():
-        inv = n["invocations"]
-        fr = n["failures"] / inv if inv else 0
-        n["failure_rate"] = round(fr, 2)
-        n["severity"] = _severity(fr)
-        n["affected_runs"] = len(n.pop("affected_runs"))
-        node_list.append(n)
-
-    edge_list = []
-    for e in edges.values():
-        tr = e["transitions"]
-        fr = e["failures"] / tr if tr else 0
-        e["failure_rate"] = round(fr, 2)
-        e["severity"] = _severity(fr)
-        e["affected_runs"] = len(e.pop("affected_runs"))
-        edge_list.append(e)
-
-    # Sort by failure rate desc
-    node_list = sorted(
-        node_list, key=lambda x: x["failure_rate"], reverse=True
-    )[:top]
-    edge_list = sorted(
-        edge_list, key=lambda x: x["failure_rate"], reverse=True
-    )[:top]
-
-    return {
-        "hours": hours,
-        "total_runs": len(recent_runs),
-        "total_failures": total_failures,
-        "nodes": node_list,
-        "edges": edge_list,
+    snapshot = build_analytics_snapshot(
+        recent_runs, user, is_admin, hours, limit
+    )
+    result = extract_failure_hotspots(snapshot, top)
+    result["meta"] = {
+        "runs_loaded": len(all_runs),
+        "runs_analyzed": snapshot.runs_analyzed,
+        "limit": limit,
+        "truncated": len(all_runs) >= limit,
     }
+    _analytics_cache().set(
+        "failure-hotspots", user, is_admin, hours, limit, result
+    )
+    return result

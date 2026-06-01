@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
+import { logAuditEvent } from '../utils/analyticsInstrumentation'
 import styles from './ReplayExplorer.module.css'
 
 type EventItem = any
@@ -118,6 +119,18 @@ export function ReplayExplorer({ runId, onClose }: ReplayExplorerProps) {
   const confidence = data?.confidence || {}
   const events = useMemo(() => data?.events || [], [data])
   const failurePath = useMemo(() => data?.failure_path || [], [data])
+
+  const mountTime = useRef<number>(Date.now())
+  useEffect(() => {
+    logAuditEvent('replay_explorer', runId, 'replay_loaded')
+    mountTime.current = Date.now()
+    return () => {
+      const viewedMs = Date.now() - mountTime.current
+      if (viewedMs >= 3000) {
+        logAuditEvent('replay_explorer', runId, 'replay_completed')
+      }
+    }
+  }, [runId])
 
   if (loading) {
     return (

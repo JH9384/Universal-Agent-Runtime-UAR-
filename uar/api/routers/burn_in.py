@@ -306,4 +306,6 @@ async def run_burnin(
             "Burn-in report was not persisted to store; "
             "it will be lost on restart."
         )
+    from uar.core.analytics_cache import ANALYTICS_CACHE as _ac
+    _ac.invalidate()
     return JSONResponse(status_code=200, content=report_dict)

@@ -1,0 +1,54 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  border: 1px solid transparent;
+  cursor: default;
+  transition: background 0.2s ease;
+}
+
+.icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.critical {
+  color: #c0392b;
+  background: #fdf2f2;
+  border-color: #f5c6cb;
+}
+
+.warning {
+  color: #b7791f;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.info {
+  color: #2563eb;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}

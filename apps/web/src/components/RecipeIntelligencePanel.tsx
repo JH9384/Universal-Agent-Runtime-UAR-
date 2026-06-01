@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
+import { logAuditEvent } from '../utils/analyticsInstrumentation'
 import styles from './RecipeIntelligencePanel.module.css'
 
 interface RecipeData {
@@ -11,6 +12,7 @@ interface RecipeData {
   avg_duration_ms: number | null
   last_execution: number
   classification: string
+  run_ids: string[]
 }
 
 interface IntelligenceResponse {
@@ -39,7 +41,23 @@ function Duration({ ms }: { ms: number | null }) {
   return <span>{(ms / 1000).toFixed(1)}s</span>
 }
 
-function RecipeTable({ recipes }: { recipes: RecipeData[] }) {
+function ReplayButton({ runIds, onOpen, panel }: { runIds: string[]; onOpen?: (runId: string) => void; panel: string }) {
+  if (!onOpen || runIds.length === 0) return null
+  return (
+    <button
+      className={styles.replayBtn}
+      onClick={() => {
+        logAuditEvent(panel, runIds[0], 'replay_clicked')
+        onOpen(runIds[0])
+      }}
+      title={`Replay ${runIds.length} run(s)`}
+    >
+      ▶ Replay
+    </button>
+  )
+}
+
+function RecipeTable({ recipes, onOpenReplay }: { recipes: RecipeData[]; onOpenReplay?: (runId: string) => void }) {
   if (recipes.length === 0) return <div className={styles.emptyBlock}>None</div>
   return (
     <div className={styles.recipeList}>
@@ -50,6 +68,7 @@ function RecipeTable({ recipes }: { recipes: RecipeData[] }) {
             <span className={`${styles.classBadge} ${classBadge(r.classification)}`}>
               {classLabel(r.classification)}
             </span>
+            <ReplayButton runIds={r.run_ids || []} onOpen={onOpenReplay} panel="recipe_intelligence" />
           </div>
           <div className={styles.recipeStats}>
             <span>{Math.round(r.success_rate * 100)}% success</span>
@@ -67,7 +86,11 @@ function RecipeTable({ recipes }: { recipes: RecipeData[] }) {
   )
 }
 
-export function RecipeIntelligencePanel() {
+interface RecipeIntelligencePanelProps {
+  onOpenReplay?: (runId: string) => void
+}
+
+export function RecipeIntelligencePanel({ onOpenReplay }: RecipeIntelligencePanelProps) {
   const { data, loading, error } = useApiFetch<IntelligenceResponse>(
     '/api/uar/recipes/intelligence?hours=168'
   )
@@ -99,19 +122,19 @@ export function RecipeIntelligencePanel() {
       {/* Recommended */}
       <div className={styles.section}>
         <h5 className={styles.sectionTitle}>⭐ Recommended</h5>
-        <RecipeTable recipes={recommended} />
+        <RecipeTable recipes={recommended} onOpenReplay={onOpenReplay} />
       </div>
 
       {/* Monitor */}
       <div className={styles.section}>
         <h5 className={styles.sectionTitle}>👁️ Monitor</h5>
-        <RecipeTable recipes={monitor} />
+        <RecipeTable recipes={monitor} onOpenReplay={onOpenReplay} />
       </div>
 
       {/* Retire Candidates */}
       <div className={styles.section}>
         <h5 className={styles.sectionTitle}>🗑️ Retire Candidates</h5>
-        <RecipeTable recipes={retire} />
+        <RecipeTable recipes={retire} onOpenReplay={onOpenReplay} />
       </div>
 
       {(!data || data.recipes.length === 0) && (
