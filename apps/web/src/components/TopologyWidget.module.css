@@ -1,0 +1,171 @@
+.topologyWidget {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.topologySection {
+  background: #fff;
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.sectionTitle {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.sectionDesc {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+
+/* Category blocks */
+.categoryBlock {
+  margin-bottom: 12px;
+}
+
+.categoryBlock:last-child {
+  margin-bottom: 0;
+}
+
+.categoryName {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary, #999);
+}
+
+/* Skill grid */
+.skillGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skillNode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 16px;
+  background: #f8f9fa;
+  border: 1px solid #e1e4e8;
+  font-size: 12px;
+}
+
+.healthDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotGreen {
+  background: #27ae60;
+}
+
+.dotRed {
+  background: #c0392b;
+}
+
+.skillName {
+  color: var(--text-primary, #1a1a2e);
+  font-weight: 500;
+}
+
+/* Recipe grid */
+.recipeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.recipeCard {
+  background: #f8f9fa;
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.recipeHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.recipeIcon {
+  font-size: 14px;
+}
+
+.recipeName {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.recipeStatus {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+
+.statusOk {
+  color: #27ae60;
+  background: #e8f8f0;
+}
+
+.statusWarn {
+  color: #c0392b;
+  background: #fdf2f2;
+}
+
+.recipeSkills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.recipeSkillChip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #eaf2f8;
+  color: #2980b9;
+}
+
+/* Edge stats */
+.edgeStats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.edgeStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+.edgeStatValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.edgeStatLabel {
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+}

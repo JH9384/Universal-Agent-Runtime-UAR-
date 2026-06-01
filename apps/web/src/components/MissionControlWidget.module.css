@@ -253,6 +253,11 @@
   color: var(--text-secondary, #666);
 }
 
+/* Topology */
+.topologySection {
+  margin-bottom: 16px;
+}
+
 /* Footer */
 .footer {
   display: flex;

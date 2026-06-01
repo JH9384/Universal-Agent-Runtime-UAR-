@@ -1,4 +1,5 @@
 import { useApiFetch } from '../hooks/useApiFetch'
+import { TopologyWidget } from './TopologyWidget'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -186,6 +187,11 @@ export function MissionControlWidget() {
           </div>
         </div>
       )}
+
+      {/* Topology */}
+      <div className={styles.topologySection}>
+        <TopologyWidget />
+      </div>
 
       {/* Footer */}
       <div className={styles.footer}>
