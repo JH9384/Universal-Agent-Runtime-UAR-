@@ -791,3 +791,75 @@ class PostgresRunStore:
             conn.commit()
         finally:
             self._release_conn(conn)
+
+    def record_recommendation_metadata(
+        self,
+        recommendation_id: str,
+        category: str,
+        source: str = "",
+        title: str = "",
+    ) -> None:
+        """Store mapping from recommendation_id to metadata."""
+        self._ensure_metadata_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO uar_recommendation_metadata"
+                    " (recommendation_id, category, source, title)"
+                    " VALUES (%s, %s, %s, %s)"
+                    " ON CONFLICT (recommendation_id) DO NOTHING",
+                    (recommendation_id, category, source, title),
+                )
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+
+    def get_recommendation_metadata(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recommendation metadata entries."""
+        self._ensure_metadata_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                if recommendation_id is not None:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_metadata"
+                        " WHERE recommendation_id = %s LIMIT %s",
+                        (recommendation_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_metadata"
+                        " LIMIT %s",
+                        (limit,),
+                    )
+                cols = [d[0] for d in cur.description]
+                rows = cur.fetchall()
+        finally:
+            self._release_conn(conn)
+        return [dict(zip(cols, r)) for r in rows]
+
+    def _ensure_metadata_table(self) -> None:
+        """Create metadata table if it does not exist."""
+        ddl = """
+        CREATE TABLE IF NOT EXISTS uar_recommendation_metadata (
+            id                SERIAL PRIMARY KEY,
+            recommendation_id TEXT NOT NULL UNIQUE,
+            category          TEXT NOT NULL,
+            source            TEXT,
+            title             TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_meta_rec_id
+            ON uar_recommendation_metadata(recommendation_id);
+        """
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(ddl)
+            conn.commit()
+        finally:
+            self._release_conn(conn)

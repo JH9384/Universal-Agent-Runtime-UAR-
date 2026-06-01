@@ -155,15 +155,100 @@ Every recommendation response includes:
 
 Operators can see exactly why a recommendation received its score.
 
+## Outcome Intelligence (Ω-6a)
+
+Ω-6a extracts operational value from the outcome corpus created in Ω-5.5.
+
+### Effectiveness Rankings
+
+```
+GET /api/uar/recommendations/effectiveness
+```
+
+Returns a leaderboard of recommendation types ranked by how often they actually resolve issues.
+
+```json
+{
+  "recommendation_types": [
+    {
+      "type": "restart_service",
+      "sample_size": 87,
+      "resolution_rate": 0.94,
+      "smoothed_resolution_rate": 0.93,
+      "weighted_resolution_rate": 0.91,
+      "drift": -0.03
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `resolution_rate` | Raw resolved / (resolved + recurred) |
+| `smoothed_resolution_rate` | Bayesian-smoothed with Laplace prior |
+| `weighted_resolution_rate` | Time-decay weighted (older outcomes count less) |
+| `drift` | Recent rate minus historical rate (early warning) |
+
+### Bayesian Smoothing
+
+Prevents ranking noise for small samples:
+
+```
+smoothed_rate = (resolved + alpha) / (total + alpha + beta)
+```
+
+Default: alpha = 1, beta = 1. This means a type with 1/1 outcomes
+gets smoothed to ~0.33, not 1.0.
+
+### Time Decay
+
+Older outcomes count less via exponential decay:
+
+```
+weight = e^(-ln(2) * age_days / half_life)
+```
+
+Default half-life: 30 days.
+
+| Age | Weight |
+|-----|--------|
+| Today | 1.00 |
+| 30 days | 0.50 |
+| 90 days | 0.13 |
+
+This allows historical memory and recent adaptation simultaneously.
+
+### Drift Detection
+
+Compares the last 30 days against all prior history:
+
+```
+drift = recent_resolution_rate - historical_resolution_rate
+```
+
+A drift of -0.31 means:
+
+> What used to work is no longer working.
+
+This is often more valuable than the raw ranking.
+
+### Minimum Sample Threshold
+
+Types with fewer than 5 outcomes are excluded from rankings.
+This prevents volatile noise from dominating the leaderboard.
+
 ## Future Expansion
 
 | Feature | Description | Phase |
 |---------|-------------|-------|
-| Decay model | Time-weighted feedback | Ω-5.5 |
-| Category-level modifiers | Different thresholds per category | Ω-5.5 |
-| Operator-specific models | Per-user preference tracking | Ω-5.6 |
-| Ensemble confidence | Blend multiple heuristics | Ω-5.7 |
-| A/B testing | Controlled modifier experiments | Ω-5.8 |
+| Effectiveness Rankings | Outcome-based type leaderboard | Ω-6a |
+| Decay model | Time-weighted feedback | Ω-6a |
+| Drift detection | Recent vs historical rate change | Ω-6a |
+| Confidence Calibration | Predicted vs actual accuracy | Ω-6b |
+| Replay Integration | Outcome → replay deep links | Ω-6c |
+| Operator-specific models | Per-user preference tracking | Ω-6d |
+| Ensemble confidence | Blend multiple heuristics | Ω-6e |
+| A/B testing | Controlled modifier experiments | Ω-6f |
 
 ## Safety Guarantees
 

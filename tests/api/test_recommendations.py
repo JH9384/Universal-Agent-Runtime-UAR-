@@ -276,3 +276,29 @@ class TestRecommendationOutcome:
         )
         if test_metric:
             assert test_metric["resolved_count"] >= 1
+
+
+class TestRecommendationEffectiveness:
+    def test_effectiveness_requires_auth(self):
+        response = client.get(
+            "/api/uar/recommendations/effectiveness"
+        )
+        assert response.status_code == 401
+
+    def test_effectiveness_returns_structure(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.get(
+            "/api/uar/recommendations/effectiveness",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "generated_at" in data
+        assert "recommendation_types" in data
+        assert isinstance(data["recommendation_types"], list)
+        for t in data["recommendation_types"]:
+            assert "type" in t
+            assert "sample_size" in t
+            assert "resolution_rate" in t
+            assert "weighted_resolution_rate" in t
+            assert "drift" in t

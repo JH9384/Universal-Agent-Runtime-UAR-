@@ -396,3 +396,64 @@ class JsonRunStore:
                     if len(entries) >= limit:
                         break
         return entries
+
+    def record_recommendation_metadata(
+        self,
+        recommendation_id: str,
+        category: str,
+        source: str = "",
+        title: str = "",
+    ) -> None:
+        """Persist recommendation metadata in uar_metadata.jsonl."""
+        meta_path = self.path.parent / "uar_metadata.jsonl"
+        entry = json.dumps(
+            {
+                "recommendation_id": recommendation_id,
+                "category": category,
+                "source": source,
+                "title": title,
+            },
+            sort_keys=True,
+        ) + "\n"
+        with self._acquire_lock():
+            with meta_path.open("a", encoding="utf-8") as f:
+                f.write(entry)
+                f.flush()
+                os.fsync(f.fileno())
+
+    def get_recommendation_metadata(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[dict]:
+        """Read metadata entries, returning most recent per rec_id."""
+        meta_path = self.path.parent / "uar_metadata.jsonl"
+        if not meta_path.exists():
+            return []
+        seen: set = set()
+        entries: List[dict] = []
+        with self._acquire_lock(shared=True):
+            with meta_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    rid = entry.get("recommendation_id")
+                    if rid is None:
+                        continue
+                    if (
+                        recommendation_id is not None
+                        and rid != recommendation_id
+                    ):
+                        continue
+                    if rid in seen:
+                        continue
+                    seen.add(rid)
+                    entries.append(entry)
+                    if len(entries) >= limit:
+                        break
+        return entries

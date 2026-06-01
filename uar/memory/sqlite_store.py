@@ -214,6 +214,15 @@ class SqliteRunStore:
                                 " VALUES (?, ?)",
                                 (rec_id, out_type),
                             )
+                        elif op == "rec_meta":
+                            rec_id, cat, src, ttl = payload
+                            conn.execute(
+                                "INSERT OR IGNORE INTO"
+                                " uar_recommendation_metadata"
+                                " (recommendation_id, category, source, title)"
+                                " VALUES (?, ?, ?, ?)",
+                                (rec_id, cat, src, ttl),
+                            )
                         elif op == "checkpoint":
                             conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
                         break  # success — exit retry loop
@@ -366,6 +375,15 @@ class SqliteRunStore:
         );
         CREATE INDEX IF NOT EXISTS idx_outcomes_rec_id
             ON uar_recommendation_outcomes(recommendation_id);
+        CREATE TABLE IF NOT EXISTS uar_recommendation_metadata (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            recommendation_id  TEXT NOT NULL UNIQUE,
+            category           TEXT NOT NULL,
+            source             TEXT,
+            title              TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_meta_rec_id
+            ON uar_recommendation_metadata(recommendation_id);
         """
         conn = self._connect()
         try:
@@ -727,6 +745,47 @@ class SqliteRunStore:
                 cur = conn.execute(
                     "SELECT * FROM uar_recommendation_outcomes"
                     " ORDER BY recorded_at DESC LIMIT ?",
+                    (limit,),
+                )
+            rows = cur.fetchall()
+        finally:
+            self._release_read_conn(conn)
+        return [dict(r) for r in rows]
+
+    def record_recommendation_metadata(
+        self,
+        recommendation_id: str,
+        category: str,
+        source: str = "",
+        title: str = "",
+    ) -> None:
+        """Store mapping from recommendation_id to metadata.
+
+        Uses INSERT OR IGNORE so duplicates are silently dropped.
+        """
+        result = self._enqueue_write_sync(
+            "rec_meta", (recommendation_id, category, source, title)
+        )
+        if isinstance(result, Exception):
+            raise result
+
+    def get_recommendation_metadata(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recommendation metadata entries."""
+        conn = self._get_read_conn()
+        try:
+            if recommendation_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_metadata"
+                    " WHERE recommendation_id = ? LIMIT ?",
+                    (recommendation_id, limit),
+                )
+            else:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_metadata LIMIT ?",
                     (limit,),
                 )
             rows = cur.fetchall()

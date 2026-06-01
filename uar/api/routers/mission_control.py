@@ -556,13 +556,20 @@ async def get_recommendations(
         "recommendations", user, is_admin, hours, limit, result
     )
     # Ω-5.3: Track that each recommendation was shown to the operator
+    # Ω-6a: Also capture metadata for effectiveness ranking
     for rec in recommendations:
         try:
             store.record_recommendation_shown(
                 rec.recommendation_id, user_id=user
             )
+            store.record_recommendation_metadata(
+                rec.recommendation_id,
+                category=rec.category,
+                source=rec.source,
+                title=rec.title,
+            )
         except Exception:
-            pass  # shown tracking is best-effort
+            pass  # shown and metadata tracking is best-effort
     return result
 
 
@@ -700,6 +707,36 @@ async def get_recommendation_quality(
         else 0.0,
         "metrics": metrics,
     }
+
+
+@router.get("/api/uar/recommendations/effectiveness")
+async def get_recommendation_effectiveness(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Recommendation effectiveness rankings.
+
+    Omega-6a: Operational leaderboard showing which recommendation
+    types historically resolve issues, with decay weighting and
+    drift detection.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    from uar.api.server import store
+    from uar.core.effectiveness_ranking import compute_effectiveness
+
+    outcomes = store.get_outcomes(limit=50000)
+    metadata = store.get_recommendation_metadata(limit=50000)
+    return compute_effectiveness(outcomes, metadata)
 
 
 @router.post("/api/uar/recommendations/feedback")

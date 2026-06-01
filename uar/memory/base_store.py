@@ -107,6 +107,21 @@ class RunStoreProtocol(Protocol):
         limit: int = 1000,
     ) -> List[Dict[str, Any]]: ...
 
+    # Optional: recommendation metadata (Ω-6a)
+    def record_recommendation_metadata(
+        self,
+        recommendation_id: str,
+        category: str,
+        source: str = "",
+        title: str = "",
+    ) -> None: ...
+
+    def get_recommendation_metadata(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]: ...
+
 
 def get_store() -> RunStoreProtocol:
     """Return a concrete store matching the current environment.
