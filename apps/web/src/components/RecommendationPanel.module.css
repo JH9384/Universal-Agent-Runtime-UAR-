@@ -1,0 +1,184 @@
+.panel {
+  padding: 16px;
+  background: var(--surface, #1a1a2e);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+}
+
+.loading,
+.error {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-muted, #888);
+}
+
+.error {
+  color: #ff6b6b;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.emptyIcon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.emptyText {
+  font-size: 14px;
+  color: var(--text-primary, #e0e0e0);
+  margin-bottom: 4px;
+}
+
+.emptySubtext {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+}
+
+.recommendationList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recommendationCard {
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--surface-elevated, #16213e);
+  border-left: 3px solid #666;
+}
+
+.priorityCritical {
+  border-left-color: #ff4444;
+  background: rgba(255, 68, 68, 0.05);
+}
+
+.priorityHigh {
+  border-left-color: #ff8800;
+  background: rgba(255, 136, 0, 0.05);
+}
+
+.priorityMedium {
+  border-left-color: #ffcc00;
+  background: rgba(255, 204, 0, 0.05);
+}
+
+.priorityLow {
+  border-left-color: #44ff88;
+  background: rgba(68, 255, 136, 0.05);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.categoryIcon {
+  font-size: 14px;
+}
+
+.priorityBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted, #aaa);
+}
+
+.priorityCritical .priorityBadge {
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+}
+
+.priorityHigh .priorityBadge {
+  background: rgba(255, 136, 0, 0.2);
+  color: #ff8800;
+}
+
+.sourceTag {
+  font-size: 10px;
+  color: var(--text-muted, #888);
+  margin-left: auto;
+}
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+  margin-bottom: 4px;
+}
+
+.cardDescription {
+  font-size: 12px;
+  color: var(--text-secondary, #bbb);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.evidence {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.evidenceRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.evidenceLabel {
+  font-size: 10px;
+  color: var(--text-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.evidenceValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.affectedRuns {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+.affectedLabel {
+  margin-right: 4px;
+}
+
+.affectedCount {
+  font-weight: 600;
+  color: var(--text-secondary, #bbb);
+}

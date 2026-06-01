@@ -9,6 +9,7 @@ import { ConfidenceDriftPanel } from './ConfidenceDriftPanel'
 import { TopologyAnalyticsPanel } from './TopologyAnalyticsPanel'
 import { FailureHotspotPanel } from './FailureHotspotPanel'
 import { RecipeIntelligencePanel } from './RecipeIntelligencePanel'
+import { RecommendationPanel } from './RecommendationPanel'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -206,6 +207,13 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
             </div>
           </div>
         )}
+        </CollapsibleSection>
+      </div>
+
+      {/* Recommendations — operator actions */}
+      <div className={styles.sectionWrap}>
+        <CollapsibleSection id="mc-recommendations" title="Recommendations" defaultOpen={true}>
+        <RecommendationPanel />
         </CollapsibleSection>
       </div>
 

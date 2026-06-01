@@ -394,3 +394,142 @@ async def get_alerts_summary(
         "alerts-summary", user, is_admin, hours, limit, result
     )
     return result
+
+
+@router.get("/api/uar/recommendations")
+async def get_recommendations(
+    hours: int = Query(24, ge=1, le=168),
+    limit: int = Query(1000, ge=1, le=50000),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Return operational recommendations derived from accumulated history.
+
+    Omega-5.1: Surface the Learning Layer.
+
+    Derives recommendations from:
+    - Recurring failure patterns (Multi-Run Intelligence)
+    - Recovery atlas (historical recovery paths)
+    - Topology evolution (growth and complexity signals)
+    - Governance trends (approval / tampered / certification rates)
+
+    Uses the same AnalyticsCache lifecycle as all other analytics
+    endpoints: invalidated on new runs and burn-in execution.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    import time
+    from uar.api.server import store
+
+    user = user_info.get("user") if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    cached = _analytics_cache().get(
+        "recommendations", user, is_admin, hours, limit
+    )
+    if cached is not None:
+        return cached
+
+    cutoff = time.time() - (hours * 3600)
+
+    # Build analytics snapshot from recent runs
+    all_runs = store.list_records(
+        user_id=user if is_admin else user, limit=limit
+    )
+    recent_runs = [
+        r for r in all_runs
+        if r.get("created_at", 0) >= cutoff
+        or r.get("timestamp", 0) >= cutoff
+    ]
+
+    from uar.core.analytics_snapshot import (
+        build_analytics_snapshot,
+    )
+    from uar.core.multi_run_intelligence import (
+        find_recurring_failures,
+        build_recovery_atlas,
+    )
+    from uar.core.operational_learning import (
+        generate_all_recommendations,
+    )
+
+    snap = build_analytics_snapshot(
+        recent_runs, user, is_admin, hours, limit
+    )
+
+    # Extract multi-run intelligence
+    recurring = find_recurring_failures(recent_runs, min_occurrences=2)
+    recovery = build_recovery_atlas(recent_runs)
+
+    # Topology evolution: compare earliest and latest snapshot
+    # For a single-window request we use one point; for future
+    # multi-window aggregation the API can accept snapshot history.
+    topology_points = []
+    if snap.topology_nodes:
+        topology_points = [
+            {
+                "timestamp": time.time(),
+                "total_nodes": len(snap.topology_nodes),
+                "total_edges": len(snap.topology_edges),
+                "hot_region": (
+                    max(
+                        snap.topology_nodes.items(),
+                        key=lambda x: x[1].invocations,
+                    )[0]
+                    if snap.topology_nodes
+                    else None
+                ),
+            }
+        ]
+
+    # Governance summaries: derive from analytics snapshot
+    total_runs = snap.runs_analyzed
+    failure_rate = (
+        snap.total_failures / total_runs if total_runs else 0.0
+    )
+    cert_rate = (
+        (total_runs - snap.total_failures) / total_runs
+        if total_runs
+        else 1.0
+    )
+    gov_summaries = [
+        {
+            "approval_rate": 1.0 - failure_rate,
+            "tampered": 0,
+            "total_records": total_runs,
+            "certification_rate": cert_rate,
+        }
+    ]
+
+    recommendations = generate_all_recommendations(
+        recurring_patterns=recurring,
+        recovery_paths=recovery,
+        topology_points=topology_points,
+        governance_summaries=gov_summaries,
+    )
+
+    result = {
+        "generated_at": time.time(),
+        "hours": hours,
+        "runs_analyzed": total_runs,
+        "recommendations": [r.to_dict() for r in recommendations],
+        "sources": {
+            "recurring_patterns": len(recurring),
+            "recovery_paths": len(recovery),
+            "topology_points": len(topology_points),
+            "governance_periods": len(gov_summaries),
+        },
+    }
+    _analytics_cache().set(
+        "recommendations", user, is_admin, hours, limit, result
+    )
+    return result
