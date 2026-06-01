@@ -7,6 +7,7 @@ including validation, digest computation, and transformation.
 import atexit
 import logging
 import os
+import threading
 from typing import Any, Dict, List, Optional, Callable, Tuple
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -20,21 +21,40 @@ _BATCH_POOL_MAX = max(
     1, int(os.getenv("UOR_BATCH_POOL_SIZE", "8").strip() or "8")
 )
 _batch_pool: Optional[ThreadPoolExecutor] = None
+_batch_pool_shutdown = False
+_batch_pool_lock = threading.Lock()
 
 
 def _get_batch_pool() -> ThreadPoolExecutor:
-    global _batch_pool
-    if _batch_pool is None or _batch_pool._shutdown:
-        _batch_pool = ThreadPoolExecutor(
-            max_workers=_BATCH_POOL_MAX,
-            thread_name_prefix="uar-batch",
-        )
+    global _batch_pool, _batch_pool_shutdown
+    if _batch_pool is not None and not _batch_pool_shutdown:
+        return _batch_pool
+    with _batch_pool_lock:
+        if _batch_pool is not None and not _batch_pool_shutdown:
+            return _batch_pool
+        if _batch_pool_shutdown:
+            # Pool was shut down (e.g. by atexit) while we were waiting
+            # for the lock; do not recreate — let the caller handle it.
+            _batch_pool = ThreadPoolExecutor(
+                max_workers=_BATCH_POOL_MAX,
+                thread_name_prefix="uar-batch",
+            )
+            _batch_pool_shutdown = False
+        else:
+            _batch_pool = ThreadPoolExecutor(
+                max_workers=_BATCH_POOL_MAX,
+                thread_name_prefix="uar-batch",
+            )
+            _batch_pool_shutdown = False
     return _batch_pool
 
 
 def _shutdown_batch_pool():
-    if _batch_pool is not None:
-        _batch_pool.shutdown(wait=False)
+    global _batch_pool_shutdown
+    with _batch_pool_lock:
+        if _batch_pool is not None:
+            _batch_pool.shutdown(wait=False)
+        _batch_pool_shutdown = True
 
 
 atexit.register(_shutdown_batch_pool)
@@ -72,7 +92,20 @@ class BatchProcessor:
                 Uses shared pool if max_workers <= _BATCH_POOL_MAX.
         """
         self.max_workers = max_workers
-        self._pool = _get_batch_pool()
+        if max_workers <= _BATCH_POOL_MAX:
+            self._pool = _get_batch_pool()
+            self._owns_pool = False
+        else:
+            self._pool = ThreadPoolExecutor(
+                max_workers=max_workers,
+                thread_name_prefix="uar-batch-dedicated",
+            )
+            self._owns_pool = True
+
+    def close(self) -> None:
+        """Shut down the dedicated pool if this processor owns one."""
+        if self._owns_pool and self._pool is not None:
+            self._pool.shutdown(wait=False)
 
     def batch_compute_digests(
         self, objects: List[Dict[str, Any]], algorithm: str = "sha256"
@@ -88,9 +121,8 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(objects))
 
-        executor = _get_batch_pool()
         futures = {
-            executor.submit(
+            self._pool.submit(
                 self._compute_single_digest,
                 obj,
                 algorithm,
@@ -105,9 +137,11 @@ class BatchProcessor:
                 digest = future.result()
                 result.results.append({"index": idx, "digest": digest})
                 result.successful += 1
-            except Exception:
+            except Exception as exc:
                 result.failed += 1
-                result.errors.append((idx, "Digest computation failed"))
+                result.errors.append(
+                    (idx, f"Digest computation failed: {exc}")
+                )
                 logger.exception(
                     "Failed to compute digest for object %s", idx
                 )
@@ -148,9 +182,8 @@ class BatchProcessor:
         if validator is None:
             validator = UORSchemaValidator()
 
-        executor = _get_batch_pool()
         futures = {
-            executor.submit(
+            self._pool.submit(
                 self._validate_single,
                 obj,
                 validator,
@@ -174,9 +207,9 @@ class BatchProcessor:
                     result.successful += 1
                 else:
                     result.failed += 1
-            except Exception:
+            except Exception as exc:
                 result.failed += 1
-                result.errors.append((idx, "Validation failed"))
+                result.errors.append((idx, f"Validation failed: {exc}"))
                 logger.exception(
                     "Failed to validate object %s", idx
                 )
@@ -218,9 +251,8 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(objects))
 
-        executor = _get_batch_pool()
         futures = {
-            executor.submit(
+            self._pool.submit(
                 self._transform_single,
                 obj,
                 transform_func,
@@ -237,9 +269,9 @@ class BatchProcessor:
                     {"index": idx, "object": transformed}
                 )
                 result.successful += 1
-            except Exception:
+            except Exception as exc:
                 result.failed += 1
-                result.errors.append((idx, "Transformation failed"))
+                result.errors.append((idx, f"Transformation failed: {exc}"))
                 logger.exception(
                     "Failed to transform object %s", idx
                 )
@@ -275,9 +307,8 @@ class BatchProcessor:
         """
         result = BatchResult(total=len(objects))
 
-        executor = _get_batch_pool()
         futures = {
-            executor.submit(
+            self._pool.submit(
                 self._canonicalize_single,
                 obj,
                 i,
@@ -293,9 +324,9 @@ class BatchProcessor:
                     {"index": idx, "canonical": canonical}
                 )
                 result.successful += 1
-            except Exception:
+            except Exception as exc:
                 result.failed += 1
-                result.errors.append((idx, "Canonicalization failed"))
+                result.errors.append((idx, f"Canonicalization failed: {exc}"))
                 logger.exception(
                     "Failed to canonicalize object %s", idx
                 )
@@ -345,9 +376,10 @@ class BatchDeduplicator:
                 digest_map[digest] = []
             digest_map[digest].append(i)
 
-        # Get unique objects (first occurrence of each digest)
+        # Get unique objects (first occurrence of each digest),
+        # preserving insertion order — do NOT sort by digest hash.
         unique_objects = []
-        for digest, indices in sorted(digest_map.items()):
+        for _digest, indices in digest_map.items():
             unique_objects.append(objects[indices[0]])
 
         # Find duplicates (indices beyond the first)

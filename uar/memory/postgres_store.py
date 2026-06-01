@@ -8,6 +8,7 @@ Environment:
         (default: ``postgresql://localhost/uar``)
 """
 
+import atexit
 import importlib.util
 import json
 import logging
@@ -20,7 +21,7 @@ from uar.core.contracts import RunRecord
 logger = logging.getLogger(__name__)
 
 _PG_AVAILABLE = False
-_db_pool: Any = None
+_db_pools: Dict[str, Any] = {}
 _pool_lock = threading.Lock()
 
 
@@ -37,17 +38,15 @@ def _get_read_db_url() -> Optional[str]:
 
 
 def _get_sync_pool(db_url: str):
-    """Lazy singleton threaded connection pool for sync operations."""
-    global _db_pool
-    if _db_pool is not None:
-        return _db_pool
+    """Lazy per-URL threaded connection pool for sync operations."""
+    global _db_pools
     with _pool_lock:
-        if _db_pool is not None:
-            return _db_pool
+        if db_url in _db_pools:
+            return _db_pools[db_url]
         if importlib.util.find_spec("psycopg") is not None:
             from psycopg_pool import ConnectionPool  # type: ignore
 
-            _db_pool = ConnectionPool(
+            pool = ConnectionPool(
                 db_url,
                 min_size=1,
                 max_size=max(
@@ -58,11 +57,12 @@ def _get_sync_pool(db_url: str):
                 ),
                 open=False,
             )
-            _db_pool.open()
+            pool.open()
+            _db_pools[db_url] = pool
         elif importlib.util.find_spec("psycopg2") is not None:
-            from psycopg2 import pool  # type: ignore
+            from psycopg2 import pool as _pool  # type: ignore
 
-            _db_pool = pool.ThreadedConnectionPool(
+            _db_pools[db_url] = _pool.ThreadedConnectionPool(
                 1,
                 max(
                     1,
@@ -73,21 +73,25 @@ def _get_sync_pool(db_url: str):
                 db_url,
             )
         else:
-            _db_pool = None
-        return _db_pool
+            _db_pools[db_url] = None
+        return _db_pools[db_url]
 
 
 def _shutdown_postgres_pool() -> None:
-    """Close the module-level connection pool on application shutdown."""
-    global _db_pool
+    """Close all module-level connection pools on application shutdown."""
+    global _db_pools
     with _pool_lock:
-        if _db_pool is None:
-            return
-        try:
-            _db_pool.close()
-        except Exception:
-            logger.exception("Database pool close failed")
-        _db_pool = None
+        for url, pool in list(_db_pools.items()):
+            if pool is None:
+                continue
+            try:
+                pool.close()
+            except Exception:
+                logger.exception("Database pool close failed for %s", url)
+        _db_pools.clear()
+
+
+atexit.register(_shutdown_postgres_pool)
 
 
 class PostgresRunStore:
@@ -116,6 +120,7 @@ class PostgresRunStore:
             _get_sync_pool(self._read_url)
             if self._read_url else None
         )
+        self._async_pool: Optional[Any] = None
         self._ensure_table()
 
     def _connect_sync(self):
@@ -165,10 +170,22 @@ class PostgresRunStore:
             if conn is not None:
                 self._release_conn(conn)
 
-    async def _connect_async(self):
-        """Return an asyncpg connection (optional dependency)."""
+    async def _get_async_pool(self):
+        """Lazy asyncpg pool; created on first async call."""
+        if self._async_pool is not None:
+            return self._async_pool
         import asyncpg  # type: ignore[import-untyped]
-        return await asyncpg.connect(self._db_url)
+        self._async_pool = await asyncpg.create_pool(
+            self._db_url,
+            min_size=1,
+            max_size=max(
+                1,
+                int(
+                    os.getenv("UAR_PG_POOL_SIZE", "10").strip() or "10"
+                ),
+            ),
+        )
+        return self._async_pool
 
     def _ensure_table(self) -> None:
         """Create the runs table if it doesn't exist."""
@@ -183,6 +200,8 @@ class PostgresRunStore:
             events      JSONB DEFAULT '[]'::jsonb,
             outputs     JSONB DEFAULT '{}'::jsonb,
             metadata    JSONB DEFAULT '{}'::jsonb,
+            uor_address TEXT,
+            uor_witness JSONB,
             created_at  TIMESTAMPTZ DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_uar_runs_run_id
@@ -200,6 +219,7 @@ class PostgresRunStore:
 
     def append(self, record: RunRecord) -> None:
         """Insert a run record."""
+        _witness = getattr(record, "uor_witness", None)
         data = {
             "run_id": getattr(record, "run_id", getattr(record, "id", "")),
             "goal_id": getattr(
@@ -212,16 +232,22 @@ class PostgresRunStore:
             "events": json.dumps(getattr(record, "events", [])),
             "outputs": json.dumps(getattr(record, "outputs", {})),
             "metadata": json.dumps(getattr(record, "metadata", {})),
+            "uor_address": getattr(record, "uor_address", None),
+            "uor_witness": (
+                json.dumps(_witness) if _witness is not None else None
+            ),
         }
         sql = """
         INSERT INTO uar_runs (
             run_id, goal_id, user_id, status,
-            skills, events, outputs, metadata
+            skills, events, outputs, metadata,
+            uor_address, uor_witness
         )
         VALUES
             (%(run_id)s, %(goal_id)s, %(user_id)s, %(status)s,
              %(skills)s::jsonb, %(events)s::jsonb,
-             %(outputs)s::jsonb, %(metadata)s::jsonb)
+             %(outputs)s::jsonb, %(metadata)s::jsonb,
+             %(uor_address)s, %(uor_witness)s::jsonb)
         """
         conn = self._connect_sync()
         try:
@@ -235,38 +261,41 @@ class PostgresRunStore:
         """Bulk insert using COPY FROM for 10-100x faster ingestion."""
         if not records:
             return
+        import csv
         import io
 
         buf = io.StringIO()
+        writer = csv.writer(buf, delimiter="\t", lineterminator="\n")
         for record in records:
+            _addr = getattr(record, "uor_address", None)
+            _witness = getattr(record, "uor_witness", None)
             fields = [
-                getattr(record, "run_id", getattr(record, "id", "")),
-                getattr(
-                    record, "goal_id",
-                    getattr(record, "goal", {}).get("id", ""),
-                ),
-                getattr(record, "user_id", None) or "",
+                getattr(record, "run_id", "") or getattr(record, "id", ""),
+                getattr(record, "goal_id", "")
+                or getattr(record, "goal", {}).get("id", ""),
+                getattr(record, "user_id", None) or r"\N",
                 getattr(record, "status", "unknown"),
                 json.dumps(getattr(record, "skills", [])),
                 json.dumps(getattr(record, "events", [])),
                 json.dumps(getattr(record, "outputs", {})),
                 json.dumps(getattr(record, "metadata", {})),
+                _addr if _addr is not None else r"\N",
+                json.dumps(_witness) if _witness is not None else r"\N",
             ]
-            # Tab-delimited, NULL for empty user_id handled above
-            buf.write("\t".join(fields) + "\n")
+            writer.writerow(fields)
         buf.seek(0)
 
         conn = self._connect_sync()
         try:
             with conn.cursor() as cur:
-                cur.copy_from(
+                cur.copy_expert(
+                    "COPY uar_runs"
+                    " (run_id, goal_id, user_id, status,"
+                    "  skills, events, outputs, metadata,"
+                    "  uor_address, uor_witness)"
+                    " FROM STDIN WITH (FORMAT CSV, DELIMITER '\t',"
+                    "  NULL '\\N')",
                     buf,
-                    "uar_runs",
-                    columns=(
-                        "run_id", "goal_id", "user_id", "status",
-                        "skills", "events", "outputs", "metadata",
-                    ),
-                    sep="\t",
                 )
             conn.commit()
         finally:
@@ -280,7 +309,8 @@ class PostgresRunStore:
         """List recent run records."""
         sql = """
         SELECT run_id, goal_id, user_id, status,
-               skills, events, outputs, metadata, created_at
+               skills, events, outputs, metadata,
+               uor_address, uor_witness, created_at
         FROM uar_runs
         """
         params: Dict[str, Any] = {}
@@ -300,12 +330,15 @@ class PostgresRunStore:
 
         cols = [
             "run_id", "goal_id", "user_id", "status",
-            "skills", "events", "outputs", "metadata", "created_at",
+            "skills", "events", "outputs", "metadata",
+            "uor_address", "uor_witness", "created_at",
         ]
         results = []
         for row in rows:
-            record = dict(zip(cols, row))
-            for key in ("skills", "events", "outputs", "metadata"):
+            record = dict(zip(cols, row, strict=True))
+            for key in (
+                "skills", "events", "outputs", "metadata", "uor_witness"
+            ):
                 if isinstance(record[key], str):
                     record[key] = json.loads(record[key])
             results.append(record)
@@ -324,7 +357,8 @@ class PostgresRunStore:
         """Fetch a single record by run ID."""
         sql = """
         SELECT run_id, goal_id, user_id, status,
-               skills, events, outputs, metadata, created_at
+               skills, events, outputs, metadata,
+               uor_address, uor_witness, created_at
         FROM uar_runs
         WHERE run_id = %(run_id)s
         ORDER BY created_at DESC
@@ -343,10 +377,13 @@ class PostgresRunStore:
 
         cols = [
             "run_id", "goal_id", "user_id", "status",
-            "skills", "events", "outputs", "metadata", "created_at",
+            "skills", "events", "outputs", "metadata",
+            "uor_address", "uor_witness", "created_at",
         ]
-        record = dict(zip(cols, row))
-        for key in ("skills", "events", "outputs", "metadata"):
+        record = dict(zip(cols, row, strict=True))
+        for key in (
+            "skills", "events", "outputs", "metadata", "uor_witness"
+        ):
             if isinstance(record[key], str):
                 record[key] = json.loads(record[key])
         return record
@@ -357,6 +394,7 @@ class PostgresRunStore:
 
     async def append_async(self, record: RunRecord) -> None:
         """Async insert a run record."""
+        _witness = getattr(record, "uor_witness", None)
         data = {
             "run_id": getattr(record, "run_id", getattr(record, "id", "")),
             "goal_id": getattr(
@@ -369,18 +407,23 @@ class PostgresRunStore:
             "events": json.dumps(getattr(record, "events", [])),
             "outputs": json.dumps(getattr(record, "outputs", {})),
             "metadata": json.dumps(getattr(record, "metadata", {})),
+            "uor_address": getattr(record, "uor_address", None),
+            "uor_witness": (
+                json.dumps(_witness) if _witness is not None else None
+            ),
         }
         sql = """
         INSERT INTO uar_runs (
             run_id, goal_id, user_id, status,
-            skills, events, outputs, metadata
+            skills, events, outputs, metadata,
+            uor_address, uor_witness
         )
         VALUES
             ($1, $2, $3, $4, $5::jsonb, $6::jsonb,
-             $7::jsonb, $8::jsonb)
+             $7::jsonb, $8::jsonb, $9, $10::jsonb)
         """
-        conn = await self._connect_async()
-        try:
+        pool = await self._get_async_pool()
+        async with pool.acquire() as conn:
             await conn.execute(
                 sql,
                 data["run_id"],
@@ -391,9 +434,9 @@ class PostgresRunStore:
                 data["events"],
                 data["outputs"],
                 data["metadata"],
+                data["uor_address"],
+                data["uor_witness"],
             )
-        finally:
-            await conn.close()
 
     async def list_records_async(
         self,
@@ -403,7 +446,8 @@ class PostgresRunStore:
         """Async list recent run records."""
         sql = """
         SELECT run_id, goal_id, user_id, status,
-               skills, events, outputs, metadata, created_at
+               skills, events, outputs, metadata,
+               uor_address, uor_witness, created_at
         FROM uar_runs
         """
         params: List[Any] = []
@@ -415,20 +459,21 @@ class PostgresRunStore:
         )
         params.append(limit)
 
-        conn = await self._connect_async()
-        try:
+        pool = await self._get_async_pool()
+        async with pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
-        finally:
-            await conn.close()
 
         cols = [
             "run_id", "goal_id", "user_id", "status",
-            "skills", "events", "outputs", "metadata", "created_at",
+            "skills", "events", "outputs", "metadata",
+            "uor_address", "uor_witness", "created_at",
         ]
         results = []
         for row in rows:
-            record = dict(zip(cols, row))
-            for key in ("skills", "events", "outputs", "metadata"):
+            record = dict(zip(cols, row, strict=True))
+            for key in (
+                "skills", "events", "outputs", "metadata", "uor_witness"
+            ):
                 if isinstance(record[key], str):
                     record[key] = json.loads(record[key])
             results.append(record)
@@ -440,27 +485,29 @@ class PostgresRunStore:
         """Async fetch a single record by run ID."""
         sql = """
         SELECT run_id, goal_id, user_id, status,
-               skills, events, outputs, metadata, created_at
+               skills, events, outputs, metadata,
+               uor_address, uor_witness, created_at
         FROM uar_runs
         WHERE run_id = $1
         ORDER BY created_at DESC
         LIMIT 1
         """
-        conn = await self._connect_async()
-        try:
+        pool = await self._get_async_pool()
+        async with pool.acquire() as conn:
             row = await conn.fetchrow(sql, run_id)
-        finally:
-            await conn.close()
 
         if row is None:
             return None
 
         cols = [
             "run_id", "goal_id", "user_id", "status",
-            "skills", "events", "outputs", "metadata", "created_at",
+            "skills", "events", "outputs", "metadata",
+            "uor_address", "uor_witness", "created_at",
         ]
-        record = dict(zip(cols, row))
-        for key in ("skills", "events", "outputs", "metadata"):
+        record = dict(zip(cols, row, strict=True))
+        for key in (
+            "skills", "events", "outputs", "metadata", "uor_witness"
+        ):
             if isinstance(record[key], str):
                 record[key] = json.loads(record[key])
         return record

@@ -6,22 +6,45 @@ Architecture Freeze v1.1 is ACTIVE.
 
 UAR is to be treated as a Universal Execution Runtime.
 
+Directional Lock: Issue #83 (Runtime Health Contract)
+
+---
+
+## Trust Formula
+
+```text
+Execution -> Evidence -> Trust -> Operations
+```
+
+Execution generates evidence. Evidence establishes trust. Trust supports operations.
+
 ---
 
 ## Canonical Plan
 
-The authoritative implementation, rollout, certification, burn-in, and release plan for v1.1 is maintained in:
+The authoritative documents for v1.1 are:
 
-`docs/releases/UAR_V1_1_OPERATIONAL_RUNTIME_ROLLOUT.md`
+| Document | Authority |
+| --- | --- |
+| `docs/releases/UAR_V1_1_OPERATIONAL_RUNTIME_ROLLOUT.md` | Sprint sequence, release checklist, certification gates |
+| `docs/TRUST_SPINE.md` | Phase definitions, directional lock, T1–T6 architecture |
+| `docs/V1_1_EXECUTION_PLAN.md` | Issue-linked execution sequence |
 
-This document is the single source of truth for:
+These three documents are co-authoritative. In case of conflict, `TRUST_SPINE.md` and the directional lock from Issue #83 take precedence.
 
-- implementation sequencing
-- active issue train
+The Operational Runtime Rollout is the source of truth for:
+
 - sprint planning
 - certification gates
 - burn-in requirements
+- release checklist
 - release criteria
+
+The Trust Spine is the source of truth for:
+
+- priority order
+- phase definitions
+- directional constraints
 
 ---
 

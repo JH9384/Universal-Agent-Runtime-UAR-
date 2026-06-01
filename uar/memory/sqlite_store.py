@@ -9,15 +9,19 @@ Environment:
 """
 
 import json
+import logging
 import os
 import queue
 import sqlite3
 import threading
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from uar.core.contracts import RunRecord
+
+logger = logging.getLogger(__name__)
 
 
 class SqliteRunStore:
@@ -122,63 +126,123 @@ class SqliteRunStore:
                     result_container = None
                     event = None
                 result: Any = None
-                try:
-                    if op == "insert":
-                        conn.execute(
-                            "INSERT INTO uar_runs"
-                            " (run_id, goal_id, user_id, status,"
-                            "  skills, events, outputs, metadata,"
-                            "  uor_address, uor_witness, created_at)"
-                            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                            payload,
+                _invalidate_run_id: Optional[str] = None
+                _transient_retries = 3
+                for _attempt in range(_transient_retries + 1):
+                    try:
+                        if op == "insert":
+                            conn.execute(
+                                "INSERT INTO uar_runs"
+                                " (run_id, goal_id, user_id, status,"
+                                "  skills, events, outputs, metadata,"
+                                "  uor_address, uor_witness, created_at)"
+                                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                payload,
+                            )
+                        elif op == "upsert":
+                            conn.execute(
+                                "INSERT INTO uar_runs"
+                                " (run_id, goal_id, user_id, status,"
+                                "  skills, events, outputs, metadata,"
+                                "  uor_address, uor_witness, created_at)"
+                                " VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+                                " ON CONFLICT(run_id) DO UPDATE SET"
+                                "  goal_id=excluded.goal_id,"
+                                "  user_id=excluded.user_id,"
+                                "  status=excluded.status,"
+                                "  skills=excluded.skills,"
+                                "  events=excluded.events,"
+                                "  outputs=excluded.outputs,"
+                                "  metadata=excluded.metadata,"
+                                "  uor_address=excluded.uor_address,"
+                                "  uor_witness=excluded.uor_witness,"
+                                "  created_at=excluded.created_at",
+                                payload,
+                            )
+                        elif op == "delete":
+                            cur = conn.execute(
+                                "DELETE FROM uar_runs WHERE run_id = ?",
+                                (payload,),
+                            )
+                            result = cur.rowcount
+                        elif op == "purge":
+                            cur = conn.execute(
+                                "DELETE FROM uar_runs WHERE CASE"
+                                " WHEN created_at > 1000000000"
+                                " THEN datetime(created_at, 'unixepoch')"
+                                " ELSE datetime(created_at) END"
+                                " < datetime(?, 'unixepoch')",
+                                (payload,),
+                            )
+                            result = cur.rowcount
+                        elif op == "put_meta":
+                            key, value = payload
+                            conn.execute(
+                                "INSERT INTO uar_metadata"
+                                " (key, value, updated_at)"
+                                " VALUES (?, ?, strftime('%s', 'now'))"
+                                " ON CONFLICT(key) DO UPDATE SET"
+                                "  value=excluded.value,"
+                                "  updated_at=excluded.updated_at",
+                                (key, value),
+                            )
+                            # Note: conn.commit() is unnecessary here
+                            # because the writer-thread connection is
+                            # opened with isolation_level=None
+                            # (autocommit ON).
+                        elif op == "checkpoint":
+                            conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+                        break  # success — exit retry loop
+                    except sqlite3.OperationalError as exc:
+                        msg = str(exc).lower()
+                        is_transient = (
+                            "busy" in msg
+                            or "locked" in msg
+                            or "database is locked" in msg
+                            or "table is locked" in msg
                         )
-                    elif op == "upsert":
-                        conn.execute(
-                            "INSERT INTO uar_runs"
-                            " (run_id, goal_id, user_id, status,"
-                            "  skills, events, outputs, metadata,"
-                            "  uor_address, uor_witness, created_at)"
-                            " VALUES (?,?,?,?,?,?,?,?,?,?,?)"
-                            " ON CONFLICT(run_id) DO UPDATE SET"
-                            "  goal_id=excluded.goal_id,"
-                            "  user_id=excluded.user_id,"
-                            "  status=excluded.status,"
-                            "  skills=excluded.skills,"
-                            "  events=excluded.events,"
-                            "  outputs=excluded.outputs,"
-                            "  metadata=excluded.metadata,"
-                            "  uor_address=excluded.uor_address,"
-                            "  uor_witness=excluded.uor_witness,"
-                            "  created_at=excluded.created_at",
-                            payload,
+                        if is_transient and _attempt < _transient_retries:
+                            time.sleep(0.01 * (2 ** _attempt))
+                            continue
+                        # Exhausted retries — surface to sync callers
+                        if event is None:
+                            logger.warning(
+                                "Writer transient error (exhausted): %s", exc
+                            )
+                        result = exc
+                        if op in ("insert", "upsert") and isinstance(
+                            payload, (list, tuple)
+                        ):
+                            _invalidate_run_id = payload[0]
+                    except Exception as exc:
+                        # Sync ops (4-tuple) surface the error via
+                        # result_container to the waiting caller; do NOT
+                        # set _writer_exception or every subsequent async
+                        # write (append, etc.) will permanently raise.
+                        # Async ops (2-tuple) have no other error channel,
+                        # so they still set _writer_exception.
+                        if event is None:
+                            self._writer_exception = exc
+                        result = exc
+                        if op in ("insert", "upsert") and isinstance(
+                            payload, (list, tuple)
+                        ):
+                            _invalidate_run_id = payload[0]
+                        break
+                # Post-retry cleanup
+                if _invalidate_run_id is not None and op in (
+                    "insert",
+                    "upsert",
+                ):
+                    with self._hot_cache_lock:
+                        self._hot_cache.pop(
+                            _invalidate_run_id, None
                         )
-                    elif op == "delete":
-                        cur = conn.execute(
-                            "DELETE FROM uar_runs WHERE run_id = ?",
-                            (payload,),
-                        )
-                        result = cur.rowcount
-                    elif op == "purge":
-                        cur = conn.execute(
-                            "DELETE FROM uar_runs WHERE CASE"
-                            " WHEN created_at > 1000000000"
-                            " THEN datetime(created_at, 'unixepoch')"
-                            " ELSE datetime(created_at) END"
-                            " < datetime(?, 'unixepoch')",
-                            (payload,),
-                        )
-                        result = cur.rowcount
-                    elif op == "checkpoint":
-                        conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
-                except Exception as exc:
-                    self._writer_exception = exc
-                    result = exc
-                finally:
-                    if result_container is not None:
-                        result_container[0] = result
-                    if event is not None:
-                        event.set()
-                    self._writer_queue.task_done()
+                if result_container is not None:
+                    result_container[0] = result
+                if event is not None:
+                    event.set()
+                self._writer_queue.task_done()
         finally:
             conn.close()
 
@@ -189,18 +253,36 @@ class SqliteRunStore:
         self._writer_queue.put((op, payload), block=True)
 
     def _enqueue_write_sync(self, op: str, payload: Any) -> Any:
-        """Enqueue a write and block until it completes, returning result."""
+        """Enqueue a write and block until it completes, returning result.
+
+        Raises TimeoutError if the writer thread does not respond within
+        10 seconds so callers never silently interpret a timeout as
+        success (which would corrupt operational state).
+        """
         if self._writer_exception is not None:
             raise self._writer_exception
         result_container: List[Any] = [None]
         event = threading.Event()
         self._writer_queue.put((op, payload, result_container, event))
-        event.wait(timeout=10.0)
+        completed = event.wait(timeout=10.0)
+        if not completed:
+            raise TimeoutError(
+                f"Writer thread did not respond within 10s for op={op!r}"
+            )
         return result_container[0]
 
     def _drain_writer(self, timeout: float = 5.0) -> None:
-        """Wait until the writer queue is empty."""
-        self._writer_queue.join()
+        """Wait until the writer queue is empty, bounded by *timeout*."""
+        deadline = time.time() + timeout
+        while not self._writer_queue.empty() and time.time() < deadline:
+            time.sleep(0.01)
+        if not self._writer_queue.empty():
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Writer queue still has %d items after %.1fs",
+                self._writer_queue.qsize(),
+                timeout,
+            )
 
     # ------------------------------------------------------------------
     # Schema
@@ -226,10 +308,16 @@ class SqliteRunStore:
         CREATE INDEX IF NOT EXISTS idx_runs_user  ON uar_runs(user_id);
         CREATE INDEX IF NOT EXISTS idx_runs_created
             ON uar_runs(created_at DESC);
+        CREATE TABLE IF NOT EXISTS uar_metadata (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at REAL DEFAULT (strftime('%s', 'now'))
+        );
         """
         conn = self._connect()
         try:
             conn.executescript(ddl)
+            conn.commit()  # Ensure DDL is committed
             for column, col_type in (
                 ("uor_address", "TEXT"),
                 ("uor_witness", "TEXT"),
@@ -238,10 +326,10 @@ class SqliteRunStore:
                     conn.execute(
                         f"ALTER TABLE uar_runs ADD COLUMN {column} {col_type}"
                     )
+                    conn.commit()
                 except sqlite3.OperationalError as exc:
                     if "duplicate column name" not in str(exc):
                         raise
-            conn.commit()
         finally:
             conn.close()
 
@@ -269,7 +357,8 @@ class SqliteRunStore:
             _time.time(),
         )
         self._enqueue_write("insert", payload)
-        # Populate hot cache with newly inserted record
+        # Optimistic hot-cache population for read-after-append.
+        # _writer_loop will invalidate this entry if the insert fails.
         hot_record = {
             "run_id": payload[0],
             "goal_id": payload[1],
@@ -317,6 +406,29 @@ class SqliteRunStore:
                 _time.time(),
             )
             self._enqueue_write("insert", payload)
+            # Optimistic hot-cache population for read-after-append.
+            hot_record = {
+                "run_id": payload[0],
+                "goal_id": payload[1],
+                "user_id": payload[2],
+                "status": payload[3],
+                "skills": json.loads(payload[4]),
+                "events": json.loads(payload[5]),
+                "outputs": json.loads(payload[6]),
+                "metadata": json.loads(payload[7]),
+                "uor_address": payload[8],
+                "uor_witness": (
+                    json.loads(payload[9])
+                    if payload[9] is not None
+                    else None
+                ),
+                "created_at": payload[10],
+            }
+            with self._hot_cache_lock:
+                self._hot_cache[hot_record["run_id"]] = hot_record
+                self._hot_cache.move_to_end(hot_record["run_id"])
+                while len(self._hot_cache) > self._hot_cache_size:
+                    self._hot_cache.popitem(last=False)
 
     # ------------------------------------------------------------------
     # Read interface (unchanged)
@@ -402,9 +514,58 @@ class SqliteRunStore:
     def delete(self, run_id: str) -> bool:
         """Remove a single record by run_id."""
         rowcount = self._enqueue_write_sync("delete", run_id)
+        if isinstance(rowcount, Exception):
+            raise rowcount
         with self._hot_cache_lock:
             self._hot_cache.pop(run_id, None)
-        return bool(rowcount and rowcount > 0)
+        return (
+            bool(rowcount and rowcount > 0)
+            if isinstance(rowcount, int)
+            else False
+        )
+
+    # ------------------------------------------------------------------
+    # Metadata key-value store (Issue #86 — burn-in persistence)
+    # ------------------------------------------------------------------
+
+    def put_metadata(self, key: str, value: Any) -> None:
+        """Persist a JSON-serialisable value under key (upsert).
+
+        Routed through the writer thread so it is serialised with all
+        other writes and survives process restart.
+
+        Uses sync enqueue so that write errors surface here rather than
+        poisoning _writer_exception and being raised on the next
+        unrelated write (e.g. append).
+        """
+        result = self._enqueue_write_sync("put_meta", (key, json.dumps(value)))
+        if isinstance(result, Exception):
+            raise result
+
+    def get_metadata(self, key: str) -> Optional[Any]:
+        """Read a previously stored metadata value, or None.
+
+        Reads from a dedicated reader connection outside the writer
+        thread so it never blocks on pending writes.
+        """
+        conn = self._get_read_conn()
+        try:
+            cur = conn.execute(
+                "SELECT value FROM uar_metadata WHERE key = ?",
+                (key,),
+            )
+            row = cur.fetchone()
+        finally:
+            self._release_read_conn(conn)
+        if row is None:
+            return None
+        try:
+            return json.loads(row[0])
+        except (json.JSONDecodeError, TypeError) as exc:
+            logging.getLogger(__name__).warning(
+                "Metadata value for key %r is corrupt: %s", key, exc
+            )
+            return None
 
     def purge_old_records(self, retention_days: int) -> int:
         if retention_days <= 0:
@@ -413,11 +574,20 @@ class SqliteRunStore:
 
         cutoff = time.time() - (retention_days * 86400)
         rowcount = self._enqueue_write_sync("purge", cutoff)
+        if isinstance(rowcount, Exception):
+            raise rowcount
         return rowcount if isinstance(rowcount, int) else 0
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+
+    @property
+    def transient_error_count(self) -> int:
+        """Number of transient SQLite OperationalErrors handled by the
+        writer thread since the store was created.
+        """
+        return getattr(self, "_writer_transient_errors", 0)
 
     def flush(self) -> None:
         """Drain the writer queue and checkpoint WAL."""

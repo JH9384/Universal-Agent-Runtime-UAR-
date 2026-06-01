@@ -93,3 +93,84 @@ def test_invalid_event_stream_generates_reconstruction_warning():
     assert report.score < 100
     assert any(w.code == "invalid_event_schema" for w in report.warnings)
     assert any(w.code == "reconstruction_failed" for w in report.warnings)
+
+
+def test_missing_run_id_generates_store_record_missing_warning():
+    record = RunRecord(
+        run_id="",
+        goal_id="goal-1",
+        skills=["alpha"],
+        outputs=["ok"],
+        events=[
+            _event("start", run_id="", timestamp=1.0),
+            _event("complete", run_id="", timestamp=2.0,
+                   payload={"status": "success"}),
+        ],
+    )
+    report = score_replay(record)
+    assert any(w.code == "store_record_missing" for w in report.warnings)
+    assert report.dimensions["store_consistency"] < 100
+
+
+def test_no_artifacts_generates_artifact_missing_warning():
+    record = RunRecord(
+        run_id="run-no-artifacts",
+        goal_id="goal-1",
+        skills=["alpha"],
+        outputs=[],
+        final_context=None,
+        uor_address=None,
+        uor_witness=None,
+        events=[
+            _event("start", run_id="run-no-artifacts", timestamp=1.0,
+                   payload={"skills": ["alpha"]}),
+            _event(
+                "complete",
+                run_id="run-no-artifacts",
+                timestamp=2.0,
+                payload={
+                    "status": "success",
+                    "outputs": [],
+                    "errors": [],
+                    "final_context": {},
+                },
+            ),
+        ],
+    )
+    report = score_replay(record)
+    w = next(
+        (w for w in report.warnings if w.code == "artifact_missing"), None
+    )
+    assert w is not None, "expected artifact_missing warning"
+    assert w.severity == "warning"
+    assert report.dimensions["artifact_completeness"] == 0
+
+
+def test_store_consistency_coerces_event_run_id_to_str():
+    """Event run_id that is an int must not produce false-positive mismatch.
+
+    Regression: ev.get('run_id') != record.run_id compared int vs str,
+    causing a spurious store_event_mismatch warning.
+    """
+    record = RunRecord(
+        run_id="123",
+        goal_id="goal-1",
+        skills=["alpha"],
+        outputs=["ok"],
+        events=[
+            {
+                "schema_version": "uar.event.v1",
+                "type": "start",
+                "run_id": 123,  # integer, not string
+                "goal_id": "goal-1",
+                "timestamp": 1.0,
+                "payload": {},
+                "error": None,
+            },
+        ],
+    )
+    report = score_replay(record)
+    assert not any(
+        w.code == "store_event_mismatch" for w in report.warnings
+    ), "int run_id should be coerced to str before comparison"
+    assert report.dimensions["store_consistency"] == 100

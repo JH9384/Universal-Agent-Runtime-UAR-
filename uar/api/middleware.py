@@ -653,6 +653,14 @@ def _is_dev_mode() -> bool:
     return os.getenv("ENVIRONMENT", "").lower() != "production"
 
 
+def is_dev_mode() -> bool:
+    """Public wrapper for dev-mode check.
+
+    Preferred over the private ``_is_dev_mode`` for cross-module use.
+    """
+    return _is_dev_mode()
+
+
 def auth_middleware(credentials: Optional[HTTPAuthorizationCredentials]):
     """Authentication middleware"""
     _maybe_reload_api_keys()

@@ -151,7 +151,7 @@ ALLOWED_EXTENSIONS = {
     ".lean",
     ".v",
     ".thy",  # proof assistants
-    ".m",  # MATLAB / Octave (also Obj-C above; both OK)
+    # ".m" already listed above (Objective-C / MATLAB — same extension)
     ".sage",  # SageMath
     ".gp",  # PARI/GP
     ".mac",

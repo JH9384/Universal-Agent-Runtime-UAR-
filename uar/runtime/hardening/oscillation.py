@@ -20,7 +20,7 @@ class OscillationScore:
             return 0
         changes = 0
         previous = 0
-        for left, right in zip(self.samples, self.samples[1:]):
+        for left, right in zip(self.samples, self.samples[1:], strict=False):
             delta = right - left
             current = 1 if delta > 0 else -1 if delta < 0 else 0
             if current and previous and current != previous:

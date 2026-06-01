@@ -37,7 +37,7 @@ async def status_endpoint(
 ):
     """Operational status with skill inventory and authenticated user."""
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else "anonymous"
+    user = user_info.get("user") if user_info else "anonymous"
     from uar.core.registry import registry
 
     return {

@@ -359,7 +359,7 @@ async def stream_goal_ws(websocket: WebSocket):
         user_info = auth_middleware(credentials)
 
         # Log request (request_id generated at line 556)
-        user_str = user_info["user"] if user_info else "anonymous"
+        user_str = user_info.get("user") if user_info else "anonymous"
         logger.info(
             "[%s] WebSocket request from %s", request_id, user_str
         )
@@ -491,7 +491,7 @@ async def stream_goal(
 
         # Get user info
         user_info = auth_middleware(credentials)
-        user_id = user_info["user"] if user_info else None
+        user_id = user_info.get("user") if user_info else None
 
         # Log request
         request_id = request_logging_middleware(request, user_info)
@@ -760,7 +760,7 @@ async def websocket_run(websocket: WebSocket):
 
         # Get user info for ownership tracking
         user_info = auth_middleware(credentials)
-        user_str = user_info["user"] if user_info else None
+        user_str = user_info.get("user") if user_info else None
 
         # Apply rate limiting
         client_ip = websocket.client.host if websocket.client else "unknown"

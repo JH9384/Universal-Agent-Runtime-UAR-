@@ -287,7 +287,7 @@ def snowflake_etl(ctx: PipelineContext) -> Dict[str, Any]:
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
             results = [
-                dict(zip(columns, row)) for row in rows[:1000]
+                dict(zip(columns, row, strict=False)) for row in rows[:1000]
             ]
             row_count = len(rows)
         else:

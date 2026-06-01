@@ -6,6 +6,9 @@ the executor and the API server to avoid duplication.
 
 import json
 import logging
+import os
+import threading
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -104,13 +107,15 @@ RECIPE_MAP: Dict[str, List[str]] = {
 }
 
 
+def _get_user_recipes_path() -> Path:
+    """Return the canonical path to user_recipes.json."""
+    root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
+    return root / ".uar_data" / "user_recipes.json"
+
+
 def _load_user_recipes() -> Dict[str, Dict[str, Any]]:
     """Load user-created recipes from disk."""
-    import os
-    from pathlib import Path
-
-    root = Path(os.getenv("PROJECT_ROOT", Path.cwd())).resolve()
-    p = root / ".uar_data" / "user_recipes.json"
+    p = _get_user_recipes_path()
     if not p.exists():
         return {}
     try:
@@ -118,9 +123,23 @@ def _load_user_recipes() -> Dict[str, Dict[str, Any]]:
             data = json.load(f)
         if isinstance(data, dict):
             return data
-    except (json.JSONDecodeError, OSError):
-        pass
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to load user recipes from %s: %s", p, exc)
     return {}
+
+
+_user_recipes_cache: Optional[Dict[str, Dict[str, Any]]] = None
+_user_recipes_cache_mtime_ns: Optional[int] = None
+_user_recipes_cache_lock = threading.Lock()
+
+
+def _recipes_file_mtime_ns() -> Optional[int]:
+    """Return file mtime in nanoseconds for sub-second precision."""
+    p = _get_user_recipes_path()
+    try:
+        return os.stat(p).st_mtime_ns
+    except OSError:
+        return None
 
 
 def get_recipe_skills(recipe_id: str) -> Optional[List[str]]:
@@ -128,13 +147,43 @@ def get_recipe_skills(recipe_id: str) -> Optional[List[str]]:
     canonical = RECIPE_MAP.get(recipe_id)
     if canonical is not None:
         return canonical
-    user_recipes = _load_user_recipes()
-    recipe = user_recipes.get(recipe_id)
-    if recipe:
-        skills = recipe.get("skills")
-        if isinstance(skills, list):
-            return skills
-    return None
+    global _user_recipes_cache, _user_recipes_cache_mtime_ns
+    with _user_recipes_cache_lock:
+        current_mtime = _recipes_file_mtime_ns()
+        cache_stale = (
+            _user_recipes_cache is None
+            or (current_mtime is None
+                and _user_recipes_cache_mtime_ns is not None)
+            # File existed before but is gone now
+            or (current_mtime is not None
+                and _user_recipes_cache_mtime_ns is None)
+            # File didn't exist before but exists now
+            or (current_mtime is not None
+                and _user_recipes_cache_mtime_ns is not None
+                and current_mtime != _user_recipes_cache_mtime_ns)
+            # File changed since last load (nanosecond precision)
+        )
+        if cache_stale:
+            _user_recipes_cache = _load_user_recipes()
+            _user_recipes_cache_mtime_ns = current_mtime
+        recipe = _user_recipes_cache.get(recipe_id)
+        if recipe:
+            skills = recipe.get("skills")
+            if isinstance(skills, list):
+                return skills
+        return None
+
+
+def clear_recipes_cache() -> None:
+    """Clear the in-memory user recipes cache.
+
+    Call after modifying the user recipes file on disk to force a
+    reload on the next ``get_recipe_skills`` call.
+    """
+    global _user_recipes_cache, _user_recipes_cache_mtime_ns
+    with _user_recipes_cache_lock:
+        _user_recipes_cache = None
+        _user_recipes_cache_mtime_ns = None
 
 
 def validate_recipe(recipe: Dict[str, Any], recipe_id: str = "") -> List[str]:
@@ -156,10 +205,10 @@ def validate_recipe(recipe: Dict[str, Any], recipe_id: str = "") -> List[str]:
     if not isinstance(skills, list):
         errors.append("Recipe 'skills' must be a list")
     else:
-        for i, skill in enumerate(skills):
+        for _, skill in enumerate(skills):
             if isinstance(skill, list):
                 # Parallel group
-                for j, sub in enumerate(skill):
+                for _, sub in enumerate(skill):
                     if not isinstance(sub, str) or not sub:
                         errors.append(
                             "Recipe skill must be a non-empty string"

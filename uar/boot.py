@@ -478,13 +478,18 @@ async def wait_for_health(
     """
     import urllib.request
 
-    for i in range(attempts):
+    loop = asyncio.get_running_loop()
+
+    def _check() -> bool:
         try:
             with urllib.request.urlopen(url, timeout=timeout) as resp:
-                if resp.status == 200:
-                    return True
+                return resp.status == 200
         except Exception:
-            pass
+            return False
+
+    for _ in range(attempts):
+        if await loop.run_in_executor(None, _check):
+            return True
         await asyncio.sleep(interval)
     return False
 
@@ -542,6 +547,7 @@ class ServiceSupervisor:
 
     def __init__(self) -> None:
         self._procs: Dict[str, subprocess.Popen] = {}
+        self._log_fps: Dict[str, Any] = {}
 
     def start(
         self,
@@ -562,12 +568,23 @@ class ServiceSupervisor:
         if env is not None:
             kwargs["env"] = {**os.environ, **env}
         if log_path is not None:
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
             fp = open(log_path, "a")
             kwargs["stdout"] = fp
             kwargs["stderr"] = subprocess.STDOUT
 
-        proc = subprocess.Popen(cmd, **kwargs)
+        try:
+            proc = subprocess.Popen(cmd, **kwargs)
+        except Exception:
+            if log_path is not None:
+                try:
+                    fp.close()
+                except Exception:
+                    pass
+            raise
         self._procs[name] = proc
+        if log_path is not None:
+            self._log_fps[name] = fp
         logger.info("Started %s (pid=%s)", name, proc.pid)
         return proc.pid
 
@@ -599,6 +616,7 @@ class ServiceSupervisor:
     def stop_all(self) -> None:
         """Send SIGTERM to all tracked processes and wait for exit."""
         logger.info("Stopping all supervised services...")
+        closed: List[Any] = []
         for name, proc in list(self._procs.items()):
             if proc.poll() is None:
                 try:
@@ -606,12 +624,28 @@ class ServiceSupervisor:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     proc.kill()
-                    proc.wait(timeout=2)
+                    try:
+                        proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        logger.error(
+                            "Process %s refused to die after SIGKILL", name
+                        )
                 except Exception as exc:
                     logger.warning("Error stopping %s: %s", name, exc)
             if hasattr(proc, "stdout") and proc.stdout:
-                proc.stdout.close()
+                try:
+                    proc.stdout.close()
+                except Exception:
+                    pass
+                closed.append(proc.stdout)
             logger.info("Stopped %s", name)
+        for name, fp in list(self._log_fps.items()):
+            if not any(fp is c for c in closed):
+                try:
+                    fp.close()
+                except Exception:
+                    pass
+        self._log_fps.clear()
         self._procs.clear()
 
 

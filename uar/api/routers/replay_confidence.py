@@ -24,8 +24,16 @@ async def get_run_confidence(
     from uar.api.server import store
 
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else None
-    is_admin = user_info.get("tier") == "admin" if user_info else False
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+    user = user_info.get("user")
+    is_admin = user_info.get("tier") == "admin"
 
     record = store.get_by_run_id(run_id)
     if not record:

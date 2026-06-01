@@ -4,6 +4,29 @@ Modular execution platform for reproducible agent workflows and scientific compu
 
 UAR is both an **agent runtime** (goal-driven, event-streamed, observable) and a **browser-accessible scientific computing sandbox** (quantum circuits, molecular dynamics, RISC-V emulation, Verilog simulation). You don't install toolchains. You send JSON goals and get structured results.
 
+## v1.1 — Trust Release
+
+UAR v1.1 is not about making the runtime smarter. It is about making the runtime trustworthy.
+
+```text
+Execution -> Evidence -> Trust -> Operations
+```
+
+Execution generates evidence. Evidence establishes trust. Trust supports operations.
+
+The **Trust Spine** defines the evidence-to-operations path:
+
+| Phase | Name | Issue | Status |
+|-------|------|-------|--------|
+| T1 | Replay Confidence | #74 | Active |
+| T2 | Runtime Health | #83 | Active |
+| T3 | Burn-In Framework | #62 | Pending |
+| T4 | Certification Engine | #57, #70 | Pending |
+| T5 | Mission Control | #72, #55 | Pending |
+| T6 | Replay Explorer | #56 | Pending |
+
+Capability expansion is frozen until Trust Spine milestones are complete. See [docs/TRUST_SPINE.md](docs/TRUST_SPINE.md) and [docs/V1_1_EXECUTION_PLAN.md](docs/V1_1_EXECUTION_PLAN.md).
+
 ## Features
 
 ### Execution Engine

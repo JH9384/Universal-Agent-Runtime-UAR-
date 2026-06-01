@@ -72,7 +72,7 @@ async def get_recipes(
     """Return canonical + user-created recipe definitions."""
     user_info = _auth_svc.authenticate(credentials)
     recipes = _recipe_svc.list_all(
-        user_id=user_info["user"] if user_info else None
+        user_id=user_info.get("user") if user_info else None
     )
     return {"recipes": recipes}
 

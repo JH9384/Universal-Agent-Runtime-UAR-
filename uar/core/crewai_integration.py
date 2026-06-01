@@ -539,7 +539,7 @@ async def execute_standard_workflow(
         raise ValueError(f"Unknown workflow type: {workflow_type}")
 
     # Create agents if they don't exist
-    for role, description in workflow:
+    for role, _ in workflow:
         agent_id = f"{role.value}_standard"
         if agent_id not in orchestrator.agents:
             agent = create_standard_agent(role, agent_id)

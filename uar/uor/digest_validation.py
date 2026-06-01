@@ -219,7 +219,7 @@ class DigestVerifier:
                 )
             ]
 
-        for i, (obj, expected) in enumerate(zip(objects, chain)):
+        for i, (obj, expected) in enumerate(zip(objects, chain, strict=False)):
             result = self.validator.validate_object(obj, expected)
             if not result.is_valid:
                 err_msg = result.error or "Validation failed"

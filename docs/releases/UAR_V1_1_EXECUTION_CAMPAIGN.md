@@ -26,22 +26,39 @@ Major redesign is out of scope.
 
 ---
 
+## Directional Lock
+
+Issue #83 (Runtime Health Contract) locked the priority order.
+
+Trust formula:
+
+```text
+Execution -> Evidence -> Trust -> Operations
+```
+
 ## Active Issue Train
 
-1. #58 Replay Confidence Helper
-2. #56 Replay Explorer v1
-3. #55 Mission Control v1 Consolidation
-4. #57 Certification Engine v1
-5. #59 Topology Visualization v1
-6. #60 Executor Decomposition Plan
+1. #74 Replay Confidence (T1)
+2. #83 Runtime Health Report (T2)
+3. #62 Burn-In Framework (T3)
+4. #57 Certification Engine v1 (T4)
+5. #70 Certification Scoring (T4)
+6. #72 Mission Control v1 (T5)
+7. #55 Mission Control Consolidation (T5)
+8. #56 Replay Explorer v1 (T6)
+9. #59 Topology Visualization v1
+10. #60 Executor Decomposition Plan
 
 ---
 
-## Sprint Ω-1 Replay Confidence
+## Sprint Ω-1 Replay Confidence (T1)
+
+Issues: #74, #58
 
 Deliver:
 
-- confidence scoring
+- confidence scoring (0-100)
+- confidence tier
 - terminal validation
 - timestamp validation
 - schema validation
@@ -49,19 +66,49 @@ Deliver:
 
 ---
 
-## Sprint Ω-2 Replay Explorer
+## Sprint Ω-2 Runtime Health (T2)
+
+Issue: #83
 
 Deliver:
 
-- timeline view
-- event inspection
-- failure path view
-- replay confidence display
-- export support
+- RuntimeHealthReport contract
+- health scoring (0-100)
+- health tier classification
+- component status map
+- operator-facing health summary
 
 ---
 
-## Sprint Ω-3 Mission Control
+## Sprint Ω-3 Burn-In (T3)
+
+Issue: #62
+
+Deliver:
+
+- smoke runs
+- soak runs
+- pressure runs
+- reliability evidence report
+
+---
+
+## Sprint Ω-4 Certification Engine (T4)
+
+Issues: #57, #70
+
+Deliver:
+
+- replay fidelity score
+- event integrity score
+- runtime stability score
+- certification report generation
+
+---
+
+## Sprint Ω-5 Mission Control (T5)
+
+Issues: #72, #55
 
 Deliver:
 
@@ -73,18 +120,25 @@ Deliver:
 
 ---
 
-## Sprint Ω-4 Certification Engine
+## Sprint Ω-6 Replay Explorer (T6)
+
+Issue: #56
 
 Deliver:
 
-- replay fidelity score
-- event integrity score
-- runtime stability score
-- certification report generation
+- run browser
+- timeline explorer
+- event inspection
+- failure path view
+- confidence overlay
+- run comparison
+- export support
 
 ---
 
-## Sprint Ω-5 Topology Visualization
+## Sprint Ω-7 Topology Visualization
+
+Issue: #59
 
 Deliver:
 
@@ -96,7 +150,9 @@ Deliver:
 
 ---
 
-## Sprint Ω-6 Executor Hardening
+## Sprint Ω-8 Executor Hardening
+
+Issue: #60
 
 Extract:
 
@@ -132,12 +188,14 @@ Required:
 
 ## Release Checklist
 
-[ ] Replay confidence implemented
-[ ] Replay Explorer implemented
-[ ] Mission Control consolidated
-[ ] Certification engine implemented
-[ ] Topology visualization implemented
-[ ] Executor decomposition completed
+[ ] Replay Confidence complete (#74)
+[ ] Runtime Health complete (#83)
+[ ] Burn-In complete (#62)
+[ ] Certification Engine complete (#57, #70)
+[ ] Mission Control complete (#72, #55)
+[ ] Replay Explorer complete (#56)
+[ ] Topology complete (#59)
+[ ] Executor decomposition complete (#60)
 [ ] Smoke burn-in passed
 [ ] Soak burn-in passed
 [ ] Certification report generated

@@ -989,6 +989,7 @@ class Executor:
                 timeout_seconds,
                 recipe_map,
                 correlation_id,
+                run_id=run_id,
                 depth=0,
             )
             # Emit top-level metrics and complete for hierarchical path
@@ -1147,7 +1148,9 @@ class Executor:
                     # Snapshot BEFORE pushing params so retry is clean.
                     if instance_id not in recipe_snapshots:
                         recipe_snapshots[instance_id] = (
-                            _snapshot_context(ctx.data)
+                            _snapshot_context(ctx.data),
+                            list(outputs),
+                            list(errors),
                         )
                         recipe_retry_remaining[instance_id] = marker.get(
                             "max_retries", 0
@@ -1253,24 +1256,25 @@ class Executor:
                     # No cache hit, execute with retry logic
                     max_retries = get_max_retries(skill_name)
                     last_error = None
+                    _coalesce_lock_acquired = False  # precedes function def
+
+                    def _release_coalesce_lock(_key: str) -> None:
+                        nonlocal _coalesce_lock_acquired
+                        if (
+                            _COALESCE_ENABLED
+                            and _key
+                            and _coalesce_lock_acquired
+                        ):
+                            _coalesce_locks[_key].release()
+                            _coalesce_lock_acquired = False
 
                     for attempt in range(max_retries + 1):
                         _coalesce_lock_acquired = False
-
-                        def _release_coalesce_lock() -> None:
-                            nonlocal _coalesce_lock_acquired
-                            if (
-                                _COALESCE_ENABLED
-                                and _coalesce_key
-                                and _coalesce_lock_acquired
-                            ):
-                                _coalesce_locks[_coalesce_key].release()
-                                _coalesce_lock_acquired = False
+                        _coalesce_key = ""  # reset each attempt
 
                         try:
                             # Request coalescing: dedup concurrent
                             # identical executions
-                            _coalesce_key = ""
                             if _COALESCE_ENABLED:
                                 import hashlib
 
@@ -1302,13 +1306,24 @@ class Executor:
                                         _coalesce_locks[_coalesce_key] = (
                                             threading.Lock()
                                         )
-                                _coalesce_locks[_coalesce_key].acquire()
+                                    _coalesce_lock = _coalesce_locks[
+                                        _coalesce_key
+                                    ]
+                                acquired = _coalesce_lock.acquire(timeout=30)
+                                if not acquired:
+                                    raise SkillExecutionError(
+                                        skill_name,
+                                        original_error=TimeoutError(
+                                            f"Coalesce lock acquisition "
+                                            f"timed out for {skill_name}"
+                                        ),
+                                    )
                                 _coalesce_lock_acquired = True
                                 if _coalesce_key in _coalesce_results:
                                     result = _coalesce_results[
                                         _coalesce_key
                                     ]
-                                    _release_coalesce_lock()
+                                    _release_coalesce_lock(_coalesce_key)
                                     with ctx_lock:
                                         ctx.data[skill_name] = result
                                     outputs.append(
@@ -1386,11 +1401,19 @@ class Executor:
                                         _coalesce_results.pop(
                                             evict_key, None
                                         )
-                                        # NOTE: do NOT remove the lock
-                                        # from _coalesce_locks — another
-                                        # thread may be holding it.
+                                        # Lock entries are intentionally
+                                        # NOT removed here.  A lock may be
+                                        # held by another thread at the
+                                        # moment of eviction; removing it
+                                        # conditionally (only when
+                                        # unlocked) leaks entries for
+                                        # locks that were held.  Lock
+                                        # objects are lightweight (~72 B)
+                                        # so keeping them avoids both the
+                                        # leak and a release-time KeyError
+                                        # race.
 
-                            _release_coalesce_lock()
+                            _release_coalesce_lock(_coalesce_key)
                             yield _ev(
                                 "skill_complete",
                                 skill=skill_name,
@@ -1403,7 +1426,7 @@ class Executor:
                         except (TimeoutError, SkillExecutionError) as exc:
                             last_error = exc
                             if attempt < max_retries:
-                                _release_coalesce_lock()
+                                _release_coalesce_lock(_coalesce_key)
                                 # Add jitter to prevent thundering herd
                                 base_backoff = min(2**attempt, 5)
                                 backoff = base_backoff * random.uniform(
@@ -1431,7 +1454,7 @@ class Executor:
                                     time.time() - _skill_t0,
                                     error=True,
                                 )
-                                _release_coalesce_lock()
+                                _release_coalesce_lock(_coalesce_key)
                                 _add_error("Skill execution failed")
                                 if (
                                     active_recipe_stack
@@ -1449,7 +1472,7 @@ class Executor:
                             logger.warning(
                                 "Skill %s failed: %s", skill_name, exc
                             )
-                            _release_coalesce_lock()
+                            _release_coalesce_lock(_coalesce_key)
                             yield _ev(
                                 "skill_failed",
                                 skill=skill_name,
@@ -1467,7 +1490,7 @@ class Executor:
                             else:
                                 execution_broken = True
                         finally:
-                            _release_coalesce_lock()
+                            _release_coalesce_lock(_coalesce_key)
             else:
                 # Parallel execution for group of skills
                 yield _ev("parallel_start", payload={"skills": skill_group})
@@ -1577,8 +1600,20 @@ class Executor:
                         # Shallow copy would share nested objects, causing
                         # race conditions if skills modify nested structures.
                         # This is a performance trade-off for correctness.
-                        ctx_copy = PipelineContext(goal=goal)
+                        # Parallel copies are ephemeral; disable disk
+                        # overflow to prevent temp-file exhaustion.
+                        # We pass _enable_disk_overflow=False explicitly so
+                        # we never mutate process-global os.environ.
+                        ctx_copy = PipelineContext(
+                            goal=goal, _enable_disk_overflow=False
+                        )
                         ctx_copy.data = _snapshot_context(ctx.data)
+                        # Preserve pre-parallel event history so skills
+                        # can inspect guardrails / telemetry.  Use list()
+                        # to snapshot the deque at this moment.
+                        ctx_copy.events = collections.deque(
+                            ctx.events, maxlen=ctx_copy._max_events
+                        )
                         _skill_t0 = time.time()
                         future = pool.submit(
                             _run_with_timeout, fn, ctx_copy, timeout_seconds
@@ -1681,6 +1716,14 @@ class Executor:
                             "fail_fast=True and skill failure"
                         )
 
+                    # Defensive: if as_completed raised (e.g. executor
+                    # shutdown), the per-future finally may not have run
+                    # for every future.  Close any survivors.
+                    for _future, _ctx_copy in future_to_ctx_copy.items():
+                        if _ctx_copy is not None:
+                            _ctx_copy.close()
+                    future_to_ctx_copy.clear()
+
                 # Merge parallel results into context with lock
                 with ctx_lock:
                     for skill_name, result in parallel_results.items():
@@ -1759,9 +1802,12 @@ class Executor:
                                     ],
                                 },
                             )
-                            ctx.data = _snapshot_context(
+                            _snap_data, _snap_outputs, _snap_errors = (
                                 recipe_snapshots[instance_id]
                             )
+                            ctx.data = _snap_data
+                            outputs[:] = _snap_outputs
+                            errors[:] = _snap_errors
                             recipe_error_lists[instance_id] = []
                             current_idx = recipe_start_skill_idx[instance_id]
                             group_idx = flat_idx_to_group[current_idx]
@@ -1949,9 +1995,17 @@ class Executor:
 
         Runs each strategy-goal pair sequentially, reusing the same
         registry and cache context for efficiency.
+
+        Raises:
+            ValueError: If *strategies* and *goals* have different lengths.
         """
+        if len(strategies) != len(goals):
+            raise ValueError(
+                f"strategies ({len(strategies)}) and goals ({len(goals)}) "
+                "must have the same length"
+            )
         results: List[RunRecord] = []
-        for strategy, goal in zip(strategies, goals):
+        for strategy, goal in zip(strategies, goals, strict=True):
             results.append(self.run(strategy, goal, timeout_seconds))
         return results
 
@@ -1985,6 +2039,7 @@ class Executor:
         timeout_seconds: float,
         recipe_map: Dict[str, Dict[str, Any]],
         correlation_id: str,
+        run_id: str = "",
         depth: int = 0,
     ) -> Iterator[dict]:
         """Recursively execute execution_order items as discrete units.
@@ -2034,7 +2089,7 @@ class Executor:
                         correlation_id=correlation_id,
                         _existing_ctx=ctx,
                         _suppress_start_complete=True,
-                        _run_id="",
+                        _run_id=run_id,
                         _use_hierarchical=False,
                     ):
                         yield event
@@ -2209,7 +2264,8 @@ class Executor:
                         recipe_timeout,
                         recipe_map,
                         correlation_id,
-                        depth + 1,
+                        run_id=run_id,
+                        depth=depth + 1,
                     ):
                         if event.get("type") == "skill_failed" and event.get(
                             "error"

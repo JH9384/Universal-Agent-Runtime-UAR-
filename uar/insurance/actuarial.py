@@ -263,7 +263,7 @@ class ActuarialCollector:
                 "period_days": days,
                 "total_records": len(rows),
                 "records": [
-                    dict(zip(columns, row)) for row in rows
+                    dict(zip(columns, row, strict=False)) for row in rows
                 ],
             }
 

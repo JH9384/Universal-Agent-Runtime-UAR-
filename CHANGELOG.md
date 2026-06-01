@@ -4,6 +4,56 @@ All notable changes to Universal Agent Runtime are documented here.
 
 This project uses semantic versioning for release tags.
 
+## [Unreleased] — Trust Spine Hardening Phase
+
+Phase transition: 2026-05-31
+
+UAR has moved from Trust Spine Construction into Trust Spine
+Hardening. All six Trust Spine phases (T1–T6) are implemented.
+Remaining work is performance, persistence, and correctness hardening.
+
+### Hardening Backlog (open)
+
+- #85 Runtime Health Query Consolidation
+- #86 Burn-In Persistence Layer
+- #87 Certification Engine Refactor
+
+## [1.1.0-construction] — Trust Spine Construction Complete
+
+Date: 2026-05-31
+Test suite: 3721 passed, 1 pre-existing failure (yolo_detect)
+
+### Added
+
+- T1 Replay Confidence: `uar/core/replay_confidence.py` — score 0-100,
+  tier, warnings, evidence report
+- T2 Runtime Health: `uar/core/runtime_health.py` — component health
+  scoring (execution, skills, events, streaming, pressure)
+- T3 Burn-In Framework: `uar/testing/burnin/` — contracts, scenarios
+  (direct + HTTP modes), `BurnInRunner`
+- T4 Certification Engine: `uar/core/certification.py` — Gold/Silver/
+  Experimental levels from T1/T2/T3 evidence
+- T5 Mission Control: `uar/core/mission_control.py` — operator snapshot
+  aggregating all Trust Spine evidence
+- T6 Replay Explorer: `uar/api/routers/replay_explorer.py` — per-run
+  bundle (timeline, confidence, failure path, events)
+- API routers for all phases mounted under `uor_router`
+- 48 Trust Spine tests across T1–T6
+
+### Fixed (P0 hardening)
+
+- `BurnInProxy` extracted to `burn_in.py` as single shared class;
+  removed 3 duplicate inline definitions from other routers
+- `_latest_report` is now written via `_set_latest_report()` under
+  `threading.RLock`; concurrent `POST /burnin/run` cannot corrupt state
+- Dead per-endpoint auth guards removed from runtime_health,
+  certification, and mission_control routers (uor_router already
+  enforces `require_auth` globally via boot.py dependency injection)
+- `replay_explorer` now enforces per-run ownership check; admins bypass
+- `timeline_from_record`, `score_replay`, `run_record_from_dict`
+  promoted to module-level imports in `replay_explorer.py`
+- 22 regression tests added in `tests/api/test_trust_spine_fixes.py`
+
 ## [1.0.0] - Production Runtime Release
 
 ### Added

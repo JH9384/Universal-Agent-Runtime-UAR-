@@ -16,6 +16,7 @@ import functools
 import logging
 import threading
 import time
+import collections
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Generic, Optional, TypeVar
 
@@ -52,7 +53,15 @@ def swallow(
     try:
         yield return_value
     except Exception as exc:
-        getattr(_log, level)("%s: %s", msg, exc, exc_info=True)
+        try:
+            log_method = getattr(_log, level)
+        except AttributeError:
+            _log.warning(
+                "swallow: invalid log level %r, falling back to warning",
+                level,
+            )
+            log_method = _log.warning
+        log_method("%s: %s", msg, exc, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -98,9 +107,20 @@ def monotonic_timeout(timeout: float, *, label: str = "operation"):
         yield deadline
     except Exception:
         if deadline.expired:
+            # The caught exception is the interrupted work, not the
+            # cause of the timeout.  Log it so the root cause is not
+            # completely lost, then suppress chaining so the
+            # TimeoutError stands on its own.
+            logger.warning(
+                "monotonic_timeout: operation '%s' exceeded %ss; "
+                "converting to TimeoutError (original exception suppressed)",
+                label,
+                timeout,
+                exc_info=True,
+            )
             raise TimeoutError(
                 f"{label} exceeded {timeout}s (monotonic)"
-            )
+            ) from None
         raise
     if deadline.expired:
         raise TimeoutError(
@@ -176,13 +196,17 @@ class _SafeLogger:
 
     def _check(self, msg: str) -> None:
         import os
+        import re
 
         if os.getenv("UAR_STRICT_LOGGING") != "1":
             return
-        # Heuristic: if msg contains '{' and '}' and looks like an f-string
-        # it was probably constructed with f"...".  This is a best-effort
-        # guard, not a parser.
-        if "{" in msg and "}" in msg and "%" not in msg:
+        # Heuristic: flag only brace pairs that contain what looks like
+        # a Python identifier or expression, e.g. {var} or {obj.attr}.
+        # This avoids false positives on JSON, empty {}, or numeric
+        # format specs like {0}.
+        if "%" in msg:
+            return
+        if re.search(r"\{[A-Za-z_]", msg):
             raise RuntimeError(
                 f"f-string detected in logger call: {msg[:80]!r}"
             )
@@ -289,9 +313,12 @@ class class_lru_cache(Generic[T]):
     """
 
     def __init__(self, maxsize: int = 128) -> None:
+        if maxsize <= 0:
+            raise ValueError("maxsize must be a positive integer")
         self._maxsize = maxsize
         self._cache: Dict[type, Dict[Any, Any]] = {}
-        self._order: Dict[type, list] = {}
+        self._order: Dict[type, Any] = {}
+        self._lock = threading.Lock()
         self._fn: Optional[Callable[..., T]] = None
 
     def __call__(self, fn: Callable[..., T]) -> class_lru_cache[T]:
@@ -304,9 +331,10 @@ class class_lru_cache(Generic[T]):
         if instance is None:
             return self._fn  # type: ignore[return-value]
 
-        if owner not in self._cache:
-            self._cache[owner] = {}
-            self._order[owner] = []
+        with self._lock:
+            if owner not in self._cache:
+                self._cache[owner] = {}
+                self._order[owner] = collections.OrderedDict()
 
         cache = self._cache[owner]
         order = self._order[owner]
@@ -317,16 +345,19 @@ class class_lru_cache(Generic[T]):
         @functools.wraps(_fn)
         def _cached(*args: Any, **kwargs: Any) -> Any:
             key = (args, tuple(sorted(kwargs.items())))
-            if key in cache:
-                order.remove(key)
-                order.append(key)
-                return cache[key]
+            with self._lock:
+                if key in cache:
+                    order.move_to_end(key)
+                    return cache[key]
             result = _fn(instance, *args, **kwargs)
-            cache[key] = result
-            order.append(key)
-            if len(order) > maxsize:
-                oldest = order.pop(0)
-                del cache[oldest]
-            return result
+            with self._lock:
+                if key in cache:
+                    return cache[key]
+                cache[key] = result
+                order[key] = None
+                if len(order) > maxsize:
+                    oldest, _ = order.popitem(last=False)
+                    del cache[oldest]
+                return result
 
         return _cached

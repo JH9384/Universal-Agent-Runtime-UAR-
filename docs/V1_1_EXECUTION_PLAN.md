@@ -1,10 +1,15 @@
 # UAR v1.1 Trust Release Execution Plan
 
-Status: Active
+Status: Active  
+Directional Lock: Issue #83
 
 ## Objective
 
 Transform UAR from a powerful runtime into a trustworthy platform.
+
+```text
+Execution -> Evidence -> Trust -> Operations
+```
 
 ## Execution Sequence
 
@@ -14,20 +19,26 @@ Issues:
 - #74
 - #58
 
+Status: Active
+
 Deliverables:
 - replay scoring
 - warning generation
 - confidence reports
 
-### T2 Runtime Guarantees
+### T2 Runtime Health
 
-Issues:
-- #69
-- #68
+Issue:
+- #83
+
+Status: Active
 
 Deliverables:
-- guarantee catalog
-- validation matrix
+- RuntimeHealthReport contract
+- health scoring (0-100)
+- health tier classification
+- component status map
+- operator-facing health summary
 
 ### T3 Burn-In
 
@@ -40,16 +51,17 @@ Deliverables:
 - pressure runs
 - evidence reports
 
-### T4 Certification
+### T4 Certification Engine
 
 Issues:
 - #70
 - #57
 
 Deliverables:
-- certification scoring
+- certification scoring (inputs: replay confidence + health + burn-in)
 - certification reports
-- silver/gold status
+- experimental / silver / gold status
+- runtime guarantee catalog (absorbed from former T2)
 
 ### T5 Mission Control
 
@@ -82,12 +94,14 @@ Until Trust Spine completion:
 - marketplace systems
 - workflow studio expansion
 - agent economy systems
+- new autonomy layers
 
 ## v1.1 Exit Criteria
 
 Trust:
 
 - Replay Confidence complete
+- Runtime Health complete
 - Burn-In complete
 - Certification complete
 
@@ -100,7 +114,7 @@ Documentation:
 
 - Capability Atlas frozen
 - Trust Spine documented
-- Runtime Guarantees documented
+- Directional lock recorded
 
 ## Release Statement
 

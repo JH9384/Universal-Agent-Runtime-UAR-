@@ -91,7 +91,7 @@ async def run_goal(
             executor = Executor()
             timeout = req.timeout_seconds or 5.0
             result = executor.run(strategy, goal, timeout_seconds=timeout)
-            result.user_id = user_info["user"] if user_info else None
+            result.user_id = user_info.get("user") if user_info else None
 
             # Cache result for idempotency
             if req.idempotency_key:
@@ -228,7 +228,7 @@ async def get_run_timeline(
     from uar.api.server import store
 
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else None
+    user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False
     record = store.get_by_run_id(run_id)
     if not record:
@@ -274,7 +274,7 @@ async def list_runs(
     request_id = request_logging_middleware(request, user_info)
 
     try:
-        user_id = user_info["user"] if user_info else None
+        user_id = user_info.get("user") if user_info else None
         runs = store.list_records(user_id=user_id)
         logger.info(
             "[%s] Listed %s runs for user %s",
@@ -307,7 +307,7 @@ async def get_run(
     from uar.api.server import store
 
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else None
+    user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False
 
     record = store.get_by_run_id(run_id)
@@ -336,7 +336,7 @@ async def get_run_events(
     from uar.api.server import store
 
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else None
+    user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False
 
     record = store.get_by_run_id(run_id)
@@ -366,7 +366,7 @@ async def get_run_replay(
     from uar.api.server import store
 
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else None
+    user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False
 
     record = store.get_by_run_id(run_id)
@@ -400,7 +400,7 @@ async def get_provenance(
     from uar.api.server import store
 
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else "anonymous"
+    user = user_info.get("user") if user_info else "anonymous"
 
     # Load from the globally configured store (Json, Sqlite, or Postgres)
     record = store.get_by_run_id(run_id)
@@ -502,7 +502,7 @@ async def compare_runs(
 
     rate_limit_middleware(request, credentials)
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else "anonymous"
+    user = user_info.get("user") if user_info else "anonymous"
     is_admin = user_info.get("tier") == "admin" if user_info else False
 
     rec_a = store.get_by_run_id(run_id)
@@ -579,7 +579,7 @@ async def bulk_delete_runs(
 
     rate_limit_middleware(request, credentials)
     user_info = auth_middleware(credentials)
-    user = user_info["user"] if user_info else "anonymous"
+    user = user_info.get("user") if user_info else "anonymous"
 
     run_ids = body.get("run_ids")
     older_than_days = body.get("older_than_days")
@@ -595,13 +595,38 @@ async def bulk_delete_runs(
             )
         removed = 0
         is_admin = bool(user_info and user_info.get("tier") == "admin")
+        errors = []
         for rid in run_ids:
             rec = store.get_by_run_id(rid)
             if rec:
                 owner = rec.get("user_id") or rec.get("user", "")
                 if owner == user or is_admin:
-                    store.delete(rid)
-                    removed += 1
+                    try:
+                        store.delete(rid)
+                        removed += 1
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to delete run %s: %s", rid, exc
+                        )
+                        errors.append(str(exc))
+        if errors:
+            if removed == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={
+                        "error": "delete_failed",
+                        "message": f"All deletions failed: {errors[0]}",
+                        "failures": errors,
+                    },
+                )
+            # Partial success: surface the failures so callers know some
+            # runs were skipped.
+            return {
+                "deleted": removed,
+                "filter": "run_ids",
+                "failed": len(errors),
+                "errors": errors[:10],  # cap to avoid huge payloads
+            }
         return {"deleted": removed, "filter": "run_ids"}
 
     if older_than_days is not None:
@@ -626,7 +651,17 @@ async def bulk_delete_runs(
                     "message": "Admin access required for time-based purge",
                 },
             )
-        removed = store.purge_old_records(days)
+        try:
+            removed = store.purge_old_records(days)
+        except Exception as exc:
+            logger.warning("Purge failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "error": "purge_failed",
+                    "message": str(exc),
+                },
+            ) from exc
         return {"deleted": removed, "filter": f"older_than_{days}_days"}
 
     raise HTTPException(

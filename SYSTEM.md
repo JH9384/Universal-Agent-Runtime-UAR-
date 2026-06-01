@@ -2,23 +2,43 @@
 
 ## Status
 
-UAR is currently in **Foundation → Platform roundout**.
+UAR is in the **v1.1 Trust Release** phase.
 
-This branch establishes a modular runtime foundation with event-driven execution, replayable run records, API adapters, streaming, release controls, environment configuration, and a staged web control surface. The current priority is production stabilization, not feature expansion.
+The runtime foundation is complete. The current mission is trustworthiness, not capability expansion.
+
+```text
+Execution -> Evidence -> Trust -> Operations
+```
+
+Execution generates evidence. Evidence establishes trust. Trust supports operations.
+
+### Trust Spine Priority Order
+
+1. Replay Confidence — score what we can prove (#74)
+2. Runtime Health — report what is running (#83)
+3. Burn-In Framework — generate reliability evidence (#62)
+4. Certification Engine — convert evidence into trust artifacts (#57, #70)
+5. Mission Control — operator synthesis view (#72, #55)
+6. Replay Explorer — operator run inspection (#56)
+
+See [docs/TRUST_SPINE.md](docs/TRUST_SPINE.md) and [docs/V1_1_EXECUTION_PLAN.md](docs/V1_1_EXECUTION_PLAN.md).
 
 ## Production Posture
 
-Feature expansion is frozen for this phase.
+Capability expansion is frozen until Trust Spine milestones are complete.
 
-Do not add new capabilities until the current platform slice is proven by CI, documented, and release-scoped.
+Do not add new runtime capabilities, autonomy layers, or infrastructure expansions until the trust primitives are operational and documented.
 
-Deferred until after stabilization:
+Deferred until Trust Spine completion:
 
 - parallel executor expansion
 - replay timeline UI
 - richer orchestration intelligence
 - advanced graph animation
 - production database backends beyond JSONL
+- marketplace systems
+- agent economy systems
+- workflow studio expansion
 
 ## Versioning
 

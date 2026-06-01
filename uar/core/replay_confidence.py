@@ -63,16 +63,28 @@ def confidence_tier(score: int) -> str:
     return "Failed"
 
 
-def _score_event_completeness(record: RunRecord, warnings: List[ReplayConfidenceWarning], errors: List[str]) -> int:
+def _score_event_completeness(
+    record: RunRecord,
+    warnings: List[ReplayConfidenceWarning],
+    errors: List[str],
+) -> int:
     events = list(record.events or [])
     if not events:
         errors.append("Cannot score replay confidence without events")
-        warnings.append(ReplayConfidenceWarning("missing_events", "Run record contains no events", "error"))
+        warnings.append(ReplayConfidenceWarning(
+            "missing_events",
+            "Run record contains no events",
+            "error",
+        ))
         return 0
 
     canonical = all("schema_version" in ev for ev in events)
     if not canonical:
-        warnings.append(ReplayConfidenceWarning("legacy_event_shape", "One or more events do not use canonical RuntimeEvent schema"))
+        warnings.append(ReplayConfidenceWarning(
+            "legacy_event_shape",
+            "One or more events do not use canonical "
+            "RuntimeEvent schema",
+        ))
         # Legacy events may still support partial operator understanding.
         return 60
 
@@ -81,69 +93,142 @@ def _score_event_completeness(record: RunRecord, warnings: List[ReplayConfidence
         return 100
     except EventContractError as exc:
         errors.append(str(exc))
-        warnings.append(ReplayConfidenceWarning("invalid_event_schema", str(exc), "error"))
+        warnings.append(ReplayConfidenceWarning(
+            "invalid_event_schema", str(exc), "error"
+        ))
         return 40
 
 
-def _score_timeline_completeness(record: RunRecord, warnings: List[ReplayConfidenceWarning]) -> int:
+def _score_timeline_completeness(
+    record: RunRecord,
+    warnings: List[ReplayConfidenceWarning],
+) -> int:
     try:
         timeline = timeline_from_record(record)
     except Exception as exc:  # pragma: no cover - defensive guard
-        warnings.append(ReplayConfidenceWarning("timeline_gap", f"Timeline projection failed: {exc}", "error"))
+        warnings.append(ReplayConfidenceWarning(
+            "timeline_gap",
+            f"Timeline projection failed: {exc}",
+            "error",
+        ))
         return 0
 
     summary = timeline.get("summary", {})
     event_types = timeline.get("event_types", [])
     if not event_types:
-        warnings.append(ReplayConfidenceWarning("timeline_gap", "Timeline has no event types"))
+        warnings.append(ReplayConfidenceWarning(
+            "timeline_gap", "Timeline has no event types"
+        ))
         return 40
 
     score = 100
     if summary.get("status") in {None, "unknown"}:
-        warnings.append(ReplayConfidenceWarning("timeline_gap", "Timeline status is unknown"))
+        warnings.append(ReplayConfidenceWarning(
+            "timeline_gap", "Timeline status is unknown"
+        ))
         score -= 20
     if record.skills and not timeline.get("skills"):
-        warnings.append(ReplayConfidenceWarning("timeline_gap", "Timeline has no projected skills"))
+        warnings.append(ReplayConfidenceWarning(
+            "timeline_gap", "Timeline has no projected skills"
+        ))
         score -= 15
     return max(0, score)
 
 
-def _score_store_consistency(record: RunRecord, warnings: List[ReplayConfidenceWarning]) -> int:
+def _score_store_consistency(
+    record: RunRecord,
+    warnings: List[ReplayConfidenceWarning],
+) -> int:
     score = 100
-    if not record.run_id:
-        warnings.append(ReplayConfidenceWarning("store_record_missing", "Run record missing run_id", "error"))
+    run_id_missing = not record.run_id
+    goal_id_missing = not record.goal_id
+
+    if run_id_missing:
+        warnings.append(ReplayConfidenceWarning(
+            "store_record_missing",
+            "Run record missing run_id",
+            "error",
+        ))
         score -= 50
-    if not record.goal_id:
-        warnings.append(ReplayConfidenceWarning("store_record_missing", "Run record missing goal_id", "error"))
+    if goal_id_missing:
+        warnings.append(ReplayConfidenceWarning(
+            "store_record_missing",
+            "Run record missing goal_id",
+            "error",
+        ))
         score -= 30
     if record.events:
-        first = record.events[0]
-        if first.get("run_id") and first.get("run_id") != record.run_id:
-            warnings.append(ReplayConfidenceWarning("store_event_mismatch", "First event run_id does not match RunRecord.run_id", "error"))
-            score -= 40
-        if first.get("goal_id") and first.get("goal_id") != record.goal_id:
-            warnings.append(ReplayConfidenceWarning("store_event_mismatch", "First event goal_id does not match RunRecord.goal_id", "error"))
-            score -= 30
+        run_id_mismatch_seen = False
+        goal_id_mismatch_seen = False
+        for ev in record.events:
+            # Only flag mismatch when the record field is present; absence is
+            # already penalised above and the two deductions must not stack.
+            ev_run_id = ev.get("run_id")
+            ev_goal_id = ev.get("goal_id")
+            if (
+                not run_id_missing
+                and not run_id_mismatch_seen
+                and ev_run_id is not None
+                and ev_run_id != ""
+                and str(ev_run_id) != record.run_id
+            ):
+                warnings.append(ReplayConfidenceWarning(
+                    "store_event_mismatch",
+                    "Event run_id does not match "
+                    "RunRecord.run_id",
+                    "error",
+                ))
+                score -= 40
+                run_id_mismatch_seen = True
+            if (
+                not goal_id_missing
+                and not goal_id_mismatch_seen
+                and ev_goal_id is not None
+                and ev_goal_id != ""
+                and str(ev_goal_id) != record.goal_id
+            ):
+                warnings.append(ReplayConfidenceWarning(
+                    "store_event_mismatch",
+                    "Event goal_id does not match "
+                    "RunRecord.goal_id",
+                    "error",
+                ))
+                score -= 30
+                goal_id_mismatch_seen = True
+            if run_id_mismatch_seen and goal_id_mismatch_seen:
+                break
     return max(0, score)
 
 
-def _score_reconstruction(record: RunRecord, warnings: List[ReplayConfidenceWarning]) -> int:
+def _score_reconstruction(
+    record: RunRecord,
+    warnings: List[ReplayConfidenceWarning],
+) -> int:
     events = list(record.events or [])
     if not events:
         return 0
     if not all("schema_version" in ev for ev in events):
-        warnings.append(ReplayConfidenceWarning("partial_replay", "Legacy events allow partial but not strict reconstruction"))
+        warnings.append(ReplayConfidenceWarning(
+            "partial_replay",
+            "Legacy events allow partial but not strict "
+            "reconstruction",
+        ))
         return 60
     try:
         validate_event_stream(events)
         return 100
     except EventContractError as exc:
-        warnings.append(ReplayConfidenceWarning("reconstruction_failed", str(exc), "error"))
+        warnings.append(ReplayConfidenceWarning(
+            "reconstruction_failed", str(exc), "error"
+        ))
         return 30
 
 
-def _score_artifact_completeness(record: RunRecord, warnings: List[ReplayConfidenceWarning]) -> int:
-    # v1 treats outputs/final_context/UOR provenance as available artifact hints.
+def _score_artifact_completeness(
+    record: RunRecord,
+    warnings: List[ReplayConfidenceWarning],
+) -> int:
+    # v1 treats outputs/final_context/UOR provenance as artifact hints.
     has_outputs = bool(record.outputs)
     has_context = bool(record.final_context)
     has_uor = bool(record.uor_address or record.uor_witness)
@@ -153,8 +238,12 @@ def _score_artifact_completeness(record: RunRecord, warnings: List[ReplayConfide
         return 90
     if has_context or has_uor:
         return 75
-    warnings.append(ReplayConfidenceWarning("artifact_missing", "No outputs, final context, or UOR provenance found"))
-    return 60
+    warnings.append(ReplayConfidenceWarning(
+        "artifact_missing",
+        "No outputs, final context, or UOR provenance found",
+        "warning",
+    ))
+    return 0
 
 
 def score_replay(record: RunRecord) -> ReplayConfidenceReport:
@@ -166,11 +255,21 @@ def score_replay(record: RunRecord) -> ReplayConfidenceReport:
     errors: List[str] = []
 
     dimensions = {
-        "event_completeness": _score_event_completeness(record, warnings, errors),
-        "timeline_completeness": _score_timeline_completeness(record, warnings),
-        "store_consistency": _score_store_consistency(record, warnings),
-        "replay_reconstruction_success": _score_reconstruction(record, warnings),
-        "artifact_completeness": _score_artifact_completeness(record, warnings),
+        "event_completeness": _score_event_completeness(
+            record, warnings, errors
+        ),
+        "timeline_completeness": _score_timeline_completeness(
+            record, warnings
+        ),
+        "store_consistency": _score_store_consistency(
+            record, warnings
+        ),
+        "replay_reconstruction_success": _score_reconstruction(
+            record, warnings
+        ),
+        "artifact_completeness": _score_artifact_completeness(
+            record, warnings
+        ),
     }
 
     weighted = (

@@ -60,7 +60,10 @@ class AsyncObjectResolver:
         tasks = [self.fetch_object(digest, fetch_func) for digest in digests]
         results = await asyncio.gather(*tasks)
 
-        return {digest: obj for digest, obj in zip(digests, results)}
+        return {
+            digest: obj
+            for digest, obj in zip(digests, results, strict=False)
+        }
 
     async def fetch_with_retry(
         self,

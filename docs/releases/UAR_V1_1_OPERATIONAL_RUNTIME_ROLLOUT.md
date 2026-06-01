@@ -8,9 +8,17 @@ Phase: Operational Runtime Campaign
 
 Current Sprint: Ω-1 Replay Confidence
 
+Directional Lock: Issue #83 (Runtime Health Contract)
+
 Certification Target: Silver
 
 Release Target: v1.1.0
+
+Trust Formula:
+
+```text
+Execution -> Evidence -> Trust -> Operations
+```
 
 ---
 
@@ -143,14 +151,18 @@ Replay and certification must derive from RuntimeEvent streams.
 
 ## Active Issue Train
 
-Implementation order is fixed:
+Implementation order is fixed (locked Issue #83):
 
-1. #58 Replay Confidence Helper
-2. #56 Replay Explorer v1
-3. #55 Mission Control v1 Consolidation
-4. #57 Certification Engine v1
-5. #59 Topology Visualization v1
-6. #60 Executor Decomposition Plan
+1. #74 Replay Confidence (T1)
+2. #83 Runtime Health Report (T2)
+3. #62 Burn-In Framework (T3)
+4. #57 Certification Engine v1 (T4)
+5. #70 Certification Scoring (T4)
+6. #72 Mission Control v1 (T5)
+7. #55 Mission Control Consolidation (T5)
+8. #56 Replay Explorer v1 (T6)
+9. #59 Topology Visualization v1
+10. #60 Executor Decomposition Plan
 
 No reordering without Chief Architect approval.
 
@@ -158,39 +170,55 @@ No reordering without Chief Architect approval.
 
 ## Release Tracks
 
-### Track A — Replay Explorer
+### Track A — Replay Confidence (T1)
 
 Issues:
 
-- #56 Replay Explorer v1
+- #74 Replay Confidence
 - #58 Replay Confidence Helper
 
 Deliverables:
 
-- replay confidence scoring
-- failure path projection
-- event inspection
-- replay export
+- confidence scoring (0-100)
+- confidence tier
+- warning generation
+- confidence reports
+- replay endpoint integration
 
-### Track B — Mission Control
+### Track B — Runtime Health (T2)
 
 Issues:
 
-- #55 Mission Control v1 Consolidation
+- #83 Runtime Health Report
 
 Deliverables:
 
-- unified operator landing page
-- runtime health summary
-- active run overview
-- replay entry points
-- metrics integration
+- RuntimeHealthReport contract
+- health scoring (0-100)
+- health tier classification
+- component status map
+- operator-facing health summary
 
-### Track C — Certification
+### Track C — Burn-In (T3)
+
+Issues:
+
+- #62 Burn-In Framework
+
+Deliverables:
+
+- smoke runs
+- soak runs
+- pressure runs
+- burn-in score
+- reliability evidence reports
+
+### Track D — Certification Engine (T4)
 
 Issues:
 
 - #57 Certification Engine v1
+- #70 Certification Scoring
 
 Deliverables:
 
@@ -198,8 +226,39 @@ Deliverables:
 - event integrity score
 - runtime stability score
 - certification report artifact
+- experimental / silver / gold levels
 
-### Track D — Topology
+### Track E — Mission Control (T5)
+
+Issues:
+
+- #72 Mission Control v1
+- #55 Mission Control v1 Consolidation
+
+Deliverables:
+
+- unified operator landing page
+- runtime health panel
+- active run overview
+- replay entry points
+- metrics integration
+
+### Track F — Replay Explorer (T6)
+
+Issues:
+
+- #56 Replay Explorer v1
+
+Deliverables:
+
+- run browser
+- timeline explorer
+- event inspection
+- confidence overlay
+- run comparison
+- replay export
+
+### Track G — Topology
 
 Issues:
 
@@ -211,7 +270,7 @@ Deliverables:
 - run execution graph
 - failure and slow-node highlighting
 
-### Track E — Executor Hardening
+### Track H — Executor Hardening
 
 Issues:
 
@@ -225,11 +284,14 @@ Deliverables:
 
 ---
 
-## Sprint Ω-1 Replay Confidence
+## Sprint Ω-1 Replay Confidence (T1)
+
+Issues: #74, #58
 
 Deliverables:
 
-- confidence scoring
+- confidence scoring (0-100)
+- confidence tier
 - timestamp validation
 - terminal validation
 - schema validation
@@ -244,25 +306,75 @@ Output example:
 }
 ```
 
+Success condition:
+
+Every run produces a verifiable confidence score.
+
 ---
 
-## Sprint Ω-2 Replay Explorer
+## Sprint Ω-2 Runtime Health (T2)
+
+Issue: #83
 
 Deliverables:
 
-- timeline view
-- event inspection
-- failure path view
-- replay confidence display
-- export support
+- RuntimeHealthReport contract
+- health scoring (0-100)
+- health tier classification
+- component status map
+- active run count
+- error rate
+- operator-facing health summary
 
 Success condition:
 
-Operator can explain a failed run without reading logs.
+Operator knows runtime health without reading logs.
 
 ---
 
-## Sprint Ω-3 Mission Control
+## Sprint Ω-3 Burn-In (T3)
+
+Issue: #62
+
+Deliverables:
+
+- smoke runs
+- soak runs
+- pressure runs
+- burn-in score
+- reliability evidence report
+
+Success condition:
+
+Runtime generates reliability evidence under sustained load.
+
+---
+
+## Sprint Ω-4 Certification Engine (T4)
+
+Issues: #57, #70
+
+Deliverables:
+
+- replay fidelity score
+- event integrity score
+- runtime stability score
+- streaming stability score
+- certification report generation
+
+Artifact:
+
+certification.md
+
+Success condition:
+
+Certification report can be generated from evidence.
+
+---
+
+## Sprint Ω-5 Mission Control (T5)
+
+Issues: #72, #55
 
 Deliverables:
 
@@ -278,23 +390,29 @@ Operator understands runtime state in less than 10 seconds.
 
 ---
 
-## Sprint Ω-4 Certification Engine
+## Sprint Ω-6 Replay Explorer (T6)
+
+Issue: #56
 
 Deliverables:
 
-- replay fidelity score
-- event integrity score
-- runtime stability score
-- streaming stability score
-- certification report generation
+- run browser
+- timeline explorer
+- event inspection
+- failure path view
+- confidence overlay
+- run comparison
+- export support
 
-Artifact:
+Success condition:
 
-certification.md
+Operator can explain a failed run without reading logs.
 
 ---
 
-## Sprint Ω-5 Topology Visualization
+## Sprint Ω-7 Topology Visualization
+
+Issue: #59
 
 Deliverables:
 
@@ -306,7 +424,9 @@ Deliverables:
 
 ---
 
-## Sprint Ω-6 Executor Hardening
+## Sprint Ω-8 Executor Hardening
+
+Issue: #60
 
 Extract:
 
@@ -357,24 +477,28 @@ Gold remains a follow-on target after pressure burn-in and topology validation.
 
 ## Release Checklist
 
-| Area | Status |
-| --- | --- |
-| Replay Confidence | Planned |
-| Replay Explorer | Planned |
-| Mission Control | Planned |
-| Certification | Planned |
-| Topology | Planned |
-| Executor Hardening | Planned |
-| Smoke Burn-In | Pending |
-| Soak Burn-In | Pending |
-| Silver Certification | Pending |
+| Area | Sprint | Status |
+| --- | --- | --- |
+| Replay Confidence (T1) | Ω-1 | Active |
+| Runtime Health (T2) | Ω-2 | Active |
+| Burn-In (T3) | Ω-3 | Pending |
+| Certification Engine (T4) | Ω-4 | Pending |
+| Mission Control (T5) | Ω-5 | Pending |
+| Replay Explorer (T6) | Ω-6 | Pending |
+| Topology | Ω-7 | Pending |
+| Executor Hardening | Ω-8 | Pending |
+| Smoke Burn-In | Ω-3 | Pending |
+| Soak Burn-In | Ω-3 | Pending |
+| Silver Certification | Ω-4 | Pending |
 
-- [ ] Replay Confidence Complete
-- [ ] Replay Explorer Complete
-- [ ] Mission Control Complete
-- [ ] Certification Engine Complete
-- [ ] Topology Complete
-- [ ] Executor Hardening Complete
+- [ ] Replay Confidence Complete (#74)
+- [ ] Runtime Health Complete (#83)
+- [ ] Burn-In Complete (#62)
+- [ ] Certification Engine Complete (#57, #70)
+- [ ] Mission Control Complete (#72, #55)
+- [ ] Replay Explorer Complete (#56)
+- [ ] Topology Complete (#59)
+- [ ] Executor Hardening Complete (#60)
 - [ ] Smoke PASS
 - [ ] Soak PASS
 - [ ] Certification Generated
@@ -386,13 +510,14 @@ Gold remains a follow-on target after pressure burn-in and topology validation.
 
 UAR v1.1 is complete when:
 
-- Replay Explorer can reconstruct and explain runs.
+- Replay Confidence scores every run.
+- Runtime Health reports runtime state without log reading.
+- Burn-In has generated reliability evidence (Smoke + Soak at minimum).
+- Certification reports can be generated from evidence.
 - Mission Control provides a calm operator surface.
-- Certification reports can be generated.
-- Runtime health is visible.
+- Replay Explorer can reconstruct and explain runs.
 - Topology view exists for runtime and run-level inspection.
 - Executor decomposition has an accepted plan or first safe extraction.
-- Burn-in passes at least Smoke and Soak levels.
 
 An operator must be able to answer without reading code:
 

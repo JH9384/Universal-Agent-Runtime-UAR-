@@ -1,13 +1,12 @@
 """Base service class providing dependency injection and lifecycle hooks."""
 
-from abc import ABC
 from typing import Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class BaseService(ABC):
+class BaseService:
     """Base class for all UAR services.
 
     Provides:

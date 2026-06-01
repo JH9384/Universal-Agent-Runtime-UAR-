@@ -17,20 +17,38 @@ Evidence exists to establish trust.
 
 Trust exists to support operations.
 
+## Directional Lock
+
+Locked in Issue #83 (RuntimeHealthReport Contract & Scoring Engine).
+
+```text
+Execution -> Evidence -> Trust -> Operations
+```
+
+Execution generates evidence. Evidence establishes trust. Trust supports operations.
+
 ## Trust Spine
 
 The Trust Spine is the evidence-to-operations path for UAR:
 
 ```text
 Replay
-  -> Replay Confidence
-  -> Runtime Guarantees
-  -> Burn-In Evidence
-  -> Certification Scoring
-  -> Certification Engine
-  -> Mission Control
-  -> Replay Explorer
+  -> T1: Replay Confidence
+  -> T2: Runtime Health
+  -> T3: Burn-In Evidence
+  -> T4: Certification Engine
+  -> T5: Mission Control
+  -> T6: Replay Explorer
 ```
+
+### Priority Order
+
+1. Replay Confidence (#74)
+2. Runtime Health (#83)
+3. Burn-In Framework (#62)
+4. Certification Engine (#57, #70)
+5. Mission Control (#72, #55)
+6. Replay Explorer (#56)
 
 ## Phase T1 — Replay Confidence
 
@@ -54,28 +72,21 @@ Outputs:
 - Warning set
 - Evidence report
 
-## Phase T2 — Runtime Guarantees
+## Phase T2 — Runtime Health
 
-Primary issue: #69  
-Related issue: #68
+Primary issue: #83
 
-Purpose: convert implementation behavior into explicit guarantees.
+Purpose: report what is currently running. Provide a structured health view that operators can rely on.
 
-Guarantee classes:
+Outputs:
 
-- Strong
-- Best Effort
-- Experimental
-
-Candidate guarantees:
-
-- Run identity
-- Replay reconstruction
-- Store independence
-- Event schema integrity
-- Streaming delivery assumptions
-- Metrics continuity
-- Certification reproducibility assumptions
+- RuntimeHealthReport
+- Health score, 0-100
+- Health tier
+- Component status map
+- Active run count
+- Error rate
+- Operator-facing health summary
 
 ## Phase T3 — Burn-In Framework
 
@@ -96,11 +107,11 @@ Outputs:
 - Failure evidence
 - Certification inputs
 
-## Phase T4 — Certification Scoring
+## Phase T4 — Certification Engine
 
-Primary issue: #70
+Primary issues: #57, #70
 
-Purpose: define UAR Trust Model v1.
+Purpose: define UAR Trust Model v1 and convert evidence into certification artifacts.
 
 Inputs:
 
@@ -111,24 +122,12 @@ Inputs:
 
 Outputs:
 
-- Experimental
-- Silver
-- Gold
-
-## Phase T5 — Certification Engine
-
-Primary issue: #57
-
-Purpose: convert evidence into certification artifacts.
-
-Outputs:
-
-- Certification level
+- Certification level (Experimental / Silver / Gold)
 - Evidence bundle
 - Certification report
 - Operator-facing trust status
 
-## Phase T6 — Mission Control
+## Phase T5 — Mission Control
 
 Primary issue: #72  
 Related issue: #55
@@ -145,7 +144,7 @@ Mission Control first-class signals:
 - Alerts
 - Live event feed
 
-## Phase T7 — Replay Explorer
+## Phase T6 — Replay Explorer
 
 Primary issue: #56
 
@@ -192,7 +191,47 @@ Documentation:
 
 ## Current Status
 
-Discovery Phase: Complete  
-Trust Spine: Active  
-Operator Productization: Active  
-Infrastructure Expansion: Frozen until trust milestones complete
+**Phase Transition: 2026-05-31**
+
+UAR has formally transitioned from **Trust Spine Construction Phase**
+into **Trust Spine Hardening Phase**.
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| T1 Replay Confidence | Complete | #74 — all tests green |
+| T2 Runtime Health | Implemented | #83 — hardening pending |
+| T3 Burn-In Framework | Implemented | #62 — persistence pending |
+| T4 Certification Engine | Implemented | #57/#70 — refactor pending |
+| T5 Mission Control | Implemented | #72/#55 — query consolidation pending |
+| T6 Replay Explorer | Implemented | #56 — presentation layer |
+
+Infrastructure Expansion: Frozen — no new subsystems until
+hardening milestones complete.
+
+## Hardening Backlog
+
+Open items following phase transition (see issue docs in
+`docs/issues/`):
+
+- **#85** Runtime Health Query Consolidation — collapse 4 store scans
+  per Mission Control request into a single snapshot query
+- **#86** Burn-In Persistence Layer — survive restart; write
+  `BurnInReport` to the run store rather than an in-process module var
+- **#87** Certification Engine Refactor — remove pressure-score and
+  hardening-era remnants; inputs are T1/T2/T3 only
+
+## Hardening Freeze Directive
+
+No new Trust Spine phases.
+No new concepts, layers, or subsystems.
+
+Permitted work during Hardening Phase:
+
+- Performance (query consolidation, caching)
+- Persistence (burn-in store, report durability)
+- Correctness (ownership, concurrency, error paths)
+- Observability (structured logging, metrics)
+
+Note: Former T2 (Runtime Guarantees, #69/#68) is absorbed into T4
+Certification Engine inputs. The guarantee catalog becomes part of
+the certification scoring contract, not a standalone trust phase.

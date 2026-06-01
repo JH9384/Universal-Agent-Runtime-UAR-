@@ -44,6 +44,12 @@ class RiscvEmulator:
 
     def load_program(self, words: List[int], start_addr: int = 0) -> None:
         """Load program words into memory."""
+        end = start_addr + len(words) * 4
+        if end > len(self.memory):
+            raise ValueError(
+                f"Program of {len(words)} words ({end} bytes) exceeds "
+                f"memory size {len(self.memory)} bytes"
+            )
         for i, word in enumerate(words):
             addr = start_addr + i * 4
             self.memory[addr:addr + 4] = word.to_bytes(4, "little")
@@ -55,6 +61,11 @@ class RiscvEmulator:
 
     def write_word(self, addr: int, val: int) -> None:
         """Write 32-bit word to memory."""
+        if addr + 4 > len(self.memory):
+            raise ValueError(
+                f"Write at address {addr} exceeds "
+                f"memory size {len(self.memory)}"
+            )
         self.memory[addr:addr + 4] = (val & 0xFFFFFFFF).to_bytes(4, "little")
 
     def step(self) -> bool:
@@ -110,9 +121,9 @@ class RiscvEmulator:
                 self.registers[rd] = (a - b) & 0xFFFFFFFF
             elif funct3 == 0x1 and funct7 == 0x00:
                 self.registers[rd] = (a << (b & 0x1F)) & 0xFFFFFFFF
-            if funct3 == 0x2 and funct7 == 0x00:
+            elif funct3 == 0x2 and funct7 == 0x00:
                 self.registers[rd] = (
-                    1 if (a & 0xFFFFFFFF) < (b & 0xFFFFFFFF) else 0
+                    1 if _sign_extend(a, 32) < _sign_extend(b, 32) else 0
                 )
             elif funct3 == 0x3 and funct7 == 0x00:
                 self.registers[rd] = 1 if a < b else 0
@@ -156,16 +167,25 @@ class RiscvEmulator:
         # Load
         elif opcode == 0b0000011:
             addr = (self.registers[rs1] + imm_i) & 0xFFFFFFFF
+            mem_size = len(self.memory)
+            if addr >= mem_size:
+                return False  # Memory access fault
             if funct3 == 0x0:  # LB
                 self.registers[rd] = _sign_extend(self.memory[addr], 8)
             elif funct3 == 0x1:  # LH
+                if addr + 2 > mem_size:
+                    return False
                 val = int.from_bytes(self.memory[addr:addr + 2], "little")
                 self.registers[rd] = _sign_extend(val, 16)
             elif funct3 == 0x2:  # LW
+                if addr + 4 > mem_size:
+                    return False
                 self.registers[rd] = self.read_word(addr)
-            if funct3 == 0x4:  # LBU
+            elif funct3 == 0x4:  # LBU
                 self.registers[rd] = self.memory[addr]
             elif funct3 == 0x5:  # LHU
+                if addr + 2 > mem_size:
+                    return False
                 val = int.from_bytes(
                     self.memory[addr:addr + 2], "little"
                 )
@@ -175,13 +195,20 @@ class RiscvEmulator:
         # Store
         elif opcode == 0b0100011:
             addr = (self.registers[rs1] + imm_s) & 0xFFFFFFFF
+            mem_size = len(self.memory)
+            if addr >= mem_size:
+                return False  # Memory access fault
             val = self.registers[rs2]
             if funct3 == 0x0:  # SB
                 self.memory[addr] = val & 0xFF
             elif funct3 == 0x1:  # SH
+                if addr + 2 > mem_size:
+                    return False
                 ba = (val & 0xFFFF).to_bytes(2, "little")
                 self.memory[addr:addr + 2] = ba
             elif funct3 == 0x2:  # SW
+                if addr + 4 > mem_size:
+                    return False
                 self.write_word(addr, val)
             self.pc += 4
 
@@ -310,57 +337,58 @@ def _parse_assembly(asm: str) -> List[int]:
         op = parts[0].lower()
         word = 0
 
-        def _enc_r(f7: int, f3: int, opc: int) -> int:
+        def _enc_r(f7: int, f3: int, opc: int, _p: list = parts) -> int:
             return (
                 (f7 << 25)
-                | (reg_map.get(parts[3], 0) << 20)
+                | (reg_map.get(_p[3], 0) << 20)
+                | (reg_map.get(_p[2], 0) << 15)
                 | (f3 << 12)
-                | (reg_map.get(parts[1], 0) << 7)
+                | (reg_map.get(_p[1], 0) << 7)
                 | opc
             )
 
-        def _enc_i(imm: int, f3: int, opc: int) -> int:
+        def _enc_i(imm: int, f3: int, opc: int, _p: list = parts) -> int:
             return (
                 ((imm & 0xFFF) << 20)
-                | (reg_map.get(parts[2], 0) << 15)
+                | (reg_map.get(_p[2], 0) << 15)
                 | (f3 << 12)
-                | (reg_map.get(parts[1], 0) << 7)
+                | (reg_map.get(_p[1], 0) << 7)
                 | opc
             )
 
-        def _enc_s(imm: int, f3: int, opc: int) -> int:
-            rs2 = reg_map.get(parts[1], 0)
-            rs1_v = reg_map.get(parts[3], 0)
+        def _enc_s(imm: int, f3: int, opc: int, _p: list = parts) -> int:
+            rs2 = reg_map.get(_p[1], 0)
+            rs1_v = reg_map.get(_p[3], 0)
             return (
-                ((imm & 0xFE0) << 20)
+                (((imm >> 5) & 0x7F) << 25)
                 | (rs2 << 20)
-                | (f3 << 12)
                 | (rs1_v << 15)
+                | (f3 << 12)
                 | ((imm & 0x1F) << 7)
                 | opc
             )
 
-        def _enc_b(imm: int, f3: int, opc: int) -> int:
+        def _enc_b(imm: int, f3: int, opc: int, _p: list = parts) -> int:
             imm13 = imm
             return (
                 (((imm13 >> 12) & 1) << 31)
                 | (((imm13 >> 5) & 0x3F) << 25)
-                | (reg_map.get(parts[2], 0) << 20)
+                | (reg_map.get(_p[2], 0) << 20)
+                | (reg_map.get(_p[1], 0) << 15)
                 | (f3 << 12)
-                | (reg_map.get(parts[1], 0) << 15)
                 | (((imm13 >> 1) & 0xF) << 8)
                 | (((imm13 >> 11) & 1) << 7)
                 | opc
             )
 
-        def _enc_u(imm: int, opc: int) -> int:
+        def _enc_u(imm: int, opc: int, _p: list = parts) -> int:
             return (
                 (imm & 0xFFFFF000)
-                | (reg_map.get(parts[1], 0) << 7)
+                | (reg_map.get(_p[1], 0) << 7)
                 | opc
             )
 
-        def _enc_j(label: str, opc: int) -> int:
+        def _enc_j(label: str, opc: int, _p: list = parts) -> int:
             tgt = labels.get(label, addr)
             imm21 = tgt - addr
             return (
@@ -368,7 +396,7 @@ def _parse_assembly(asm: str) -> List[int]:
                 | (((imm21 >> 1) & 0x3FF) << 21)
                 | (((imm21 >> 11) & 1) << 20)
                 | (((imm21 >> 12) & 0xFF) << 12)
-                | (reg_map.get(parts[1], 0) << 7)
+                | (reg_map.get(_p[1], 0) << 7)
                 | opc
             )
 
