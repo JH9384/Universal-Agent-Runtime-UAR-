@@ -4,6 +4,7 @@ import { TrendPanel } from './TrendPanel'
 import { BurnInHistory } from './BurnInHistory'
 import { FailureClusterPanel } from './FailureClusterPanel'
 import { ConfidenceDriftPanel } from './ConfidenceDriftPanel'
+import { TopologyAnalyticsPanel } from './TopologyAnalyticsPanel'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -208,6 +209,9 @@ export function MissionControlWidget() {
       <div className={styles.topologySection}>
         <TopologyWidget />
       </div>
+
+      {/* Topology Analytics */}
+      <TopologyAnalyticsPanel />
 
       {/* Footer */}
       <div className={styles.footer}>

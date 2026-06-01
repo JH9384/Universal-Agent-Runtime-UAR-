@@ -859,3 +859,139 @@ async def get_failure_clusters(
         "top_skills": skill_list,
         "top_errors": error_list,
     }
+
+
+@router.get("/api/uar/topology/hot-paths")
+async def get_topology_hot_paths(
+    hours: int = Query(168, ge=1, le=720),
+    top: int = Query(15, ge=1, le=50),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Derive execution topology from recent runs.
+
+    Issue #95 — Phase D3.1: Topology Hot Paths.
+    Analyzes run records to produce:
+    - Node utilization (skill invocations, success rate)
+    - Edge utilization (skill-to-skill transitions)
+    - Recipe utilization (executions, success rate)
+    Zero new storage layer.
+    """
+    from uar.api.server import store
+
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    import time
+    user = user_info.get("user") if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+    cutoff = time.time() - (hours * 3600)
+
+    all_runs = store.list_records(user_id=user if is_admin else user)
+    recent_runs = [
+        r for r in all_runs
+        if r.get("created_at", 0) >= cutoff
+        or r.get("timestamp", 0) >= cutoff
+    ]
+
+    nodes: dict[str, dict] = {}
+    edges: dict[str, dict] = {}
+    recipes: dict[str, dict] = {}
+
+    for run in recent_runs:
+        owner = run.get("user_id") or run.get("user", "")
+        if owner and owner != user and not is_admin:
+            continue
+
+        status_ok = run.get("status") == "success"
+        skills = run.get("skills") or []
+        meta = run.get("metadata") or {}
+        exec_order = meta.get("execution_order") or []
+
+        # Node counts from skills list
+        for skill in skills:
+            if skill not in nodes:
+                nodes[skill] = {
+                    "skill": skill,
+                    "invocations": 0,
+                    "successes": 0,
+                    "failures": 0,
+                }
+            nodes[skill]["invocations"] += 1
+            if status_ok:
+                nodes[skill]["successes"] += 1
+            else:
+                nodes[skill]["failures"] += 1
+
+        # Edge counts from skill sequence
+        for i in range(len(skills) - 1):
+            src = skills[i]
+            dst = skills[i + 1]
+            key = f"{src}→{dst}"
+            if key not in edges:
+                edges[key] = {
+                    "source": src,
+                    "target": dst,
+                    "transitions": 0,
+                    "failures": 0,
+                }
+            edges[key]["transitions"] += 1
+            if not status_ok:
+                edges[key]["failures"] += 1
+
+        # Recipe counts from execution_order metadata
+        for item in exec_order:
+            if isinstance(item, dict) and item.get("type") == "recipe":
+                rid = item.get("content", item.get("id", "unknown"))
+                if rid not in recipes:
+                    recipes[rid] = {
+                        "recipe": rid,
+                        "executions": 0,
+                        "successes": 0,
+                        "failures": 0,
+                    }
+                recipes[rid]["executions"] += 1
+                if status_ok:
+                    recipes[rid]["successes"] += 1
+                else:
+                    recipes[rid]["failures"] += 1
+
+    # Sort and cap
+    node_list = sorted(
+        nodes.values(), key=lambda x: x["invocations"], reverse=True
+    )[:top]
+    edge_list = sorted(
+        edges.values(), key=lambda x: x["transitions"], reverse=True
+    )[:top]
+    recipe_list = sorted(
+        recipes.values(), key=lambda x: x["executions"], reverse=True
+    )[:top]
+
+    # Compute success rates
+    for n in node_list:
+        total = n["invocations"]
+        n["success_rate"] = round(n["successes"] / total, 2) if total else 0
+    for e in edge_list:
+        total = e["transitions"]
+        e["success_rate"] = round(
+            (total - e["failures"]) / total, 2
+        ) if total else 0
+    for r in recipe_list:
+        total = r["executions"]
+        r["success_rate"] = round(r["successes"] / total, 2) if total else 0
+
+    return {
+        "hours": hours,
+        "total_runs": len(recent_runs),
+        "nodes": node_list,
+        "edges": edge_list,
+        "recipes": recipe_list,
+    }
