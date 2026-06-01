@@ -517,6 +517,29 @@ async def get_recommendations(
         governance_summaries=gov_summaries,
     )
 
+    # Ω-5.4: Apply adaptive confidence modifiers based on operator feedback
+    try:
+        shown = store.get_shown_recommendations(user_id=user, limit=50000)
+        feedback = store.get_feedback(user_id=user, limit=50000)
+        from uar.core.adaptive_confidence import (
+            build_quality_stats,
+            compute_modifier,
+        )
+        quality = build_quality_stats(shown, feedback)
+        for rec in recommendations:
+            stats = quality.get(rec.recommendation_id, {})
+            modifier = compute_modifier(
+                stats.get("shown_count", 0),
+                stats.get("accepted_count", 0),
+                stats.get("rejected_count", 0),
+                stats.get("dismissed_count", 0),
+            )
+            rec.adaptive_modifier = modifier
+            rec.base_confidence = rec.confidence
+            rec.confidence = rec.base_confidence * modifier
+    except Exception:
+        pass  # adaptive confidence is best-effort
+
     result = {
         "generated_at": time.time(),
         "hours": hours,

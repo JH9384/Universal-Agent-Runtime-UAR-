@@ -45,11 +45,17 @@ class Recommendation:
 
     category: str  # investigate, optimize, review, remediate
     priority: str  # critical, high, medium, low
-    confidence: float  # 0.0 - 1.0
+    confidence: float  # 0.0 - 1.0 (adaptive — final value)
     title: str
     description: str
     source: str  # which subsystem generated it
     affected_runs: List[str] = field(default_factory=list)
+    base_confidence: float = 0.0
+    adaptive_modifier: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.base_confidence == 0.0:
+            self.base_confidence = self.confidence
 
     @property
     def recommendation_id(self) -> str:
@@ -67,6 +73,8 @@ class Recommendation:
             "category": self.category,
             "priority": self.priority,
             "confidence": round(self.confidence, 2),
+            "base_confidence": round(self.base_confidence, 2),
+            "adaptive_modifier": round(self.adaptive_modifier, 2),
             "title": self.title,
             "description": self.description,
             "source": self.source,
