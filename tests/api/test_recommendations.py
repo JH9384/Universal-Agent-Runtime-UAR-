@@ -44,6 +44,8 @@ class TestRecommendationsEndpoint:
         assert "recommendations" in data
         assert isinstance(data["recommendations"], list)
         assert "sources" in data
+        assert "trust_ranking_enabled" in data
+        assert "trust" in data
 
     def test_recommendations_fields(self):
         headers = {"Authorization": "Bearer dev-key-12345"}
@@ -60,6 +62,7 @@ class TestRecommendationsEndpoint:
             assert "description" in rec
             assert "source" in rec
             assert "affected_runs" in rec
+            assert "trust_score" in rec
 
     def test_recommendations_cache_hit(self):
         """Second identical request should be cached (no error, fast path)."""
@@ -380,3 +383,37 @@ class TestRecommendationTrust:
             assert "calibration_component" in t
             assert "evidence_component" in t
             assert "drift_penalty" in t
+
+
+class TestRecommendationTrustRankingOmega7b:
+    """Ω-7b: Trust-weighted recommendation ranking."""
+
+    def test_trust_observation_exposed_by_default(self):
+        """Trust scores are always exposed; ranking is not changed
+        when feature flag is off."""
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.get(
+            "/api/uar/recommendations?hours=24&limit=100",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["trust_ranking_enabled"] is False
+        assert "trust" in data
+        # Every recommendation should carry its trust_score
+        for rec in data["recommendations"]:
+            assert "trust_score" in rec
+            assert isinstance(rec["trust_score"], (int, float))
+
+    def test_soft_blend_formula(self):
+        """0.7 * confidence + 0.3 * trust produces expected values."""
+        from uar.core.trust_ranking import compute_blend
+
+        # High confidence, low trust → gentler than multiplication
+        assert round(compute_blend(0.90, 0.50), 2) == 0.78
+        # Perfect both ways → 1.0
+        assert compute_blend(1.0, 1.0) == 1.0
+        # Zero trust → 0.7 * confidence
+        assert round(compute_blend(0.80, 0.0), 2) == 0.56
+        # Clamped to 0
+        assert compute_blend(0.0, -0.5) == 0.0

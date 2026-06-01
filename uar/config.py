@@ -218,6 +218,14 @@ class Config:
             os.getenv("UAR_ENABLE_UOR_EXTENSIONS", "false").lower() == "true"
         )
 
+        # Ω-7b: Trust-weighted recommendation ranking.
+        # When enabled, recommendations are re-ranked using a soft blend
+        # of confidence and trust score instead of confidence alone.
+        # Default false: observation-only mode (trust exposed, not used).
+        self.enable_trust_ranking = (
+            os.getenv("ENABLE_TRUST_RANKING", "false").lower() == "true"
+        )
+
         # Autonomi Network Configuration
         self.autonomi_private_key = os.getenv("AUTONOMI_PRIVATE_KEY")
         self.autonomi_network = os.getenv("AUTONOMI_NETWORK", "testnet")

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
+import { authHeaders } from '../utils/auth'
 import styles from './RecommendationPanel.module.css'
 
 interface Recommendation {
@@ -7,17 +8,28 @@ interface Recommendation {
   category: string
   priority: string
   confidence: number
+  base_confidence: number
+  adaptive_modifier: number
+  trust_score: number
   title: string
   description: string
   source: string
   affected_runs: string[]
 }
 
+interface TrustData {
+  generated_at: number | null
+  system_calibration_error: number | null
+  recommendation_types: { type: string; trust_score: number }[]
+}
+
 interface RecommendationsResponse {
   generated_at: number
   hours: number
   runs_analyzed: number
+  trust_ranking_enabled: boolean
   recommendations: Recommendation[]
+  trust: TrustData | null
   sources: {
     recurring_patterns: number
     recovery_paths: number
@@ -49,8 +61,32 @@ function EvidenceBlock({ rec }: { rec: Recommendation }) {
   const hasRate = rec.description.match(/(\d+)%/)
   const hasAction = rec.description.match(/Consider (.+)\./)
 
+  const trust = rec.trust_score ?? 0
+  const conf = rec.confidence ?? 0
+  const base = rec.base_confidence ?? 0
+  const modifier = rec.adaptive_modifier ?? 1.0
+
+  // Highlight divergence: high confidence + low trust is concerning
+  const divergent = conf > 0.80 && trust < 0.40
+
   return (
     <div className={styles.evidence}>
+      <div className={`${styles.evidenceRow} ${divergent ? styles.evidenceAlert : ''}`}>
+        <span className={styles.evidenceLabel}>Confidence</span>
+        <span className={styles.evidenceValue}>{Math.round(conf * 100)}%</span>
+        {base !== conf && (
+          <span className={styles.evidenceSub}>
+            (base {Math.round(base * 100)}% × {modifier.toFixed(2)})
+          </span>
+        )}
+      </div>
+      <div className={`${styles.evidenceRow} ${divergent ? styles.evidenceAlert : ''}`}>
+        <span className={styles.evidenceLabel}>Trust</span>
+        <span className={styles.evidenceValue}>{Math.round(trust * 100)}%</span>
+        {divergent && (
+          <span className={styles.evidenceAlertText}>Divergence</span>
+        )}
+      </div>
       {hasOccurrences && (
         <div className={styles.evidenceRow}>
           <span className={styles.evidenceLabel}>Occurrences</span>
@@ -61,12 +97,6 @@ function EvidenceBlock({ rec }: { rec: Recommendation }) {
         <div className={styles.evidenceRow}>
           <span className={styles.evidenceLabel}>Rate</span>
           <span className={styles.evidenceValue}>{hasRate[1]}%</span>
-        </div>
-      )}
-      {rec.confidence > 0 && (
-        <div className={styles.evidenceRow}>
-          <span className={styles.evidenceLabel}>Confidence</span>
-          <span className={styles.evidenceValue}>{Math.round(rec.confidence * 100)}%</span>
         </div>
       )}
       {hasAction && (
@@ -87,7 +117,7 @@ function FeedbackButtons({ recId }: { recId: string }) {
     try {
       const res = await fetch('/api/uar/recommendations/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ recommendation_id: recId, action }),
       })
       if (!res.ok) {
@@ -118,7 +148,11 @@ function FeedbackButtons({ recId }: { recId: string }) {
   )
 }
 
-export function RecommendationPanel() {
+interface RecommendationPanelProps {
+  onOpenReplay?: (runId: string) => void
+}
+
+export function RecommendationPanel({ onOpenReplay }: RecommendationPanelProps) {
   const { data, loading, error } = useApiFetch<RecommendationsResponse>(
     '/api/uar/recommendations?hours=24&limit=1000'
   )
@@ -150,9 +184,9 @@ export function RecommendationPanel() {
       </div>
 
       <div className={styles.recommendationList}>
-        {data.recommendations.map((rec, i) => (
+        {data.recommendations.map((rec) => (
           <div
-            key={i}
+            key={rec.recommendation_id}
             className={`${styles.recommendationCard} ${priorityClass(rec.priority)}`}
           >
             <div className={styles.cardHeader}>
@@ -169,7 +203,22 @@ export function RecommendationPanel() {
             {rec.affected_runs.length > 0 && (
               <div className={styles.affectedRuns}>
                 <span className={styles.affectedLabel}>Affected runs:</span>
-                <span className={styles.affectedCount}>{rec.affected_runs.length}</span>
+                {onOpenReplay ? (
+                  <div className={styles.affectedRunList}>
+                    {rec.affected_runs.map((runId) => (
+                      <button
+                        key={runId}
+                        className={styles.affectedRunLink}
+                        onClick={() => onOpenReplay(runId)}
+                        title={`Open replay for ${runId}`}
+                      >
+                        {runId.slice(0, 8)}…
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className={styles.affectedCount}>{rec.affected_runs.length}</span>
+                )}
               </div>
             )}
 

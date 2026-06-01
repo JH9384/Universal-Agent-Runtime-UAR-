@@ -9,6 +9,7 @@ from .mission_control import router as mission_control_router
 from .replay_confidence import router as replay_confidence_router
 from .replay_explorer import router as replay_explorer_router
 from .runtime_health import router as runtime_health_router
+from .topology import router as topology_router
 
 # Preserve the existing public export consumed by uar.boot while allowing
 # Trust Spine routes to be mounted without expanding boot wiring.
@@ -20,6 +21,7 @@ uor_router.include_router(runtime_health_router)
 uor_router.include_router(certification_router)
 uor_router.include_router(mission_control_router)
 uor_router.include_router(replay_explorer_router)
+uor_router.include_router(topology_router)
 
 __all__ = [
     "uor_router",
@@ -29,4 +31,5 @@ __all__ = [
     "certification_router",
     "mission_control_router",
     "replay_explorer_router",
+    "topology_router",
 ]

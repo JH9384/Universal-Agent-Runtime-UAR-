@@ -183,6 +183,49 @@
   color: var(--text-secondary, #bbb);
 }
 
+.affectedRunList {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.affectedRunLink {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--text-secondary, #bbb);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.affectedRunLink:hover {
+  background: rgba(100, 180, 255, 0.15);
+  border-color: rgba(100, 180, 255, 0.4);
+  color: #88ccff;
+}
+
+.evidenceAlert {
+  border-left: 2px solid #ff4444;
+  padding-left: 6px;
+}
+
+.evidenceSub {
+  font-size: 10px;
+  color: var(--text-muted, #888);
+  margin-left: 4px;
+}
+
+.evidenceAlertText {
+  font-size: 10px;
+  color: #ff4444;
+  font-weight: 600;
+  margin-left: 4px;
+  text-transform: uppercase;
+}
+
 .feedbackRow {
   display: flex;
   align-items: center;

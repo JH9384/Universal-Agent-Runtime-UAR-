@@ -192,6 +192,73 @@ Build ONLY after substrate is stable:
 
 ---
 
+## Phase 7B — Learning Operational Validation (Ω-7B.1)
+
+**Status:** ACTIVE — All tooling production-ready. Data accumulation in progress.
+
+**Scope:** Validate the trust and learning subsystem before it becomes a
+primary decision signal.
+
+**Prerequisites:**
+- Ω-7a Trust Computation — implemented and verified
+- Ω-7b Trust-Aware Ranking — implemented (feature-flagged off)
+- Operator dashboard — displays trust scores, divergence alerts, component bars
+- Outcome→Trust pipeline — verified end-to-end via `cache_validation.py`
+
+**Verified Pipeline:**
+```
+Outcome → Effectiveness → Trust → Mission Control
+```
+Confirmed by `scripts/hardening/cache_validation.py`.
+
+Note: `min_samples=5` in effectiveness computation means trust scores
+emerge only after 5+ outcomes per category. This is healthy — trust should
+require evidence, not a single success.
+
+**Collection Schedule:**
+
+**Daily:**
+```bash
+python scripts/hardening/divergence_investigation.py --output reports/divergence/$(date +%Y%m%d).json
+```
+Captures high-confidence/low-trust and low-confidence/high-trust outliers.
+
+**Weekly:**
+```bash
+./scripts/hardening/run_trust_validation.sh
+```
+Archives full trust metrics to `reports/trust_validation/`.
+
+**Continuous (staged):**
+```bash
+# Stage 1: 24h
+python scripts/hardening/long_duration_burnin.py --duration 24h
+
+# Stage 2: 72h (only after 24h passes cleanly)
+python scripts/hardening/long_duration_burnin.py --duration 72h
+
+# Stage 3: 168h (only after 72h passes cleanly)
+python scripts/hardening/long_duration_burnin.py --duration 168h
+```
+
+**Four Metrics:**
+- **Trust Distribution** — Are scores naturally spread across bands?
+- **Ranking Delta** — Where do confidence and trust disagree?
+- **Outcome Correlation** — Does higher trust → higher resolution?
+- **Drift Discovery** — Any high-trust types with negative drift?
+
+**Exit Criteria:**
+- Trust scores vary by < 0.10 week-over-week for established types
+- Calibration bucket errors vary by < 0.05 week-over-week
+- Top-5 trust types remain consistent
+- Spearman correlation(trust, resolution_rate) >= 0.3 (minimum), 0.5 (preferred)
+
+**Duration:** 2–4 weeks or sufficient recommendation volume.
+
+**Next Milestone:** Trust Validation Report #1
+
+See `docs/operations/LEARNING_MODEL.md` § Ω-7B.1 for full details.
+
 ## Phase 8 — Merge Readiness Review
 
 Review:

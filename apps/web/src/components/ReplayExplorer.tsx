@@ -5,6 +5,18 @@ import styles from './ReplayExplorer.module.css'
 
 type EventItem = any
 
+interface TrustOverlayItem {
+  recommendation_id: string
+  title: string
+  category: string
+  confidence: number
+  base_confidence: number
+  adaptive_modifier: number
+  trust_score: number | null
+  drift_penalty: number | null
+  outcome: string | null
+}
+
 interface ReplayExplorerData {
   run_id: string
   summary: {
@@ -23,6 +35,7 @@ interface ReplayExplorerData {
   }
   failure_path: EventItem[]
   events: EventItem[]
+  trust_overlay: TrustOverlayItem[] | null
 }
 
 interface ReplayExplorerProps {
@@ -30,7 +43,7 @@ interface ReplayExplorerProps {
   onClose: () => void
 }
 
-const TABS = ['Summary', 'Timeline', 'Confidence', 'Failure Path', 'Events'] as const
+const TABS = ['Summary', 'Trust', 'Timeline', 'Confidence', 'Failure Path', 'Events'] as const
 type TabName = (typeof TABS)[number]
 
 function statusColor(status: string | null): string {
@@ -106,6 +119,127 @@ function JsonTree({ data, depth = 0 }: { data: unknown; depth?: number }) {
     )
   }
   return <span>{String(data)}</span>
+}
+
+type FilterKey = 'all' | 'resolved' | 'recurred' | 'high_trust' | 'low_trust' | 'divergent' | 'drifting'
+
+const FILTER_LABELS: Record<FilterKey, string> = {
+  all: 'All',
+  resolved: 'Resolved',
+  recurred: 'Recurred',
+  high_trust: 'High Trust',
+  low_trust: 'Low Trust',
+  divergent: 'Divergent',
+  drifting: 'Drifting',
+}
+
+function matchesFilter(item: TrustOverlayItem, filter: FilterKey): boolean {
+  if (filter === 'all') return true
+  if (filter === 'resolved') return item.outcome === 'resolved'
+  if (filter === 'recurred') return item.outcome === 'recurred'
+  if (filter === 'high_trust') return (item.trust_score ?? 0) >= 0.80
+  if (filter === 'low_trust') return (item.trust_score ?? 0) < 0.40
+  if (filter === 'divergent') return item.confidence > 0.80 && (item.trust_score ?? 0) < 0.40
+  if (filter === 'drifting') return (item.drift_penalty ?? 0) > 0
+  return true
+}
+
+function TrustTabContent({ data }: { data: ReplayExplorerData | null }) {
+  const [filter, setFilter] = useState<FilterKey>('all')
+
+  const items = data?.trust_overlay ?? []
+  const filtered = items.filter((item) => matchesFilter(item, filter))
+
+  const counts: Record<FilterKey, number> = {
+    all: items.length,
+    resolved: items.filter((i) => matchesFilter(i, 'resolved')).length,
+    recurred: items.filter((i) => matchesFilter(i, 'recurred')).length,
+    high_trust: items.filter((i) => matchesFilter(i, 'high_trust')).length,
+    low_trust: items.filter((i) => matchesFilter(i, 'low_trust')).length,
+    divergent: items.filter((i) => matchesFilter(i, 'divergent')).length,
+    drifting: items.filter((i) => matchesFilter(i, 'drifting')).length,
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className={styles.emptyState}>
+        No recommendations currently affect this run.
+        <p className={styles.emptySub}>
+          Recommendations that include this run in their affected_runs will appear here with trust scores and outcomes.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className={styles.filterBar}>
+        {(Object.keys(FILTER_LABELS) as FilterKey[]).map((key) => (
+          <button
+            key={key}
+            className={`${styles.filterChip} ${filter === key ? styles.filterChipActive : ''} ${counts[key] === 0 ? styles.filterChipDisabled : ''}`}
+            onClick={() => counts[key] > 0 && setFilter(key)}
+            disabled={counts[key] === 0}
+          >
+            {FILTER_LABELS[key]}
+            <span className={styles.filterChipCount}>{counts[key]}</span>
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className={styles.emptyState}>No recommendations match this filter.</div>
+      ) : (
+        <div className={styles.trustList}>
+          {filtered.map((item) => {
+            const divergent = item.confidence > 0.80 && (item.trust_score ?? 0) < 0.40
+            return (
+              <div key={item.recommendation_id} className={`${styles.trustCard} ${divergent ? styles.trustCardAlert : ''}`}>
+                <div className={styles.trustHeader}>
+                  <span className={styles.trustTitle}>{item.title}</span>
+                  <span className={styles.trustCategory}>{item.category}</span>
+                </div>
+                <div className={styles.trustMetrics}>
+                  <div className={styles.trustMetric}>
+                    <span className={styles.trustMetricLabel}>Confidence</span>
+                    <span className={styles.trustMetricValue}>{(item.confidence * 100).toFixed(0)}%</span>
+                    {item.base_confidence !== item.confidence && (
+                      <span className={styles.trustMetricSub}>
+                        (base {(item.base_confidence * 100).toFixed(0)}% × {item.adaptive_modifier.toFixed(2)})
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.trustMetric}>
+                    <span className={styles.trustMetricLabel}>Trust</span>
+                    <span className={styles.trustMetricValue}>
+                      {item.trust_score !== null ? `${(item.trust_score * 100).toFixed(0)}%` : '—'}
+                    </span>
+                  </div>
+                  {item.drift_penalty !== null && item.drift_penalty > 0 && (
+                    <div className={`${styles.trustMetric} ${styles.trustDrift}`}>
+                      <span className={styles.trustMetricLabel}>Drift</span>
+                      <span className={styles.trustMetricValue}>-{item.drift_penalty}</span>
+                    </div>
+                  )}
+                  {item.outcome && (
+                    <div className={`${styles.trustMetric} ${styles.trustOutcome}`}>
+                      <span className={styles.trustMetricLabel}>Outcome</span>
+                      <span className={`${styles.trustMetricValue} ${styles[`outcome${item.outcome}`] || ''}`}>
+                        {item.outcome}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {divergent && (
+                  <div className={styles.trustAlert}>Divergence: high confidence, low trust</div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ReplayExplorer({ runId, onClose }: ReplayExplorerProps) {
@@ -270,6 +404,11 @@ export function ReplayExplorer({ runId, onClose }: ReplayExplorerProps) {
                 )}
               </div>
             </div>
+          )}
+
+          {/* Trust Tab */}
+          {activeTab === 'Trust' && (
+            <TrustTabContent data={data} />
           )}
 
           {/* Timeline Tab */}

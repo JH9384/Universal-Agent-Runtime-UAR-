@@ -476,3 +476,149 @@
   width: 20px;
   text-align: center;
 }
+
+/* Trust overlay */
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-light, #e0e0e0);
+}
+
+.filterChip {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  background: transparent;
+  color: var(--text-secondary, #bbb);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.filterChip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.filterChipActive {
+  background: rgba(100, 180, 255, 0.15);
+  border-color: rgba(100, 180, 255, 0.4);
+  color: #88ccff;
+  font-weight: 500;
+}
+
+.filterChipDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.filterChipCount {
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.trustList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trustCard {
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  background: var(--bg-card, #fff);
+}
+
+.trustCardAlert {
+  border-left: 3px solid #e74c3c;
+  background: rgba(231, 76, 60, 0.03);
+}
+
+.trustHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.trustTitle {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.trustCategory {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+  letter-spacing: 0.5px;
+}
+
+.trustMetrics {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.trustMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.trustMetricLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+  letter-spacing: 0.3px;
+}
+
+.trustMetricValue {
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.trustMetricSub {
+  font-size: 0.7rem;
+  color: var(--text-muted, #888);
+}
+
+.trustDrift .trustMetricValue {
+  color: #e74c3c;
+}
+
+.trustOutcome .trustMetricValue {
+  color: #27ae60;
+}
+
+.outcomeresolved {
+  color: #27ae60;
+}
+
+.outcomerecurred {
+  color: #e74c3c;
+}
+
+.trustAlert {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  background: rgba(231, 76, 60, 0.1);
+  color: #c0392b;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.emptySub {
+  font-size: 0.8rem;
+  color: var(--text-muted, #888);
+  margin-top: 0.5rem;
+}

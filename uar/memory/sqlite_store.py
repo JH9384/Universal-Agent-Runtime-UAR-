@@ -348,6 +348,10 @@ class SqliteRunStore:
         );
         CREATE INDEX IF NOT EXISTS idx_runs_run_id ON uar_runs(run_id);
         CREATE INDEX IF NOT EXISTS idx_runs_user  ON uar_runs(user_id);
+        CREATE INDEX IF NOT EXISTS idx_runs_goal   ON uar_runs(goal_id);
+        CREATE INDEX IF NOT EXISTS idx_runs_status ON uar_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_runs_goal_status
+            ON uar_runs(goal_id, status);
         CREATE INDEX IF NOT EXISTS idx_runs_created
             ON uar_runs(created_at DESC);
         CREATE TABLE IF NOT EXISTS uar_metadata (
@@ -384,6 +388,12 @@ class SqliteRunStore:
         );
         CREATE INDEX IF NOT EXISTS idx_outcomes_rec_id
             ON uar_recommendation_outcomes(recommendation_id);
+        CREATE INDEX IF NOT EXISTS idx_outcomes_type
+            ON uar_recommendation_outcomes(outcome_type);
+        CREATE INDEX IF NOT EXISTS idx_outcomes_rec_time
+            ON uar_recommendation_outcomes(
+                recommendation_id, recorded_at DESC
+            );
         CREATE TABLE IF NOT EXISTS uar_recommendation_metadata (
             id                 INTEGER PRIMARY KEY AUTOINCREMENT,
             recommendation_id  TEXT NOT NULL UNIQUE,
@@ -395,6 +405,12 @@ class SqliteRunStore:
         );
         CREATE INDEX IF NOT EXISTS idx_meta_rec_id
             ON uar_recommendation_metadata(recommendation_id);
+        CREATE INDEX IF NOT EXISTS idx_meta_category
+            ON uar_recommendation_metadata(category);
+        CREATE INDEX IF NOT EXISTS idx_meta_run_id
+            ON uar_recommendation_metadata(run_id);
+        CREATE INDEX IF NOT EXISTS idx_meta_cat_conf
+            ON uar_recommendation_metadata(category, confidence);
         """
         conn = self._connect()
         try:

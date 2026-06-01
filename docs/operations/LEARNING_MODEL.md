@@ -383,16 +383,22 @@ When a recommendation is generated, the first `affected_run` is stored alongside
 
 ## Future Expansion
 
-| Feature | Description | Phase |
-|---------|-------------|-------|
-| Effectiveness Rankings | Outcome-based type leaderboard | Ω-6a |
-| Decay model | Time-weighted feedback | Ω-6a |
-| Drift detection | Recent vs historical rate change | Ω-6a |
-| Confidence Calibration | Predicted vs actual accuracy | Ω-6b |
-| Replay Intelligence | Evidence linkage and aggregation | Ω-6c |
-| Operator-specific models | Per-user preference tracking | Ω-6d |
-| Ensemble confidence | Blend multiple heuristics | Ω-6e |
-| A/B testing | Controlled modifier experiments | Ω-6f |
+| Feature | Description | Phase | Status |
+| --- | --- | --- | --- |
+| Effectiveness Rankings | Outcome-based type leaderboard | Ω-6a | ✅ |
+| Decay model | Time-weighted feedback | Ω-6a | ✅ |
+| Drift detection | Recent vs historical rate change | Ω-6a | ✅ |
+| Confidence Calibration | Predicted vs actual accuracy | Ω-6b | ✅ |
+| Replay Intelligence | Evidence linkage and aggregation | Ω-6c | ✅ |
+| Trust Computation | Composable operational belief metric | Ω-7a | ✅ |
+| Trust Ranking | Optional trust-weighted ordering | Ω-7b | ✅ |
+| Trust Visibility | Operator-facing trust labels | Ω-7c | Future |
+| Adaptive Confidence Correction | Runtime confidence adjustment | Ω-7d | Future |
+| Type-Level Calibration | Per-type calibration | Ω-8 | Future |
+| Autonomous Trust Tuning | Self-adjusting weights | Ω-9 | Future |
+| Operator-specific models | Per-user preference tracking | Ω-6d | Future |
+| Ensemble confidence | Blend multiple heuristics | Ω-6e | Future |
+| A/B testing | Controlled modifier experiments | Ω-6f | Future |
 
 ## Adaptive Trust Engine (Ω-7a)
 
@@ -462,6 +468,249 @@ The operator should know this before acting.
 | 0.40-0.60 | Watch — mixed evidence |
 | 0.20-0.40 | Weak — insufficient evidence or poor calibration |
 | <0.20 | Untrusted — do not rely on |
+
+## Trust-Aware Recommendation Ranking (Ω-7b)
+
+Ω-7b introduces optional trust-weighted ordering. Trust scores computed in
+Ω-7a are now exposed on every recommendation response and can optionally
+influence recommendation ordering.
+
+### Soft Blend Formula
+
+When enabled, the final rank score is computed as:
+
+```text
+final_rank = 0.7 × confidence + 0.3 × trust_score
+```
+
+This is a **weighted sum**, not multiplication. Multiplication would be brutal:
+
+- `confidence = 0.90, trust = 0.50 → product = 0.45` (collapse)
+- `confidence = 0.90, trust = 0.50 → blend = 0.78` (gentler)
+
+The weighted blend allows a highly confident recommendation to maintain a
+reasonable score even when trust is moderate.
+
+### Priority Band Preservation
+
+**Critical** recommendations do not suddenly lose to **low** recommendations
+because the low-priority item accumulated historical trust.
+
+Severity remains the primary ordering signal. Trust only influences ordering
+within the same priority band.
+
+### Feature Flag
+
+Disabled by default:
+
+```text
+ENABLE_TRUST_RANKING=false
+```
+
+This creates two operational modes:
+
+| Mode | Flag | Behavior |
+| --- | --- | --- |
+| Observation | `false` | Trust scores exposed; no behavior change |
+| Intervention | `true` | Recommendations re-ranked by blended score |
+
+### API Changes
+
+`GET /api/uar/recommendations` now always includes:
+
+```json
+{
+  "trust_ranking_enabled": false,
+  "recommendations": [
+    {
+      "trust_score": 0.42,
+      ...
+    }
+  ],
+  "trust": {
+    "generated_at": 1717257600,
+    "system_calibration_error": -0.05,
+    "recommendation_types": [
+      {"type": "remediate", "trust_score": 0.42}
+    ]
+  }
+}
+```
+
+When `ENABLE_TRUST_RANKING=true`:
+
+- `trust_ranking_enabled` becomes `true`
+- Recommendations are re-sorted using the blended score within priority bands
+
+### Burn-In Guidance
+
+During initial deployment, run with `ENABLE_TRUST_RANKING=false` and monitor:
+
+1. **Trust vs Resolution correlation** — High trust should correlate with high
+   resolution rates.
+2. **Trust vs Acceptance correlation** — High trust should eventually correlate
+   with high operator acceptance.
+3. **Confidence vs Trust divergence** — Find cases where `confidence > 0.9` and
+   `trust < 0.4`, or vice versa. These prediction disagreements often uncover
+   hidden issues.
+
+Only enable ranking after validating that trust scores behave as expected.
+
+## Learning Architecture Freeze v1
+
+**Date:** 2026-06-01
+**Status:** ACTIVE
+
+The UAR learning subsystem is now internally coherent through Ω-7b. No new
+learning logic will be added until operational validation completes.
+
+### What is Frozen
+
+| Layer | Status |
+| --- | --- |
+| Ω-5.1 Pattern Recognition | ✅ Locked |
+| Ω-5.2 Feedback Collection | ✅ Locked |
+| Ω-5.3 Quality Metrics | ✅ Locked |
+| Ω-5.4 Adaptive Confidence | ✅ Locked |
+| Ω-5.5 Outcome Attribution | ✅ Locked |
+| Ω-6a Effectiveness Intelligence | ✅ Locked |
+| Ω-6b Calibration Intelligence | ✅ Locked |
+| Ω-6c Replay Intelligence | ✅ Locked |
+| Ω-7a Trust Computation | ✅ Locked |
+| Ω-7b Trust-Aware Ranking | ✅ Locked |
+
+### What is NOT Frozen
+
+- Bug fixes
+- Instrumentation additions
+- Documentation updates
+- Dashboard visualizations
+- Operational validation tooling
+
+### When to Unfreeze
+
+After Ω-7B.1 Operational Validation exit criteria are met.
+
+## Ω-7B.1 Operational Validation
+
+Ω-7B.1 is a structured burn-in phase to gather evidence before trust becomes a
+primary decision signal. It is not feature development. It is operational
+observation.
+
+### Objectives
+
+Collect four metrics that validate whether trust scores are behaving as
+intended.
+
+#### Metric 1: Trust Distribution
+
+How many recommendation types fall into each trust band?
+
+| Band | Range | Meaning |
+| --- | --- | --- |
+| Highly Trusted | 0.80+ | Reliable signal |
+| Trusted | 0.60–0.80 | Good signal, monitor |
+| Watch | 0.40–0.60 | Mixed evidence |
+| Weak | 0.20–0.40 | Insufficient evidence or poor calibration |
+| Untrusted | <0.20 | Do not rely on |
+
+**Healthy:** A natural spread. Not everything clusters at 0.65–0.80.
+
+**Unhealthy:** All scores compressed into a narrow band. The trust model is not
+discriminating.
+
+#### Metric 2: Ranking Delta
+
+For each recommendation, compare:
+
+```text
+confidence_rank   (where it would be with Ω-5.x alone)
+trust_rank        (where it is with Ω-7b)
+```
+
+| Pattern | Meaning |
+| --- | --- |
+| confidence_rank = 1, trust_rank = 4 | High confidence, historically weak |
+| confidence_rank = 5, trust_rank = 1 | Low confidence, historically strong |
+
+These deltas are the most interesting cases. They indicate prediction
+disagreement between current signal and historical evidence.
+
+#### Metric 3: Outcome Correlation
+
+Does higher trust correlate with higher actual resolution?
+
+```text
+Spearman(trust_score, resolution_rate) > 0.5   → good
+Spearman(trust_score, resolution_rate) < 0.0   → trust formula needs adjustment
+```
+
+Track this weekly. Do not expect instant correlation — evidence accumulates.
+
+#### Metric 4: Drift Discovery
+
+Watch for:
+
+```text
+high confidence + high trust + negative drift
+```
+
+These are emerging failures. The recommendation type historically worked, is
+still trusted, but recent outcomes are degrading. This is exactly what drift
+penalty is meant to surface.
+
+### Duration
+
+2–4 weeks or sufficient recommendation volume.
+
+Minimum recommendation volume:
+
+- 50+ distinct recommendations shown
+- 20+ with outcomes (resolved / recurred)
+- 10+ per recommendation type
+
+### Exit Criteria
+
+Burn-in completes when ALL of the following are true:
+
+1. **Trust Stability**
+   - Trust scores for established types vary by < 0.10 week-over-week
+   - New types are the only source of movement
+
+2. **Calibration Stability**
+   - Reliability bucket errors vary by < 0.05 week-over-week
+   - No bucket swings > 0.15 without clear cause
+
+3. **Ranking Stability**
+   - Top-5 trust types remain consistent
+   - < 20% of types change trust band weekly
+
+4. **Resolution Correlation**
+   - Positive Spearman correlation between trust_score and resolution_rate
+   - Correlation coefficient >= 0.3 (minimum)
+   - Correlation coefficient >= 0.5 (preferred)
+
+### Tooling
+
+Use the `/api/uar/recommendations` endpoint with `ENABLE_TRUST_RANKING=false`
+(observation mode). Trust scores are exposed but do not influence ordering.
+
+Use the `/api/uar/recommendations/trust` endpoint for aggregate trust views.
+
+Use the `/api/uar/recommendations/quality` endpoint for outcome tracking.
+
+Use the `/api/uar/recommendations/effectiveness` endpoint for effectiveness
+leaderboards.
+
+### Post-Burn-In Decision Matrix
+
+| Condition | Action |
+| --- | --- |
+| All exit criteria met | Proceed to Ω-7c Trust Visibility |
+| Trust distribution compressed | Investigate formula weights |
+| No resolution correlation | Extend burn-in or adjust evidence_component |
+| High drift without detection | Tighten drift_penalty threshold |
+| Ranking thrashes | Increase evidence gate before trust applies |
 
 ## Safety Guarantees
 

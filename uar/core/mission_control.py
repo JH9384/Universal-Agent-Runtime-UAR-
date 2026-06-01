@@ -34,6 +34,7 @@ class MissionControlSnapshot:
     active_runs: int
     recent_warnings: List[str] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
+    trust_summary: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -119,6 +120,38 @@ def build_snapshot(
             violations=[str(exc)],
         )
 
+    # Ω-7B.1: Trust summary for Mission Control visibility.
+    trust_summary = None
+    try:
+        from uar.core.trust_engine import compute_trust
+        outcomes = store.get_outcomes(limit=50000)
+        metadata = store.get_recommendation_metadata(limit=50000)
+        trust_result = compute_trust(outcomes, metadata)
+        types = trust_result.get("recommendation_types", [])
+        trust_summary = {
+            "system_calibration_error": trust_result.get(
+                "system_calibration_error"
+            ),
+            "recommendation_type_count": len(types),
+            "top_trusted": (
+                types[0]["type"] if types else None
+            ),
+            "top_trust_score": (
+                types[0]["trust_score"] if types else None
+            ),
+            "drift_count": sum(
+                1 for t in types if t.get("drift_penalty", 0.0) > 0.0
+            ),
+            "highly_trusted_count": sum(
+                1 for t in types if t.get("trust_score", 0.0) >= 0.80
+            ),
+        }
+    except Exception as exc:
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Trust summary failed")
+        warnings.append(f"trust_summary: {exc}")
+
     unique_warnings = list(dict.fromkeys(warnings))
 
     return MissionControlSnapshot(
@@ -128,6 +161,7 @@ def build_snapshot(
         active_runs=snapshot.active_count,
         recent_warnings=unique_warnings[:20],
         timestamp=time.time(),
+        trust_summary=trust_summary,
     )
 
 

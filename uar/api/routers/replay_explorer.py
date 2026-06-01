@@ -118,6 +118,70 @@ async def get_replay_explorer(
         if ev.get("error") or ev.get("type") == "error"
     ]
 
+    # Ω-7B.1: Trust overlay — recommendations that include this run
+    trust_overlay = None
+    try:
+        from uar.core.trust_engine import compute_trust
+        from uar.core.adaptive_confidence import (
+            build_quality_stats,
+            compute_modifier,
+        )
+
+        # Find metadata entries linked to this run
+        all_metadata = store.get_recommendation_metadata(limit=5000)
+        affecting_meta = [
+            m for m in all_metadata if m.get("run_id") == run_id
+        ]
+
+        if affecting_meta:
+            outcomes = store.get_outcomes(limit=5000)
+            shown = store.get_shown_recommendations(user_id=user, limit=5000)
+            feedback = store.get_feedback(user_id=user, limit=5000)
+            quality = build_quality_stats(shown, feedback)
+
+            # Build quick outcome lookup
+            outcome_by_rec: dict[str, str] = {}
+            for o in outcomes:
+                rid = o.get("recommendation_id")
+                if rid:
+                    outcome_by_rec[rid] = o.get("outcome_type", "unknown")
+
+            # Compute trust per category
+            trust_result = compute_trust(outcomes, all_metadata)
+            trust_by_type = {
+                t["type"]: t
+                for t in trust_result.get("recommendation_types", [])
+            }
+
+            trust_overlay = []
+            for meta in affecting_meta:
+                rec_id = meta["recommendation_id"]
+                category = meta.get("category", "")
+                base_conf = meta.get("confidence", 0.0)
+
+                stats = quality.get(rec_id, {})
+                modifier = compute_modifier(
+                    stats.get("shown_count", 0),
+                    stats.get("accepted_count", 0),
+                    stats.get("rejected_count", 0),
+                    stats.get("dismissed_count", 0),
+                )
+
+                trust_type = trust_by_type.get(category, {})
+                trust_overlay.append({
+                    "recommendation_id": rec_id,
+                    "title": meta.get("title", ""),
+                    "category": category,
+                    "confidence": round(base_conf * modifier, 2),
+                    "base_confidence": round(base_conf, 2),
+                    "adaptive_modifier": round(modifier, 2),
+                    "trust_score": trust_type.get("trust_score"),
+                    "drift_penalty": trust_type.get("drift_penalty"),
+                    "outcome": outcome_by_rec.get(rec_id),
+                })
+    except Exception as exc:
+        logger.warning("trust_overlay failed for run %s: %s", run_id, exc)
+
     return {
         "run_id": run_id,
         "summary": summary,
@@ -125,4 +189,5 @@ async def get_replay_explorer(
         "confidence": confidence,
         "failure_path": failure_path,
         "events": list(record.events or []),
+        "trust_overlay": trust_overlay,
     }

@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from uar.api.middleware import auth_middleware
+from uar.api.rbac import has_permission
+from uar.config import config
 from uar.core.mission_control import build_snapshot
 from uar.core.runtime_health import build_runtime_snapshot
 
@@ -434,7 +436,7 @@ async def get_recommendations(
     is_admin = user_info.get("tier") == "admin" if user_info else False
 
     cached = _analytics_cache().get(
-        "recommendations", user, is_admin, hours, limit
+        "recommendations-v2", user, is_admin, hours, limit
     )
     if cached is not None:
         return cached
@@ -538,13 +540,90 @@ async def get_recommendations(
             rec.base_confidence = rec.confidence
             rec.confidence = rec.base_confidence * modifier
     except Exception:
-        pass  # adaptive confidence is best-effort
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Adaptive confidence failed")
+
+    # Ω-7b: Attach trust scores (always computed, used for ranking if
+    # feature flag enabled).
+    trust_result: dict | None = None
+    try:
+        from uar.core.trust_engine import compute_trust
+        from uar.core.trust_ranking import (
+            attach_trust_to_recommendations,
+            sort_by_blend,
+        )
+        trust_result = compute_trust(
+            store.get_outcomes(limit=50000),
+            store.get_recommendation_metadata(limit=50000),
+        )
+        attach_trust_to_recommendations(recommendations, trust_result)
+        if config.enable_trust_ranking:
+            sort_by_blend(recommendations)
+    except Exception:
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Trust ranking failed")
+
+    # Ω-7B.1: Webhook alerts for divergence and drift
+    try:
+        from uar.api.webhook_alerts import get_webhook_alerter
+
+        alerter = get_webhook_alerter()
+        if trust_result:
+            # Divergence alert
+            div_cases = [
+                r
+                for r in recommendations
+                if (r.confidence > 0.90 and (r.trust_score or 0) < 0.40)
+                or (r.confidence < 0.50 and (r.trust_score or 0) > 0.80)
+            ]
+            if div_cases:
+                alerter.alert_divergence(
+                    len(div_cases),
+                    [
+                        {
+                            "title": c.title,
+                            "confidence": round(c.confidence, 2),
+                            "trust": round(c.trust_score or 0, 2),
+                        }
+                        for c in div_cases[:5]
+                    ],
+                )
+            # Drift alert per type
+            for t in trust_result.get("recommendation_types", []):
+                if t.get("drift_penalty", 0) > 0:
+                    alerter.alert_drift(
+                        t.get("type", "unknown"),
+                        t.get("drift_penalty", 0),
+                        t.get("trust_score", 0),
+                    )
+    except Exception:
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Webhook alert failed")
 
     result = {
         "generated_at": time.time(),
         "hours": hours,
         "runs_analyzed": total_runs,
+        "trust_ranking_enabled": config.enable_trust_ranking,
         "recommendations": [r.to_dict() for r in recommendations],
+        "trust": {
+            "generated_at": trust_result.get("generated_at"),
+            "system_calibration_error": trust_result.get(
+                "system_calibration_error"
+            ),
+            "recommendation_types": [
+                {
+                    "type": t.get("type"),
+                    "trust_score": t.get("trust_score"),
+                }
+                for t in trust_result.get("recommendation_types", [])
+            ],
+        }
+        if trust_result
+        else None,
         "sources": {
             "recurring_patterns": len(recurring),
             "recovery_paths": len(recovery),
@@ -553,7 +632,7 @@ async def get_recommendations(
         },
     }
     _analytics_cache().set(
-        "recommendations", user, is_admin, hours, limit, result
+        "recommendations-v2", user, is_admin, hours, limit, result
     )
     # Ω-5.3: Track that each recommendation was shown to the operator
     # Ω-6a: Also capture metadata for effectiveness ranking
@@ -951,3 +1030,323 @@ async def post_recommendation_outcome(
 
     store.record_outcome(rec_id, outcome_type)
     return {"ok": True, "recorded_at": time.time()}
+
+
+@router.post("/api/uar/recommendations/outcome/bulk")
+async def bulk_record_outcome(
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Bulk record outcomes for multiple recommendations.
+
+    Accepts a list of {recommendation_id, outcome_type} objects.
+    Useful for importing outcomes from external systems.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+    if not has_permission(user_info, "outcome.bulk"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "forbidden",
+                "message": "Admin tier required for bulk import",
+            },
+        )
+
+    items = body.get("items", [])
+    if not isinstance(items, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "invalid_items",
+                "message": "items must be a list",
+            },
+        )
+
+    valid_types = {"resolved", "recurred", "unknown"}
+    recorded = []
+    errors = []
+
+    import time
+    from uar.api.server import store
+
+    for i, item in enumerate(items):
+        rec_id = item.get("recommendation_id")
+        outcome_type = item.get("outcome_type")
+        if not rec_id or outcome_type not in valid_types:
+            errors.append(
+                {
+                    "index": i,
+                    "error": "invalid",
+                    "recommendation_id": rec_id,
+                }
+            )
+            continue
+        try:
+            store.record_outcome(rec_id, outcome_type)
+            recorded.append(
+                {
+                    "index": i,
+                    "recommendation_id": rec_id,
+                    "outcome_type": outcome_type,
+                    "recorded_at": time.time(),
+                }
+            )
+        except Exception as exc:
+            errors.append(
+                {
+                    "index": i,
+                    "error": str(exc),
+                    "recommendation_id": rec_id,
+                }
+            )
+
+    return {
+        "ok": True,
+        "recorded": len(recorded),
+        "failed": len(errors),
+        "items": recorded,
+        "errors": errors if errors else None,
+    }
+
+
+@router.get("/api/uar/recommendations/trust/export")
+async def export_trust_csv(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Export trust scores as CSV for stakeholder review."""
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    from uar.api.server import store
+    from uar.core.trust_engine import compute_trust
+
+    outcomes = store.get_outcomes(limit=50000)
+    metadata = store.get_recommendation_metadata(limit=50000)
+    trust_result = compute_trust(outcomes, metadata)
+
+    import csv
+    import io
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "type",
+            "trust_score",
+            "effectiveness",
+            "calibration",
+            "evidence",
+            "drift_penalty",
+            "sample_size",
+            "resolution_rate",
+        ]
+    )
+    for t in trust_result.get("recommendation_types", []):
+        writer.writerow(
+            [
+                t.get("type"),
+                round(t.get("trust_score", 0), 4),
+                round(t.get("effectiveness", 0), 4),
+                round(t.get("calibration", 0), 4),
+                round(t.get("evidence", 0), 4),
+                round(t.get("drift_penalty", 0), 4),
+                t.get("sample_size", 0),
+                round(t.get("resolution_rate", 0), 4),
+            ]
+        )
+
+    from fastapi.responses import PlainTextResponse
+
+    return PlainTextResponse(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                "attachment; filename=trust_export.csv"
+            )
+        },
+    )
+
+
+@router.get("/api/uar/recommendations/audit")
+async def get_recommendation_audit(
+    recommendation_id: str = Query(..., description="Recommendation ID"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Return unified audit trail for a recommendation.
+
+    Aggregates: shown events, feedback, outcomes, and metadata.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+    if not has_permission(user_info, "audit.read"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "forbidden",
+                "message": "Admin tier required for audit log",
+            },
+        )
+
+    from uar.api.server import store
+
+    shown = store.get_shown_recommendations(
+        recommendation_id=recommendation_id, limit=100
+    )
+    feedback = store.get_feedback(
+        recommendation_id=recommendation_id, limit=100
+    )
+    outcomes = store.get_outcomes(
+        recommendation_id=recommendation_id, limit=100
+    )
+    meta = store.get_recommendation_metadata(
+        recommendation_id=recommendation_id, limit=10
+    )
+
+    # Build unified timeline
+    events = []
+    for s in shown:
+        events.append(
+            {
+                "event": "shown",
+                "timestamp": s.get("shown_at"),
+                "user_id": s.get("user_id"),
+            }
+        )
+    for f in feedback:
+        events.append(
+            {
+                "event": f"feedback:{f.get('action')}",
+                "timestamp": f.get("created_at"),
+                "user_id": f.get("user_id"),
+            }
+        )
+    for o in outcomes:
+        events.append(
+            {
+                "event": f"outcome:{o.get('outcome_type')}",
+                "timestamp": o.get("recorded_at"),
+                "user_id": None,
+            }
+        )
+    for m in meta:
+        events.append(
+            {
+                "event": "metadata_created",
+                "timestamp": None,
+                "category": m.get("category"),
+                "source": m.get("source"),
+                "title": m.get("title"),
+            }
+        )
+
+    events.sort(
+        key=lambda x: (x.get("timestamp") or 0), reverse=True
+    )
+
+    return {
+        "recommendation_id": recommendation_id,
+        "event_count": len(events),
+        "events": events,
+    }
+
+
+@router.get("/api/uar/alerts/accuracy")
+async def get_alert_accuracy(
+    hours: int = Query(168, ge=1, le=720),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Return alert accuracy metrics for the given time window."""
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    from uar.api.alert_tracker import get_alert_tracker
+    from uar.api.server import store
+
+    tracker = get_alert_tracker(store)
+    return tracker.get_accuracy_metrics(hours=hours)
+
+
+@router.post("/api/uar/alerts/{alert_id}/action")
+async def record_alert_action(
+    alert_id: str,
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Record that an alert was acted upon or ignored.
+
+    Body: {"status": "acted"} or {"status": "ignored"}
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    status_value = body.get("status", "")
+    if status_value not in ("acted", "ignored"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "invalid_status",
+                "message": "status must be 'acted' or 'ignored'",
+            },
+        )
+
+    from uar.api.alert_tracker import get_alert_tracker
+    from uar.api.server import store
+
+    tracker = get_alert_tracker(store)
+    ok = tracker.record_action(alert_id, status_value)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "not_found",
+                "message": f"Alert {alert_id} not found",
+            },
+        )
+    return {"ok": True, "alert_id": alert_id, "status": status_value}

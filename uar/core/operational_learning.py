@@ -52,6 +52,7 @@ class Recommendation:
     affected_runs: List[str] = field(default_factory=list)
     base_confidence: float = 0.0
     adaptive_modifier: float = 1.0
+    trust_score: float = 0.0  # Ω-7a: operational belief per rec type
 
     def __post_init__(self) -> None:
         if self.base_confidence == 0.0:
@@ -75,6 +76,7 @@ class Recommendation:
             "confidence": round(self.confidence, 2),
             "base_confidence": round(self.base_confidence, 2),
             "adaptive_modifier": round(self.adaptive_modifier, 2),
+            "trust_score": round(self.trust_score, 2),
             "title": self.title,
             "description": self.description,
             "source": self.source,

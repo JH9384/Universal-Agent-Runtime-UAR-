@@ -10,6 +10,9 @@ import { TopologyAnalyticsPanel } from './TopologyAnalyticsPanel'
 import { FailureHotspotPanel } from './FailureHotspotPanel'
 import { RecipeIntelligencePanel } from './RecipeIntelligencePanel'
 import { RecommendationPanel } from './RecommendationPanel'
+import { TrustTrendPanel } from './TrustTrendPanel'
+import { DivergenceDashboard } from './DivergenceDashboard'
+import { BurnInTimeline } from './BurnInTimeline'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -40,6 +43,15 @@ interface CertificationData {
   timestamp: number
 }
 
+interface TrustSummaryData {
+  system_calibration_error: number | null
+  recommendation_type_count: number
+  top_trusted: string | null
+  top_trust_score: number | null
+  drift_count: number
+  highly_trusted_count: number
+}
+
 interface MissionControlSnapshot {
   replay_confidence: ReplayConfidenceData | null
   runtime_health: RuntimeHealthData | null
@@ -47,6 +59,7 @@ interface MissionControlSnapshot {
   active_runs: number
   recent_warnings: string[]
   timestamp: number
+  trust_summary: TrustSummaryData | null
 }
 
 interface HealthDashboardData {
@@ -188,6 +201,38 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
               </ul>
             )}
           </MiniCard>
+
+          <MiniCard title="Trust">
+            {mc.trust_summary ? (
+              <>
+                <div className={styles.trustScore}>
+                  {mc.trust_summary.top_trust_score !== null
+                    ? mc.trust_summary.top_trust_score.toFixed(2)
+                    : '—'}
+                </div>
+                <div className={styles.trustLabel}>
+                  Top: {mc.trust_summary.top_trusted ?? '—'}
+                </div>
+                <div className={styles.trustMeta}>
+                  <span>{mc.trust_summary.recommendation_type_count} types</span>
+                  {' · '}
+                  <span>{mc.trust_summary.highly_trusted_count} highly trusted</span>
+                </div>
+                {mc.trust_summary.drift_count > 0 && (
+                  <div className={styles.alertBadge}>
+                    {mc.trust_summary.drift_count} drift signal(s)
+                  </div>
+                )}
+                {mc.trust_summary.system_calibration_error !== null && (
+                  <div className={styles.trustMeta}>
+                    Calibration error: {mc.trust_summary.system_calibration_error.toFixed(2)}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className={styles.muted}>No trust data</div>
+            )}
+          </MiniCard>
         </div>
 
         {/* Component breakdown */}
@@ -213,13 +258,16 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
       {/* Recommendations — operator actions */}
       <div className={styles.sectionWrap}>
         <CollapsibleSection id="mc-recommendations" title="Recommendations" defaultOpen={true}>
-        <RecommendationPanel />
+        <RecommendationPanel onOpenReplay={onOpenReplay} />
         </CollapsibleSection>
       </div>
 
       {/* Evidence — drill down */}
       <div className={styles.sectionWrap}>
         <CollapsibleSection id="mc-evidence" title="Evidence" defaultOpen={false}>
+        <BurnInTimeline />
+        <DivergenceDashboard onOpenReplay={onOpenReplay} />
+        <TrustTrendPanel />
         <ConfidenceDriftPanel />
         <TrendPanel />
         <BurnInHistory />

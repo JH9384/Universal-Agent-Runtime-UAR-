@@ -1,0 +1,94 @@
+.panel {
+  background: var(--bg-card, #fff);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.meta {
+  font-size: 0.85rem;
+  color: var(--text-muted, #666);
+}
+
+.loading,
+.emptyState {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #666);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.timelineItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-left: 3px solid var(--border-default, #ccc);
+}
+
+.severityInfo {
+  border-left-color: #3498db;
+  background: rgba(52, 152, 219, 0.05);
+}
+
+.severityWarning {
+  border-left-color: #f39c12;
+  background: rgba(243, 156, 18, 0.05);
+}
+
+.severityAlert {
+  border-left-color: #e74c3c;
+  background: rgba(231, 76, 60, 0.05);
+}
+
+.timelineIcon {
+  font-size: 1rem;
+  line-height: 1;
+  margin-top: 0.1rem;
+}
+
+.timelineContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.timelineLabel {
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
+}
+
+.timelineDetail {
+  font-size: 0.8rem;
+  color: var(--text-muted, #666);
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timelineTimestamp {
+  font-size: 0.7rem;
+  color: var(--text-muted, #888);
+  font-variant-numeric: tabular-nums;
+}
