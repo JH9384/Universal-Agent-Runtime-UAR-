@@ -289,3 +289,60 @@ class JsonRunStore:
                     if len(entries) >= limit:
                         break
         return entries
+
+    def record_recommendation_shown(
+        self,
+        recommendation_id: str,
+        user_id: Optional[str] = None,
+    ) -> None:
+        """Persist a shown event as a JSONL line in uar_shown.jsonl."""
+        shown_path = self.path.parent / "uar_shown.jsonl"
+        entry = json.dumps(
+            {
+                "recommendation_id": recommendation_id,
+                "user_id": user_id,
+                "shown_at": time.time(),
+            },
+            sort_keys=True,
+        ) + "\n"
+        with self._acquire_lock():
+            with shown_path.open("a", encoding="utf-8") as f:
+                f.write(entry)
+                f.flush()
+                os.fsync(f.fileno())
+
+    def get_shown_recommendations(
+        self,
+        recommendation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[dict]:
+        """Read shown entries, optionally filtered."""
+        shown_path = self.path.parent / "uar_shown.jsonl"
+        if not shown_path.exists():
+            return []
+        entries: List[dict] = []
+        with self._acquire_lock(shared=True):
+            with shown_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if (
+                        recommendation_id is not None
+                        and entry.get("recommendation_id") != recommendation_id
+                    ):
+                        continue
+                    if (
+                        user_id is not None
+                        and entry.get("user_id") != user_id
+                    ):
+                        continue
+                    entries.append(entry)
+                    if len(entries) >= limit:
+                        break
+        return entries

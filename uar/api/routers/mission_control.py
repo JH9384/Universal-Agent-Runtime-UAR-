@@ -532,7 +532,120 @@ async def get_recommendations(
     _analytics_cache().set(
         "recommendations", user, is_admin, hours, limit, result
     )
+    # Ω-5.3: Track that each recommendation was shown to the operator
+    for rec in recommendations:
+        try:
+            store.record_recommendation_shown(
+                rec.recommendation_id, user_id=user
+            )
+        except Exception:
+            pass  # shown tracking is best-effort
     return result
+
+
+@router.get("/api/uar/recommendations/quality")
+async def get_recommendation_quality(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Recommendation quality metrics.
+
+    Omega-5.3: Measures recommendation effectiveness from operator
+    feedback. Returns per-recommendation-id stats plus aggregates.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    user = user_info.get("user") if user_info else None
+
+    import time
+    from uar.api.server import store
+
+    shown = store.get_shown_recommendations(user_id=user, limit=50000)
+    feedback = store.get_feedback(user_id=user, limit=50000)
+
+    from collections import defaultdict
+
+    stats: dict[str, dict] = defaultdict(
+        lambda: {
+            "shown_count": 0,
+            "accepted_count": 0,
+            "rejected_count": 0,
+            "dismissed_count": 0,
+            "accept_times": [],
+            "reject_times": [],
+        }
+    )
+
+    for s in shown:
+        rid = s.get("recommendation_id")
+        if rid:
+            stats[rid]["shown_count"] += 1
+
+    for f in feedback:
+        rid = f.get("recommendation_id")
+        action = f.get("action")
+        if not rid or not action:
+            continue
+        if action == "accept":
+            stats[rid]["accepted_count"] += 1
+            stats[rid]["accept_times"].append(f.get("created_at", 0))
+        elif action == "reject":
+            stats[rid]["rejected_count"] += 1
+            stats[rid]["reject_times"].append(f.get("created_at", 0))
+        elif action == "dismiss":
+            stats[rid]["dismissed_count"] += 1
+
+    metrics: list[dict] = []
+    for rid, s in stats.items():
+        shown_count = s["shown_count"]
+        accepted = s["accepted_count"]
+        rejected = s["rejected_count"]
+        dismissed = s["dismissed_count"]
+        metrics.append(
+            {
+                "recommendation_id": rid,
+                "shown_count": shown_count,
+                "accepted_count": accepted,
+                "rejected_count": rejected,
+                "dismissed_count": dismissed,
+                "acceptance_rate": round(accepted / shown_count, 2)
+                if shown_count
+                else 0.0,
+                "rejection_rate": round(rejected / shown_count, 2)
+                if shown_count
+                else 0.0,
+                "dismissal_rate": round(dismissed / shown_count, 2)
+                if shown_count
+                else 0.0,
+            }
+        )
+
+    total_shown = sum(s["shown_count"] for s in stats.values())
+    total_accept = sum(s["accepted_count"] for s in stats.values())
+    total_reject = sum(s["rejected_count"] for s in stats.values())
+    total_dismiss = sum(s["dismissed_count"] for s in stats.values())
+
+    return {
+        "generated_at": time.time(),
+        "recommendation_count": len(metrics),
+        "total_shown": total_shown,
+        "total_accepted": total_accept,
+        "total_rejected": total_reject,
+        "total_dismissed": total_dismiss,
+        "overall_acceptance_rate": round(total_accept / total_shown, 2)
+        if total_shown
+        else 0.0,
+        "metrics": metrics,
+    }
 
 
 @router.post("/api/uar/recommendations/feedback")

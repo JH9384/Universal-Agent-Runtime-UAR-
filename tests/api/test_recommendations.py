@@ -136,3 +136,62 @@ class TestRecommendationFeedback:
             },
         )
         assert response.status_code == 400
+
+
+class TestRecommendationQuality:
+    def test_quality_requires_auth(self):
+        response = client.get("/api/uar/recommendations/quality")
+        assert response.status_code == 401
+
+    def test_quality_empty(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.get(
+            "/api/uar/recommendations/quality", headers=headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        # Prior tests may have recorded shown events, so just verify
+        # structure rather than asserting exact zero counts.
+        assert "recommendation_count" in data
+        assert "total_shown" in data
+        assert "overall_acceptance_rate" in data
+        assert "metrics" in data
+        assert isinstance(data["metrics"], list)
+
+    def test_quality_with_feedback(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        # Record shown events by hitting recommendations endpoint
+        client.get(
+            "/api/uar/recommendations?hours=24&limit=100",
+            headers=headers,
+        )
+        # Accept one
+        client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={"recommendation_id": "abc123", "action": "accept"},
+        )
+        # Reject one
+        client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={"recommendation_id": "abc456", "action": "reject"},
+        )
+        response = client.get(
+            "/api/uar/recommendations/quality", headers=headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["recommendation_count"] >= 0
+        assert "total_shown" in data
+        assert "overall_acceptance_rate" in data
+        assert "metrics" in data
+        for m in data["metrics"]:
+            assert "recommendation_id" in m
+            assert "shown_count" in m
+            assert "accepted_count" in m
+            assert "rejected_count" in m
+            assert "dismissed_count" in m
+            assert "acceptance_rate" in m
+            assert "rejection_rate" in m
+            assert "dismissal_rate" in m

@@ -198,6 +198,14 @@ class SqliteRunStore:
                                 " VALUES (?, ?, ?)",
                                 (rec_id, action, user_id_fb),
                             )
+                        elif op == "shown":
+                            rec_id, user_id_sh = payload
+                            conn.execute(
+                                "INSERT INTO uar_recommendation_shown"
+                                " (recommendation_id, user_id)"
+                                " VALUES (?, ?)",
+                                (rec_id, user_id_sh),
+                            )
                         elif op == "checkpoint":
                             conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
                         break  # success — exit retry loop
@@ -332,6 +340,16 @@ class SqliteRunStore:
             ON uar_recommendation_feedback(recommendation_id);
         CREATE INDEX IF NOT EXISTS idx_feedback_user
             ON uar_recommendation_feedback(user_id);
+        CREATE TABLE IF NOT EXISTS uar_recommendation_shown (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            recommendation_id  TEXT NOT NULL,
+            user_id            TEXT,
+            shown_at           REAL DEFAULT (strftime('%s', 'now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_shown_rec_id
+            ON uar_recommendation_shown(recommendation_id);
+        CREATE INDEX IF NOT EXISTS idx_shown_user
+            ON uar_recommendation_shown(user_id);
         """
         conn = self._connect()
         try:
@@ -601,6 +619,59 @@ class SqliteRunStore:
                 cur = conn.execute(
                     "SELECT * FROM uar_recommendation_feedback"
                     " ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                )
+            rows = cur.fetchall()
+        finally:
+            self._release_read_conn(conn)
+        return [dict(r) for r in rows]
+
+    def record_recommendation_shown(
+        self,
+        recommendation_id: str,
+        user_id: Optional[str] = None,
+    ) -> None:
+        """Log that a recommendation was shown to an operator."""
+        result = self._enqueue_write_sync(
+            "shown", (recommendation_id, user_id)
+        )
+        if isinstance(result, Exception):
+            raise result
+
+    def get_shown_recommendations(
+        self,
+        recommendation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve shown recommendation entries."""
+        conn = self._get_read_conn()
+        try:
+            if recommendation_id is not None and user_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_shown"
+                    " WHERE recommendation_id = ? AND user_id = ?"
+                    " ORDER BY shown_at DESC LIMIT ?",
+                    (recommendation_id, user_id, limit),
+                )
+            elif recommendation_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_shown"
+                    " WHERE recommendation_id = ?"
+                    " ORDER BY shown_at DESC LIMIT ?",
+                    (recommendation_id, limit),
+                )
+            elif user_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_shown"
+                    " WHERE user_id = ?"
+                    " ORDER BY shown_at DESC LIMIT ?",
+                    (user_id, limit),
+                )
+            else:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_shown"
+                    " ORDER BY shown_at DESC LIMIT ?",
                     (limit,),
                 )
             rows = cur.fetchall()

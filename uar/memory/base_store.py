@@ -84,6 +84,18 @@ class RunStoreProtocol(Protocol):
         limit: int = 1000,
     ) -> List[Dict[str, Any]]: ...
 
+    # Optional: shown tracking (Ω-5.3)
+    def record_recommendation_shown(
+        self, recommendation_id: str, user_id: Optional[str] = None,
+    ) -> None: ...
+
+    def get_shown_recommendations(
+        self,
+        recommendation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]: ...
+
 
 def get_store() -> RunStoreProtocol:
     """Return a concrete store matching the current environment.
