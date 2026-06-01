@@ -6,6 +6,7 @@ import { FailureClusterPanel } from './FailureClusterPanel'
 import { ConfidenceDriftPanel } from './ConfidenceDriftPanel'
 import { TopologyAnalyticsPanel } from './TopologyAnalyticsPanel'
 import { FailureHotspotPanel } from './FailureHotspotPanel'
+import { RecipeIntelligencePanel } from './RecipeIntelligencePanel'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -216,6 +217,9 @@ export function MissionControlWidget() {
 
       {/* Failure Hotspots */}
       <FailureHotspotPanel />
+
+      {/* Recipe Intelligence */}
+      <RecipeIntelligencePanel />
 
       {/* Footer */}
       <div className={styles.footer}>
