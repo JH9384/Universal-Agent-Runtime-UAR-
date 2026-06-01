@@ -7,6 +7,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     Request,
     status,
 )
@@ -745,3 +746,116 @@ async def bulk_delete_runs(
             "message": "Provide 'run_ids' or 'older_than_days'",
         },
     )
+
+
+@router.get("/api/uar/runs/failure-clusters")
+async def get_failure_clusters(
+    hours: int = Query(24, ge=1, le=168),
+    top: int = Query(10, ge=1, le=50),
+    request: Request = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Aggregate failure events from recent runs into clusters.
+
+    Issue #93 — Phase D2.3: Failure Clustering.
+    Groups failures by skill and error message, returning the top
+    clusters with counts and affected run counts.  No new storage.
+    """
+    from uar.api.server import store
+
+    rate_limit_middleware(request, credentials)
+    user_info = auth_middleware(credentials)
+    user = user_info.get("user") if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    import time
+    cutoff = time.time() - (hours * 3600)
+
+    # Fetch all runs and filter by time + ownership
+    all_runs = store.list_records(user_id=user if is_admin else user)
+    recent_runs = [
+        r for r in all_runs
+        if r.get("created_at", 0) >= cutoff
+        or r.get("timestamp", 0) >= cutoff
+    ]
+
+    # Cluster by (skill, error_key)
+    skill_clusters: dict[str, dict] = {}
+    error_clusters: dict[str, dict] = {}
+    total_failures = 0
+
+    for run in recent_runs:
+        owner = run.get("user_id") or run.get("user", "")
+        if owner and owner != user and not is_admin:
+            continue
+        run_id = run.get("run_id") or run.get("id", "")
+        events = run.get("events") or []
+        for ev in events:
+            is_fail = ev.get("error") or ev.get("type") == "error"
+            if not is_fail:
+                continue
+            total_failures += 1
+            skill = ev.get("skill", "unknown")
+            err_msg = str(ev.get("error", ev.get("message", "unknown")))
+            err_key = err_msg[:80]  # truncate for clustering key
+
+            # Skill cluster
+            if skill not in skill_clusters:
+                skill_clusters[skill] = {
+                    "skill": skill,
+                    "count": 0,
+                    "runs": set(),
+                    "latest": 0,
+                }
+            sc = skill_clusters[skill]
+            sc["count"] += 1
+            sc["runs"].add(run_id)
+            ts = ev.get("timestamp", run.get("created_at", 0))
+            if ts > sc["latest"]:
+                sc["latest"] = ts
+                sc["latest_error"] = err_msg[:120]
+
+            # Error cluster
+            if err_key not in error_clusters:
+                error_clusters[err_key] = {
+                    "error": err_key,
+                    "count": 0,
+                    "runs": set(),
+                    "skills": set(),
+                    "latest": 0,
+                }
+            ec = error_clusters[err_key]
+            ec["count"] += 1
+            ec["runs"].add(run_id)
+            ec["skills"].add(skill)
+            if ts > ec["latest"]:
+                ec["latest"] = ts
+
+    # Sort and cap
+    skill_list = sorted(
+        skill_clusters.values(),
+        key=lambda x: x["count"],
+        reverse=True,
+    )[:top]
+    error_list = sorted(
+        error_clusters.values(),
+        key=lambda x: x["count"],
+        reverse=True,
+    )[:top]
+
+    # Convert sets to counts for JSON serialization
+    for item in skill_list:
+        item["run_count"] = len(item.pop("runs"))
+    for item in error_list:
+        item["run_count"] = len(item.pop("runs"))
+        item["skill_count"] = len(item.pop("skills"))
+
+    return {
+        "hours": hours,
+        "total_runs_scanned": len(recent_runs),
+        "total_failures": total_failures,
+        "top_skills": skill_list,
+        "top_errors": error_list,
+    }

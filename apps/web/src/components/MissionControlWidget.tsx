@@ -2,6 +2,7 @@ import { useApiFetch } from '../hooks/useApiFetch'
 import { TopologyWidget } from './TopologyWidget'
 import { TrendPanel } from './TrendPanel'
 import { BurnInHistory } from './BurnInHistory'
+import { FailureClusterPanel } from './FailureClusterPanel'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -195,6 +196,9 @@ export function MissionControlWidget() {
 
       {/* Burn-In History */}
       <BurnInHistory />
+
+      {/* Failure Clusters */}
+      <FailureClusterPanel />
 
       {/* Topology */}
       <div className={styles.topologySection}>

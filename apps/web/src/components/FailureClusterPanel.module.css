@@ -1,0 +1,111 @@
+.clusterPanel {
+  background: #fff;
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.panelTitle {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.panelDesc {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+
+.clusterSection {
+  margin-bottom: 16px;
+}
+
+.clusterSection:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary, #999);
+}
+
+.clusterList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clusterRow {
+  background: var(--panel-bg, #f8f9fa);
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clusterMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.clusterName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
+  flex: 1;
+}
+
+.clusterCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c0392b;
+}
+
+.clusterRuns {
+  font-size: 11px;
+  color: var(--text-secondary, #999);
+}
+
+.clusterLatest {
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+  font-family: monospace;
+}
+
+/* Mini bar */
+.barTrack {
+  height: 6px;
+  background: #e1e4e8;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: #c0392b;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* States */
+.loading,
+.error,
+.emptyState {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+}
+
+.error {
+  color: #c0392b;
+}
