@@ -2602,121 +2602,148 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
             <option value="skill">Skill Events</option>
             <option value="error">Errors Only</option>
           </select>
-          <button
-            onClick={() => { fetchRuns(); setShowRunsPanel(true) }}
-            className={styles.clearEventsButton}
-            title="View past runs"
-          >
-            Runs
-          </button>
-          <button
-            onClick={() => { setShowHealthDashboard(v => !v); setShowMissionControl(false) }}
-            className={styles.clearEventsButton}
-            title="Toggle health dashboard"
-          >
-            {showHealthDashboard ? 'Hide Health' : 'Health'}
-          </button>
-          <button
-            onClick={() => { setShowMissionControl(v => !v); setShowHealthDashboard(false) }}
-            className={styles.clearEventsButton}
-            title="Toggle Mission Control dashboard"
-          >
-            {showMissionControl ? 'Hide MC' : 'Mission Control'}
-          </button>
-          <button onClick={clearEvents} className={styles.clearEventsButton} title="Clear event history from display">
-            Clear Events
-          </button>
-          <button
-            onClick={() => { setShowBriefing(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Morning Briefing"
-          >
-            {showBriefing ? 'Hide Briefing' : 'Briefing'}
-          </button>
-          <button
-            onClick={() => { setShowTrustExplorer(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Trust Explorer"
-          >
-            {showTrustExplorer ? 'Hide Trust' : 'Trust Explorer'}
-          </button>
-          <button
-            onClick={() => { setShowIncidentWorkbench(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Incident Workbench"
-          >
-            {showIncidentWorkbench ? 'Hide Incidents' : 'Incidents'}
-          </button>
-          <button
-            onClick={() => { setShowKnowledgeGraph(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Knowledge Graph"
-          >
-            {showKnowledgeGraph ? 'Hide Graph' : 'Graph'}
-          </button>
-          <button
-            onClick={() => { setShowTimeMachine(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Time Machine"
-          >
-            {showTimeMachine ? 'Hide Time' : 'Time Machine'}
-          </button>
-          <button
-            onClick={() => { setShowRecommendationInbox(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Recommendation Inbox"
-          >
-            {showRecommendationInbox ? 'Hide Inbox' : 'Inbox'}
-          </button>
-          <button
-            onClick={() => { setShowInvestigationFlow(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Investigation Flow"
-          >
-            {showInvestigationFlow ? 'Hide Flow' : 'Investigate'}
-          </button>
-          <button
-            onClick={() => { setShowKnowledgeGraphV2(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Knowledge Graph v2"
-          >
-            {showKnowledgeGraphV2 ? 'Hide Graph v2' : 'Graph v2'}
-          </button>
-          <button
-            onClick={() => { setShowReportViewer(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Report Viewer"
-          >
-            {showReportViewer ? 'Hide Reports' : 'Reports'}
-          </button>
-          <button
-            onClick={() => { setShowOperationalSearch(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Operational Search"
-          >
-            {showOperationalSearch ? 'Hide Search' : 'Search'}
-          </button>
-          <button
-            onClick={() => { setShowInvestigationReplay(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Investigation Replay"
-          >
-            {showInvestigationReplay ? 'Hide Replay' : 'Replay'}
-          </button>
-          <button
-            onClick={() => { setShowGraphAnalytics(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Graph Analytics"
-          >
-            {showGraphAnalytics ? 'Hide Analytics' : 'Analytics'}
-          </button>
-          <button
-            onClick={() => { setShowInsights(v => !v) }}
-            className={styles.clearEventsButton}
-            title="Toggle Insights Dashboard"
-          >
-            {showInsights ? 'Hide Insights' : 'Insights'}
-          </button>
+          <div className={styles.navBar}>
+            <div className={styles.navGroup}>
+              <span className={styles.navGroupLabel}>Operations</span>
+              <div className={styles.navGroupButtons}>
+                <button
+                  onClick={() => { setShowHealthDashboard(v => !v); setShowMissionControl(false) }}
+                  className={`${styles.navBtn} ${showHealthDashboard ? styles.navBtnActive : ''}`}
+                  title="Health dashboard"
+                >
+                  Health
+                </button>
+                <button
+                  onClick={() => { setShowMissionControl(v => !v); setShowHealthDashboard(false) }}
+                  className={`${styles.navBtn} ${showMissionControl ? styles.navBtnActive : ''}`}
+                  title="Mission Control"
+                >
+                  Mission Control
+                </button>
+                <button
+                  onClick={() => { setShowBriefing(v => !v) }}
+                  className={`${styles.navBtn} ${showBriefing ? styles.navBtnActive : ''}`}
+                  title="Morning Briefing"
+                >
+                  Briefing
+                </button>
+                <button
+                  onClick={() => { setShowIncidentWorkbench(v => !v) }}
+                  className={`${styles.navBtn} ${showIncidentWorkbench ? styles.navBtnActive : ''}`}
+                  title="Incident Workbench"
+                >
+                  Incidents
+                </button>
+                <button
+                  onClick={() => { setShowRecommendationInbox(v => !v) }}
+                  className={`${styles.navBtn} ${showRecommendationInbox ? styles.navBtnActive : ''}`}
+                  title="Recommendation Inbox"
+                >
+                  Inbox
+                </button>
+                <button
+                  onClick={() => { setShowInvestigationFlow(v => !v) }}
+                  className={`${styles.navBtn} ${showInvestigationFlow ? styles.navBtnActive : ''}`}
+                  title="Investigation Flow"
+                >
+                  Investigate
+                </button>
+                <button
+                  onClick={() => { setShowInvestigationReplay(v => !v) }}
+                  className={`${styles.navBtn} ${showInvestigationReplay ? styles.navBtnActive : ''}`}
+                  title="Investigation Replay"
+                >
+                  Replay
+                </button>
+              </div>
+            </div>
+            <div className={styles.navGroup}>
+              <span className={styles.navGroupLabel}>Intelligence</span>
+              <div className={styles.navGroupButtons}>
+                <button
+                  onClick={() => { setShowTrustExplorer(v => !v) }}
+                  className={`${styles.navBtn} ${showTrustExplorer ? styles.navBtnActive : ''}`}
+                  title="Trust Explorer"
+                >
+                  Trust
+                </button>
+                <button
+                  onClick={() => { setShowOperationalSearch(v => !v) }}
+                  className={`${styles.navBtn} ${showOperationalSearch ? styles.navBtnActive : ''}`}
+                  title="Operational Search"
+                >
+                  Search
+                </button>
+                <button
+                  onClick={() => { setShowGraphAnalytics(v => !v) }}
+                  className={`${styles.navBtn} ${showGraphAnalytics ? styles.navBtnActive : ''}`}
+                  title="Graph Analytics"
+                >
+                  Analytics
+                </button>
+                <button
+                  onClick={() => { setShowInsights(v => !v) }}
+                  className={`${styles.navBtn} ${showInsights ? styles.navBtnActive : ''}`}
+                  title="Insights Dashboard"
+                >
+                  Insights
+                </button>
+              </div>
+            </div>
+            <div className={styles.navGroup}>
+              <span className={styles.navGroupLabel}>Knowledge</span>
+              <div className={styles.navGroupButtons}>
+                <button
+                  onClick={() => { setShowKnowledgeGraph(v => !v) }}
+                  className={`${styles.navBtn} ${showKnowledgeGraph ? styles.navBtnActive : ''}`}
+                  title="Knowledge Graph"
+                >
+                  Graph
+                </button>
+                <button
+                  onClick={() => { setShowKnowledgeGraphV2(v => !v) }}
+                  className={`${styles.navBtn} ${showKnowledgeGraphV2 ? styles.navBtnActive : ''}`}
+                  title="Knowledge Graph v2"
+                >
+                  Graph v2
+                </button>
+                <button
+                  onClick={() => { setShowTimeMachine(v => !v) }}
+                  className={`${styles.navBtn} ${showTimeMachine ? styles.navBtnActive : ''}`}
+                  title="Time Machine"
+                >
+                  Time Machine
+                </button>
+              </div>
+            </div>
+            <div className={styles.navGroup}>
+              <span className={styles.navGroupLabel}>Reports</span>
+              <div className={styles.navGroupButtons}>
+                <button
+                  onClick={() => { setShowReportViewer(v => !v) }}
+                  className={`${styles.navBtn} ${showReportViewer ? styles.navBtnActive : ''}`}
+                  title="Report Viewer"
+                >
+                  Reports
+                </button>
+              </div>
+            </div>
+            <div className={styles.navGroup}>
+              <span className={styles.navGroupLabel}>Administration</span>
+              <div className={styles.navGroupButtons}>
+                <button
+                  onClick={() => { fetchRuns(); setShowRunsPanel(true) }}
+                  className={styles.navBtn}
+                  title="View past runs"
+                >
+                  Runs
+                </button>
+                <button onClick={clearEvents} className={styles.navBtn} title="Clear event history">
+                  Clear Events
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
         {metrics && !isRunning && (
           <div className={styles.metricsPanel} title="Execution metrics from last run">
