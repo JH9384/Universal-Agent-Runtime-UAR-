@@ -195,3 +195,84 @@ class TestRecommendationQuality:
             assert "acceptance_rate" in m
             assert "rejection_rate" in m
             assert "dismissal_rate" in m
+
+
+class TestRecommendationOutcome:
+    def test_outcome_requires_auth(self):
+        response = client.post(
+            "/api/uar/recommendations/outcome", json={}
+        )
+        assert response.status_code == 401
+
+    def test_outcome_missing_field(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/outcome",
+            headers=headers,
+            json={"recommendation_id": "abc123"},
+        )
+        assert response.status_code == 400
+
+    def test_outcome_invalid_type(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/outcome",
+            headers=headers,
+            json={
+                "recommendation_id": "abc123",
+                "outcome_type": "maybe",
+            },
+        )
+        assert response.status_code == 400
+
+    def test_outcome_resolved(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/outcome",
+            headers=headers,
+            json={
+                "recommendation_id": "abc123",
+                "outcome_type": "resolved",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert "recorded_at" in data
+
+    def test_outcome_surfaces_in_quality(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        rec_id = "outcome-test-rec"
+        # Record an accept
+        client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={"recommendation_id": rec_id, "action": "accept"},
+        )
+        # Record a resolved outcome
+        client.post(
+            "/api/uar/recommendations/outcome",
+            headers=headers,
+            json={
+                "recommendation_id": rec_id,
+                "outcome_type": "resolved",
+            },
+        )
+        response = client.get(
+            "/api/uar/recommendations/quality", headers=headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_resolved" in data
+        assert "overall_resolution_rate" in data
+        for m in data["metrics"]:
+            assert "resolved_count" in m
+            assert "recurred_count" in m
+            assert "resolution_rate" in m
+        # At least our test rec should have resolution_rate > 0
+        test_metric = next(
+            (m for m in data["metrics"] if m["recommendation_id"] == rec_id),
+            None,
+        )
+        if test_metric:
+            assert test_metric["resolved_count"] >= 1

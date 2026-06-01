@@ -96,6 +96,17 @@ class RunStoreProtocol(Protocol):
         limit: int = 1000,
     ) -> List[Dict[str, Any]]: ...
 
+    # Optional: outcome tracking (Ω-5.5)
+    def record_outcome(
+        self, recommendation_id: str, outcome_type: str,
+    ) -> None: ...
+
+    def get_outcomes(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]: ...
+
 
 def get_store() -> RunStoreProtocol:
     """Return a concrete store matching the current environment.

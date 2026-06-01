@@ -100,6 +100,47 @@ confidence ↑ → shown more → accepted more → confidence ↑↑
 Because the modifier reflects actual operator behavior, not a self-referential
 loop.
 
+## Outcome Attribution (Ω-5.5)
+
+Acceptance rate measures **popularity**.
+Outcome tracking measures **effectiveness**.
+
+When an operator accepts a recommendation, the system records the acceptance.
+Later, an outcome can be recorded:
+
+| Outcome | Meaning |
+|---------|---------|
+| resolved | The failure or issue the recommendation addressed was fixed |
+| recurred | The failure or issue came back |
+| unknown | No follow-up information available |
+
+### Resolution Rate
+
+```
+resolution_rate = resolved / (resolved + recurred)
+```
+
+This answers: "Of the recommendations that were accepted and had a known
+outcome, what fraction actually helped?"
+
+### API
+
+- `POST /api/uar/recommendations/outcome`
+  - Body: `{ "recommendation_id": "...", "outcome_type": "resolved|recurred|unknown" }`
+
+- `GET /api/uar/recommendations/quality` now includes:
+  - `resolved_count` and `recurred_count` per recommendation
+  - `resolution_rate` per recommendation
+  - `total_resolved`, `total_recurred`, `overall_resolution_rate`
+
+### Why Outcomes Matter
+
+A recommendation with 95% acceptance could mean:
+- It was genuinely useful, or
+- It sounded reasonable but did not help
+
+Outcome attribution distinguishes these cases.
+
 ## Explainability
 
 Every recommendation response includes:

@@ -206,6 +206,14 @@ class SqliteRunStore:
                                 " VALUES (?, ?)",
                                 (rec_id, user_id_sh),
                             )
+                        elif op == "outcome":
+                            rec_id, out_type = payload
+                            conn.execute(
+                                "INSERT INTO uar_recommendation_outcomes"
+                                " (recommendation_id, outcome_type)"
+                                " VALUES (?, ?)",
+                                (rec_id, out_type),
+                            )
                         elif op == "checkpoint":
                             conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
                         break  # success — exit retry loop
@@ -350,6 +358,14 @@ class SqliteRunStore:
             ON uar_recommendation_shown(recommendation_id);
         CREATE INDEX IF NOT EXISTS idx_shown_user
             ON uar_recommendation_shown(user_id);
+        CREATE TABLE IF NOT EXISTS uar_recommendation_outcomes (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            recommendation_id  TEXT NOT NULL,
+            outcome_type       TEXT NOT NULL,
+            recorded_at        REAL DEFAULT (strftime('%s', 'now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_outcomes_rec_id
+            ON uar_recommendation_outcomes(recommendation_id);
         """
         conn = self._connect()
         try:
@@ -672,6 +688,45 @@ class SqliteRunStore:
                 cur = conn.execute(
                     "SELECT * FROM uar_recommendation_shown"
                     " ORDER BY shown_at DESC LIMIT ?",
+                    (limit,),
+                )
+            rows = cur.fetchall()
+        finally:
+            self._release_read_conn(conn)
+        return [dict(r) for r in rows]
+
+    def record_outcome(
+        self, recommendation_id: str, outcome_type: str
+    ) -> None:
+        """Persist an outcome for a recommendation.
+
+        outcome_type must be one of: resolved, recurred, unknown.
+        """
+        result = self._enqueue_write_sync(
+            "outcome", (recommendation_id, outcome_type)
+        )
+        if isinstance(result, Exception):
+            raise result
+
+    def get_outcomes(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recommendation outcome entries."""
+        conn = self._get_read_conn()
+        try:
+            if recommendation_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_outcomes"
+                    " WHERE recommendation_id = ?"
+                    " ORDER BY recorded_at DESC LIMIT ?",
+                    (recommendation_id, limit),
+                )
+            else:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_outcomes"
+                    " ORDER BY recorded_at DESC LIMIT ?",
                     (limit,),
                 )
             rows = cur.fetchall()

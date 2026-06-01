@@ -724,3 +724,70 @@ class PostgresRunStore:
             conn.commit()
         finally:
             self._release_conn(conn)
+
+    def record_outcome(
+        self, recommendation_id: str, outcome_type: str
+    ) -> None:
+        """Persist an outcome for a recommendation."""
+        self._ensure_outcomes_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO uar_recommendation_outcomes"
+                    " (recommendation_id, outcome_type, recorded_at)"
+                    " VALUES (%s, %s, to_timestamp(%s))",
+                    (recommendation_id, outcome_type, time.time()),
+                )
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+
+    def get_outcomes(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recommendation outcome entries."""
+        self._ensure_outcomes_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                if recommendation_id is not None:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_outcomes"
+                        " WHERE recommendation_id = %s"
+                        " ORDER BY recorded_at DESC LIMIT %s",
+                        (recommendation_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_outcomes"
+                        " ORDER BY recorded_at DESC LIMIT %s",
+                        (limit,),
+                    )
+                cols = [d[0] for d in cur.description]
+                rows = cur.fetchall()
+        finally:
+            self._release_conn(conn)
+        return [dict(zip(cols, r)) for r in rows]
+
+    def _ensure_outcomes_table(self) -> None:
+        """Create outcomes table if it does not exist."""
+        ddl = """
+        CREATE TABLE IF NOT EXISTS uar_recommendation_outcomes (
+            id                SERIAL PRIMARY KEY,
+            recommendation_id TEXT NOT NULL,
+            outcome_type      TEXT NOT NULL,
+            recorded_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_outcomes_rec_id
+            ON uar_recommendation_outcomes(recommendation_id);
+        """
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(ddl)
+            conn.commit()
+        finally:
+            self._release_conn(conn)

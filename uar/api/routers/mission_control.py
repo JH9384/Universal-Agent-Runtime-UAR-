@@ -594,6 +594,7 @@ async def get_recommendation_quality(
 
     shown = store.get_shown_recommendations(user_id=user, limit=50000)
     feedback = store.get_feedback(user_id=user, limit=50000)
+    outcomes = store.get_outcomes(limit=50000)
 
     from collections import defaultdict
 
@@ -603,6 +604,8 @@ async def get_recommendation_quality(
             "accepted_count": 0,
             "rejected_count": 0,
             "dismissed_count": 0,
+            "resolved_count": 0,
+            "recurred_count": 0,
             "accept_times": [],
             "reject_times": [],
         }
@@ -627,12 +630,25 @@ async def get_recommendation_quality(
         elif action == "dismiss":
             stats[rid]["dismissed_count"] += 1
 
+    for o in outcomes:
+        rid = o.get("recommendation_id")
+        out_type = o.get("outcome_type")
+        if not rid or not out_type:
+            continue
+        if out_type == "resolved":
+            stats[rid]["resolved_count"] += 1
+        elif out_type == "recurred":
+            stats[rid]["recurred_count"] += 1
+
     metrics: list[dict] = []
     for rid, s in stats.items():
         shown_count = s["shown_count"]
         accepted = s["accepted_count"]
         rejected = s["rejected_count"]
         dismissed = s["dismissed_count"]
+        resolved = s["resolved_count"]
+        recurred = s["recurred_count"]
+        total_outcomes = resolved + recurred
         metrics.append(
             {
                 "recommendation_id": rid,
@@ -640,6 +656,8 @@ async def get_recommendation_quality(
                 "accepted_count": accepted,
                 "rejected_count": rejected,
                 "dismissed_count": dismissed,
+                "resolved_count": resolved,
+                "recurred_count": recurred,
                 "acceptance_rate": round(accepted / shown_count, 2)
                 if shown_count
                 else 0.0,
@@ -649,6 +667,9 @@ async def get_recommendation_quality(
                 "dismissal_rate": round(dismissed / shown_count, 2)
                 if shown_count
                 else 0.0,
+                "resolution_rate": round(resolved / total_outcomes, 2)
+                if total_outcomes
+                else 0.0,
             }
         )
 
@@ -656,6 +677,9 @@ async def get_recommendation_quality(
     total_accept = sum(s["accepted_count"] for s in stats.values())
     total_reject = sum(s["rejected_count"] for s in stats.values())
     total_dismiss = sum(s["dismissed_count"] for s in stats.values())
+    total_resolved = sum(s["resolved_count"] for s in stats.values())
+    total_recurred = sum(s["recurred_count"] for s in stats.values())
+    total_outcomes_all = total_resolved + total_recurred
 
     return {
         "generated_at": time.time(),
@@ -666,6 +690,13 @@ async def get_recommendation_quality(
         "total_dismissed": total_dismiss,
         "overall_acceptance_rate": round(total_accept / total_shown, 2)
         if total_shown
+        else 0.0,
+        "total_resolved": total_resolved,
+        "total_recurred": total_recurred,
+        "overall_resolution_rate": round(
+            total_resolved / total_outcomes_all, 2
+        )
+        if total_outcomes_all
         else 0.0,
         "metrics": metrics,
     }
@@ -718,4 +749,60 @@ async def post_recommendation_feedback(
 
     user = user_info.get("user") if user_info else None
     store.record_feedback(rec_id, action, user_id=user)
+    return {"ok": True, "recorded_at": time.time()}
+
+
+@router.post("/api/uar/recommendations/outcome")
+async def post_recommendation_outcome(
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Record an outcome for a previously accepted recommendation.
+
+    Omega-5.5: Outcome Attribution.
+    Accepts: {
+        "recommendation_id": "...",
+        "outcome_type": "resolved|recurred|unknown"
+    }
+    Returns: { "ok": true, "recorded_at": ... }
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    rec_id = body.get("recommendation_id")
+    outcome_type = body.get("outcome_type")
+    if not rec_id or not outcome_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "missing_field",
+                "message": (
+                    "recommendation_id and outcome_type are required"
+                ),
+            },
+        )
+    if outcome_type not in ("resolved", "recurred", "unknown"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "invalid_outcome_type",
+                "message": (
+                    "outcome_type must be resolved, recurred, or unknown"
+                ),
+            },
+        )
+
+    import time
+    from uar.api.server import store
+
+    store.record_outcome(rec_id, outcome_type)
     return {"ok": True, "recorded_at": time.time()}

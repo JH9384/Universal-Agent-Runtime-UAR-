@@ -346,3 +346,53 @@ class JsonRunStore:
                     if len(entries) >= limit:
                         break
         return entries
+
+    def record_outcome(
+        self, recommendation_id: str, outcome_type: str
+    ) -> None:
+        """Persist an outcome as a JSONL line in uar_outcomes.jsonl."""
+        outcomes_path = self.path.parent / "uar_outcomes.jsonl"
+        entry = json.dumps(
+            {
+                "recommendation_id": recommendation_id,
+                "outcome_type": outcome_type,
+                "recorded_at": time.time(),
+            },
+            sort_keys=True,
+        ) + "\n"
+        with self._acquire_lock():
+            with outcomes_path.open("a", encoding="utf-8") as f:
+                f.write(entry)
+                f.flush()
+                os.fsync(f.fileno())
+
+    def get_outcomes(
+        self,
+        recommendation_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[dict]:
+        """Read outcome entries, optionally filtered."""
+        outcomes_path = self.path.parent / "uar_outcomes.jsonl"
+        if not outcomes_path.exists():
+            return []
+        entries: List[dict] = []
+        with self._acquire_lock(shared=True):
+            with outcomes_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if (
+                        recommendation_id is not None
+                        and entry.get("recommendation_id")
+                        != recommendation_id
+                    ):
+                        continue
+                    entries.append(entry)
+                    if len(entries) >= limit:
+                        break
+        return entries
