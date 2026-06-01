@@ -1,5 +1,6 @@
 import { useApiFetch } from '../hooks/useApiFetch'
 import { TopologyWidget } from './TopologyWidget'
+import { TrendPanel } from './TrendPanel'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -187,6 +188,9 @@ export function MissionControlWidget() {
           </div>
         </div>
       )}
+
+      {/* Trends */}
+      <TrendPanel />
 
       {/* Topology */}
       <div className={styles.topologySection}>
