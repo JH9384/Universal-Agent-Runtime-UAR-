@@ -306,6 +306,81 @@ operators learn to ignore the score. The system loses credibility.
 
 Calibration turns confidence from a decoration into a reliable signal.
 
+## Replay Intelligence (Ω-6c)
+
+Ω-6c links recommendations to outcomes and the runs that produced them,
+forming an operational knowledge graph.
+
+### Evidence Endpoint
+
+```
+GET /api/uar/recommendations/evidence
+```
+
+Aggregate (no query param):
+
+```json
+{
+  "recommendation_types": [
+    {
+      "type": "restart_service",
+      "resolution_rate": 0.91,
+      "sample_size": 87,
+      "supporting_replays": 42
+    }
+  ]
+}
+```
+
+Specific (`?recommendation_id=abc123`):
+
+```json
+{
+  "recommendation_id": "abc123",
+  "category": "remediate",
+  "source": "pattern",
+  "title": "Restart service",
+  "confidence": 0.85,
+  "run_id": "run-456",
+  "outcome": "resolved",
+  "outcome_recorded_at": 1717234567
+}
+```
+
+### Evidence Linkage Model
+
+```
+Recommendation
+     ↓ (metadata)
+Confidence
+     ↓ (outcome)
+Resolved/Recurred
+     ↓ (run_id)
+Replay
+```
+
+This creates a navigable path:
+
+```
+Operator: Why is this recommendation trusted?
+System:  Here are 42 historical runs with outcomes.
+Operator: Show me one that worked.
+System:  Replay run-456 — resolved.
+```
+
+### Supporting Replays
+
+`supporting_replays` counts unique `run_id` values linked to resolved or recurred outcomes for each recommendation type. This answers:
+
+> How much evidence backs this recommendation?
+
+A high resolution rate with only 2 supporting replays is suspicious.
+A moderate resolution rate with 87 supporting replays is trustworthy.
+
+### Run ID Capture
+
+When a recommendation is generated, the first `affected_run` is stored alongside its metadata. This links the recommendation to a representative historical run without requiring schema changes to the outcomes table.
+
 ## Future Expansion
 
 | Feature | Description | Phase |
@@ -314,7 +389,7 @@ Calibration turns confidence from a decoration into a reliable signal.
 | Decay model | Time-weighted feedback | Ω-6a |
 | Drift detection | Recent vs historical rate change | Ω-6a |
 | Confidence Calibration | Predicted vs actual accuracy | Ω-6b |
-| Replay Integration | Outcome → replay deep links | Ω-6c |
+| Replay Intelligence | Evidence linkage and aggregation | Ω-6c |
 | Operator-specific models | Per-user preference tracking | Ω-6d |
 | Ensemble confidence | Blend multiple heuristics | Ω-6e |
 | A/B testing | Controlled modifier experiments | Ω-6f |

@@ -324,3 +324,34 @@ class TestRecommendationCalibration:
         assert "mean_actual_resolution_rate" in data
         assert "sample_size" in data
         assert "reliability_buckets" in data
+
+
+class TestRecommendationEvidence:
+    def test_evidence_requires_auth(self):
+        response = client.get("/api/uar/recommendations/evidence")
+        assert response.status_code == 401
+
+    def test_evidence_aggregate_structure(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.get(
+            "/api/uar/recommendations/evidence",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "recommendation_types" in data
+        assert isinstance(data["recommendation_types"], list)
+        for t in data["recommendation_types"]:
+            assert "type" in t
+            assert "resolution_rate" in t
+            assert "sample_size" in t
+            assert "supporting_replays" in t
+
+    def test_evidence_specific_not_found(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.get(
+            "/api/uar/recommendations/evidence",
+            params={"recommendation_id": "nonexistent"},
+            headers=headers,
+        )
+        assert response.status_code == 404

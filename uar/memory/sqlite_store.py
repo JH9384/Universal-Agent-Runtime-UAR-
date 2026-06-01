@@ -215,18 +215,22 @@ class SqliteRunStore:
                                 (rec_id, out_type),
                             )
                         elif op == "rec_meta":
-                            if len(payload) == 5:
+                            if len(payload) == 6:
+                                rec_id, cat, src, ttl, conf, rid = payload
+                            elif len(payload) == 5:
                                 rec_id, cat, src, ttl, conf = payload
+                                rid = None
                             else:
                                 rec_id, cat, src, ttl = payload
                                 conf = None
+                                rid = None
                             conn.execute(
                                 "INSERT OR IGNORE INTO"
                                 " uar_recommendation_metadata"
                                 " (recommendation_id, category, source, title,"
-                                " confidence)"
-                                " VALUES (?, ?, ?, ?, ?)",
-                                (rec_id, cat, src, ttl, conf),
+                                " confidence, run_id)"
+                                " VALUES (?, ?, ?, ?, ?, ?)",
+                                (rec_id, cat, src, ttl, conf, rid),
                             )
                         elif op == "checkpoint":
                             conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
@@ -386,7 +390,8 @@ class SqliteRunStore:
             category           TEXT NOT NULL,
             source             TEXT,
             title              TEXT,
-            confidence         REAL
+            confidence         REAL,
+            run_id             TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_meta_rec_id
             ON uar_recommendation_metadata(recommendation_id);
@@ -412,6 +417,16 @@ class SqliteRunStore:
                 conn.execute(
                     "ALTER TABLE uar_recommendation_metadata"
                     " ADD COLUMN confidence REAL"
+                )
+                conn.commit()
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" not in str(exc):
+                    raise
+            # Ω-6c: migrate metadata table to add run_id
+            try:
+                conn.execute(
+                    "ALTER TABLE uar_recommendation_metadata"
+                    " ADD COLUMN run_id TEXT"
                 )
                 conn.commit()
             except sqlite3.OperationalError as exc:
@@ -775,6 +790,7 @@ class SqliteRunStore:
         source: str = "",
         title: str = "",
         confidence: float = 0.0,
+        run_id: str = "",
     ) -> None:
         """Store mapping from recommendation_id to metadata.
 
@@ -782,7 +798,7 @@ class SqliteRunStore:
         """
         result = self._enqueue_write_sync(
             "rec_meta",
-            (recommendation_id, category, source, title, confidence),
+            (recommendation_id, category, source, title, confidence, run_id),
         )
         if isinstance(result, Exception):
             raise result

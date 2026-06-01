@@ -568,6 +568,7 @@ async def get_recommendations(
                 source=rec.source,
                 title=rec.title,
                 confidence=rec.confidence,
+                run_id=rec.affected_runs[0] if rec.affected_runs else "",
             )
         except Exception:
             pass  # shown and metadata tracking is best-effort
@@ -768,6 +769,51 @@ async def get_recommendation_calibration(
     outcomes = store.get_outcomes(limit=50000)
     metadata = store.get_recommendation_metadata(limit=50000)
     return compute_calibration(outcomes, metadata)
+
+
+@router.get("/api/uar/recommendations/evidence")
+async def get_recommendation_evidence(
+    recommendation_id: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Replay Intelligence — Evidence linkage.
+
+    Omega-6c: Retrieves evidence linking recommendations to outcomes
+    and the runs that produced them.  If recommendation_id is provided,
+    returns evidence for that specific recommendation.  Otherwise returns
+    aggregated evidence by recommendation type.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    from uar.api.server import store
+    from uar.core.evidence import aggregate_evidence, get_evidence
+
+    outcomes = store.get_outcomes(limit=50000)
+    metadata = store.get_recommendation_metadata(limit=50000)
+
+    if recommendation_id:
+        evidence = get_evidence(recommendation_id, outcomes, metadata)
+        if evidence is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "not_found",
+                    "message": "Recommendation not found",
+                },
+            )
+        return evidence
+
+    return aggregate_evidence(outcomes, metadata)
 
 
 @router.post("/api/uar/recommendations/feedback")
