@@ -5,6 +5,7 @@ import { BurnInHistory } from './BurnInHistory'
 import { FailureClusterPanel } from './FailureClusterPanel'
 import { ConfidenceDriftPanel } from './ConfidenceDriftPanel'
 import { TopologyAnalyticsPanel } from './TopologyAnalyticsPanel'
+import { FailureHotspotPanel } from './FailureHotspotPanel'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -212,6 +213,9 @@ export function MissionControlWidget() {
 
       {/* Topology Analytics */}
       <TopologyAnalyticsPanel />
+
+      {/* Failure Hotspots */}
+      <FailureHotspotPanel />
 
       {/* Footer */}
       <div className={styles.footer}>

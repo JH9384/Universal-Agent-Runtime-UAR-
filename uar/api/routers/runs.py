@@ -995,3 +995,139 @@ async def get_topology_hot_paths(
         "edges": edge_list,
         "recipes": recipe_list,
     }
+
+
+@router.get("/api/uar/topology/failure-hotspots")
+async def get_failure_hotspots(
+    hours: int = Query(168, ge=1, le=720),
+    top: int = Query(10, ge=1, le=50),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Overlay failure data onto topology nodes and edges.
+
+    Issue #96 — Phase D3.2: Failure Hotspots.
+    Correlates run failures with skill usage and transitions to
+    identify the most dangerous nodes and edges.
+    Zero new storage layer.
+    """
+    from uar.api.server import store
+
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    import time
+    user = user_info.get("user") if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+    cutoff = time.time() - (hours * 3600)
+
+    all_runs = store.list_records(user_id=user if is_admin else user)
+    recent_runs = [
+        r for r in all_runs
+        if r.get("created_at", 0) >= cutoff
+        or r.get("timestamp", 0) >= cutoff
+    ]
+
+    nodes: dict[str, dict] = {}
+    edges: dict[str, dict] = {}
+    total_failures = 0
+
+    for run in recent_runs:
+        owner = run.get("user_id") or run.get("user", "")
+        if owner and owner != user and not is_admin:
+            continue
+
+        skills = run.get("skills") or []
+        events = run.get("events") or []
+        run_id = run.get("run_id") or run.get("id", "")
+
+        # Identify failing skills in this run
+        failed_skills = set()
+        for ev in events:
+            if ev.get("error") or ev.get("type") == "error":
+                skill = ev.get("skill")
+                if skill:
+                    failed_skills.add(skill)
+        total_failures += len(failed_skills)
+
+        # Node data
+        for skill in skills:
+            if skill not in nodes:
+                nodes[skill] = {
+                    "skill": skill,
+                    "invocations": 0,
+                    "failures": 0,
+                    "affected_runs": set(),
+                }
+            nodes[skill]["invocations"] += 1
+            if skill in failed_skills:
+                nodes[skill]["failures"] += 1
+                nodes[skill]["affected_runs"].add(run_id)
+
+        # Edge data
+        for i in range(len(skills) - 1):
+            src = skills[i]
+            dst = skills[i + 1]
+            key = f"{src}→{dst}"
+            if key not in edges:
+                edges[key] = {
+                    "source": src,
+                    "target": dst,
+                    "transitions": 0,
+                    "failures": 0,
+                    "affected_runs": set(),
+                }
+            edges[key]["transitions"] += 1
+            if src in failed_skills or dst in failed_skills:
+                edges[key]["failures"] += 1
+                edges[key]["affected_runs"].add(run_id)
+
+    # Compute severity
+    def _severity(failure_rate: float) -> str:
+        if failure_rate >= 0.5:
+            return "critical"
+        if failure_rate >= 0.2:
+            return "warning"
+        return "healthy"
+
+    node_list = []
+    for n in nodes.values():
+        inv = n["invocations"]
+        fr = n["failures"] / inv if inv else 0
+        n["failure_rate"] = round(fr, 2)
+        n["severity"] = _severity(fr)
+        n["affected_runs"] = len(n.pop("affected_runs"))
+        node_list.append(n)
+
+    edge_list = []
+    for e in edges.values():
+        tr = e["transitions"]
+        fr = e["failures"] / tr if tr else 0
+        e["failure_rate"] = round(fr, 2)
+        e["severity"] = _severity(fr)
+        e["affected_runs"] = len(e.pop("affected_runs"))
+        edge_list.append(e)
+
+    # Sort by failure rate desc
+    node_list = sorted(
+        node_list, key=lambda x: x["failure_rate"], reverse=True
+    )[:top]
+    edge_list = sorted(
+        edge_list, key=lambda x: x["failure_rate"], reverse=True
+    )[:top]
+
+    return {
+        "hours": hours,
+        "total_runs": len(recent_runs),
+        "total_failures": total_failures,
+        "nodes": node_list,
+        "edges": edge_list,
+    }

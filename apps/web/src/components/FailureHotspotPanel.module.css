@@ -1,0 +1,200 @@
+.hotspotPanel {
+  background: #fff;
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.panelTitle {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.panelDesc {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary, #999);
+}
+
+/* Table */
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 1fr 70px 50px 80px;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary, #999);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--panel-border, #e1e4e8);
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 1fr 70px 50px 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--panel-border, #e1e4e8);
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.cellName {
+  font-size: 12px;
+  color: var(--text-primary, #1a1a2e);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellRate {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.cellCount {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-secondary, #666);
+}
+
+/* Severity badges */
+.severityBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sevCritical {
+  color: #c0392b;
+  background: #fdf2f2;
+}
+
+.sevWarning {
+  color: #e67e22;
+  background: #fdf2e9;
+}
+
+.sevHealthy {
+  color: #27ae60;
+  background: #e8f8f0;
+}
+
+/* Edges */
+.edgeList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edgeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--panel-bg, #f8f9fa);
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 6px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edgePath {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edgeNode {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.edgeArrow {
+  font-size: 12px;
+  color: var(--text-secondary, #999);
+}
+
+.edgeMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edgeRate {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.edgeRuns {
+  font-size: 11px;
+  color: var(--text-secondary, #999);
+}
+
+/* Bar */
+.barTrack {
+  width: 48px;
+  height: 4px;
+  background: #e1e4e8;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: #c0392b;
+  border-radius: 2px;
+}
+
+/* States */
+.loading,
+.error,
+.emptyState {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+}
+
+.error {
+  color: #c0392b;
+}
