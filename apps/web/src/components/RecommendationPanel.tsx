@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
 import styles from './RecommendationPanel.module.css'
 
 interface Recommendation {
+  recommendation_id: string
   category: string
   priority: string
   confidence: number
@@ -77,6 +79,45 @@ function EvidenceBlock({ rec }: { rec: Recommendation }) {
   )
 }
 
+function FeedbackButtons({ recId }: { recId: string }) {
+  const [state, setState] = useState<'idle' | 'accept' | 'reject' | 'dismiss' | 'error'>('idle')
+
+  const send = async (action: 'accept' | 'reject' | 'dismiss') => {
+    setState(action)
+    try {
+      const res = await fetch('/api/uar/recommendations/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recommendation_id: recId, action }),
+      })
+      if (!res.ok) {
+        setState('error')
+      }
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (state === 'accept') {
+    return <div className={styles.feedbackRow}><span className={styles.feedbackOk}>Accepted</span></div>
+  }
+  if (state === 'reject') {
+    return <div className={styles.feedbackRow}><span className={styles.feedbackNo}>Rejected</span></div>
+  }
+  if (state === 'dismiss') {
+    return <div className={styles.feedbackRow}><span className={styles.feedbackMuted}>Dismissed</span></div>
+  }
+
+  return (
+    <div className={styles.feedbackRow}>
+      <button className={styles.feedbackBtnAccept} onClick={() => send('accept')}>Accept</button>
+      <button className={styles.feedbackBtnReject} onClick={() => send('reject')}>Reject</button>
+      <button className={styles.feedbackBtnDismiss} onClick={() => send('dismiss')}>Dismiss</button>
+      {state === 'error' && <span className={styles.feedbackNo}>Failed</span>}
+    </div>
+  )
+}
+
 export function RecommendationPanel() {
   const { data, loading, error } = useApiFetch<RecommendationsResponse>(
     '/api/uar/recommendations?hours=24&limit=1000'
@@ -131,6 +172,8 @@ export function RecommendationPanel() {
                 <span className={styles.affectedCount}>{rec.affected_runs.length}</span>
               </div>
             )}
+
+            <FeedbackButtons recId={rec.recommendation_id} />
           </div>
         ))}
       </div>

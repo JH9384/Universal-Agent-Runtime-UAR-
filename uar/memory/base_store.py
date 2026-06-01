@@ -71,6 +71,19 @@ class RunStoreProtocol(Protocol):
 
     def purge_old_records(self, retention_days: int) -> int: ...
 
+    # Optional: feedback support (Ω-5.2)
+    def record_feedback(
+        self, recommendation_id: str, action: str,
+        user_id: Optional[str] = None,
+    ) -> None: ...
+
+    def get_feedback(
+        self,
+        recommendation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]: ...
+
 
 def get_store() -> RunStoreProtocol:
     """Return a concrete store matching the current environment.

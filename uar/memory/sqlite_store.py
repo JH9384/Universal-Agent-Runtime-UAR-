@@ -190,6 +190,14 @@ class SqliteRunStore:
                             # because the writer-thread connection is
                             # opened with isolation_level=None
                             # (autocommit ON).
+                        elif op == "feedback":
+                            rec_id, action, user_id_fb = payload
+                            conn.execute(
+                                "INSERT INTO uar_recommendation_feedback"
+                                " (recommendation_id, action, user_id)"
+                                " VALUES (?, ?, ?)",
+                                (rec_id, action, user_id_fb),
+                            )
                         elif op == "checkpoint":
                             conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
                         break  # success — exit retry loop
@@ -313,6 +321,17 @@ class SqliteRunStore:
             value      TEXT NOT NULL,
             updated_at REAL DEFAULT (strftime('%s', 'now'))
         );
+        CREATE TABLE IF NOT EXISTS uar_recommendation_feedback (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            recommendation_id  TEXT NOT NULL,
+            action             TEXT NOT NULL,
+            user_id            TEXT,
+            created_at         REAL DEFAULT (strftime('%s', 'now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_feedback_rec_id
+            ON uar_recommendation_feedback(recommendation_id);
+        CREATE INDEX IF NOT EXISTS idx_feedback_user
+            ON uar_recommendation_feedback(user_id);
         """
         conn = self._connect()
         try:
@@ -527,6 +546,67 @@ class SqliteRunStore:
     # ------------------------------------------------------------------
     # Metadata key-value store (Issue #86 — burn-in persistence)
     # ------------------------------------------------------------------
+
+    def record_feedback(
+        self,
+        recommendation_id: str,
+        action: str,
+        user_id: Optional[str] = None,
+    ) -> None:
+        """Persist an operator feedback entry for a recommendation.
+
+        Omega-5.2: Operator Feedback Loop.
+        """
+        result = self._enqueue_write_sync(
+            "feedback", (recommendation_id, action, user_id)
+        )
+        if isinstance(result, Exception):
+            raise result
+
+    def get_feedback(
+        self,
+        recommendation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recommendation feedback entries.
+
+        If recommendation_id is provided, filters to that recommendation.
+        If user_id is provided, filters to that user.
+        """
+        conn = self._get_read_conn()
+        try:
+            if recommendation_id is not None and user_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_feedback"
+                    " WHERE recommendation_id = ? AND user_id = ?"
+                    " ORDER BY created_at DESC LIMIT ?",
+                    (recommendation_id, user_id, limit),
+                )
+            elif recommendation_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_feedback"
+                    " WHERE recommendation_id = ?"
+                    " ORDER BY created_at DESC LIMIT ?",
+                    (recommendation_id, limit),
+                )
+            elif user_id is not None:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_feedback"
+                    " WHERE user_id = ?"
+                    " ORDER BY created_at DESC LIMIT ?",
+                    (user_id, limit),
+                )
+            else:
+                cur = conn.execute(
+                    "SELECT * FROM uar_recommendation_feedback"
+                    " ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                )
+            rows = cur.fetchall()
+        finally:
+            self._release_read_conn(conn)
+        return [dict(r) for r in rows]
 
     def put_metadata(self, key: str, value: Any) -> None:
         """Persist a JSON-serialisable value under key (upsert).

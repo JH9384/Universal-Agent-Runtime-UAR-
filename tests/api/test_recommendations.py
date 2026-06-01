@@ -70,3 +70,69 @@ class TestRecommendationsEndpoint:
         assert r1.status_code == 200
         assert r2.status_code == 200
         assert r1.json() == r2.json()
+
+
+class TestRecommendationFeedback:
+    def test_feedback_requires_auth(self):
+        response = client.post("/api/uar/recommendations/feedback", json={})
+        assert response.status_code == 401
+
+    def test_feedback_valid_accept(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={
+                "recommendation_id": "abc123",
+                "action": "accept",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert "recorded_at" in data
+
+    def test_feedback_valid_reject(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={
+                "recommendation_id": "abc123",
+                "action": "reject",
+            },
+        )
+        assert response.status_code == 200
+
+    def test_feedback_valid_dismiss(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={
+                "recommendation_id": "abc123",
+                "action": "dismiss",
+            },
+        )
+        assert response.status_code == 200
+
+    def test_feedback_missing_fields(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={"recommendation_id": "abc123"},
+        )
+        assert response.status_code == 400
+
+    def test_feedback_invalid_action(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.post(
+            "/api/uar/recommendations/feedback",
+            headers=headers,
+            json={
+                "recommendation_id": "abc123",
+                "action": "maybe",
+            },
+        )
+        assert response.status_code == 400

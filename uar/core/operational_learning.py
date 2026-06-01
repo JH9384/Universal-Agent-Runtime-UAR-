@@ -28,6 +28,7 @@ Architecture:
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -50,8 +51,19 @@ class Recommendation:
     source: str  # which subsystem generated it
     affected_runs: List[str] = field(default_factory=list)
 
+    @property
+    def recommendation_id(self) -> str:
+        """Stable identifier derived from invariant fields.
+
+        Same logical recommendation (same category, source, and title)
+        will produce the same id even when occurrence counts change.
+        """
+        raw = f"{self.category}:{self.source}:{self.title}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "recommendation_id": self.recommendation_id,
             "category": self.category,
             "priority": self.priority,
             "confidence": round(self.confidence, 2),

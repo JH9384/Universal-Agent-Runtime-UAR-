@@ -533,3 +533,53 @@ async def get_recommendations(
         "recommendations", user, is_admin, hours, limit, result
     )
     return result
+
+
+@router.post("/api/uar/recommendations/feedback")
+async def post_recommendation_feedback(
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Record operator feedback on a recommendation.
+
+    Omega-5.2: Operator Feedback Loop.
+    Accepts: { "recommendation_id": "...", "action": "accept|reject|dismiss" }
+    Returns: { "ok": true, "recorded_at": ... }
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    import time
+    from uar.api.server import store
+
+    rec_id = body.get("recommendation_id")
+    action = body.get("action")
+    if not rec_id or not action:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "missing_field",
+                "message": "recommendation_id and action are required",
+            },
+        )
+    if action not in ("accept", "reject", "dismiss"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "invalid_action",
+                "message": "action must be accept, reject, or dismiss",
+            },
+        )
+
+    user = user_info.get("user") if user_info else None
+    store.record_feedback(rec_id, action, user_id=user)
+    return {"ok": True, "recorded_at": time.time()}

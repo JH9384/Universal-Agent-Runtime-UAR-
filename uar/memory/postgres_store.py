@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import threading
+import time
 from typing import Any, Dict, List, Optional
 
 from uar.core.contracts import RunRecord
@@ -545,3 +546,95 @@ class PostgresRunStore:
         finally:
             self._release_conn(conn)
         return removed
+
+    # ------------------------------------------------------------------
+    # Recommendation feedback (Ω-5.2)
+    # ------------------------------------------------------------------
+
+    def record_feedback(
+        self,
+        recommendation_id: str,
+        action: str,
+        user_id: Optional[str] = None,
+    ) -> None:
+        """Persist operator feedback for a recommendation."""
+        self._ensure_feedback_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO uar_recommendation_feedback"
+                    " (recommendation_id, action, user_id, created_at)"
+                    " VALUES (%s, %s, %s, to_timestamp(%s))",
+                    (recommendation_id, action, user_id, time.time()),
+                )
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+
+    def get_feedback(
+        self,
+        recommendation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recommendation feedback entries."""
+        self._ensure_feedback_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                if recommendation_id is not None and user_id is not None:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_feedback"
+                        " WHERE recommendation_id = %s AND user_id = %s"
+                        " ORDER BY created_at DESC LIMIT %s",
+                        (recommendation_id, user_id, limit),
+                    )
+                elif recommendation_id is not None:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_feedback"
+                        " WHERE recommendation_id = %s"
+                        " ORDER BY created_at DESC LIMIT %s",
+                        (recommendation_id, limit),
+                    )
+                elif user_id is not None:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_feedback"
+                        " WHERE user_id = %s"
+                        " ORDER BY created_at DESC LIMIT %s",
+                        (user_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM uar_recommendation_feedback"
+                        " ORDER BY created_at DESC LIMIT %s",
+                        (limit,),
+                    )
+                cols = [d[0] for d in cur.description]
+                rows = cur.fetchall()
+        finally:
+            self._release_conn(conn)
+        return [dict(zip(cols, r)) for r in rows]
+
+    def _ensure_feedback_table(self) -> None:
+        """Create feedback table if it does not exist."""
+        ddl = """
+        CREATE TABLE IF NOT EXISTS uar_recommendation_feedback (
+            id                SERIAL PRIMARY KEY,
+            recommendation_id TEXT NOT NULL,
+            action            TEXT NOT NULL,
+            user_id           TEXT,
+            created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_feedback_rec_id
+            ON uar_recommendation_feedback(recommendation_id);
+        CREATE INDEX IF NOT EXISTS idx_feedback_user
+            ON uar_recommendation_feedback(user_id);
+        """
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(ddl)
+            conn.commit()
+        finally:
+            self._release_conn(conn)

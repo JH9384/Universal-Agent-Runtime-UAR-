@@ -182,3 +182,60 @@
   font-weight: 600;
   color: var(--text-secondary, #bbb);
 }
+
+.feedbackRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 8px;
+  margin-top: 6px;
+}
+
+.feedbackRow button {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--text-secondary, #bbb);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.feedbackRow button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.feedbackBtnAccept:hover {
+  border-color: #44ff88;
+  color: #44ff88;
+}
+
+.feedbackBtnReject:hover {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
+.feedbackBtnDismiss:hover {
+  border-color: #888;
+  color: #ccc;
+}
+
+.feedbackOk {
+  font-size: 11px;
+  color: #44ff88;
+  font-weight: 600;
+}
+
+.feedbackNo {
+  font-size: 11px;
+  color: #ff4444;
+  font-weight: 600;
+}
+
+.feedbackMuted {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  font-weight: 600;
+}

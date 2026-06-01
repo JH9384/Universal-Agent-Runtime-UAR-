@@ -223,3 +223,69 @@ class JsonRunStore:
                         tmp.unlink()
 
         return removed
+
+    # ------------------------------------------------------------------
+    # Recommendation feedback (Ω-5.2) — JSONL fallback for non-SQLite
+    # ------------------------------------------------------------------
+
+    def record_feedback(
+        self,
+        recommendation_id: str,
+        action: str,
+        user_id: Optional[str] = None,
+    ) -> None:
+        """Persist operator feedback as a JSONL line.
+
+        Uses a separate file so feedback does not mix with run records.
+        """
+        feedback_path = self.path.parent / "uar_feedback.jsonl"
+        entry = json.dumps(
+            {
+                "recommendation_id": recommendation_id,
+                "action": action,
+                "user_id": user_id,
+                "created_at": time.time(),
+            },
+            sort_keys=True,
+        ) + "\n"
+        with self._acquire_lock():
+            with feedback_path.open("a", encoding="utf-8") as f:
+                f.write(entry)
+                f.flush()
+                os.fsync(f.fileno())
+
+    def get_feedback(
+        self,
+        recommendation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[dict]:
+        """Read feedback entries, optionally filtered."""
+        feedback_path = self.path.parent / "uar_feedback.jsonl"
+        if not feedback_path.exists():
+            return []
+        entries: List[dict] = []
+        with self._acquire_lock(shared=True):
+            with feedback_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if (
+                        recommendation_id is not None
+                        and entry.get("recommendation_id") != recommendation_id
+                    ):
+                        continue
+                    if (
+                        user_id is not None
+                        and entry.get("user_id") != user_id
+                    ):
+                        continue
+                    entries.append(entry)
+                    if len(entries) >= limit:
+                        break
+        return entries
