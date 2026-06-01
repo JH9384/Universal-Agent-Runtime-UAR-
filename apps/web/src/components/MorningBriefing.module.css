@@ -1,0 +1,83 @@
+.briefing {
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  background: var(--panel-bg, #f8fafc);
+  border: 1px solid var(--panel-border, #e2e8f0);
+  margin-bottom: 1rem;
+}
+
+.attention {
+  border-left: 4px solid #f59e0b;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.timestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+}
+
+.narrative {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  color: var(--text-primary, #1e293b);
+  line-height: 1.5;
+}
+
+.statsRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--pill-bg, #e2e8f0);
+  min-width: 4rem;
+}
+
+.pillAlert {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+}
+
+.pillValue {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+
+.pillLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  margin-top: 0.15rem;
+}
+
+.topTrusted {
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+
+.loading, .error {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+}

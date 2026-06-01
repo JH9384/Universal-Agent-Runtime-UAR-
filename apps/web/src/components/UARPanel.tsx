@@ -13,6 +13,11 @@ import { HealthDashboard } from './HealthDashboard'
 import { MissionControlWidget } from './MissionControlWidget'
 import { ReplayExplorer } from './ReplayExplorer'
 import { CompareRuns } from './CompareRuns'
+import { MorningBriefing } from './MorningBriefing'
+import { TrustExplorer } from './TrustExplorer'
+import { IncidentWorkbench } from './IncidentWorkbench'
+import { KnowledgeGraph } from './KnowledgeGraph'
+import { TimeMachine } from './TimeMachine'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
@@ -608,6 +613,11 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [showReplayExplorer, setShowReplayExplorer] = useState(false)
   const [explorerRunId, setExplorerRunId] = useState<string>('')
   const [showCompareRuns, setShowCompareRuns] = useState(false)
+  const [showBriefing, setShowBriefing] = useState(false)
+  const [showTrustExplorer, setShowTrustExplorer] = useState(false)
+  const [showIncidentWorkbench, setShowIncidentWorkbench] = useState(false)
+  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false)
+  const [showTimeMachine, setShowTimeMachine] = useState(false)
   const [compareRunA, setCompareRunA] = useState('')
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
@@ -2600,6 +2610,41 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           <button onClick={clearEvents} className={styles.clearEventsButton} title="Clear event history from display">
             Clear Events
           </button>
+          <button
+            onClick={() => { setShowBriefing(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Morning Briefing"
+          >
+            {showBriefing ? 'Hide Briefing' : 'Briefing'}
+          </button>
+          <button
+            onClick={() => { setShowTrustExplorer(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Trust Explorer"
+          >
+            {showTrustExplorer ? 'Hide Trust' : 'Trust Explorer'}
+          </button>
+          <button
+            onClick={() => { setShowIncidentWorkbench(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Incident Workbench"
+          >
+            {showIncidentWorkbench ? 'Hide Incidents' : 'Incidents'}
+          </button>
+          <button
+            onClick={() => { setShowKnowledgeGraph(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Knowledge Graph"
+          >
+            {showKnowledgeGraph ? 'Hide Graph' : 'Graph'}
+          </button>
+          <button
+            onClick={() => { setShowTimeMachine(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Time Machine"
+          >
+            {showTimeMachine ? 'Hide Time' : 'Time Machine'}
+          </button>
         </div>
         {metrics && !isRunning && (
           <div className={styles.metricsPanel} title="Execution metrics from last run">
@@ -2611,6 +2656,32 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
         )}
         {showMissionControl && (
           <MissionControlWidget
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+          />
+        )}
+        {showBriefing && <MorningBriefing />}
+        {showTrustExplorer && <TrustExplorer />}
+        {showIncidentWorkbench && (
+          <IncidentWorkbench
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+          />
+        )}
+        {showKnowledgeGraph && (
+          <KnowledgeGraph
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+          />
+        )}
+        {showTimeMachine && (
+          <TimeMachine
             onOpenReplay={(runId) => {
               setExplorerRunId(runId)
               setShowReplayExplorer(true)

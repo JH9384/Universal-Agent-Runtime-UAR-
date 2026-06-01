@@ -1,0 +1,180 @@
+.panel {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--panel-bg, #f8fafc);
+  border: 1px solid var(--panel-border, #e2e8f0);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.captureBtn {
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  border: none;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.timeline {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.timelinePoint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  min-width: 3.5rem;
+}
+
+.timelinePoint:hover {
+  background: #e2e8f0;
+}
+
+.timelinePointActive {
+  background: #dbeafe;
+}
+
+.timelineDot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #3b82f6;
+  margin-bottom: 0.2rem;
+}
+
+.timelineLabel {
+  font-size: 0.65rem;
+  color: var(--text-muted, #64748b);
+}
+
+.timelineTime {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.detailPanel {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.detailTitle {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.statsRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.statBox {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.statValue {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+
+.statLabel {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+}
+
+.trustList, .runList {
+  margin-top: 0.5rem;
+}
+
+.trustListTitle, .runListTitle {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.trustRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.trustType {
+  flex: 1;
+  font-size: 0.8rem;
+}
+
+.trustScore {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.driftBadge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.runTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.runTag {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.3rem;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: none;
+  cursor: pointer;
+}
+
+.loading, .error, .emptyState {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+}

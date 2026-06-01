@@ -1,0 +1,165 @@
+.panel {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--panel-bg, #f8fafc);
+  border: 1px solid var(--panel-border, #e2e8f0);
+}
+
+.panelTitle {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.subtitle {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.typeCard {
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow 0.15s;
+}
+
+.typeCard:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.bandHigh { border-left: 3px solid #22c55e; }
+.bandTrusted { border-left: 3px solid #3b82f6; }
+.bandWatch { border-left: 3px solid #f59e0b; }
+.bandWeak { border-left: 3px solid #f97316; }
+.bandUntrusted { border-left: 3px solid #ef4444; }
+
+.typeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.typeName {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.bandLabel {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.scoreRow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.scoreValue {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+}
+
+.driftBadge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.detailPanel {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.detailTitle {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.componentRow {
+  margin-bottom: 0.5rem;
+}
+
+.componentHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-bottom: 0.2rem;
+}
+
+.componentLabel {
+  color: var(--text-muted, #64748b);
+}
+
+.componentScore {
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+}
+
+.componentBar {
+  height: 0.4rem;
+  border-radius: 0.2rem;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.componentFill {
+  height: 100%;
+  border-radius: 0.2rem;
+  transition: width 0.3s ease;
+}
+
+.barEffectiveness { background: #22c55e; }
+.barCalibration { background: #3b82f6; }
+.barEvidence { background: #a855f7; }
+
+.componentDetail {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+  margin-top: 0.15rem;
+}
+
+.driftWarning {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.loading, .error, .emptyState {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+}
