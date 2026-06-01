@@ -34,3 +34,6 @@ overview_architecture.puml
 # Coverage artifacts
 .coverage
 .coverage.*
+
+# Generated evidence packs
+reports/
