@@ -237,6 +237,75 @@ This is often more valuable than the raw ranking.
 Types with fewer than 5 outcomes are excluded from rankings.
 This prevents volatile noise from dominating the leaderboard.
 
+## Confidence Calibration (Ω-6b)
+
+Ω-6b measures whether predicted confidence matches actual outcomes.
+
+### Calibration Endpoint
+
+```
+GET /api/uar/recommendations/calibration
+```
+
+Returns:
+
+```json
+{
+  "overall_calibration_error": 0.15,
+  "mean_predicted_confidence": 0.82,
+  "mean_actual_resolution_rate": 0.67,
+  "sample_size": 124,
+  "reliability_buckets": [
+    {
+      "bucket": "0.80-0.90",
+      "predicted_avg": 0.85,
+      "actual_rate": 0.84,
+      "sample_size": 45,
+      "calibration_error": 0.01
+    },
+    {
+      "bucket": "0.90-1.00",
+      "predicted_avg": 0.95,
+      "actual_rate": 0.62,
+      "sample_size": 23,
+      "calibration_error": 0.33
+    }
+  ]
+}
+```
+
+### Interpreting Calibration Error
+
+| Error | Meaning |
+|-------|---------|
+| +0.40 | **Overconfident** — predicted 0.95, actual 0.55 |
+| -0.27 | **Underconfident** — predicted 0.55, actual 0.82 |
+| +0.02 | **Well calibrated** — predicted 0.78, actual 0.80 |
+
+### Reliability Buckets
+
+Confidence predictions are grouped into 0.1-wide buckets:
+
+```
+0.0-0.1  0.1-0.2  0.2-0.3  ...  0.9-1.0
+```
+
+Each bucket reports:
+- `predicted_avg`: average confidence predicted for that bucket
+- `actual_rate`: actual resolution rate for recommendations in that bucket
+- `calibration_error`: predicted_avg minus actual_rate
+
+Buckets with fewer than 1 sample are excluded.
+
+### Why Calibration Matters
+
+Well-calibrated confidence means operators can trust the score.
+
+If confidence says 0.90 but actual resolution is 0.55,
+operators learn to ignore the score. The system loses credibility.
+
+Calibration turns confidence from a decoration into a reliable signal.
+
 ## Future Expansion
 
 | Feature | Description | Phase |

@@ -567,6 +567,7 @@ async def get_recommendations(
                 category=rec.category,
                 source=rec.source,
                 title=rec.title,
+                confidence=rec.confidence,
             )
         except Exception:
             pass  # shown and metadata tracking is best-effort
@@ -737,6 +738,36 @@ async def get_recommendation_effectiveness(
     outcomes = store.get_outcomes(limit=50000)
     metadata = store.get_recommendation_metadata(limit=50000)
     return compute_effectiveness(outcomes, metadata)
+
+
+@router.get("/api/uar/recommendations/calibration")
+async def get_recommendation_calibration(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Recommendation calibration metrics.
+
+    Omega-6b: Reliability buckets showing whether predicted confidence
+    matches actual resolution rates.  Positive calibration_error means
+    the system is overconfident; negative means underconfident.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    from uar.api.server import store
+    from uar.core.calibration import compute_calibration
+
+    outcomes = store.get_outcomes(limit=50000)
+    metadata = store.get_recommendation_metadata(limit=50000)
+    return compute_calibration(outcomes, metadata)
 
 
 @router.post("/api/uar/recommendations/feedback")

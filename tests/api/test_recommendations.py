@@ -302,3 +302,25 @@ class TestRecommendationEffectiveness:
             assert "resolution_rate" in t
             assert "weighted_resolution_rate" in t
             assert "drift" in t
+
+
+class TestRecommendationCalibration:
+    def test_calibration_requires_auth(self):
+        response = client.get(
+            "/api/uar/recommendations/calibration"
+        )
+        assert response.status_code == 401
+
+    def test_calibration_returns_structure(self):
+        headers = {"Authorization": "Bearer dev-key-12345"}
+        response = client.get(
+            "/api/uar/recommendations/calibration",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "overall_calibration_error" in data
+        assert "mean_predicted_confidence" in data
+        assert "mean_actual_resolution_rate" in data
+        assert "sample_size" in data
+        assert "reliability_buckets" in data

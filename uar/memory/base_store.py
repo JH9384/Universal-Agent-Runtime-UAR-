@@ -114,6 +114,7 @@ class RunStoreProtocol(Protocol):
         category: str,
         source: str = "",
         title: str = "",
+        confidence: float = 0.0,
     ) -> None: ...
 
     def get_recommendation_metadata(

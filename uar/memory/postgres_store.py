@@ -798,6 +798,7 @@ class PostgresRunStore:
         category: str,
         source: str = "",
         title: str = "",
+        confidence: float = 0.0,
     ) -> None:
         """Store mapping from recommendation_id to metadata."""
         self._ensure_metadata_table()
@@ -806,10 +807,10 @@ class PostgresRunStore:
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO uar_recommendation_metadata"
-                    " (recommendation_id, category, source, title)"
-                    " VALUES (%s, %s, %s, %s)"
+                    " (recommendation_id, category, source, title, confidence)"
+                    " VALUES (%s, %s, %s, %s, %s)"
                     " ON CONFLICT (recommendation_id) DO NOTHING",
-                    (recommendation_id, category, source, title),
+                    (recommendation_id, category, source, title, confidence),
                 )
             conn.commit()
         finally:
@@ -851,7 +852,8 @@ class PostgresRunStore:
             recommendation_id TEXT NOT NULL UNIQUE,
             category          TEXT NOT NULL,
             source            TEXT,
-            title             TEXT
+            title             TEXT,
+            confidence        REAL
         );
         CREATE INDEX IF NOT EXISTS idx_meta_rec_id
             ON uar_recommendation_metadata(recommendation_id);

@@ -403,6 +403,7 @@ class JsonRunStore:
         category: str,
         source: str = "",
         title: str = "",
+        confidence: float = 0.0,
     ) -> None:
         """Persist recommendation metadata in uar_metadata.jsonl."""
         meta_path = self.path.parent / "uar_metadata.jsonl"
@@ -412,6 +413,7 @@ class JsonRunStore:
                 "category": category,
                 "source": source,
                 "title": title,
+                "confidence": confidence,
             },
             sort_keys=True,
         ) + "\n"
