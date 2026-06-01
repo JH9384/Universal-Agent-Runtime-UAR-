@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -29,6 +29,11 @@ BURNIN_REPORT_KEY = "__burnin_latest__"
 # in a multi-threaded server cannot corrupt the stored value.
 _report_lock = threading.RLock()
 _latest_report: Optional[dict] = None
+
+# In-memory burn-in history (Issue #91 — Burn-In History Timeline).
+# Stores up to the last 50 reports.  Resets on restart.
+_BURNIN_HISTORY: List[dict] = []
+_BURNIN_HISTORY_MAX = 50
 
 
 class BurnInProxy:
@@ -139,11 +144,20 @@ class BurnInProxy:
         return cls(report), dict(report)
 
 
+def _append_burnin_history(report_dict: dict) -> None:
+    """Append a burn-in report to the in-memory history buffer."""
+    global _BURNIN_HISTORY
+    _BURNIN_HISTORY.append(report_dict)
+    if len(_BURNIN_HISTORY) > _BURNIN_HISTORY_MAX:
+        _BURNIN_HISTORY = _BURNIN_HISTORY[-_BURNIN_HISTORY_MAX:]
+
+
 def _set_latest_report(
     report_dict: dict,
     store: Optional[object] = None,
 ) -> bool:
-    """Write _latest_report under lock and persist to store.
+    """Write _latest_report under lock, persist to store, and append
+    to history (Issue #91).
 
     Issue #86: when a store is provided the report is also written to
     uar_metadata so it survives restart, worker replacement, and
@@ -160,6 +174,8 @@ def _set_latest_report(
     with _report_lock:
         _latest_report = report_dict
 
+    _append_burnin_history(report_dict)
+
     persisted = True
     if store is not None:
         try:
@@ -170,6 +186,45 @@ def _set_latest_report(
             )
             persisted = False
     return persisted
+
+
+@router.get("/api/uar/burnin/history")
+async def get_burnin_history(
+    limit: int = Query(20, ge=1, le=50),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Return burn-in run history for trend analysis.
+
+    Issue #91 — Phase D1: Burn-In History Timeline.
+    Returns the last N burn-in reports (up to _BURNIN_HISTORY_MAX).
+    History is in-memory and resets on server restart.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    reports = list(_BURNIN_HISTORY[-limit:])
+    total = len(_BURNIN_HISTORY)
+    passed = sum(1 for r in _BURNIN_HISTORY if r.get("passed"))
+    avg_score = (
+        sum(r.get("score", 0) for r in _BURNIN_HISTORY) / total
+        if total else 0
+    )
+    return {
+        "limit": limit,
+        "total": total,
+        "pass_rate": round(passed / total, 2) if total else 0,
+        "average_score": round(avg_score, 1),
+        "reports": reports,
+    }
 
 
 @router.get("/api/uar/burnin/latest")

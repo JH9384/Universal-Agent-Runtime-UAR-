@@ -28,7 +28,7 @@ function Sparkline({
 }) {
   if (data.length < 2) {
     return (
-      <div className={styles.sparklinePlaceholder} style={{ width, height }}>
+      <div className={styles.sparklinePlaceholder}>
         <span className={styles.muted}>Not enough data</span>
       </div>
     )
@@ -87,7 +87,7 @@ function TrendCard({
     <div className={styles.trendCard}>
       <div className={styles.trendHeader}>
         <span className={styles.trendLabel}>{label}</span>
-        <span className={styles.trendCurrent} style={{ color }}>
+        <span className={styles.trendCurrent}>
           {current}
         </span>
       </div>
