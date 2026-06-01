@@ -1,0 +1,138 @@
+.panel {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--panel-bg, #f8fafc);
+  border: 1px solid var(--panel-border, #e2e8f0);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.searchRow {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.searchInput {
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.85rem;
+  width: 10rem;
+}
+
+.searchBtn {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.35rem;
+  border: none;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.completeBanner {
+  padding: 0.6rem;
+  border-radius: 0.4rem;
+  background: #d1fae5;
+  color: #166534;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.stepList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stepCard {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #3b82f6;
+}
+
+.stepDone {
+  border-left-color: #22c55e;
+  opacity: 0.8;
+}
+
+.stepNumber {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1e40af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.stepBody {
+  flex: 1;
+}
+
+.stepTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
+}
+
+.stepDesc {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 0.3rem;
+}
+
+.stepItems {
+  margin: 0 0 0.3rem 0;
+  padding-left: 1.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.itemStatus {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.actionBtn {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.3rem;
+  border: 1px solid #3b82f6;
+  background: #fff;
+  color: #3b82f6;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.actionDone {
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.loading, .error, .emptyState {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+}

@@ -656,3 +656,540 @@ async def get_snapshot(
         )
     snap = json.loads(raw) if isinstance(raw, str) else raw
     return snap
+
+
+# ------------------------------------------------------------------
+# Recommendation Inbox
+# ------------------------------------------------------------------
+
+_INBOX_NAMESPACE = "operator:inbox"
+
+
+def _inbox_key(item_id: str) -> str:
+    return f"{_INBOX_NAMESPACE}:{item_id}"
+
+
+def _load_all_inbox_items() -> List[Dict[str, Any]]:
+    """Load inbox items from store metadata."""
+    items: List[Dict[str, Any]] = []
+    seen: set = set()
+    try:
+        for i in range(200):
+            test_key = f"{_INBOX_NAMESPACE}:item-{i}"
+            raw = store.get_metadata(test_key)
+            if raw:
+                ev = json.loads(raw) if isinstance(raw, str) else raw
+                iid = ev.get("id")
+                if iid and iid not in seen:
+                    seen.add(iid)
+                    items.append(ev)
+    except Exception:
+        pass
+    return sorted(items, key=lambda x: x.get("created_at", 0), reverse=True)
+
+
+def _persist_inbox_item(item: Dict[str, Any]) -> None:
+    key = _inbox_key(item["id"])
+    try:
+        if hasattr(store, "put_metadata"):
+            store.put_metadata(key, item)
+        elif hasattr(store, "put_meta"):
+            store.put_meta(key, json.dumps(item))
+    except Exception as exc:
+        logger.warning("inbox persistence failed: %s", exc)
+
+
+def _generate_inbox_items() -> List[Dict[str, Any]]:
+    """Generate inbox items from current recommendations."""
+    items: List[Dict[str, Any]] = []
+    existing = {i["source_rec_id"]: i for i in _load_all_inbox_items()}
+    try:
+        from uar.core.trust_engine import compute_trust
+
+        outcomes = store.get_outcomes(limit=5000)
+        metadata = store.get_recommendation_metadata(limit=5000)
+        trust_result = compute_trust(outcomes, metadata)
+        trust_by_type = {
+            t["type"]: t for t in trust_result.get("recommendation_types", [])
+        }
+        for meta in metadata:
+            rid = meta.get("recommendation_id")
+            if not rid:
+                continue
+            if rid in existing:
+                items.append(existing[rid])
+                continue
+            cat = meta.get("category", "")
+            trust = trust_by_type.get(cat, {})
+            item = {
+                "id": f"inbox-{rid}",
+                "source_rec_id": rid,
+                "title": meta.get("title", ""),
+                "category": cat,
+                "confidence": meta.get("confidence", 0.0),
+                "trust_score": trust.get("trust_score"),
+                "drift_penalty": trust.get("drift_penalty"),
+                "status": "new",
+                "assigned_to": None,
+                "notes": "",
+                "created_at": int(time.time()),
+                "updated_at": int(time.time()),
+            }
+            _persist_inbox_item(item)
+            items.append(item)
+    except Exception as exc:
+        logger.warning("inbox generation failed: %s", exc)
+    return items
+
+
+@router.get("/api/uar/inbox")
+async def get_inbox(
+    status: Optional[str] = Query(None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> List[dict]:
+    """List recommendation inbox items."""
+    auth_middleware(credentials)
+    items = _generate_inbox_items()
+    if status:
+        items = [i for i in items if i.get("status") == status]
+    return items
+
+
+@router.put("/api/uar/inbox/{item_id}")
+async def update_inbox_item(
+    item_id: str,
+    body: dict,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Update an inbox item (status, assignment, notes)."""
+    auth_middleware(credentials)
+    for item in _load_all_inbox_items():
+        if item.get("id") == item_id:
+            for field in ("status", "assigned_to", "notes"):
+                if field in body:
+                    item[field] = body[field]
+            item["updated_at"] = int(time.time())
+            _persist_inbox_item(item)
+            return item
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Inbox item not found",
+    )
+
+
+# ------------------------------------------------------------------
+# Unified Investigation Flow
+# ------------------------------------------------------------------
+
+
+@router.get("/api/uar/investigate/{run_id}")
+async def get_investigation_flow(
+    run_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Return a guided investigation flow for a run."""
+    auth_middleware(credentials)
+
+    steps: List[Dict[str, Any]] = []
+
+    # Step 1: Replay summary
+    try:
+        rec = store.get_by_run_id(run_id)
+        if rec:
+            steps.append(
+                {
+                    "step": 1,
+                    "title": "Review Run",
+                    "type": "replay",
+                    "description": f"Run {run_id} — "
+                    f"{getattr(rec, 'status', 'unknown')}",
+                    "action": "Open Replay Explorer",
+                    "link": f"/api/uar/replay/{run_id}",
+                }
+            )
+    except Exception:
+        pass
+
+    # Step 2: Recommendations affecting this run
+    try:
+        metadata = store.get_recommendation_metadata(limit=5000)
+        affecting = [m for m in metadata if m.get("run_id") == run_id]
+        if affecting:
+            steps.append(
+                {
+                    "step": 2,
+                    "title": "Review Recommendations",
+                    "type": "recommendations",
+                    "description": f"{len(affecting)} recommendation(s) "
+                    "linked to this run",
+                    "action": "View Trust Overlay",
+                    "items": [
+                        {
+                            "rec_id": m["recommendation_id"],
+                            "title": m.get("title", ""),
+                        }
+                        for m in affecting
+                    ],
+                }
+            )
+    except Exception:
+        pass
+
+    # Step 3: Check for incidents
+    incidents = [
+        inc
+        for inc in _load_all_incidents()
+        if run_id in inc.get("linked_run_ids", [])
+    ]
+    if incidents:
+        steps.append(
+            {
+                "step": 3,
+                "title": "Existing Incidents",
+                "type": "incidents",
+                "description": f"{len(incidents)} incident(s) linked",
+                "action": "Open Incident Workbench",
+                "items": [
+                    {"id": i["id"], "title": i["title"], "status": i["status"]}
+                    for i in incidents
+                ],
+            }
+        )
+    else:
+        steps.append(
+            {
+                "step": 3,
+                "title": "Create Incident",
+                "type": "incident_action",
+                "description": "No incident linked. Create one?",
+                "action": "Create Incident",
+                "suggested_title": f"Investigate run {run_id}",
+            }
+        )
+
+    # Step 4: Knowledge graph
+    steps.append(
+        {
+            "step": 4,
+            "title": "Explore Connections",
+            "type": "graph",
+            "description": "Visual graph of related entities",
+            "action": "Open Knowledge Graph",
+            "link": f"/api/uar/graph/{run_id}",
+        }
+    )
+
+    # Step 5: Capture snapshot
+    steps.append(
+        {
+            "step": 5,
+            "title": "Capture Snapshot",
+            "type": "snapshot",
+            "description": "Save current state for comparison",
+            "action": "Capture Snapshot",
+            "link": "/api/uar/snapshots",
+        }
+    )
+
+    return {
+        "run_id": run_id,
+        "steps": steps,
+        "generated_at": int(time.time()),
+    }
+
+
+# ------------------------------------------------------------------
+# Knowledge Graph v2 — expanded nodes
+# ------------------------------------------------------------------
+
+
+@router.get("/api/uar/graph-v2/{center_id}")
+async def get_knowledge_graph_v2(
+    center_id: str,
+    center_type: str = Query("run"),
+    depth: int = Query(2, ge=1, le=4),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Expanded knowledge graph with operator, alert, snapshot nodes."""
+    auth_middleware(credentials)
+
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+    seen: set = set()
+
+    def add_node(node_id: str, ntype: str, label: str, **extra) -> None:
+        if node_id not in seen:
+            seen.add(node_id)
+            nodes.append(
+                {"id": node_id, "type": ntype, "label": label, **extra}
+            )
+
+    def add_edge(src: str, tgt: str, etype: str) -> None:
+        edges.append({"source": src, "target": tgt, "type": etype})
+
+    add_node(center_id, center_type, center_id)
+
+    if center_type == "run":
+        run_id = center_id
+        try:
+            rec = store.get_by_run_id(run_id)
+            if rec:
+                goal_id = getattr(rec, "goal_id", None)
+                if goal_id:
+                    add_node(goal_id, "goal", goal_id)
+                    add_edge(run_id, goal_id, "has_goal")
+        except Exception:
+            pass
+
+        try:
+            metadata = store.get_recommendation_metadata(limit=5000)
+            for m in metadata:
+                if m.get("run_id") == run_id:
+                    rid = m["recommendation_id"]
+                    add_node(
+                        rid,
+                        "recommendation",
+                        m.get("title", rid),
+                        category=m.get("category"),
+                    )
+                    add_edge(run_id, rid, "has_recommendation")
+
+                    if depth >= 2:
+                        outcomes = store.get_outcomes(limit=5000)
+                        for o in outcomes:
+                            if o.get("recommendation_id") == rid:
+                                oid = f"outcome:{rid}"
+                                add_node(
+                                    oid,
+                                    "outcome",
+                                    o.get("outcome_type", "unknown"),
+                                )
+                                add_edge(rid, oid, "has_outcome")
+        except Exception:
+            pass
+
+        # Alerts via alert_tracker metadata
+        try:
+            for i in range(50):
+                key = f"alert_tracker:alert-{i}"
+                raw = store.get_metadata(key)
+                if raw:
+                    ev = json.loads(raw) if isinstance(raw, str) else raw
+                    if run_id in str(ev.get("data", "")):
+                        aid = ev.get("id", f"alert-{i}")
+                        add_node(aid, "alert", ev.get("type", "alert"))
+                        add_edge(run_id, aid, "has_alert")
+        except Exception:
+            pass
+
+    # Link incidents regardless of center type
+    for inc in _load_all_incidents():
+        if center_id in inc.get("linked_run_ids", []):
+            iid = inc["id"]
+            add_node(
+                iid,
+                "incident",
+                inc.get("title", iid),
+                status=inc.get("status"),
+            )
+            add_edge(center_id, iid, "has_incident")
+
+    # Link snapshots that mention this center
+    try:
+        for snap in _load_all_snapshots(limit=50):
+            if center_id in snap.get("recent_run_ids", []):
+                sid = f"snap:{snap['timestamp']}"
+                add_node(sid, "snapshot", f"Snap {snap['timestamp']}")
+                add_edge(center_id, sid, "has_snapshot")
+    except Exception:
+        pass
+
+    # Operator nodes linked via incidents
+    for inc in _load_all_incidents():
+        if center_id in (inc.get("linked_run_ids", []) + [center_id]):
+            assignee = inc.get("assigned_to") or inc.get("operator")
+            if assignee:
+                oid = f"op:{assignee}"
+                add_node(oid, "operator", assignee)
+                add_edge(inc["id"], oid, "assigned_to")
+
+    return {"nodes": nodes, "edges": edges}
+
+
+# ------------------------------------------------------------------
+# Report Generation
+# ------------------------------------------------------------------
+
+
+@router.get("/api/uar/reports/trust-validation")
+async def get_trust_validation_report(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Generate a human-readable trust validation report."""
+    auth_middleware(credentials)
+
+    try:
+        from uar.core.trust_engine import compute_trust
+        from uar.core.effectiveness_ranking import compute_effectiveness
+
+        outcomes = store.get_outcomes(limit=5000)
+        metadata = store.get_recommendation_metadata(limit=5000)
+        trust_result = compute_trust(outcomes, metadata)
+        eff_result = compute_effectiveness(outcomes, metadata)
+        trust_types = trust_result.get("recommendation_types", [])
+        eff_types = eff_result.get("recommendation_types", [])
+
+        # Distribution
+        bands = {
+            "highly_trusted": 0,
+            "trusted": 0,
+            "watch": 0,
+            "weak": 0,
+            "untrusted": 0,
+        }
+        for t in trust_types:
+            score = t.get("trust_score", 0.0)
+            if score >= 0.80:
+                bands["highly_trusted"] += 1
+            elif score >= 0.60:
+                bands["trusted"] += 1
+            elif score >= 0.40:
+                bands["watch"] += 1
+            elif score >= 0.20:
+                bands["weak"] += 1
+            else:
+                bands["untrusted"] += 1
+
+        # Correlation
+        corr = None
+        try:
+            from scipy.stats import spearmanr
+
+            eff_map = {
+                t["type"]: t.get("resolution_rate", 0.0)
+                for t in eff_types
+                if "type" in t
+            }
+            ts, rr = [], []
+            for t in trust_types:
+                tn = t.get("type", "")
+                if tn in eff_map:
+                    ts.append(t.get("trust_score", 0.0))
+                    rr.append(eff_map[tn])
+            if len(ts) >= 3:
+                c, _ = spearmanr(ts, rr)
+                corr = round(float(c), 3) if c is not None else None
+        except Exception:
+            pass
+
+        # Drift
+        drift = [t for t in trust_types if t.get("drift_penalty", 0) > 0]
+
+        narrative_parts = ["Trust Validation Report"]
+        if bands["highly_trusted"] + bands["trusted"] > len(trust_types) * 0.5:
+            narrative_parts.append("Most types are in the trusted band.")
+        if drift:
+            narrative_parts.append(
+                f"{len(drift)} type(s) showing drift signals."
+            )
+        if corr is not None:
+            narrative_parts.append(f"Outcome correlation is {corr}.")
+        else:
+            narrative_parts.append("Insufficient data for correlation.")
+
+        return {
+            "report_type": "trust_validation",
+            "generated_at": int(time.time()),
+            "narrative": " ".join(narrative_parts),
+            "trust_distribution": bands,
+            "drift_signals": [
+                {"type": t["type"], "penalty": t["drift_penalty"]}
+                for t in drift
+            ],
+            "outcome_correlation": corr,
+            "type_count": len(trust_types),
+            "system_calibration_error": trust_result.get(
+                "system_calibration_error"
+            ),
+        }
+    except Exception as exc:
+        logger.warning("trust report generation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Report generation failed",
+        )
+
+
+@router.get("/api/uar/reports/burnin-24h")
+async def get_burnin_24h_report(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    """Generate a human-readable 24h burn-in report."""
+    auth_middleware(credentials)
+
+    now = int(time.time())
+    cutoff = now - 86400
+
+    try:
+        snapshots = _load_all_snapshots(limit=24)
+        recent = [s for s in snapshots if s.get("timestamp", 0) >= cutoff]
+
+        if not recent:
+            return {
+                "report_type": "burnin_24h",
+                "generated_at": now,
+                "narrative": "No snapshots captured in the last 24 hours.",
+                "snapshot_count": 0,
+                "trust_stable": None,
+                "recommendation_growth": None,
+            }
+
+        scores = [s.get("recommendation_count", 0) for s in recent]
+        trust_counts = [
+            len(s.get("trust", {}).get("recommendation_types", []))
+            for s in recent
+        ]
+
+        first_score = scores[-1] if scores else 0
+        last_score = scores[0] if scores else 0
+        growth = last_score - first_score
+
+        trust_stable = True
+        if len(trust_counts) >= 2:
+            first_tc = trust_counts[-1]
+            last_tc = trust_counts[0]
+            if abs(last_tc - first_tc) > 2:
+                trust_stable = False
+
+        narrative_parts = ["24-Hour Burn-In Report"]
+        narrative_parts.append(f"{len(recent)} snapshot(s) captured.")
+        if growth > 0:
+            narrative_parts.append(f"Recommendations increased by {growth}.")
+        elif growth < 0:
+            narrative_parts.append(
+                f"Recommendations decreased by {abs(growth)}."
+            )
+        else:
+            narrative_parts.append("Recommendation count stable.")
+
+        if trust_stable:
+            narrative_parts.append("Trust type count stable.")
+        else:
+            narrative_parts.append("Trust type count changed significantly.")
+
+        return {
+            "report_type": "burnin_24h",
+            "generated_at": now,
+            "narrative": " ".join(narrative_parts),
+            "snapshot_count": len(recent),
+            "trust_stable": trust_stable,
+            "recommendation_growth": growth,
+            "latest_recommendation_count": last_score,
+            "earliest_recommendation_count": first_score,
+        }
+    except Exception as exc:
+        logger.warning("burnin report generation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Report generation failed",
+        )

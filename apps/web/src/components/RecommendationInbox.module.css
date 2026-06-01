@@ -1,0 +1,187 @@
+.panel {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--panel-bg, #f8fafc);
+  border: 1px solid var(--panel-border, #e2e8f0);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.filterBar {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filterBtn {
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.filterActive {
+  background: #dbeafe;
+  border-color: #3b82f6;
+}
+
+.filterCount {
+  margin-left: 0.2rem;
+  font-weight: 600;
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.itemCard {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #94a3b8;
+}
+
+.statusnew { border-left-color: #3b82f6; }
+.statusassigned { border-left-color: #a855f7; }
+.statusinvestigating { border-left-color: #f59e0b; }
+.statusresolved { border-left-color: #22c55e; }
+.statusdismissed { border-left-color: #64748b; }
+
+.itemHeader {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.itemId {
+  font-size: 0.7rem;
+  color: var(--text-muted, #64748b);
+  font-family: monospace;
+}
+
+.itemCategory {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.statusBadge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+
+.badgenew { background: #dbeafe; color: #1e40af; }
+.badgeassigned { background: #f3e8ff; color: #6b21a8; }
+.badgeinvestigating { background: #fef3c7; color: #92400e; }
+.badgeresolved { background: #d1fae5; color: #166534; }
+.badgedismissed { background: #f3f4f6; color: #4b5563; }
+
+.itemTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.itemMetrics {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 0.3rem;
+}
+
+.driftBadge {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.assignee {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.notes {
+  font-size: 0.8rem;
+  padding: 0.3rem;
+  border-radius: 0.3rem;
+  background: #f8fafc;
+  margin-top: 0.3rem;
+}
+
+.editBtn, .cancelBtn {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+}
+
+.editForm {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.editInput, .editTextarea {
+  padding: 0.35rem;
+  border-radius: 0.3rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.8rem;
+}
+
+.editTextarea {
+  min-height: 2.5rem;
+  resize: vertical;
+}
+
+.statusActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.statusBtn {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+}
+
+.loading, .error, .emptyState {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #64748b);
+}

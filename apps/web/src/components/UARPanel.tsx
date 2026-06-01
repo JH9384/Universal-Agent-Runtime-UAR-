@@ -17,7 +17,11 @@ import { MorningBriefing } from './MorningBriefing'
 import { TrustExplorer } from './TrustExplorer'
 import { IncidentWorkbench } from './IncidentWorkbench'
 import { KnowledgeGraph } from './KnowledgeGraph'
+import { KnowledgeGraphV2 } from './KnowledgeGraphV2'
 import { TimeMachine } from './TimeMachine'
+import { RecommendationInbox } from './RecommendationInbox'
+import { InvestigationFlow } from './InvestigationFlow'
+import { ReportViewer } from './ReportViewer'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
@@ -618,6 +622,10 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [showIncidentWorkbench, setShowIncidentWorkbench] = useState(false)
   const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false)
   const [showTimeMachine, setShowTimeMachine] = useState(false)
+  const [showRecommendationInbox, setShowRecommendationInbox] = useState(false)
+  const [showInvestigationFlow, setShowInvestigationFlow] = useState(false)
+  const [showKnowledgeGraphV2, setShowKnowledgeGraphV2] = useState(false)
+  const [showReportViewer, setShowReportViewer] = useState(false)
   const [compareRunA, setCompareRunA] = useState('')
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
@@ -2645,6 +2653,34 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           >
             {showTimeMachine ? 'Hide Time' : 'Time Machine'}
           </button>
+          <button
+            onClick={() => { setShowRecommendationInbox(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Recommendation Inbox"
+          >
+            {showRecommendationInbox ? 'Hide Inbox' : 'Inbox'}
+          </button>
+          <button
+            onClick={() => { setShowInvestigationFlow(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Investigation Flow"
+          >
+            {showInvestigationFlow ? 'Hide Flow' : 'Investigate'}
+          </button>
+          <button
+            onClick={() => { setShowKnowledgeGraphV2(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Knowledge Graph v2"
+          >
+            {showKnowledgeGraphV2 ? 'Hide Graph v2' : 'Graph v2'}
+          </button>
+          <button
+            onClick={() => { setShowReportViewer(v => !v) }}
+            className={styles.clearEventsButton}
+            title="Toggle Report Viewer"
+          >
+            {showReportViewer ? 'Hide Reports' : 'Reports'}
+          </button>
         </div>
         {metrics && !isRunning && (
           <div className={styles.metricsPanel} title="Execution metrics from last run">
@@ -2688,6 +2724,29 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
             }}
           />
         )}
+        {showRecommendationInbox && <RecommendationInbox />}
+        {showInvestigationFlow && (
+          <InvestigationFlow
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+            onOpenIncident={() => setShowIncidentWorkbench(true)}
+            onOpenGraph={(runId) => {
+              setExplorerRunId(runId)
+              setShowKnowledgeGraph(true)
+            }}
+          />
+        )}
+        {showKnowledgeGraphV2 && (
+          <KnowledgeGraphV2
+            onOpenReplay={(runId) => {
+              setExplorerRunId(runId)
+              setShowReplayExplorer(true)
+            }}
+          />
+        )}
+        {showReportViewer && <ReportViewer />}
         <div className={styles.statusText} title="Current system status">
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
           {ingested && <> · Ingested: {ingested.document_count ?? (ingested.documents?.length ?? 0)} docs</>}
