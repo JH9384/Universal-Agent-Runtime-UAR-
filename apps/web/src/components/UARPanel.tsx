@@ -10,6 +10,7 @@ import { generateUniqueId } from '../utils/idGenerator'
 import { authHeaders, getLocalStorage } from '../utils/auth'
 import RecipeTimeline from './RecipeTimeline'
 import { HealthDashboard } from './HealthDashboard'
+import { MissionControlWidget } from './MissionControlWidget'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
@@ -601,6 +602,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [runsHistory, setRunsHistory] = useState<any[]>([])
   const [showRunsPanel, setShowRunsPanel] = useState(false)
   const [showHealthDashboard, setShowHealthDashboard] = useState(false)
+  const [showMissionControl, setShowMissionControl] = useState(false)
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
   const [debouncedSkillSearch, setDebouncedSkillSearch] = useState<string>('')
@@ -2576,11 +2578,18 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
             Runs
           </button>
           <button
-            onClick={() => setShowHealthDashboard(v => !v)}
+            onClick={() => { setShowHealthDashboard(v => !v); setShowMissionControl(false) }}
             className={styles.clearEventsButton}
             title="Toggle health dashboard"
           >
             {showHealthDashboard ? 'Hide Health' : 'Health'}
+          </button>
+          <button
+            onClick={() => { setShowMissionControl(v => !v); setShowHealthDashboard(false) }}
+            className={styles.clearEventsButton}
+            title="Toggle Mission Control dashboard"
+          >
+            {showMissionControl ? 'Hide MC' : 'Mission Control'}
           </button>
           <button onClick={clearEvents} className={styles.clearEventsButton} title="Clear event history from display">
             Clear Events
@@ -2593,6 +2602,9 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
         )}
         {showHealthDashboard && (
           <HealthDashboard />
+        )}
+        {showMissionControl && (
+          <MissionControlWidget />
         )}
         <div className={styles.statusText} title="Current system status">
           Status: {isStopping ? 'Stopping' : isRunning ? 'Running' : 'Idle'} · Events: {events.length} · Graph: {graph ? 'Loaded' : 'None'}
