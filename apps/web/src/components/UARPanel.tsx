@@ -11,6 +11,7 @@ import { authHeaders, getLocalStorage } from '../utils/auth'
 import RecipeTimeline from './RecipeTimeline'
 import { HealthDashboard } from './HealthDashboard'
 import { MissionControlWidget } from './MissionControlWidget'
+import { ReplayExplorer } from './ReplayExplorer'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
@@ -603,6 +604,8 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [showRunsPanel, setShowRunsPanel] = useState(false)
   const [showHealthDashboard, setShowHealthDashboard] = useState(false)
   const [showMissionControl, setShowMissionControl] = useState(false)
+  const [showReplayExplorer, setShowReplayExplorer] = useState(false)
+  const [explorerRunId, setExplorerRunId] = useState<string>('')
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
   const [debouncedSkillSearch, setDebouncedSkillSearch] = useState<string>('')
@@ -4128,6 +4131,17 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
                       >
                         Replay
                       </button>
+                      <button
+                        className={styles.createFolderButton}
+                        onClick={() => {
+                          setExplorerRunId(run.run_id || run.id)
+                          setShowReplayExplorer(true)
+                          setShowRunsPanel(false)
+                        }}
+                        title="Open Replay Explorer"
+                      >
+                        Explore
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -4140,6 +4154,13 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {showReplayExplorer && explorerRunId && (
+        <ReplayExplorer
+          runId={explorerRunId}
+          onClose={() => { setShowReplayExplorer(false); setExplorerRunId('') }}
+        />
       )}
 
       <SettingsDrawer
