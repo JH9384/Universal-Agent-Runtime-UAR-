@@ -24,6 +24,7 @@ from uar.api.tracing import trace_span
 from uar.core.exceptions import UARError, ValidationError
 from uar.core.planner import SimplePlanner
 from uar.core.replay import replay_summary
+from uar.core.replay_confidence import score_replay
 from uar.core.timeline import timeline_from_record
 from uar.memory.base_store import run_record_from_dict
 
@@ -537,28 +538,101 @@ async def compare_runs(
                 },
             )
 
-    # Field-level diff
-    fields = [
-        "status",
-        "skills",
-        "outputs",
-        "events",
-        "timeline",
-        "metrics",
-    ]
-    diffs = {}
-    for field in fields:
-        val_a = rec_a.get(field)
-        val_b = rec_b.get(field)
-        if val_a != val_b:
-            diffs[field] = {"a": val_a, "b": val_b}
+    # Helper: confidence & failure analytics
+    def _analyze(record_dict: dict) -> dict:
+        try:
+            rec = run_record_from_dict(record_dict)
+            rc = score_replay(rec)
+            conf = rc.to_dict().get("confidence", {})
+        except Exception:
+            conf = {}
+        events = record_dict.get("events") or []
+        failures = [
+            e for e in events
+            if e.get("error") or e.get("type") == "error"
+        ]
+        skills = record_dict.get("skills") or []
+        return {
+            "confidence_score": conf.get("score"),
+            "confidence_tier": conf.get("tier"),
+            "event_count": len(events),
+            "failure_count": len(failures),
+            "skills": list(skills),
+            "status": record_dict.get("status"),
+            "goal_id": record_dict.get("goal_id"),
+        }
+
+    a = _analyze(rec_a)
+    b = _analyze(rec_b)
+
+    # Skill diff
+    set_a = set(a["skills"])
+    set_b = set(b["skills"])
+    skills_added = list(set_b - set_a)
+    skills_removed = list(set_a - set_b)
+
+    # Failure skill extraction
+    def _failure_skills(record_dict: dict) -> list:
+        events = record_dict.get("events") or []
+        failed = set()
+        for e in events:
+            if e.get("error") or e.get("type") == "error":
+                skill = e.get("skill")
+                if skill:
+                    failed.add(skill)
+        return list(failed)
+
+    failures_a = _failure_skills(rec_a)
+    failures_b = _failure_skills(rec_b)
+
+    # Verdict
+    verdict = "equivalent"
+    a_score = a["confidence_score"] or 0
+    b_score = b["confidence_score"] or 0
+    a_fail = a["failure_count"]
+    b_fail = b["failure_count"]
+
+    if b_score > a_score and b_fail < a_fail:
+        verdict = "improved"
+    elif b_score < a_score or b_fail > a_fail:
+        verdict = "degraded"
+    elif b_score != a_score or b_fail != a_fail:
+        verdict = "mixed"
 
     return {
         "run_a": run_id,
         "run_b": other_run_id,
-        "same_status": rec_a.get("status") == rec_b.get("status"),
-        "same_skills": rec_a.get("skills") == rec_b.get("skills"),
-        "diffs": diffs,
+        "verdict": verdict,
+        "status": {"a": a["status"], "b": b["status"]},
+        "goal_id": {"a": a["goal_id"], "b": b["goal_id"]},
+        "confidence": {
+            "a": a["confidence_score"],
+            "b": b["confidence_score"],
+            "delta": (
+                (b["confidence_score"] or 0)
+                - (a["confidence_score"] or 0)
+            ),
+        },
+        "events": {
+            "a": a["event_count"],
+            "b": b["event_count"],
+            "delta": b["event_count"] - a["event_count"],
+        },
+        "failures": {
+            "a": a["failure_count"],
+            "b": b["failure_count"],
+            "delta": b["failure_count"] - a["failure_count"],
+        },
+        "skills": {
+            "a": a["skills"],
+            "b": b["skills"],
+            "added": skills_added,
+            "removed": skills_removed,
+        },
+        "failure_skills": {
+            "a": failures_a,
+            "b": failures_b,
+        },
     }
 
 

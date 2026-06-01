@@ -12,6 +12,7 @@ import RecipeTimeline from './RecipeTimeline'
 import { HealthDashboard } from './HealthDashboard'
 import { MissionControlWidget } from './MissionControlWidget'
 import { ReplayExplorer } from './ReplayExplorer'
+import { CompareRuns } from './CompareRuns'
 import PresetsPanel from './PresetsPanel'
 import SkillSelector from './SkillSelector'
 import ExecutionOrder from './ExecutionOrder'
@@ -606,6 +607,8 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [showMissionControl, setShowMissionControl] = useState(false)
   const [showReplayExplorer, setShowReplayExplorer] = useState(false)
   const [explorerRunId, setExplorerRunId] = useState<string>('')
+  const [showCompareRuns, setShowCompareRuns] = useState(false)
+  const [compareRunA, setCompareRunA] = useState('')
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
   const [debouncedSkillSearch, setDebouncedSkillSearch] = useState<string>('')
@@ -4099,6 +4102,16 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="runs-title">
             <div className={styles.modalHeader}>
               <strong id="runs-title">📜 Runs History</strong>
+              <button
+                className={styles.createFolderButton}
+                onClick={() => {
+                  setShowCompareRuns(true)
+                  setShowRunsPanel(false)
+                }}
+                title="Compare two runs"
+              >
+                Compare
+              </button>
               <button className={styles.modalCloseButton} onClick={() => setShowRunsPanel(false)} aria-label="Close runs history">✕</button>
             </div>
             <div className={styles.modalBody}>
@@ -4160,6 +4173,14 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
         <ReplayExplorer
           runId={explorerRunId}
           onClose={() => { setShowReplayExplorer(false); setExplorerRunId('') }}
+        />
+      )}
+
+      {showCompareRuns && (
+        <CompareRuns
+          runA={compareRunA}
+          runB=""
+          onClose={() => { setShowCompareRuns(false); setCompareRunA('') }}
         />
       )}
 

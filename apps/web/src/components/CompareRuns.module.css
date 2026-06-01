@@ -1,0 +1,339 @@
+.compareOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.comparePanel {
+  background: var(--panel-bg, #fff);
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.compareHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--panel-border, #e1e4e8);
+}
+
+.verdictBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  text-transform: uppercase;
+}
+
+.verdictImproved {
+  color: #27ae60;
+  background: #e8f8f0;
+}
+
+.verdictDegraded {
+  color: #c0392b;
+  background: #fdf2f2;
+}
+
+.verdictMixed {
+  color: #e67e22;
+  background: #fdf2e9;
+}
+
+.verdictEquivalent {
+  color: #7f8c8d;
+  background: #f0f0f0;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text-secondary, #666);
+  padding: 4px;
+}
+
+.closeButton:hover {
+  color: var(--text-primary, #1a1a2e);
+}
+
+/* Inputs */
+.compareInputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--panel-border, #e1e4e8);
+  background: var(--panel-bg, #f8f9fa);
+  flex-wrap: wrap;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.inputLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.inputField {
+  padding: 6px 10px;
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.vsLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #999);
+  padding-bottom: 6px;
+}
+
+.compareButton {
+  padding: 7px 14px;
+  background: #2980b9;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.compareButton:hover {
+  background: #1f6691;
+}
+
+/* Body */
+.compareBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Summary */
+.summaryCard {
+  background: var(--panel-bg, #f8f9fa);
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.summaryLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  min-width: 50px;
+}
+
+.summaryValue {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--text-primary, #1a1a2e);
+  flex: 1;
+}
+
+.statusPill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  background: #eaf2f8;
+  color: #2980b9;
+}
+
+/* Metrics */
+.metricsCard {
+  background: var(--panel-bg, #f8f9fa);
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.cardTitle {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary, #666);
+}
+
+.metricTable {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metricHeader {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 80px;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary, #999);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--panel-border, #e1e4e8);
+}
+
+.compareRow {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--panel-border, #e1e4e8);
+}
+
+.compareRow:last-child {
+  border-bottom: none;
+}
+
+.compareCell {
+  font-size: 12px;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.compareLabel {
+  font-weight: 500;
+}
+
+.compareValue {
+  font-family: monospace;
+}
+
+/* Delta badges */
+.deltaBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.deltaUp {
+  color: #27ae60;
+  background: #e8f8f0;
+}
+
+.deltaDown {
+  color: #c0392b;
+  background: #fdf2f2;
+}
+
+.deltaNeutral {
+  color: #7f8c8d;
+  background: #f0f0f0;
+}
+
+/* Skills */
+.skillDiffs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skillGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diffLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+}
+
+.skillChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.skillChipAdded {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #e8f8f0;
+  color: #27ae60;
+}
+
+.skillChipRemoved {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #fdf2f2;
+  color: #c0392b;
+}
+
+.failureSkills {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border, #e1e4e8);
+}
+
+.failureRow {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* States */
+.loading,
+.error,
+.emptyState {
+  padding: 20px;
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+}
+
+.error {
+  color: #c0392b;
+}
+
+.muted {
+  font-size: 12px;
+  color: var(--text-secondary, #999);
+}
