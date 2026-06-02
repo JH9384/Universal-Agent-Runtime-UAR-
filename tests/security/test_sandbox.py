@@ -96,3 +96,38 @@ class TestWASMSandbox:
     def test_sandbox_eval_global(self):
         result = sandbox_eval("100 / 4")
         assert result == 25.0
+
+
+class TestSandboxPoolThreadSafety:
+    def test_concurrent_sandbox_eval(self):
+        """Regression: sandbox_eval must protect _pool_idx with a lock.
+
+        Without the lock, concurrent read-modify-write of _pool_idx can
+        cause two threads to select the same pool instance, or skip indices.
+        The main observable failure is a crash or incorrect results.
+        """
+        import threading
+        import time
+
+        results = []
+        errors = []
+
+        def worker():
+            try:
+                for _ in range(100):
+                    r = sandbox_eval("1 + 1")
+                    results.append(r)
+                    time.sleep(0.0001)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        assert not errors, f"Thread-safety regression: {errors}"
+        assert all(r == 2 for r in results), (
+            f"Unexpected results: {set(results)}"
+        )

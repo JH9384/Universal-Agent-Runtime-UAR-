@@ -100,9 +100,10 @@ def reset_circuit_breaker(service_name: str) -> None:
     Args:
         service_name: Name of the service to reset
     """
-    if service_name in _circuit_breakers:
-        _circuit_breakers[service_name].reset()
-        logger.info("Reset circuit breaker for %s", service_name)
+    with _circuit_breakers_lock:
+        if service_name in _circuit_breakers:
+            _circuit_breakers[service_name].reset()
+            logger.info("Reset circuit breaker for %s", service_name)
 
 
 def get_circuit_breaker_states() -> dict[str, str]:
@@ -111,4 +112,5 @@ def get_circuit_breaker_states() -> dict[str, str]:
     Returns:
         Dict mapping service names to their current state
     """
-    return {name: cb.state.value for name, cb in _circuit_breakers.items()}
+    with _circuit_breakers_lock:
+        return {name: cb.state.value for name, cb in _circuit_breakers.items()}

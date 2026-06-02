@@ -88,22 +88,24 @@ async def test_http_post_no_aiohttp():
             await http_post("http://example.com")
 
 
-def test_close_all_sessions():
+@pytest.mark.asyncio
+async def test_close_all_sessions():
     from uar.core.http_client import _sessions
 
     mock_sess = MagicMock()
     _sessions["example.com"] = mock_sess
-    close_all_sessions()
+    await close_all_sessions()
     assert "example.com" not in _sessions
 
 
-def test_close_all_sessions_exception():
+@pytest.mark.asyncio
+async def test_close_all_sessions_exception():
     from uar.core.http_client import _sessions
 
     bad_sess = MagicMock()
     bad_sess.close.side_effect = RuntimeError("close failed")
     _sessions["bad.com"] = bad_sess
-    close_all_sessions()
+    await close_all_sessions()
     assert "bad.com" not in _sessions
 
 
@@ -253,3 +255,61 @@ async def test_http_post_blocks_private_ip():
 async def test_http_post_blocks_loopback():
     with pytest.raises(ValidationError):
         await http_post("http://127.0.0.1:8000/api", json_data={})
+
+
+class TestSessionCacheThreadSafety:
+    @pytest.mark.asyncio
+    async def test_concurrent_get_and_close_sessions(self):
+        """Regression: _get_session fast path must not race close_all_sessions.
+
+        The fast path used `if domain in _sessions: return _sessions[domain]`
+        outside the lock.  Concurrent close_all_sessions could delete the key
+        between the check and the access, causing KeyError.
+        """
+        import asyncio
+
+        fake_aiohttp = type(
+            "aiohttp",
+            (),
+            {
+                "ClientSession": type(
+                    "CS", (), {"__init__": lambda self, **k: None}
+                ),
+                "TCPConnector": type(
+                    "TC", (), {"__init__": lambda self, **k: None}
+                ),
+                "ClientTimeout": type(
+                    "CT", (), {"__init__": lambda self, **k: None}
+                ),
+            },
+        )()
+        with patch.dict("sys.modules", {"aiohttp": fake_aiohttp}):
+            # Pre-warm a session
+            await _get_session("http://example.com")
+
+            errors = []
+            stop = asyncio.Event()
+
+            async def getter():
+                try:
+                    while not stop.is_set():
+                        await _get_session("http://example.com")
+                        await asyncio.sleep(0)
+                except Exception as exc:
+                    errors.append(exc)
+
+            async def closer():
+                for _ in range(200):
+                    await close_all_sessions()
+                    await asyncio.sleep(0)
+
+            getters = [asyncio.create_task(getter()) for _ in range(3)]
+            closers = [asyncio.create_task(closer()) for _ in range(2)]
+
+            await asyncio.wait_for(
+                asyncio.gather(*closers, return_exceptions=True), timeout=10
+            )
+            stop.set()
+            await asyncio.gather(*getters, return_exceptions=True)
+
+            assert not errors, f"Thread-safety regression: {errors}"

@@ -112,3 +112,78 @@ class TestGetCircuitBreakerStates:
         # This is global state; we can only assert it returns a dict
         states = get_circuit_breaker_states()
         assert isinstance(states, dict)
+
+
+class TestRegistryThreadSafety:
+    def test_concurrent_states_and_registration(self):
+        """Regression: get_circuit_breaker_states must hold registry lock.
+
+        Without the lock, concurrent mutation (get_circuit_breaker creating
+        new entries) causes RuntimeError: dictionary changed size during
+        iteration inside the dict comprehension.
+        """
+        import threading
+        import time
+
+        errors = []
+        stop = threading.Event()
+
+        def mutator():
+            for i in range(500):
+                get_circuit_breaker(f"concurrent_test_{i}")
+                time.sleep(0.0001)
+
+        def reader():
+            try:
+                while not stop.is_set():
+                    get_circuit_breaker_states()
+                    time.sleep(0.0001)
+            except Exception as exc:
+                errors.append(exc)
+
+        mutator_thread = threading.Thread(target=mutator)
+        reader_threads = [threading.Thread(target=reader) for _ in range(3)]
+
+        for t in reader_threads:
+            t.start()
+        mutator_thread.start()
+
+        mutator_thread.join(timeout=5)
+        stop.set()
+        for t in reader_threads:
+            t.join(timeout=2)
+
+        assert not errors, f"Thread-safety regression: {errors}"
+
+    def test_concurrent_reset_and_registration(self):
+        """Regression: reset_circuit_breaker must hold registry lock."""
+        import threading
+        import time
+
+        errors = []
+
+        # Pre-populate
+        for i in range(50):
+            get_circuit_breaker(f"reset_test_{i}")
+
+        def resetter():
+            for i in range(500):
+                reset_circuit_breaker(f"reset_test_{i % 50}")
+                time.sleep(0.0001)
+
+        def creator():
+            try:
+                for i in range(500):
+                    get_circuit_breaker(f"reset_new_{i}")
+                    time.sleep(0.0001)
+            except Exception as exc:
+                errors.append(exc)
+
+        t1 = threading.Thread(target=resetter)
+        t2 = threading.Thread(target=creator)
+        t1.start()
+        t2.start()
+        t1.join(timeout=5)
+        t2.join(timeout=5)
+
+        assert not errors, f"Thread-safety regression: {errors}"

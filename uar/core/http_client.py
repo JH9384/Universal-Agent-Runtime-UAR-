@@ -9,7 +9,6 @@ import random
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
-from uar.core.async_utils import run_sync_safe
 from uar.core.validation_utils import validate_url
 
 logger = logging.getLogger(__name__)
@@ -35,8 +34,10 @@ _MAX_DELAY = max(
 async def _get_session(url: str):
     """Get or create an aiohttp session keyed by domain."""
     domain = urlparse(url).netloc or "default"
-    if domain in _sessions:
+    try:
         return _sessions[domain]
+    except KeyError:
+        pass
     async with _session_lock:
         if domain in _sessions:  # pragma: no cover
             return _sessions[domain]
@@ -157,11 +158,12 @@ async def http_post(
     raise last_exc
 
 
-def close_all_sessions() -> None:
+async def close_all_sessions() -> None:
     """Close all cached sessions (call on shutdown)."""
-    for domain, sess in list(_sessions.items()):
-        try:
-            run_sync_safe(sess.close())
-        except Exception:
-            logger.exception("Session close failed for %s", domain)
-        del _sessions[domain]
+    async with _session_lock:
+        for domain, sess in list(_sessions.items()):
+            try:
+                await sess.close()
+            except Exception:
+                logger.exception("Session close failed for %s", domain)
+        _sessions.clear()

@@ -183,7 +183,7 @@ def create_lifespan(ws_conn_counter):
         try:
             from uar.core.http_client import close_all_sessions
 
-            close_all_sessions()
+            await close_all_sessions()
         except Exception:
             logger.exception("HTTP sessions close failed")
         logger.info("UAR API shutdown complete")

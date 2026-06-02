@@ -309,7 +309,7 @@ async def shutdown(ctx: BootContext) -> None:
     try:
         from uar.core.http_client import close_all_sessions
 
-        close_all_sessions()
+        await close_all_sessions()
     except Exception:
         logger.exception("HTTP sessions close failed")
 

@@ -3,6 +3,7 @@
 import json
 import os
 from typing import Dict, Optional
+from urllib.parse import quote
 
 import httpx
 import typer
@@ -214,7 +215,7 @@ def run_server_goal(
         "goal": goal,
         "skills": skills.split(",") if skills else [],
     }
-    url = f"{server}/api/uar/run"
+    url = _normalize_server(server, "/api/uar/run")
 
     try:
         with httpx.Client(timeout=60.0) as client:
@@ -359,7 +360,7 @@ def health_server(
     with httpx.Client(timeout=10.0) as client:
         for label, path in endpoints.items():
             try:
-                r = client.get(f"{server}{path}")
+                r = client.get(_normalize_server(server, path))
                 if r.status_code == 200:
                     table.add_row(
                         label,
@@ -394,7 +395,7 @@ def openapi_export(
     """Fetch and display the OpenAPI spec from a running UAR server."""
     try:
         with httpx.Client(timeout=10.0) as client:
-            r = client.get(f"{server}/openapi.json")
+            r = client.get(_normalize_server(server, "/openapi.json"))
         r.raise_for_status()
         spec = r.json()
     except httpx.ConnectError:
@@ -420,6 +421,11 @@ def _api_headers(api_key: Optional[str]) -> Dict[str, str]:
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     return headers
+
+
+def _normalize_server(server: str, path: str) -> str:
+    """Normalize server URL to prevent double slashes."""
+    return server.rstrip("/") + path
 
 
 @app.command("doctor")
@@ -476,7 +482,7 @@ def doctor_command(
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.get(
-                f"{server}/api/health/dashboard",
+                _normalize_server(server, "/api/health/dashboard"),
                 headers=_api_headers(api_key),
             )
             r.raise_for_status()
@@ -541,7 +547,7 @@ def skill_ping(
     try:
         with httpx.Client(timeout=30.0) as client:
             r = client.get(
-                f"{server}/api/uar/skills", headers=headers
+                _normalize_server(server, "/api/uar/skills"), headers=headers
             )
             r.raise_for_status()
             registered = {s for s in r.json().get("skills", [])}
@@ -559,7 +565,7 @@ def skill_ping(
     try:
         with httpx.Client(timeout=30.0) as client:
             r = client.post(
-                f"{server}/api/uar/skills/ping",
+                _normalize_server(server, "/api/uar/skills/ping"),
                 json={"skill": name},
                 headers=headers,
             )
@@ -607,7 +613,7 @@ def cb_list(
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.get(
-                f"{server}/api/health/circuit-breakers",
+                _normalize_server(server, "/api/health/circuit-breakers"),
                 headers=_api_headers(api_key),
             )
             r.raise_for_status()
@@ -616,8 +622,10 @@ def cb_list(
         console.print(f"[red]Cannot connect to {server}[/red]")
         raise typer.Exit(1) from None
     except httpx.HTTPStatusError as exc:
-        console.print(f"[red]HTTP {exc.response.status_code}[/red]")
-        raise typer.Exit(1) from exc
+        console.print(
+            f"[red]HTTP error {exc.response.status_code} from {server}[/red]"
+        )
+        raise typer.Exit(1) from None
 
     circuits = data.get("circuits", {})
     if not circuits:
@@ -666,7 +674,11 @@ def cb_reset(
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.post(
-                f"{server}/api/health/circuit-breakers/{service_name}/reset",
+                _normalize_server(
+                    server,
+                    f"/api/health/circuit-breakers/"
+                    f"{quote(service_name, safe='')}/reset",
+                ),
                 headers=_api_headers(api_key),
             )
             r.raise_for_status()
@@ -709,7 +721,11 @@ def run_compare(
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.get(
-                f"{server}/api/uar/runs/{run_a}/compare/{run_b}",
+                _normalize_server(
+                    server,
+                    f"/api/uar/runs/{quote(run_a, safe='')}"
+                    f"/compare/{quote(run_b, safe='')}",
+                ),
                 headers=_api_headers(api_key),
             )
             r.raise_for_status()
@@ -753,7 +769,7 @@ def run_delete(
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.post(
-                f"{server}/api/uar/runs/bulk-delete",
+                _normalize_server(server, "/api/uar/runs/bulk-delete"),
                 json={"run_ids": [run_id]},
                 headers=_api_headers(api_key),
             )
@@ -793,7 +809,7 @@ def run_bulk_delete(
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.post(
-                f"{server}/api/uar/runs/bulk-delete",
+                _normalize_server(server, "/api/uar/runs/bulk-delete"),
                 json={"older_than_days": older_than_days},
                 headers=_api_headers(api_key),
             )

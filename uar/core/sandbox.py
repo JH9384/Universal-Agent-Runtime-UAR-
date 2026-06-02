@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -285,14 +286,16 @@ if _WASMTIME_AVAILABLE:
         logger.exception("WASM sandbox pool init failed")
 
 _pool_idx = 0
+_pool_lock = threading.Lock()
 
 
 def sandbox_eval(expression: str) -> Any:
     """Evaluate *expression* safely in a warm sandbox instance."""
     global _pool_idx
     if _sandbox_pool:
-        inst = _sandbox_pool[_pool_idx % len(_sandbox_pool)]
-        _pool_idx += 1
+        with _pool_lock:
+            inst = _sandbox_pool[_pool_idx % len(_sandbox_pool)]
+            _pool_idx += 1
         return inst.eval(expression)
     # Fallback: cold-start a sandbox (no wasmtime or pool init failed)
     return WASMSandbox().eval(expression)
