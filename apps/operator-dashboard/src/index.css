@@ -10,10 +10,60 @@
 .mc-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 1.5rem;
   margin-bottom: 1.5rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid #1f2833;
+  flex-wrap: wrap;
+}
+
+.mc-tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.mc-tab {
+  padding: 0.35rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #c5c6c7;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mc-tab:hover {
+  background: #0b0c10;
+  color: #66fcf1;
+}
+
+.mc-tab--active,
+.mc-tab[aria-selected="true"] {
+  background: #0b0c10;
+  border-color: #45a29e;
+  color: #66fcf1;
+  font-weight: 600;
+}
+
+.mc-tab-content {
+  min-height: 200px;
+}
+
+.mc-grid--wide {
+  grid-template-columns: 1fr;
+}
+
+.mc-grid--health {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.mc-timeline-col {
+  min-width: 0;
 }
 
 .mc-header h1 {
@@ -79,8 +129,23 @@
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 200px;
+  max-height: 360px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #45a29e #0b0c10;
+}
+
+.mission-panel ul::-webkit-scrollbar {
+  width: 5px;
+}
+
+.mission-panel ul::-webkit-scrollbar-track {
+  background: #0b0c10;
+}
+
+.mission-panel ul::-webkit-scrollbar-thumb {
+  background: #45a29e;
+  border-radius: 3px;
 }
 
 .mission-panel li {
@@ -91,4 +156,183 @@
 
 .mission-panel li:last-child {
   border-bottom: none;
+}
+
+/* ── Run / item row layout ─────────────────────────────────────── */
+.mc-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mc-row--sm-gap {
+  gap: 0.4rem;
+}
+
+.mc-row--padded {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #1f2833;
+}
+
+/* ── Status dot ────────────────────────────────────────────────── */
+.mc-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--mc-status-color, #94a3b8);
+}
+
+.mc-dot--sm {
+  width: 7px;
+  height: 7px;
+}
+
+/* ── Run ID code ───────────────────────────────────────────────── */
+.mc-run-id {
+  flex: 1;
+  font-size: 0.78rem;
+  color: #66fcf1;
+}
+
+/* ── Status badge ──────────────────────────────────────────────── */
+.mc-status-badge {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #0b0c10;
+  text-transform: uppercase;
+  color: var(--mc-status-color, #94a3b8);
+  border: 1px solid var(--mc-status-color, #94a3b8);
+}
+
+.mc-status-badge--xs {
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #0b0c10;
+  text-transform: uppercase;
+  color: var(--mc-status-color, #94a3b8);
+  border: 1px solid var(--mc-status-color, #94a3b8);
+}
+
+/* ── Timestamp / meta text ─────────────────────────────────────── */
+.mc-meta {
+  font-size: 0.72rem;
+  color: #45a29e;
+  white-space: nowrap;
+}
+
+.mc-meta--xs {
+  font-size: 0.68rem;
+  color: #45a29e;
+}
+
+.mc-meta--warn {
+  font-size: 0.68rem;
+  color: #f59e0b;
+}
+
+.mc-meta--muted {
+  font-size: 0.85rem;
+  color: #45a29e;
+}
+
+/* ── Subtext / description ─────────────────────────────────────── */
+.mc-subtext {
+  font-size: 0.78rem;
+  color: #c5c6c7;
+  margin-bottom: 0.4rem;
+  flex: var(--mc-flex, unset);
+}
+
+/* ── Skill list ────────────────────────────────────────────────── */
+.mc-skills {
+  margin-top: 2px;
+  padding-left: 1.1rem;
+  font-size: 0.7rem;
+  color: #45a29e;
+}
+
+.mc-skill-count {
+  font-size: 0.7rem;
+  color: #45a29e;
+}
+
+/* ── Filter bar ────────────────────────────────────────────────── */
+.mc-filter-bar {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+/* ── Filter button (dynamic colors via --mc-color CSS var) ─────── */
+.mc-filter-btn {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  text-transform: capitalize;
+  border: 1px solid var(--mc-border, #1f2833);
+  background: var(--mc-bg, #0b0c10);
+  color: var(--mc-color, #94a3b8);
+}
+
+.mc-filter-btn--active {
+  font-weight: 700;
+}
+
+/* ── Copy button ───────────────────────────────────────────────── */
+.mc-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 2px;
+  color: #45a29e;
+}
+
+.mc-copy-btn--copied {
+  color: #22c55e;
+}
+
+/* ── Status summary in header ──────────────────────────────────── */
+.mc-status-summary--ok {
+  color: #22c55e;
+  font-size: 0.8rem;
+}
+
+.mc-status-summary--warn {
+  color: #ef4444;
+  font-size: 0.8rem;
+}
+
+/* ── Reset button ──────────────────────────────────────────────── */
+.mc-reset-btn {
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid #45a29e;
+  background: #0b0c10;
+  color: #45a29e;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.mc-reset-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Search input ──────────────────────────────────────────────── */
+.mc-search-input {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid #45a29e;
+  background: #0b0c10;
+  color: #c5c6c7;
+  font-size: 0.82rem;
 }

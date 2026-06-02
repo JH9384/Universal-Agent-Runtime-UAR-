@@ -5,6 +5,8 @@ import hashlib
 import json
 from typing import Any, Dict
 
+from uar.core.exceptions import UARError, ErrorCode
+
 try:  # Prefer canonical reference implementation
     from uor_addr import AddressError, kappa  # type: ignore
 
@@ -14,8 +16,10 @@ except ImportError:  # Fallback to pure-Python JCS + SHA-256
     from rfc8785 import dumps as rfc8785_dumps  # type: ignore[attr-defined]
 
 
-class UORAddressError(RuntimeError):
+class UORAddressError(UARError):
     """Raised when canonical address derivation fails."""
+
+    code = ErrorCode.VALIDATION
 
 
 def _to_json_bytes(value: Dict[str, Any]) -> bytes:

@@ -46,11 +46,21 @@ type DetailEvent = {
   error?: string
 }
 
+type RawEvent = {
+  type?: string
+  run_id?: string
+  goal_id?: string
+  timestamp?: number
+  skill?: string
+  error?: string
+  payload?: Record<string, unknown>
+}
+
 export default function RecipeTimeline({
   events,
   recipes,
 }: {
-  events: any[]
+  events: RawEvent[]
   recipes: { id: string; label: string }[]
 }) {
   const [openRecipes, setOpenRecipes] = useState<Set<string>>(new Set())
@@ -90,8 +100,8 @@ export default function RecipeTimeline({
       const etype = e?.type
       if (etype === 'recipe_start') {
         runMeta.recipeCount++
-        const recipeId = e.payload?.recipe_id || ''
-        const instanceId = e.payload?.instance_id || ''
+        const recipeId = String(e.payload?.recipe_id || '')
+        const instanceId = String(e.payload?.instance_id || '')
         const label = recipes.find((r) => r.id === recipeId)?.label || recipeId
         const depth = stack.length
         const item: TimelineItem = {
@@ -107,7 +117,7 @@ export default function RecipeTimeline({
         }
         stack.push(item)
       } else if (etype === 'recipe_end') {
-        const instanceId = e.payload?.instance_id || ''
+        const instanceId = String(e.payload?.instance_id || '')
         const aborted = e.payload?.status === 'aborted'
         if (stack.length > 0) {
           const item = stack.pop()!
@@ -126,7 +136,7 @@ export default function RecipeTimeline({
         if (activeRecipe) {
           activeRecipe.skills.push({ name: e.skill, status: 'running', startTs: e.timestamp })
         } else {
-          standaloneRunning.set(e.skill, { startTs: e.timestamp })
+          standaloneRunning.set(e.skill, { startTs: e.timestamp ?? 0 })
         }
       } else if (etype === 'skill_complete' && e.skill) {
         let found = false
@@ -174,7 +184,7 @@ export default function RecipeTimeline({
           standaloneRunning.delete(e.skill)
         }
       } else if (etype === 'recipe_retry') {
-        const instanceId = e.payload?.instance_id || ''
+        const instanceId = String(e.payload?.instance_id || '')
         for (let i = stack.length - 1; i >= 0; i--) {
           if (stack[i].instanceId === instanceId) {
             stack[i].retries += 1
@@ -205,7 +215,7 @@ export default function RecipeTimeline({
 
     // Determine overall status from terminal event
     if (last?.payload?.status) {
-      runMeta.status = last.payload.status
+      runMeta.status = String(last.payload.status)
     } else if (last?.type === 'complete') {
       runMeta.status = 'completed'
     } else if (events.some((e) => e.type === 'error' || e.type === 'skill_failed')) {

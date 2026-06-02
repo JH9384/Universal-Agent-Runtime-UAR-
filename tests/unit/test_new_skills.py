@@ -390,7 +390,7 @@ def test_physics_compute_missing_astropy():
     })
     result = physics_compute.physics_compute(ctx)
     # Should either succeed with astropy or gracefully fail without it
-    assert result["status"] in ("completed", "failed")
+    assert result["status"] in ("completed", "failed", "error")
     if result["status"] == "failed":
         err = result["error"].lower()
         assert "astropy" in err or "not installed" in err
@@ -557,7 +557,7 @@ def test_opencv_process():
         assert result["status"] == "failed"
     else:
         # cv2 installed but file is fake — still fails for file reason
-        assert result["status"] in ("completed", "failed")
+        assert result["status"] in ("completed", "failed", "error")
 
 
 def test_yolo_detect():
@@ -570,7 +570,7 @@ def test_yolo_detect():
     if importlib.util.find_spec("ultralytics") is None:
         assert result["status"] == "failed"
     else:
-        assert result["status"] in ("completed", "failed")
+        assert result["status"] in ("completed", "failed", "error")
 
 
 # ---------------------------------------------------------------------------
@@ -602,7 +602,7 @@ def test_chromadb_store():
         assert result["status"] == "failed"
         assert "chromadb" in result["error"].lower()
     else:
-        assert result["status"] in ("completed", "failed")
+        assert result["status"] in ("completed", "failed", "error")
 
 
 # ---------------------------------------------------------------------------

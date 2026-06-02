@@ -1,7 +1,7 @@
 """Regression tests for the README / schema / version fixes.
 
 Covers fixes for:
-1. __version__ mismatch (hardcoded 0.1.0 vs VERSION file 1.1.0)
+1. __version__ mismatch (hardcoded 0.1.0 vs VERSION file)
 2. Event schema missing orchestration_plan, recipe_skipped, etc.
 3. Silent schema validation warnings during execution
 4. README mislabeling real skills as stubs

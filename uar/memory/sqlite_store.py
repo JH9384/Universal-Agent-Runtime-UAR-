@@ -882,6 +882,15 @@ class SqliteRunStore:
             )
             return None
 
+    def list_meta_keys(self) -> list:
+        """Return all keys currently stored in uar_metadata."""
+        conn = self._get_read_conn()
+        try:
+            cur = conn.execute("SELECT key FROM uar_metadata")
+            return [row[0] for row in cur.fetchall()]
+        finally:
+            self._release_read_conn(conn)
+
     def purge_old_records(self, retention_days: int) -> int:
         if retention_days <= 0:
             return 0

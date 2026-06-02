@@ -1,6 +1,6 @@
 # Known Limits
 
-**Last Updated:** 2026-05-27 (v1.1.0 — commit fe0f2b4)
+**Last Updated:** 2026-06-01 (v1.2.0 — commit c9dbf25)
 
 This file is intentionally blunt. These are real limits, not aspirational gaps.
 

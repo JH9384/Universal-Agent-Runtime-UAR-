@@ -22,6 +22,8 @@ from uar.core.runtime_health import (
     score_runtime_health,
 )
 from uar.memory.base_store import run_record_from_dict
+from uar.version import get_uar_version
+from uar.api.state import _uar_start_time
 
 
 @dataclass(slots=True)
@@ -35,6 +37,11 @@ class MissionControlSnapshot:
     recent_warnings: List[str] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     trust_summary: Optional[Dict[str, Any]] = None
+    server_version: str = "unknown"
+    uptime_seconds: int = 0
+    skills_available: int = 0
+    skills_total: int = 0
+    circuit_breakers: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -152,6 +159,35 @@ def build_snapshot(
         _logging.getLogger(__name__).exception("Trust summary failed")
         warnings.append(f"trust_summary: {exc}")
 
+    skills_available = 0
+    skills_total = 0
+    circuit_breakers = []
+    try:
+        if hasattr(registry, "list") and callable(registry.list):
+            skills_total = len(list(registry.list() or []))
+            for name in registry.list() or []:
+                try:
+                    registry.get(name)
+                    skills_available += 1
+                except Exception:
+                    pass
+        if hasattr(registry, "get_circuit_breaker_states"):
+            circuit_breakers = [
+                {"name": name, "state": state}
+                for name, state in registry.get_circuit_breaker_states().items()
+            ]
+        else:
+            from uar.core.circuit_breaker_decorator import (
+                get_circuit_breaker_states,
+            )
+
+            circuit_breakers = [
+                {"name": name, "state": state}
+                for name, state in get_circuit_breaker_states().items()
+            ]
+    except Exception as exc:
+        warnings.append(f"registry_health: {exc}")
+
     unique_warnings = list(dict.fromkeys(warnings))
 
     return MissionControlSnapshot(
@@ -162,6 +198,11 @@ def build_snapshot(
         recent_warnings=unique_warnings[:20],
         timestamp=time.time(),
         trust_summary=trust_summary,
+        server_version=get_uar_version(),
+        uptime_seconds=int(time.time() - _uar_start_time),
+        skills_available=skills_available,
+        skills_total=skills_total,
+        circuit_breakers=circuit_breakers,
     )
 
 

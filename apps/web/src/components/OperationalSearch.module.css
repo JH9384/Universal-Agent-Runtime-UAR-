@@ -100,3 +100,13 @@
   text-align: center;
   color: var(--text-muted, #64748b);
 }
+
+.error {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.4rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}

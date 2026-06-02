@@ -17,6 +17,9 @@ from uar.services import AuthService, EventService, GoalExecutionService
 
 logger = logging.getLogger(__name__)
 
+# Process start time for uptime calculation (single source of truth)
+_uar_start_time = time.time()
+
 # ------------------------------------------------------------------
 # Constants
 # ------------------------------------------------------------------

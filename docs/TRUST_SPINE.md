@@ -1,54 +1,38 @@
 # UAR Trust Spine Architecture Baseline
 
-Status: Active  
-Release Target: v1.1 Trust Release
+Status: Complete  
+Release: v1.2 Operational Intelligence Platform  
+Date: 2026-06-01
 
 ## Prime Directive
 
-UAR v1.1 is not about making the runtime smarter.
+UAR v1.2 is an **Operational Intelligence Platform**.
 
-UAR v1.1 is about making the runtime trustworthy.
+The Trust Spine is complete. The system now generates evidence, establishes trust,
+and surfaces actionable insight to operators.
 
 ## Architectural Principle
 
-Execution exists to generate evidence.
-
-Evidence exists to establish trust.
-
-Trust exists to support operations.
-
-## Directional Lock
-
-Locked in Issue #83 (RuntimeHealthReport Contract & Scoring Engine).
+Execution generates evidence. Evidence establishes trust. Trust drives operational
+intelligence. Intelligence surfaces actionable operator insight.
 
 ```text
-Execution -> Evidence -> Trust -> Operations
+Execution -> Evidence -> Trust -> Operations -> Analytics -> Search -> Insight
 ```
-
-Execution generates evidence. Evidence establishes trust. Trust supports operations.
 
 ## Trust Spine
 
-The Trust Spine is the evidence-to-operations path for UAR:
+The Trust Spine is the evidence-to-operations path for UAR. All phases are complete.
 
 ```text
 Replay
-  -> T1: Replay Confidence
-  -> T2: Runtime Health
-  -> T3: Burn-In Evidence
-  -> T4: Certification Engine
-  -> T5: Mission Control
-  -> T6: Replay Explorer
+  -> T1: Replay Confidence   [Complete]
+  -> T2: Runtime Health      [Complete]
+  -> T3: Burn-In Framework   [Complete]
+  -> T4: Certification Engine [Complete]
+  -> T5: Mission Control     [Complete]
+  -> T6: Replay Explorer     [Complete]
 ```
-
-### Priority Order
-
-1. Replay Confidence (#74)
-2. Runtime Health (#83)
-3. Burn-In Framework (#62)
-4. Certification Engine (#57, #70)
-5. Mission Control (#72, #55)
-6. Replay Explorer (#56)
 
 ## Phase T1 — Replay Confidence
 
@@ -191,47 +175,41 @@ Documentation:
 
 ## Current Status
 
-**Phase Transition: 2026-05-31**
+### Phase Transition: 2026-06-01
 
-UAR has formally transitioned from **Trust Spine Construction Phase**
-into **Trust Spine Hardening Phase**.
+All six Trust Spine phases (T1–T6) are **complete**. UAR is now an
+**Operational Intelligence Platform**.
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | T1 Replay Confidence | Complete | #74 — all tests green |
-| T2 Runtime Health | Implemented | #83 — hardening pending |
-| T3 Burn-In Framework | Implemented | #62 — persistence pending |
-| T4 Certification Engine | Implemented | #57/#70 — refactor pending |
-| T5 Mission Control | Implemented | #72/#55 — query consolidation pending |
-| T6 Replay Explorer | Implemented | #56 — presentation layer |
+| T2 Runtime Health | Complete | #83 — health dashboard operational |
+| T3 Burn-In Framework | Complete | #62 — burn-in persistence + report generation |
+| T4 Certification Engine | Complete | #57/#70 — certification checks operational |
+| T5 Mission Control | Complete | #72/#55 — operator dashboard live |
+| T6 Replay Explorer | Complete | #56 — replay investigation + timeline |
 
-Infrastructure Expansion: Frozen — no new subsystems until
-hardening milestones complete.
+## Ω-7B.1 Operational Validation
 
-## Hardening Backlog
+**Status:** ACTIVE  
+**Feature Freeze:** ACTIVE  
+**Learning Architecture Freeze v1:** ACTIVE
 
-Open items following phase transition (see issue docs in
-`docs/issues/`):
+The Trust Spine is complete. The system is now in **Validation Phase**.
+No new components or learning logic until exit criteria are met.
 
-- **#85** Runtime Health Query Consolidation — collapse 4 store scans
-  per Mission Control request into a single snapshot query
-- **#86** Burn-In Persistence Layer — survive restart; write
-  `BurnInReport` to the run store rather than an in-process module var
-- **#87** Certification Engine Refactor — remove pressure-score and
-  hardening-era remnants; inputs are T1/T2/T3 only
+### Validation Targets
 
-## Hardening Freeze Directive
+- **Trust Distribution** — natural spread across Highly Trusted / Trusted / Watch / Weak bands
+- **Ranking Delta** — cases where confidence and trust disagree
+- **Outcome Correlation** — Spearman ≥ 0.3 (minimum), ≥ 0.5 (preferred)
+- **Drift Discovery** — high-trust types showing negative drift
 
-No new Trust Spine phases.
-No new concepts, layers, or subsystems.
+### Exit Criteria
 
-Permitted work during Hardening Phase:
+1. Trust stability < 0.10 week-over-week
+2. Calibration stability < 0.05 week-over-week
+3. Ranking stability < 20% band changes weekly
+4. Resolution correlation ≥ 0.3 (minimum), 0.5 (preferred)
 
-- Performance (query consolidation, caching)
-- Persistence (burn-in store, report durability)
-- Correctness (ownership, concurrency, error paths)
-- Observability (structured logging, metrics)
-
-Note: Former T2 (Runtime Guarantees, #69/#68) is absorbed into T4
-Certification Engine inputs. The guarantee catalog becomes part of
-the certification scoring contract, not a standalone trust phase.
+See [docs/operations/LEARNING_MODEL.md](LEARNING_MODEL.md) for full details.

@@ -106,7 +106,7 @@ export default function SettingsDrawer({
               <button
                 className={`${styles.modeCard} ${deploymentMode === 'local' ? styles.modeCardActive : ''}`}
                 onClick={() => onDeploymentModeChange('local')}
-                aria-pressed={deploymentMode === 'local'}
+                aria-pressed={deploymentMode === 'local' ? 'true' : 'false'}
                 type="button"
               >
                 <span className={styles.modeCardIcon}>🏠</span>
@@ -118,7 +118,7 @@ export default function SettingsDrawer({
               <button
                 className={`${styles.modeCard} ${deploymentMode === 'shared' ? styles.modeCardActive : ''}`}
                 onClick={() => onDeploymentModeChange('shared')}
-                aria-pressed={deploymentMode === 'shared'}
+                aria-pressed={deploymentMode === 'shared' ? 'true' : 'false'}
                 type="button"
               >
                 <span className={styles.modeCardIcon}>🌐</span>

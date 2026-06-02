@@ -1,6 +1,10 @@
 # UAR v1.1 Trust Release Execution Plan
 
-Status: Active  
+> **Historical document.** This plan was fully executed and completed as part of the
+> v1.2 Operational Intelligence Platform release (2026-06-01). All phases (T1–T6)
+> described herein are now operational.
+
+Status: Completed  
 Directional Lock: Issue #83
 
 ## Objective

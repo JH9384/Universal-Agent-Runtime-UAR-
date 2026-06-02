@@ -33,7 +33,7 @@ function MiniBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? (value / max) * 100 : 0
   return (
     <div className={styles.barTrack}>
-      <div className={styles.barFill} data-width={Math.round(pct)} />
+      <div className={styles.barFill} style={{ width: `${Math.round(pct)}%` }} />
     </div>
   )
 }

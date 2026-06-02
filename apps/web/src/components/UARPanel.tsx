@@ -9,7 +9,6 @@ import { usePreload } from '../hooks/usePreload'
 import { generateUniqueId } from '../utils/idGenerator'
 import { authHeaders, getLocalStorage } from '../utils/auth'
 import RecipeTimeline from './RecipeTimeline'
-import { HealthDashboard } from './HealthDashboard'
 import { MissionControlWidget } from './MissionControlWidget'
 import { ReplayExplorer } from './ReplayExplorer'
 import { CompareRuns } from './CompareRuns'
@@ -616,7 +615,6 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const [builderDragIndex, setBuilderDragIndex] = useState<number | null>(null)
   const [runsHistory, setRunsHistory] = useState<any[]>([])
   const [showRunsPanel, setShowRunsPanel] = useState(false)
-  const [showHealthDashboard, setShowHealthDashboard] = useState(false)
   const [showMissionControl, setShowMissionControl] = useState(false)
   const [showReplayExplorer, setShowReplayExplorer] = useState(false)
   const [explorerRunId, setExplorerRunId] = useState<string>('')
@@ -2607,14 +2605,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
               <span className={styles.navGroupLabel}>Operations</span>
               <div className={styles.navGroupButtons}>
                 <button
-                  onClick={() => { setShowHealthDashboard(v => !v); setShowMissionControl(false) }}
-                  className={`${styles.navBtn} ${showHealthDashboard ? styles.navBtnActive : ''}`}
-                  title="Health dashboard"
-                >
-                  Health
-                </button>
-                <button
-                  onClick={() => { setShowMissionControl(v => !v); setShowHealthDashboard(false) }}
+                  onClick={() => { setShowMissionControl(v => !v) }}
                   className={`${styles.navBtn} ${showMissionControl ? styles.navBtnActive : ''}`}
                   title="Mission Control"
                 >
@@ -2749,9 +2740,6 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           <div className={styles.metricsPanel} title="Execution metrics from last run">
             <MetricsDashboard metrics={metrics} darkMode={darkMode} />
           </div>
-        )}
-        {showHealthDashboard && (
-          <HealthDashboard />
         )}
         {showMissionControl && (
           <MissionControlWidget

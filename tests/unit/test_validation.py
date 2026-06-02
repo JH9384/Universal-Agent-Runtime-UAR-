@@ -11,6 +11,7 @@ from uar.core.validation import (
     validate_timeout,
     ValidationError,
 )
+from uar.core.validation_utils import validate_url
 
 
 class TestValidateGoal:
@@ -342,3 +343,61 @@ class TestValidateInputPathEdgeCases:
             with pytest.raises(ValidationError) as exc_info:
                 validate_input_path("../outside.txt", allowed_root=root)
             assert "Path traversal" in str(exc_info.value)
+
+
+# --- SSRF prevention tests ---
+
+
+class TestValidateUrl:
+    """Test URL validation including SSRF prevention."""
+
+    def test_valid_public_url(self):
+        assert validate_url("https://example.com/path") == "https://example.com/path"
+
+    def test_valid_public_url_with_port(self):
+        assert validate_url("https://example.com:8080/path") == "https://example.com:8080/path"
+
+    def test_localhost_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("http://localhost:8000/api")
+        assert "localhost" in str(exc_info.value).lower()
+
+    def test_loopback_ip_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("http://127.0.0.1:8000/api")
+        assert "private" in str(exc_info.value).lower()
+
+    def test_private_ip_10_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("http://10.0.0.1/api")
+        assert "private" in str(exc_info.value).lower()
+
+    def test_private_ip_172_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("http://172.16.0.1/api")
+        assert "private" in str(exc_info.value).lower()
+
+    def test_private_ip_192_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("http://192.168.1.1/api")
+        assert "private" in str(exc_info.value).lower()
+
+    def test_link_local_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("http://169.254.1.1/api")
+        assert "private" in str(exc_info.value).lower()
+
+    def test_multicast_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("http://224.0.0.1/api")
+        assert "private" in str(exc_info.value).lower()
+
+    def test_invalid_scheme_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("ftp://example.com/file")
+        assert "valid URL" in str(exc_info.value)
+
+    def test_missing_scheme_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_url("example.com")
+        assert "valid URL" in str(exc_info.value)

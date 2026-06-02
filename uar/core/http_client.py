@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from uar.core.async_utils import run_sync_safe
+from uar.core.validation_utils import validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ async def http_get(
     **kwargs: Any,
 ) -> Any:
     """GET with per-domain pool, circuit breaker, and retry."""
+    validate_url(url, field_name="url")
     session = await _get_session(url)
     if session is None:
         raise RuntimeError("aiohttp is required for async HTTP")
@@ -125,6 +127,7 @@ async def http_post(
     **kwargs: Any,
 ) -> Any:
     """POST with per-domain pool and retry."""
+    validate_url(url, field_name="url")
     session = await _get_session(url)
     if session is None:
         raise RuntimeError("aiohttp is required for async HTTP")

@@ -85,7 +85,7 @@ def _handle_initialize(params: Dict[str, Any]) -> Dict[str, Any]:
         },
         "serverInfo": {
             "name": "uar-mcp-server",
-            "version": "1.1.0",
+            "version": "1.2.0",
         },
     }
 

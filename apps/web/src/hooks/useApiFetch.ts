@@ -10,6 +10,7 @@ interface UseApiFetchResult<T> {
   data: T | null
   loading: boolean
   error: string | null
+  refetch: () => void
 }
 
 /**
@@ -34,6 +35,14 @@ export function useApiFetch<T>(
   const hasFetchedRef = useRef(false)
 
   const fetchData = useCallback(async () => {
+    // Skip fetch when URL is empty — callers use '' as a "not yet ready" sentinel.
+    if (!url) {
+      setLoading(false)
+      setData(null)
+      setError(null)
+      return
+    }
+
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -75,5 +84,5 @@ export function useApiFetch<T>(
     }
   }, [fetchData, options.interval])
 
-  return { data, loading, error }
+  return { data, loading, error, refetch: fetchData }
 }

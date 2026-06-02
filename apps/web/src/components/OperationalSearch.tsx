@@ -38,21 +38,25 @@ export function OperationalSearch({
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const handleSearch = async () => {
     if (!query.trim()) return
     setLoading(true)
     setSearched(true)
+    setFetchError(null)
     try {
       const res = await fetch(`/api/uar/search?q=${encodeURIComponent(query)}`, {
         headers: authHeaders(),
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       setResults(json.results || [])
       setCount(json.count || 0)
     } catch (e) {
       setResults([])
       setCount(0)
+      setFetchError(String(e))
     } finally {
       setLoading(false)
     }
@@ -89,6 +93,7 @@ export function OperationalSearch({
       </div>
 
       {loading && <div className={styles.loading}>Searching…</div>}
+      {fetchError && <div className={styles.error}>Search failed: {fetchError}</div>}
 
       {searched && !loading && (
         <div className={styles.meta}>{count} result(s)</div>
@@ -97,7 +102,7 @@ export function OperationalSearch({
       <div className={styles.resultList}>
         {results.map((r, i) => (
           <button
-            key={i}
+            key={r.id ?? r.recommendation_id ?? r.run_id ?? `${r._result_type}-${i}`}
             className={styles.resultCard}
             onClick={() => handleClick(r)}
           >

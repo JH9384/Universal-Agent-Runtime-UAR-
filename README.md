@@ -1,36 +1,56 @@
-# Universal Agent Runtime (UAR) v1.1.0
+# Universal Agent Runtime (UAR) v1.2.0
 
 Modular execution platform for reproducible agent workflows and scientific computing.
 
 UAR is both an **agent runtime** (goal-driven, event-streamed, observable) and a **browser-accessible scientific computing sandbox** (quantum circuits, molecular dynamics, RISC-V emulation, Verilog simulation). You don't install toolchains. You send JSON goals and get structured results.
 
-## v1.1 — Trust Release
+## v1.2 — Operational Intelligence Platform
 
-UAR v1.1 is not about making the runtime smarter. It is about making the runtime trustworthy.
+UAR is now an **Operational Intelligence System**. The full stack is complete:
 
 ```text
-Execution -> Evidence -> Trust -> Operations
+Execution -> Evidence -> Trust -> Operations -> Analytics -> Search -> Insight
 ```
 
-Execution generates evidence. Evidence establishes trust. Trust supports operations.
+Execution generates evidence. Evidence establishes trust. Trust drives operational
+intelligence. Intelligence surfaces actionable insight for operators.
 
-The **Trust Spine** defines the evidence-to-operations path:
+**Feature Freeze: ACTIVE** — Ω-7B.1 Operational Validation in progress.
 
-| Phase | Name | Issue | Status |
-|-------|------|-------|--------|
-| T1 | Replay Confidence | #74 | Active |
-| T2 | Runtime Health | #83 | Active |
-| T3 | Burn-In Framework | #62 | Pending |
-| T4 | Certification Engine | #57, #70 | Pending |
-| T5 | Mission Control | #72, #55 | Pending |
-| T6 | Replay Explorer | #56 | Pending |
+### Trust Spine — Complete
 
-Capability expansion is frozen until Trust Spine milestones are complete. See [docs/TRUST_SPINE.md](docs/TRUST_SPINE.md) and [docs/V1_1_EXECUTION_PLAN.md](docs/V1_1_EXECUTION_PLAN.md).
+| Phase | Name | Status |
+|-------|------|--------|
+| T1 | Replay Confidence | ✅ Complete |
+| T2 | Runtime Health | ✅ Complete |
+| T3 | Burn-In Framework | ✅ Complete |
+| T4 | Certification Engine | ✅ Complete |
+| T5 | Mission Control | ✅ Complete |
+| T6 | Replay Explorer | ✅ Complete |
+
+### Operational Intelligence Layers — Complete
+
+| Layer | Description | Status |
+|-------|-------------|--------|
+| Runtime | Execution, skills, events, streaming | ✅ Complete |
+| Observability | Health, metrics, Prometheus/Grafana | ✅ Complete |
+| Learning | Pattern recognition, feedback, quality metrics | ✅ Complete |
+| Evidence | Replay confidence, UOR provenance, audit trail | ✅ Complete |
+| Trust | Trust computation, trust-aware ranking | ✅ Complete |
+| Validation | Burn-in, certification, conformance | ✅ Complete |
+| Operations | Mission control, replay explorer | ✅ Complete |
+| Workflow | Operator workflows: briefing, workbench, explorer | ✅ Complete |
+| Search | Operational search, investigation replay | ✅ Complete |
+| Knowledge Graph | Topology analytics, graph v2, time machine | ✅ Complete |
+| Analytics | Cross-run analytics, trust overlay, recommendations | ✅ Complete |
+| Insight Generation | Pattern recognition, evolution, clusters, intelligence | ✅ Complete |
+
+See [docs/TRUST_SPINE.md](docs/TRUST_SPINE.md) and [docs/operations/LEARNING_MODEL.md](docs/operations/LEARNING_MODEL.md).
 
 ## Features
 
 ### Execution Engine
-- **Modular Runtime**: 124+ skill-based execution engine with circuit breaker protection
+- **Modular Runtime**: 127+ skill-based execution engine with circuit breaker protection
 - **Event Streaming**: Real-time execution monitoring via Server-Sent Events and WebSocket
 - **Hierarchical Execution**: Recipes as discrete nested units with snapshot/retry/params scoping (opt-in via `UAR_HIERARCHICAL_EXECUTION=true`)
 - **Recipe-Level Caching**: Context mutations cached per recipe ID and parameters
@@ -47,9 +67,17 @@ Capability expansion is frozen until Trust Spine milestones are complete. See [d
 ### AI & Integration
 - **Document Processing**: Multi-format ingestion (PDF, DOCX, XLSX, Jupyter, etc.)
 - **API Server**: Production-ready FastAPI server with security middleware
-- **Web Interface**: React-based control surface for workflow visualization
+- **Web Interface**: React-based operator dashboard with mission control, replay explorer, topology
 - **UOR Ecosystem Integration**: Live API clients for UOR Foundation, Hologram, Moltbook, and more
 - **Security**: Path validation, rate limiting, input sanitization, SSRF prevention
+
+### Operational Intelligence
+- **Trust Spine**: Replay confidence scoring, runtime health, burn-in, certification, mission control
+- **Trust-Aware Ranking**: Soft blend of confidence (0.7) and historical trust (0.3) for recommendations
+- **Operational Search**: Full-text and structured search across run history
+- **Graph Analytics**: Topology-aware analytics — bottleneck detection, critical path, fan-out
+- **Insight Generation**: Pattern recognition, evolution tracking, workflow intelligence, cluster analysis
+- **Operator Workflows**: Morning Briefing, Trust Explorer, Incident Workbench, Knowledge Graph Time Machine
 
 ## Quick Start
 
@@ -544,23 +572,42 @@ cd apps/web && npm run build
 
 ## Architecture
 
-```text
-Client (React / curl / CLI)
-    │
-    ▼
-FastAPI Layer — /api/uar/run, /api/uar/stream, /api/health, /api/metrics
-    │
-    ▼
-Middleware — CORS → Rate Limit → Auth → Logging → Body Parsing
-    │
-    ▼
-Core Runtime — Planner → Executor → Skill Registry
-    │
-    ▼
-Skills — Sequential / Parallel / Retry / Cache / Guardrails
-    │
-    ▼
-Persistence — JSONL Store + Audit Logger + Redis (optional)
+```mermaid
+graph TD
+    Client[Client<br/>React / curl / CLI]
+    API[FastAPI Layer]
+    MW[Middleware<br/>CORS → Rate Limit → Auth → Logging]
+    Core[Core Runtime<br/>Planner → Executor → Registry]
+    Skills[Skills<br/>Sequential / Parallel / Retry / Cache / Guardrails]
+    Store[Persistence<br/>SQLite / Postgres + Audit + Redis]
+    Trust[Trust Spine<br/>Replay → Health → Burn-In → Certification → Mission Control]
+    Ops[Operational Intelligence<br/>Analytics → Search → Graph → Insights]
+
+    Client -->|HTTP / WebSocket| API
+    API --> MW
+    MW --> Core
+    Core --> Skills
+    Skills --> Store
+    Store --> Trust
+    Trust --> Ops
+```
+
+### Operational Intelligence Flow
+
+```mermaid
+graph LR
+    Run[Execution Run] --> Events[Event Stream]
+    Events --> Replay[Replay Confidence]
+    Events --> Health[Runtime Health]
+    Replay --> BurnIn[Burn-In Evidence]
+    Health --> BurnIn
+    BurnIn --> Cert[Certification Engine]
+    Cert --> MC[Mission Control]
+    MC --> Analytics[Operational Analytics]
+    Analytics --> Search[Operational Search]
+    Search --> Graph[Knowledge Graph]
+    Graph --> Insights[Insight Generation]
+    Insights --> Recommendations[Trust-Aware<br/>Recommendations]
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design, data models, request flows, and deployment diagrams.
@@ -585,6 +632,11 @@ docker-compose -f docker-compose.prod.yml up --build
 | [Boot & Shutdown](docs/BOOT_AND_SHUTDOWN.md) | Startup/shutdown sequences per deployment mode |
 | [WebSocket Protocol](docs/WEBSOCKET_PROTOCOL.md) | Event schema, heartbeat, batching, reconnect guide |
 | [API Reference](http://127.0.0.1:8000/docs) | Interactive OpenAPI docs (when running) |
+| [Trust Spine](docs/TRUST_SPINE.md) | Trust evidence chain: T1–T6 phases |
+| [Freezes & Locks](docs/FREEZES_AND_LOCKS.md) | **Canonical registry of all active and historical engineering freezes** |
+| [Learning Model](docs/operations/LEARNING_MODEL.md) | Learning architecture freeze, Ω-7B.1 validation |
+| [Mission Control](docs/operations/MISSION_CONTROL.md) | Operator snapshot and workflow guide |
+| [Replay Explorer](docs/operations/REPLAY_EXPLORER.md) | Per-run investigation and timeline |
 
 ## License
 

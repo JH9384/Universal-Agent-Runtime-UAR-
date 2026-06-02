@@ -145,7 +145,7 @@ export default function SkillSelector({
                         }}
                         tabIndex={0}
                         role="button"
-                        aria-expanded={!isCollapsed}
+                        aria-expanded={!isCollapsed ? 'true' : 'false'}
                         title={`Click to ${
                           isCollapsed ? 'expand' : 'collapse'
                         } ${group.name} skills`}

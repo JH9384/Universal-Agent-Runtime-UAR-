@@ -1,17 +1,19 @@
 # Burn-In Test Report
 
-**Date:** May 27, 2026  
-**Commit:** fe0f2b4  
-**Status:** ✅ PRODUCTION READY
+**Date:** June 1, 2026  
+**Commit:** c9dbf25  
+**Status:** ✅ OPERATIONAL — Ω-7B.1 Validation Active
 
 ## Test Results
 
 ### Unit Tests
-- **Total:** 879 tests
-- **Passed:** 878
-- **Skipped:** 1
+- **Total:** 4335 tests
+- **Passed:** 4322
+- **Skipped:** 13
 - **Failed:** 0
-- **Duration:** ~43s
+- **Duration:** ~134s
+
+*Note: 13 skipped = 1 pre-existing yolo_detect (ultralytics not installed) + 12 environment-dependent skips. No regressions.*
 
 ### Integration Tests
 - **Provenance CLI:** ✅ Working
@@ -46,6 +48,19 @@
 | Low | Dead `_PATH_DANGEROUS_RE` regex | ✅ Fixed |
 | Deps | `vite`/`vitest` CVE (esbuild dev-server CORS) | ✅ Fixed |
 
+### Post-Construction Hardening (Sessions 5–12)
+
+| Bug | Severity | Status |
+|-----|----------|--------|
+| E1: executor coalesce lock `UnboundLocalError` | High | ✅ Fixed |
+| E2: RISC-V `_enc_r` rs1 field missing | High | ✅ Fixed |
+| E3: RISC-V `_enc_s` bit-field overlap | Low | ✅ Fixed |
+| S1: sqlite_store writer exception poisoning | Medium | ✅ Fixed |
+| T1: `safe_utils` traceback frame corruption | Medium | ✅ Fixed |
+| P1: postgres async missing uor columns | High | ✅ Fixed |
+| P2: postgres async witness null serialization | High | ✅ Fixed |
+| BD: batch deduplicator destroyed insertion order | Low | ✅ Fixed |
+
 ### Comprehensive Burn-In (10/10 Passed)
 
 | # | Test | Status |
@@ -63,6 +78,23 @@
 
 ## System Status
 
+### Operational Intelligence Platform — All Layers Complete
+
+| Layer | Status |
+|-------|--------|
+| Runtime (execution, skills, streaming) | ✅ Operational |
+| Observability (health, metrics, Grafana) | ✅ Operational |
+| Learning (pattern recognition, feedback, quality) | ✅ Operational |
+| Evidence (replay confidence, UOR provenance) | ✅ Operational |
+| Trust (trust computation, trust-aware ranking) | ✅ Operational |
+| Validation (burn-in, certification, conformance) | ✅ Operational |
+| Operations (mission control, replay explorer) | ✅ Operational |
+| Workflow (briefing, workbench, explorer) | ✅ Operational |
+| Search (operational search, investigation replay) | ✅ Operational |
+| Knowledge Graph (topology, graph v2, time machine) | ✅ Operational |
+| Analytics (recommendations, trust overlay) | ✅ Operational |
+| Insight Generation (patterns, evolution, clusters) | ✅ Operational |
+
 ### Core Features
 - ✅ Cryptographic provenance (UOR addresses + witnesses)
 - ✅ Pinned artifact validation (SHACL + JSON Schema)
@@ -70,12 +102,9 @@
 - ✅ Upstream release monitoring
 - ✅ Recipe nesting + event markers
 - ✅ Health/alignment monitoring (Prometheus + Grafana)
-
-### New Features (Sprint-2)
-- ✅ Sigstore Python API (`pip install '.[sigstore]'`)
-- ✅ Grafana Cloud dashboard (ready for publishing)
-- ✅ Agent insurance actuarial data collection
-- ✅ Multi-tenant security sandboxing
+- ✅ Trust spine (T1–T6, all phases complete)
+- ✅ Operator dashboard (mission control, replay explorer, topology)
+- ✅ Operational intelligence (analytics, search, graph, insights)
 
 ### API Endpoints
 - ✅ `/metrics` — Prometheus + UOR alignment metrics
@@ -116,13 +145,15 @@
 
 ## Next Actions
 
-1. **Deploy monitoring stack:** `cd deploy && docker-compose -f docker-compose.monitoring.yml up -d`
-2. **Publish Grafana dashboard:** Import to grafana.com
-3. **UOR-Foundation outreach:** Share partnership document
-4. **Dependabot re-scan:** GitHub will clear the stale advisory count after its next scheduled scan (npm audit locally shows 0 CVEs)
+1. **Ω-7B.1 Validation:** Run `scripts/hardening/trust_validation.py` weekly; target 50+ recommendations shown, 20+ outcomes recorded
+2. **Trust Validation Report #1:** Generate first trust distribution + outcome correlation report
+3. **Insight Report #1:** Run insight generation endpoints against live operational history
+4. **Exit criteria monitoring:** Trust stability < 0.10 WoW, Spearman correlation ≥ 0.3
+
+*Feature Freeze is ACTIVE. No new components until Ω-7B.1 exit criteria are met.*
 
 ## Sign-Off
 
 **Burn-In Lead:** Cascade  
 **Result:** PASS  
-**System Status:** Ready for production deployment
+**System Status:** Operational Intelligence Platform — Ω-7B.1 Validation Active

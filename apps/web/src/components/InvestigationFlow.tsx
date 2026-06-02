@@ -10,7 +10,7 @@ interface FlowStep {
   description: string
   action: string
   link?: string
-  items?: any[]
+  items?: { title?: string; id?: string; rec_id?: string; status?: string }[]
   suggested_title?: string
 }
 
@@ -34,6 +34,7 @@ export function InvestigationFlow({
   const [inputRunId, setInputRunId] = useState(runId ?? '')
   const [activeRunId, setActiveRunId] = useState(runId ?? '')
   const [completed, setCompleted] = useState<Set<number>>(new Set())
+  const [snapshotError, setSnapshotError] = useState<string | null>(null)
 
   const { data, loading, error } = useApiFetch<FlowData>(
     activeRunId ? `/api/uar/investigate/${activeRunId}` : ''
@@ -51,8 +52,16 @@ export function InvestigationFlow({
     } else if (step.type === 'graph') {
       onOpenGraph?.(activeRunId)
     } else if (step.type === 'snapshot') {
+      setSnapshotError(null)
       fetch('/api/uar/snapshots', { method: 'POST', headers: authHeaders() })
-        .then(() => setCompleted((prev) => new Set(prev).add(step.step)))
+        .then((res) => {
+          if (!res.ok) throw new Error(`Snapshot failed: ${res.status}`)
+          setCompleted((prev) => new Set(prev).add(step.step))
+        })
+        .catch((err: unknown) => {
+          setSnapshotError(err instanceof Error ? err.message : 'Snapshot failed')
+        })
+      return
     }
     setCompleted((prev) => new Set(prev).add(step.step))
   }
@@ -80,6 +89,7 @@ export function InvestigationFlow({
 
       {loading && <div className={styles.loading}>Building flow…</div>}
       {error && <div className={styles.error}>{error}</div>}
+      {snapshotError && <div className={styles.error}>{snapshotError}</div>}
 
       {allDone && (
         <div className={styles.completeBanner}>

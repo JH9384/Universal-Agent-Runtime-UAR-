@@ -11,6 +11,7 @@ fall back to ``uar.core.crewai_integration`` (UAR-native simulation).
 from typing import Any, Dict, List, Optional
 
 from uar.core.crewai_integration import AgentRole
+from uar.core.exceptions import UARError, ErrorCode
 
 
 def _crewai_available() -> bool:
@@ -37,7 +38,8 @@ def _llm_configured() -> bool:
     return any(os.environ.get(k) for k in keys)
 
 
-class CrewAIRealError(Exception):
+class CrewAIRealError(UARError):
+    code = ErrorCode.SKILL_EXECUTION
     """Raised when the real CrewAI path cannot be executed."""
 
     pass

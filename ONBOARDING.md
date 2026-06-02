@@ -280,9 +280,11 @@ See `.env.example` for all optional features:
 
 If you can run one goal successfully, you're onboarded.
 
-Everything else is just expansion.
+**Note:** UAR is currently under an active **Feature Freeze** (Ω-7B.1 Operational Validation).
+No new components or learning logic are being added until validation exit criteria are met.
+See [docs/FREEZES_AND_LOCKS.md](docs/FREEZES_AND_LOCKS.md) for the canonical freeze registry.
 
 **Next steps:**
 - Try different skills
 - Explore the web UI recipes
-- Add optional features from `.env.example`
+- Run the validation probe: `scripts/hardening/trust_validation.py`

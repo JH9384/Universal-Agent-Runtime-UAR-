@@ -21,7 +21,7 @@ interface DivergenceData {
 }
 
 interface RecommendationsResponse {
-  recommendations: any[]
+  recommendations: DivergenceItem[]
   generated_at: number
   hours: number
   runs_analyzed: number
@@ -40,10 +40,10 @@ export function DivergenceDashboard({ onOpenReplay }: { onOpenReplay?: (runId: s
   // Compute divergence from raw recommendations
   const recommendations = data?.recommendations ?? []
   const highLow = recommendations.filter(
-    (r: any) => (r.confidence ?? 0) > 0.90 && (r.trust_score ?? 0) < 0.40
+    (r) => (r.confidence ?? 0) > 0.90 && (r.trust_score ?? 0) < 0.40
   )
   const lowHigh = recommendations.filter(
-    (r: any) => (r.confidence ?? 0) < 0.50 && (r.trust_score ?? 0) > 0.80
+    (r) => (r.confidence ?? 0) < 0.50 && (r.trust_score ?? 0) > 0.80
   )
 
   const total = highLow.length + lowHigh.length
@@ -99,7 +99,7 @@ export function DivergenceDashboard({ onOpenReplay }: { onOpenReplay?: (runId: s
             Likely stale heuristics, overconfident engines, or hidden failure modes.
           </p>
           <div className={styles.itemList}>
-            {highLow.map((rec: any) => (
+            {highLow.map((rec) => (
               <DivergenceItemRow
                 key={rec.recommendation_id}
                 rec={rec}
@@ -117,7 +117,7 @@ export function DivergenceDashboard({ onOpenReplay }: { onOpenReplay?: (runId: s
             System knows less than reality. Often the easiest future gains.
           </p>
           <div className={styles.itemList}>
-            {lowHigh.map((rec: any) => (
+            {lowHigh.map((rec) => (
               <DivergenceItemRow
                 key={rec.recommendation_id}
                 rec={rec}
@@ -135,7 +135,7 @@ function DivergenceItemRow({
   rec,
   onOpenReplay,
 }: {
-  rec: any
+  rec: DivergenceItem
   onOpenReplay?: (runId: string) => void
 }) {
   const conf = rec.confidence ?? 0

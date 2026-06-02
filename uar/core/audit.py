@@ -14,6 +14,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from uar.core.json_utils import maybe_rotate_jsonl
+
 
 class AuditLogger:
     """Thread-safe JSONL audit log with file locking.
@@ -21,6 +23,13 @@ class AuditLogger:
     Records are append-only and immutable. The file can be shipped
     to a SIEM or cloud watch using standard log forwarders.
     """
+
+    _MAX_FILE_SIZE_MB = max(
+        1, int(os.getenv("UAR_AUDIT_MAX_SIZE_MB", "100").strip() or "100")
+    )
+    _MAX_BACKUPS = max(
+        1, int(os.getenv("UAR_AUDIT_MAX_BACKUPS", "5").strip() or "5")
+    )
 
     def __init__(self, path: Optional[str] = None):
         if path is None:
@@ -31,6 +40,14 @@ class AuditLogger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock_file = self.path.parent / ".uar_audit_lock"
         self._thread_lock = threading.Lock()
+
+    def _maybe_rotate(self) -> None:
+        """Rotate the audit file if it exceeds the size limit."""
+        maybe_rotate_jsonl(
+            self.path,
+            max_size_mb=self._MAX_FILE_SIZE_MB,
+            max_backups=self._MAX_BACKUPS,
+        )
 
     @contextmanager
     def _acquire_lock(self):
@@ -87,6 +104,7 @@ class AuditLogger:
 
         with self._thread_lock:
             with self._acquire_lock():
+                self._maybe_rotate()
                 with self.path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(record, sort_keys=True) + "\n")
                     f.flush()

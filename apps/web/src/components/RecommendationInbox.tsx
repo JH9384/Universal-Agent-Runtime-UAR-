@@ -26,6 +26,7 @@ export function RecommendationInbox() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNotes, setEditNotes] = useState('')
   const [editAssignee, setEditAssignee] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const items = data ?? []
   const filtered = filter === 'all' ? items : items.filter((i) => i.status === filter)
@@ -35,20 +36,28 @@ export function RecommendationInbox() {
   }, {} as Record<string, number>)
 
   const handleUpdate = async (item: InboxItem, status: string) => {
-    await fetch(`/api/uar/inbox/${item.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({
-        status,
-        notes: editNotes || item.notes,
-        assigned_to: editAssignee || item.assigned_to,
-      }),
-    })
-    window.location.reload()
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/uar/inbox/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          status,
+          notes: editNotes || item.notes,
+          assigned_to: editAssignee || item.assigned_to,
+        }),
+      })
+      if (!res.ok) throw new Error(`Update failed: ${res.status}`)
+      window.location.reload()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Update failed')
+    }
   }
 
   if (loading) return <div className={styles.loading}>Loading inbox…</div>
   if (error) return <div className={styles.error}>{error}</div>
+
+  // action error is rendered inline, not as a page-level replacement
 
   return (
     <div className={styles.panel}>
@@ -58,6 +67,8 @@ export function RecommendationInbox() {
           <span className={styles.meta}>{items.length} item(s)</span>
         </div>
       </div>
+
+      {actionError && <div className={styles.error}>{actionError}</div>}
 
       <div className={styles.filterBar}>
         <button className={`${styles.filterBtn} ${filter === 'all' ? styles.filterActive : ''}`} onClick={() => setFilter('all')}>

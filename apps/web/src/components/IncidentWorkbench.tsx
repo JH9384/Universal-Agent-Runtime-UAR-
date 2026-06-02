@@ -21,11 +21,13 @@ export function IncidentWorkbench({
 }: {
   onOpenReplay?: (runId: string) => void
 }) {
-  const { data, loading, error, refetch } = useApiFetchWithRefetch<Incident[]>(
-    '/api/uar/incidents'
+  const { data, loading, error, refetch } = useApiFetch<Incident[]>(
+    '/api/uar/incidents',
+    { interval: 30_000 }
   )
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Incident | null>(null)
+  const [statusError, setStatusError] = useState<string | null>(null)
 
   const incidents = data ?? []
   const openCount = incidents.filter((i) => i.status !== 'resolved' && i.status !== 'closed').length
@@ -52,6 +54,10 @@ export function IncidentWorkbench({
 
       {loading && <div className={styles.loading}>Loading incidents…</div>}
       {error && <div className={styles.error}>{error}</div>}
+      {statusError && <div className={styles.error}>{statusError}</div>}
+      {incidents.length === 0 && !loading && !error && (
+        <div className={styles.emptyState}>No incidents yet. Create one to start tracking.</div>
+      )}
 
       <div className={styles.incidentList}>
         {incidents.map((inc) => (
@@ -60,21 +66,23 @@ export function IncidentWorkbench({
             incident={inc}
             onEdit={() => { setEditing(inc); setFormOpen(true) }}
             onStatusChange={async (status) => {
-              await fetch(`/api/uar/incidents/${inc.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({ status }),
-              })
-              refetch()
+              setStatusError(null)
+              try {
+                const res = await fetch(`/api/uar/incidents/${inc.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                  body: JSON.stringify({ status }),
+                })
+                if (!res.ok) throw new Error(`Status update failed: ${res.status}`)
+                refetch()
+              } catch (e) {
+                setStatusError(e instanceof Error ? e.message : 'Status update failed')
+              }
             }}
             onOpenReplay={onOpenReplay}
           />
         ))}
       </div>
-
-      {incidents.length === 0 && !loading && (
-        <div className={styles.emptyState}>No incidents yet. Create one to start tracking.</div>
-      )}
     </div>
   )
 }
@@ -168,8 +176,15 @@ function IncidentForm({
   const [linkedRuns, setLinkedRuns] = useState(incident?.linked_run_ids?.join(',') ?? '')
   const [linkedRecs, setLinkedRecs] = useState(incident?.linked_rec_ids?.join(',') ?? '')
   const [resolutionNotes, setResolutionNotes] = useState(incident?.resolution_notes ?? '')
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const handleSubmit = useCallback(async () => {
+    if (!title.trim()) { setValidationError('Title is required'); return }
+    setValidationError(null)
+    setSaveError(null)
+    setSaving(true)
     const body = {
       title,
       description,
@@ -181,28 +196,37 @@ function IncidentForm({
     }
     const url = incident ? `/api/uar/incidents/${incident.id}` : '/api/uar/incidents'
     const method = incident ? 'PUT' : 'POST'
-    await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify(body),
-    })
-    onSaved()
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`)
+      onSaved()
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
   }, [title, description, severity, status, linkedRuns, linkedRecs, resolutionNotes, incident, onSaved])
 
   return (
     <div className={styles.formOverlay}>
       <div className={styles.form}>
         <h5>{incident ? 'Edit Incident' : 'New Incident'}</h5>
-        <input className={styles.input} placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        {validationError && <div className={styles.formError}>{validationError}</div>}
+        {saveError && <div className={styles.formError}>{saveError}</div>}
+        <input className={styles.input} placeholder="Title *" value={title} onChange={(e) => { setTitle(e.target.value); if (e.target.value.trim()) setValidationError(null) }} />
         <textarea className={styles.textarea} placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
         <div className={styles.formRow}>
-          <select className={styles.select} aria-label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value as any)}>
+          <select className={styles.select} aria-label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value as Incident['severity'])}>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
-          <select className={styles.select} aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as any)}>
+          <select className={styles.select} aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as Incident['status'])}>
             <option value="open">Open</option>
             <option value="investigating">Investigating</option>
             <option value="resolved">Resolved</option>
@@ -213,7 +237,9 @@ function IncidentForm({
         <input className={styles.input} placeholder="Linked recommendation IDs (comma-separated)" value={linkedRecs} onChange={(e) => setLinkedRecs(e.target.value)} />
         <textarea className={styles.textarea} placeholder="Resolution notes" value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} />
         <div className={styles.formActions}>
-          <button className={styles.saveBtn} onClick={handleSubmit}>Save</button>
+          <button className={styles.saveBtn} onClick={handleSubmit} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
           <button className={styles.cancelBtn} onClick={onCancel}>Cancel</button>
         </div>
       </div>
@@ -221,13 +247,3 @@ function IncidentForm({
   )
 }
 
-// Hook wrapper that adds refetch capability
-function useApiFetchWithRefetch<T>(url: string) {
-  const [trigger, setTrigger] = useState(0)
-  const result = useApiFetch<T>(url, { interval: 30_000 })
-  const refetch = useCallback(() => setTrigger((n) => n + 1), [])
-  // Refetch on trigger change by remounting effectively
-  // In practice, useApiFetch will refetch when URL changes or interval fires
-  // We augment by also exposing refetch for manual use
-  return { ...result, refetch }
-}

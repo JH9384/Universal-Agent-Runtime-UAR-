@@ -7,6 +7,7 @@ error handling and type safety across the codebase.
 import importlib.util
 import json
 import logging
+import shutil
 from typing import Any, Dict, Optional
 from pathlib import Path
 
@@ -174,3 +175,42 @@ def validate_json_structure(
                 return False
 
     return True
+
+
+def maybe_rotate_jsonl(
+    path: Path,
+    max_size_mb: int = 100,
+    max_backups: int = 5,
+) -> None:
+    """Rotate a JSONL file if it exceeds the size limit.
+
+    Creates backups with `.jsonl.1`, `.jsonl.2`, etc. suffixes.
+    Older backups are shifted and excess backups are removed.
+
+    Args:
+        path: Path to the JSONL file.
+        max_size_mb: Maximum file size in megabytes before rotation.
+        max_backups: Number of backup files to retain.
+    """
+    if not path.exists():
+        return
+    max_size = max_size_mb * 1024 * 1024
+    if path.stat().st_size < max_size:
+        return
+    # Rotate existing backups
+    for i in range(max_backups - 1, 0, -1):
+        src = path.with_suffix(f".jsonl.{i}")
+        dst = path.with_suffix(f".jsonl.{i + 1}")
+        if src.exists():
+            try:
+                src.replace(dst)
+            except OSError:
+                shutil.copy2(str(src), str(dst))
+                src.unlink()
+    # Rotate current file to .1
+    dst = path.with_suffix(".jsonl.1")
+    try:
+        path.replace(dst)
+    except OSError:
+        shutil.copy2(str(path), str(dst))
+        path.unlink()

@@ -4,6 +4,20 @@ import styles from './InsightsDashboard.module.css'
 
 type InsightTab = 'patterns' | 'evolution' | 'workflows' | 'clusters' | 'operator'
 
+interface InsightData {
+  narrative?: string
+  [key: string]: unknown
+}
+
+interface Theme { word: string; count: number }
+interface HotRun { run_id: string; incident_count: number }
+interface Velocity { type: string; delta: number; direction: string }
+interface Sequence { sequence: string; count: number }
+interface ActionCount { type: string; count: number }
+interface IncidentCluster { incident_a: string; incident_b: string; shared_runs: number }
+interface ActionLift { action: string; lift: number; resolved_count: number; unresolved_count: number }
+interface ResolutionPath { first_action: string; avg_seconds: number; count: number }
+
 const TABS: { key: InsightTab; label: string }[] = [
   { key: 'patterns', label: 'Patterns' },
   { key: 'evolution', label: 'Evolution' },
@@ -14,7 +28,7 @@ const TABS: { key: InsightTab; label: string }[] = [
 
 export function InsightsDashboard() {
   const [tab, setTab] = useState<InsightTab>('patterns')
-  const { data, loading, error } = useApiFetch<any>(`/api/uar/insights/${tab}`)
+  const { data, loading, error } = useApiFetch<InsightData>(`/api/uar/insights/${tab}`)
 
   return (
     <div className={styles.panel}>
@@ -26,6 +40,7 @@ export function InsightsDashboard() {
               key={t.key}
               className={`${styles.tab} ${tab === t.key ? styles.tabActive : ''}`}
               onClick={() => setTab(t.key)}
+              aria-pressed={tab === t.key ? 'true' : 'false'}
             >
               {t.label}
             </button>
@@ -36,7 +51,7 @@ export function InsightsDashboard() {
       {loading && <div className={styles.loading}>Generating insights…</div>}
       {error && <div className={styles.error}>{error}</div>}
 
-      {data && (
+      {data && !loading && (
         <div className={styles.reportBody}>
           <div className={styles.narrative}>{data.narrative}</div>
 
@@ -51,17 +66,24 @@ export function InsightsDashboard() {
   )
 }
 
-function PatternsView({ data }: { data: any }) {
+function PatternsView({ data: _data }: { data: InsightData }) {
+  const data = _data as {
+    total_incidents?: number
+    avg_resolution_seconds?: number
+    recurring_themes?: Theme[]
+    hot_runs?: HotRun[]
+    severity_distribution?: Record<string, number>
+  }
   return (
     <>
       <div className={styles.statGrid}>
-        <StatBox label="Total" value={data.total_incidents} />
+        <StatBox label="Total" value={data.total_incidents ?? '—'} />
         <StatBox label="Avg Resolution (h)" value={data.avg_resolution_seconds ? (data.avg_resolution_seconds / 3600).toFixed(1) : '—'} />
       </div>
-      {data.recurring_themes?.length > 0 && (
+      {(data.recurring_themes?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Recurring Themes</h5>
-          {data.recurring_themes.map((t: any) => (
+          {data.recurring_themes!.map((t) => (
             <div key={t.word} className={styles.themeRow}>
               <span>{t.word}</span>
               <span className={styles.themeCount}>{t.count}</span>
@@ -69,10 +91,10 @@ function PatternsView({ data }: { data: any }) {
           ))}
         </>
       )}
-      {data.hot_runs?.length > 0 && (
+      {(data.hot_runs?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Hot Runs</h5>
-          {data.hot_runs.map((r: any) => (
+          {data.hot_runs!.map((r) => (
             <div key={r.run_id} className={styles.hotRunRow}>
               <span className={styles.hotRunId}>{r.run_id}</span>
               <span>{r.incident_count} incidents</span>
@@ -80,33 +102,42 @@ function PatternsView({ data }: { data: any }) {
           ))}
         </>
       )}
-      {Object.keys(data.severity_distribution || {}).length > 0 && (
+      {Object.keys(data.severity_distribution ?? {}).length > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Severity</h5>
-          {Object.entries(data.severity_distribution).map(([k, v]: [string, any]) => (
-            <DistRow key={k} band={k} count={v} />
-          ))}
+          {(() => {
+            const dist = data.severity_distribution!
+            const maxSev = Math.max(1, ...Object.values(dist))
+            return Object.entries(dist).map(([k, v]) => (
+              <DistRow key={k} band={k} count={v} max={maxSev} />
+            ))
+          })()}
         </>
       )}
     </>
   )
 }
 
-function EvolutionView({ data }: { data: any }) {
+function EvolutionView({ data: _data }: { data: InsightData }) {
+  const data = _data as {
+    snapshot_count?: number
+    trajectories?: Record<string, unknown>
+    velocities?: Velocity[]
+  }
   return (
     <>
       <div className={styles.statGrid}>
-        <StatBox label="Snapshots" value={data.snapshot_count} />
-        <StatBox label="Types" value={Object.keys(data.trajectories || {}).length} />
+        <StatBox label="Snapshots" value={data.snapshot_count ?? '—'} />
+        <StatBox label="Types" value={Object.keys(data.trajectories ?? {}).length} />
       </div>
-      {data.velocities?.length > 0 && (
+      {(data.velocities?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Trust Velocity</h5>
-          {data.velocities.map((v: any) => (
-            <div key={v.type} className={`${styles.velocityRow} ${styles[v.direction] || ''}`}>
+          {data.velocities!.map((v) => (
+            <div key={v.type} className={`${styles.velocityRow} ${styles[v.direction] ?? ''}`}>
               <span className={styles.velType}>{v.type}</span>
               <span className={styles.velDelta}>{v.delta > 0 ? '+' : ''}{v.delta}</span>
-              <span className={`${styles.velBadge} ${styles[`badge${v.direction}`] || ''}`}>{v.direction}</span>
+              <span className={`${styles.velBadge} ${styles[`badge${v.direction}`] ?? ''}`}>{v.direction}</span>
             </div>
           ))}
         </>
@@ -115,29 +146,36 @@ function EvolutionView({ data }: { data: any }) {
   )
 }
 
-function WorkflowsView({ data }: { data: any }) {
+function WorkflowsView({ data: _data }: { data: InsightData }) {
+  const data = _data as {
+    total_investigations?: number
+    resolved_count?: number
+    resolution_rate?: number
+    common_sequences?: Sequence[]
+    top_actions?: ActionCount[]
+  }
   return (
     <>
       <div className={styles.statGrid}>
-        <StatBox label="Total" value={data.total_investigations} />
-        <StatBox label="Resolved" value={data.resolved_count} />
-        <StatBox label="Rate" value={`${Math.round((data.resolution_rate || 0) * 100)}%`} />
+        <StatBox label="Total" value={data.total_investigations ?? '—'} />
+        <StatBox label="Resolved" value={data.resolved_count ?? '—'} />
+        <StatBox label="Rate" value={`${Math.round((data.resolution_rate ?? 0) * 100)}%`} />
       </div>
-      {data.common_sequences?.length > 0 && (
+      {(data.common_sequences?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Common Resolution Paths</h5>
-          {data.common_sequences.map((s: any, i: number) => (
-            <div key={i} className={styles.sequenceRow}>
+          {data.common_sequences!.map((s) => (
+            <div key={s.sequence} className={styles.sequenceRow}>
               <span className={styles.seqText}>{s.sequence}</span>
               <span className={styles.seqCount}>{s.count}x</span>
             </div>
           ))}
         </>
       )}
-      {data.top_actions?.length > 0 && (
+      {(data.top_actions?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Top Actions</h5>
-          {data.top_actions.map((a: any) => (
+          {data.top_actions!.map((a) => (
             <div key={a.type} className={styles.actionRow}>
               <span>{a.type}</span>
               <span className={styles.actionCount}>{a.count}</span>
@@ -149,14 +187,18 @@ function WorkflowsView({ data }: { data: any }) {
   )
 }
 
-function ClustersView({ data }: { data: any }) {
+function ClustersView({ data: _data }: { data: InsightData }) {
+  const data = _data as {
+    incident_clusters?: IncidentCluster[]
+    recommendation_category_counts?: Record<string, number>
+  }
   return (
     <>
-      {data.incident_clusters?.length > 0 && (
+      {(data.incident_clusters?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Incident Clusters</h5>
-          {data.incident_clusters.map((c: any, i: number) => (
-            <div key={i} className={styles.clusterRow}>
+          {data.incident_clusters!.map((c) => (
+            <div key={`${c.incident_a}↔${c.incident_b}`} className={styles.clusterRow}>
               <span className={styles.clusterId}>{c.incident_a}</span>
               <span>↔</span>
               <span className={styles.clusterId}>{c.incident_b}</span>
@@ -165,29 +207,39 @@ function ClustersView({ data }: { data: any }) {
           ))}
         </>
       )}
-      {Object.keys(data.recommendation_category_counts || {}).length > 0 && (
+      {Object.keys(data.recommendation_category_counts ?? {}).length > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Recommendation Categories</h5>
-          {Object.entries(data.recommendation_category_counts).map(([k, v]: [string, any]) => (
-            <DistRow key={k} band={k} count={v} />
-          ))}
+          {(() => {
+            const counts = data.recommendation_category_counts!
+            const maxCat = Math.max(1, ...Object.values(counts))
+            return Object.entries(counts).map(([k, v]) => (
+              <DistRow key={k} band={k} count={v} max={maxCat} />
+            ))
+          })()}
         </>
       )}
     </>
   )
 }
 
-function OperatorView({ data }: { data: any }) {
+function OperatorView({ data: _data }: { data: InsightData }) {
+  const data = _data as {
+    total_resolved?: number
+    total_unresolved?: number
+    action_lift?: ActionLift[]
+    fastest_resolution_paths?: ResolutionPath[]
+  }
   return (
     <>
       <div className={styles.statGrid}>
-        <StatBox label="Resolved" value={data.total_resolved} />
-        <StatBox label="Unresolved" value={data.total_unresolved} />
+        <StatBox label="Resolved" value={data.total_resolved ?? '—'} />
+        <StatBox label="Unresolved" value={data.total_unresolved ?? '—'} />
       </div>
-      {data.action_lift?.length > 0 && (
+      {(data.action_lift?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Action Lift (Resolved vs Unresolved)</h5>
-          {data.action_lift.map((a: any) => (
+          {data.action_lift!.map((a) => (
             <div key={a.action} className={styles.liftRow}>
               <span>{a.action}</span>
               <span className={styles.liftValue}>lift {a.lift}x</span>
@@ -196,10 +248,10 @@ function OperatorView({ data }: { data: any }) {
           ))}
         </>
       )}
-      {data.fastest_resolution_paths?.length > 0 && (
+      {(data.fastest_resolution_paths?.length ?? 0) > 0 && (
         <>
           <h5 className={styles.sectionTitle}>Fastest Resolution Starts</h5>
-          {data.fastest_resolution_paths.map((p: any) => (
+          {data.fastest_resolution_paths!.map((p) => (
             <div key={p.first_action} className={styles.fastRow}>
               <span>{p.first_action}</span>
               <span className={styles.fastTime}>{(p.avg_seconds / 60).toFixed(0)} min avg</span>
@@ -221,12 +273,12 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function DistRow({ band, count }: { band: string; count: number }) {
+function DistRow({ band, count, max }: { band: string; count: number; max: number }) {
   return (
     <div className={styles.distRow}>
-      <span className={styles.distLabel}>{band.replace('_', ' ')}</span>
+      <span className={styles.distLabel}>{band.replaceAll('_', ' ')}</span>
       <div className={styles.distBarWrap}>
-        <div className={styles.distBar} style={{ width: `${Math.min(100, count * 20)}%` }} />
+        <div className={styles.distBar} style={{ width: `${Math.round((count / Math.max(1, max)) * 100)}%` }} />
       </div>
       <span className={styles.distCount}>{count}</span>
     </div>

@@ -49,7 +49,7 @@ function Bar({ rate }: { rate: number }) {
   const pct = Math.round(rate * 100)
   return (
     <div className={styles.barTrack}>
-      <div className={styles.barFill} data-width={pct} />
+      <div className={styles.barFill} style={{ width: `${pct}%` }} />
     </div>
   )
 }

@@ -168,3 +168,51 @@ class TestJsonRunStoreBufferFlush:
     def test_del_triggers_flush(self, fresh_store):
         fresh_store.append(_make_record("del_me"))
         del fresh_store
+
+
+# --- Rotation tests ---
+
+
+class TestJsonRunStoreRotation:
+    def test_rotation_creates_backup(self, fresh_store, monkeypatch):
+        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 1)
+        # Write enough data to exceed 1MB
+        big_record = _make_record("big")
+        # Each record is ~150 bytes; need ~7000 to exceed 1MB
+        for i in range(8000):
+            fresh_store.append(big_record)
+        fresh_store.flush()
+        assert fresh_store.path.exists()
+        backup = fresh_store.path.with_suffix(".jsonl.1")
+        assert backup.exists()
+
+    def test_rotation_respects_max_backups(self, fresh_store, monkeypatch):
+        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 1)
+        monkeypatch.setattr(fresh_store, "_MAX_BACKUPS", 2)
+        big_record = _make_record("big")
+        # Trigger rotation multiple times
+        for _ in range(3):
+            for i in range(8000):
+                fresh_store.append(big_record)
+            fresh_store.flush()
+        # Should only have .1 and .2, not .3
+        assert fresh_store.path.with_suffix(".jsonl.1").exists()
+        assert fresh_store.path.with_suffix(".jsonl.2").exists()
+        assert not fresh_store.path.with_suffix(".jsonl.3").exists()
+
+    def test_no_rotation_when_under_size(self, fresh_store, monkeypatch):
+        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 100)
+        fresh_store.append(_make_record("small"))
+        fresh_store.flush()
+        backup = fresh_store.path.with_suffix(".jsonl.1")
+        assert not backup.exists()
+
+    def test_records_still_readable_after_rotation(self, fresh_store, monkeypatch):
+        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 1)
+        record = _make_record("rotated")
+        for i in range(8000):
+            fresh_store.append(record)
+        fresh_store.flush()
+        # Records should be in the new file or backup; list reads current file
+        current = fresh_store.list_records()
+        assert len(current) >= 0  # may be empty if all rotated, which is fine

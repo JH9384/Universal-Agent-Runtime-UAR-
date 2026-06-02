@@ -4,8 +4,10 @@ Provides common validation functions used across multiple modules
 to reduce code duplication and ensure consistent validation logic.
 """
 
+import ipaddress
 import re
 from typing import Any, Optional, List
+from urllib.parse import urlparse
 from .exceptions import ValidationError
 
 
@@ -170,7 +172,7 @@ def validate_email(email: str, field_name: str = "email") -> str:
 
 
 def validate_url(url: str, field_name: str = "url") -> str:
-    """Validate a URL.
+    """Validate a URL and block private/reserved IP addresses (SSRF prevention).
 
     Args:
         url: URL to validate
@@ -180,7 +182,7 @@ def validate_url(url: str, field_name: str = "url") -> str:
         Validated URL
 
     Raises:
-        ValidationError: If validation fails
+        ValidationError: If validation fails or URL points to private IP
     """
     url_pattern = re.compile(
         r"^https?://"  # http:// or https://
@@ -196,5 +198,24 @@ def validate_url(url: str, field_name: str = "url") -> str:
         raise ValidationError(
             f"{field_name} must be a valid URL", field=field_name
         )
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    if hostname.lower() == "localhost":
+        raise ValidationError(
+            f"{field_name} must not point to localhost", field=field_name
+        )
+
+    # Block private/reserved IP addresses
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local or addr.is_multicast:
+            raise ValidationError(
+                f"{field_name} must not point to private/reserved IP addresses",
+                field=field_name,
+            )
+    except ValueError:
+        # Not an IP address — hostname is fine
+        pass
 
     return url

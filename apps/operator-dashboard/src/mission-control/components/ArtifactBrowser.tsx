@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
+import type { RunRecord } from "../../api/client";
 
-export interface ArtifactRecord {
-  id: string;
-  title: string;
-  category: string;
-}
+type StatusFilter = "all" | "completed" | "failed" | "running" | "pending";
+
+const STATUS_COLOR: Record<string, string> = {
+  completed: "#22c55e",
+  running: "#3b82f6",
+  failed: "#ef4444",
+  pending: "#f59e0b",
+};
 
 export function ArtifactBrowser() {
-  const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([]);
+  const [runs, setRuns] = useState<RunRecord[]>([]);
+  const [filter, setFilter] = useState<StatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,14 +22,9 @@ export function ArtifactBrowser() {
     const fetchData = () => {
       api
         .listRuns()
-        .then((runs) => {
+        .then((data) => {
           if (!mounted) return;
-          const mapped: ArtifactRecord[] = runs.map((r) => ({
-            id: r.run_id,
-            title: `Run ${r.run_id.slice(0, 8)}`,
-            category: r.status || "unknown",
-          }));
-          setArtifacts(mapped);
+          setRuns(data);
           setError(null);
         })
         .catch((err) => {
@@ -36,19 +36,21 @@ export function ArtifactBrowser() {
         });
     };
     fetchData();
-    const id = setInterval(fetchData, 5000);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
+    const id = setInterval(fetchData, 10_000);
+    return () => { mounted = false; clearInterval(id); };
   }, []);
+
+  const visible = filter === "all" ? runs : runs.filter((r) => r.status === filter);
+
+  const counts = runs.reduce<Record<string, number>>((acc, r) => {
+    acc[r.status] = (acc[r.status] ?? 0) + 1;
+    return acc;
+  }, {});
 
   if (loading) {
     return (
       <section aria-label="Artifact browser" className="mission-panel">
-        <header>
-          <h2>Artifacts</h2>
-        </header>
+        <header><h2>Artifacts</h2></header>
         <p>Loading...</p>
       </section>
     );
@@ -57,28 +59,62 @@ export function ArtifactBrowser() {
   if (error) {
     return (
       <section aria-label="Artifact browser" className="mission-panel">
-        <header>
-          <h2>Artifacts</h2>
-        </header>
+        <header><h2>Artifacts</h2></header>
         <p className="error">{error}</p>
       </section>
     );
   }
 
+  const FILTERS: StatusFilter[] = ["all", "completed", "failed", "running", "pending"];
+
   return (
     <section aria-label="Artifact browser" className="mission-panel">
       <header>
         <h2>Artifacts</h2>
-        <span>{artifacts.length} records</span>
+        <span>{visible.length} / {runs.length} records</span>
       </header>
 
+      <div className="mc-filter-bar">
+        {FILTERS.map((f) => {
+          const active = filter === f;
+          const color = f === "all" ? "#66fcf1" : (STATUS_COLOR[f] ?? "#94a3b8");
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={active ? "mc-filter-btn mc-filter-btn--active" : "mc-filter-btn"}
+              style={{
+                "--mc-color": active ? "#0b0c10" : color,
+                "--mc-bg": active ? color : "#0b0c10",
+                "--mc-border": active ? color : "#1f2833",
+              } as import("react").CSSProperties}
+              aria-pressed={active ? "true" : "false"}
+            >
+              {f}{f !== "all" && counts[f] ? ` (${counts[f]})` : f === "all" ? ` (${runs.length})` : ""}
+            </button>
+          );
+        })}
+      </div>
+
       <ul>
-        {artifacts.map((artifact) => (
-          <li key={artifact.id}>
-            <strong>{artifact.title}</strong>
-            <div>{artifact.category}</div>
-          </li>
-        ))}
+        {visible.map((r) => {
+          const color = STATUS_COLOR[r.status] ?? "#94a3b8";
+          return (
+            <li key={r.run_id} style={{ "--mc-status-color": color } as import("react").CSSProperties}>
+              <div className="mc-row mc-row--sm-gap">
+                <span className="mc-dot mc-dot--sm" />
+                <code className="mc-run-id">{r.run_id}</code>
+                <span className="mc-status-badge">{r.status}</span>
+              </div>
+              {r.skills && r.skills.length > 0 && (
+                <div className="mc-skills">{r.skills.join(", ")}</div>
+              )}
+            </li>
+          );
+        })}
+        {visible.length === 0 && (
+          <li className="mc-meta--muted">No records match this filter.</li>
+        )}
       </ul>
     </section>
   );

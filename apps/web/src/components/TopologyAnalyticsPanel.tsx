@@ -35,7 +35,7 @@ function RateBar({ rate }: { rate: number }) {
     <div className={styles.rateTrack}>
       <div
         className={styles.rateFill}
-        data-width={pct}
+        style={{ width: `${pct}%` }}
       />
     </div>
   )

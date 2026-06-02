@@ -4,19 +4,94 @@ All notable changes to Universal Agent Runtime are documented here.
 
 This project uses semantic versioning for release tags.
 
-## [Unreleased] — Trust Spine Hardening Phase
+## [Unreleased] — Ω-7B.1 Operational Validation
 
-Phase transition: 2026-05-31
+Phase transition: 2026-06-01
 
-UAR has moved from Trust Spine Construction into Trust Spine
-Hardening. All six Trust Spine phases (T1–T6) are implemented.
-Remaining work is performance, persistence, and correctness hardening.
+UAR has entered the **Validation Phase**. Phases A–F and all Trust Spine
+phases (T1–T6) are complete. The system is classified as an
+**Operational Intelligence Platform**. No new components will be added
+until Ω-7B.1 exit criteria are met.
 
-### Hardening Backlog (open)
+**Feature Freeze: ACTIVE**
+**Learning Architecture Freeze v1: ACTIVE**
+
+See [docs/FREEZES_AND_LOCKS.md](docs/FREEZES_AND_LOCKS.md) for the canonical registry of all freezes, locks, and directional decisions.
+
+### Ω-7B.1 Validation Targets
+
+- Trust Distribution — natural spread across Highly Trusted / Trusted / Watch / Weak bands
+- Ranking Delta — cases where confidence and trust disagree
+- Outcome Correlation — Spearman ≥ 0.3 (minimum), ≥ 0.5 (preferred)
+- Drift Discovery — high-trust types showing negative drift
+
+Exit criteria: trust stability < 0.10 WoW, calibration stability < 0.05 WoW,
+ranking stability < 20% band changes weekly, resolution correlation ≥ 0.3.
+
+### Hardening Backlog (deferred, post-validation)
 
 - #85 Runtime Health Query Consolidation
 - #86 Burn-In Persistence Layer
 - #87 Certification Engine Refactor
+
+---
+
+## [1.2.0-operational-intelligence] — Operational Intelligence Platform Complete
+
+Date: 2026-06-01
+Commit: c9dbf25
+Test suite: 4322 passed, 13 skipped
+
+All six operational intelligence phases (A–F) are complete. UAR is now an
+end-to-end system: execution generates evidence, evidence establishes trust,
+trust drives operational intelligence, intelligence surfaces actionable
+operator insight.
+
+### Phase G — Operational Evidence Pack (Ω-G.5)
+
+- Security hardening for all operator workflow endpoints
+- Navigation refactor: operator dashboard restructured into cohesive sections
+- Router decomposition: `operator_workflows.py` split into 11 focused sub-routers
+  (`morning_briefing`, `trust_explorer`, `incident_workbench`, `knowledge_graph`,
+  `time_machine`, `topology`, `patterns`, `evolution`, `workflows`, `clusters`,
+  `intelligence`) for maintainability and testability
+- Operational evidence pack: structured evidence bundles for all major operator flows
+
+### Phase F — Insight Generation (Ω-Phase F, commit 30571a1)
+
+- Pattern Recognition: cross-run pattern extraction with frequency and confidence scoring
+- Evolution Tracking: longitudinal skill and recipe performance trends
+- Workflow Intelligence: automated workflow quality assessment and recommendations
+- Cluster Analysis: skill co-occurrence and performance cluster detection
+- Operational Intelligence: synthesized insight layer aggregating all Phase F outputs
+- 12 new API endpoints under `/api/uar/insights/`
+
+### Phase E — Operational Search & Investigation (Ω-Phase E, commit 82a29e8)
+
+- Operational Search: full-text and structured search across run history
+- Investigation Replay: step-through replay with contextual annotation
+- Graph Analytics: topology-aware analytics (bottleneck detection, critical path, fan-out)
+- 9 new API endpoints under `/api/uar/search/` and `/api/uar/graph/`
+
+### Phase D — Operational Analytics (Ω-T7, commits a083431, 5f7f8b3, b58b0d1)
+
+- Recommendation Inbox: actionable operator recommendations with trust-weighted ranking
+- Investigation Flow: guided incident investigation with evidence chain
+- Graph v2: enhanced topology visualization with trust overlay
+- Report Viewer: structured operational reports with evidence attachment
+- Operator Workflows: Morning Briefing, Trust Explorer, Incident Workbench,
+  Knowledge Graph Time Machine
+- Trust overlay: `ENABLE_TRUST_RANKING` flag; soft blend (0.7 confidence + 0.3 trust)
+- Alert persistence: alert state survives process restarts
+
+### Test Coverage
+
+- Expanded test suite from 3721 → 4322 tests (+601)
+- All Trust Spine regression tests passing
+- Bug fixes: E1 (executor coalesce lock), E2 (RISC-V `_enc_r` rs1 field),
+  E3 (RISC-V `_enc_s` bit-field overlap), S1 (sqlite_store writer exception isolation),
+  T1 (safe_utils traceback preservation), P1/P2 (postgres async column selection),
+  BD (batch deduplicator insertion order)
 
 ## [1.1.0-construction] — Trust Spine Construction Complete
 

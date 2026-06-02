@@ -184,3 +184,51 @@ class TestGetAuditLogger:
             logger1 = get_audit_logger()
             logger2 = get_audit_logger()
             assert logger1 is logger2
+
+
+# --- Rotation tests ---
+
+
+class TestAuditLoggerRotation:
+    def test_rotation_creates_backup(self, monkeypatch):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            logger = AuditLogger(path=path)
+            monkeypatch.setattr(logger, "_MAX_FILE_SIZE_MB", 1)
+            # Write enough data to exceed 1MB (~150 bytes per record * 7000)
+            for _ in range(8000):
+                logger.write(
+                    event_type="test", actor="a", action="GET",
+                    resource="/", outcome="success",
+                )
+            assert logger.path.exists()
+            backup = logger.path.with_suffix(".jsonl.1")
+            assert backup.exists()
+
+    def test_rotation_respects_max_backups(self, monkeypatch):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            logger = AuditLogger(path=path)
+            monkeypatch.setattr(logger, "_MAX_FILE_SIZE_MB", 1)
+            monkeypatch.setattr(logger, "_MAX_BACKUPS", 2)
+            for _ in range(3):
+                for _ in range(8000):
+                    logger.write(
+                        event_type="test", actor="a", action="GET",
+                        resource="/", outcome="success",
+                    )
+            assert logger.path.with_suffix(".jsonl.1").exists()
+            assert logger.path.with_suffix(".jsonl.2").exists()
+            assert not logger.path.with_suffix(".jsonl.3").exists()
+
+    def test_no_rotation_when_under_size(self, monkeypatch):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            logger = AuditLogger(path=path)
+            monkeypatch.setattr(logger, "_MAX_FILE_SIZE_MB", 100)
+            logger.write(
+                event_type="test", actor="a", action="GET",
+                resource="/", outcome="success",
+            )
+            backup = logger.path.with_suffix(".jsonl.1")
+            assert not backup.exists()

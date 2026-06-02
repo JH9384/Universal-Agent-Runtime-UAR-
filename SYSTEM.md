@@ -2,43 +2,55 @@
 
 ## Status
 
-UAR is in the **v1.1 Trust Release** phase.
+UAR is in the **v1.2 Operational Intelligence Platform** phase.
 
-The runtime foundation is complete. The current mission is trustworthiness, not capability expansion.
+The Trust Spine is complete. All six phases (T1–T6) are operational.
+The current mission is **Ω-7B.1 Operational Validation** — proving that
+trust metrics behave correctly with real operational data.
 
 ```text
-Execution -> Evidence -> Trust -> Operations
+Execution -> Evidence -> Trust -> Operations -> Analytics -> Search -> Insight
 ```
 
-Execution generates evidence. Evidence establishes trust. Trust supports operations.
+Execution generates evidence. Evidence establishes trust. Trust drives operational
+intelligence. Intelligence surfaces actionable operator insight.
 
-### Trust Spine Priority Order
+### Trust Spine — Complete
 
-1. Replay Confidence — score what we can prove (#74)
-2. Runtime Health — report what is running (#83)
-3. Burn-In Framework — generate reliability evidence (#62)
-4. Certification Engine — convert evidence into trust artifacts (#57, #70)
-5. Mission Control — operator synthesis view (#72, #55)
-6. Replay Explorer — operator run inspection (#56)
+| Phase | Status |
+|-------|--------|
+| T1 Replay Confidence | Complete |
+| T2 Runtime Health | Complete |
+| T3 Burn-In Framework | Complete |
+| T4 Certification Engine | Complete |
+| T5 Mission Control | Complete |
+| T6 Replay Explorer | Complete |
 
-See [docs/TRUST_SPINE.md](docs/TRUST_SPINE.md) and [docs/V1_1_EXECUTION_PLAN.md](docs/V1_1_EXECUTION_PLAN.md).
+See [docs/TRUST_SPINE.md](docs/TRUST_SPINE.md) and [docs/operations/LEARNING_MODEL.md](docs/operations/LEARNING_MODEL.md).
 
 ## Production Posture
 
-Capability expansion is frozen until Trust Spine milestones are complete.
+**Feature Freeze: ACTIVE** — Ω-7B.1 Operational Validation in progress.
 
-Do not add new runtime capabilities, autonomy layers, or infrastructure expansions until the trust primitives are operational and documented.
+Do not add new runtime capabilities, autonomy layers, or infrastructure expansions
+until Ω-7B.1 exit criteria are met.
 
-Deferred until Trust Spine completion:
+Permitted during freeze:
 
-- parallel executor expansion
-- replay timeline UI
-- richer orchestration intelligence
-- advanced graph animation
-- production database backends beyond JSONL
-- marketplace systems
-- agent economy systems
-- workflow studio expansion
+- Bug fixes and correctness patches
+- Instrumentation additions
+- Documentation updates
+- Dashboard visualizations
+- Operational validation tooling
+
+Deferred until Ω-7B.1 exit:
+
+- New trust spine phases (none planned — spine is complete)
+- New learning logic (architecture frozen)
+- New operational intelligence layers (all 12 layers are complete)
+- Marketplace systems
+- Agent economy systems
+- Workflow studio expansion
 
 ## Versioning
 
@@ -115,22 +127,28 @@ L0 Contracts
   GoalSpec, StrategySpec, RunRecord, RuntimeEvent
 
 L1 Runtime Core
-  planner, executor, registry, replay validation
+  planner, executor, registry, skill registry, replay validation
 
 L2 Skills
-  section_sum, doc_ingest, dependency_map, sum_review
+  127+ registered skills: STEM, AI/LLM, document, hardware, crypto, blockchain
 
 L3 Memory
-  JSONL run persistence
+  SQLite (primary), Postgres (production), JSONL (legacy), Redis (cache)
 
 L4 Adapters
-  CLI, FastAPI /run, FastAPI /stream
+  CLI, FastAPI /run, FastAPI /stream, WebSocket, SSE, operator routers
 
 L5 UI Control Surface
-  React UARPanel, React Flow graph surface
+  React Operator Dashboard: mission control, replay explorer, topology, time machine
 
 L6 Validation / Governance
-  pytest, CI, conformance split, production checklist, release process
+  pytest (4322 tests), CI, conformance split, production checklist, release process
+
+L7 Trust Spine
+  replay confidence, runtime health, burn-in, certification, mission control, replay explorer
+
+L8 Operational Intelligence
+  analytics, search, knowledge graph, insight generation, trust-aware ranking
 ```
 
 ## Dependency Direction Rules
@@ -242,20 +260,49 @@ The event stream is primary. `RunRecord` is a derived durable artifact.
 
 ## API Surface
 
-Current foundation routes:
+### Runtime routes
 
 ```text
 POST /api/uar/run
 POST /api/uar/stream
 GET  /api/uar/runs
+GET  /api/uar/recipes
 ```
 
-Suggested external versioned routes for future public clients:
+### Trust Spine routes
 
 ```text
-POST /api/v1/uar/run
-POST /api/v1/uar/stream
-GET  /api/v1/uar/runs
+GET  /api/uar/replay_confidence/{run_id}
+GET  /api/uar/runtime_health
+GET  /api/uar/burn_in
+GET  /api/uar/certification
+GET  /api/uar/mission_control
+GET  /api/uar/replay
+```
+
+### Operational Intelligence routes
+
+```text
+GET  /api/uar/recommendations
+GET  /api/uar/recommendations/trust
+GET  /api/uar/recommendations/effectiveness
+GET  /api/uar/recommendations/quality
+GET  /api/uar/insights/patterns
+GET  /api/uar/insights/evolution
+GET  /api/uar/insights/clusters
+GET  /api/uar/insights/intelligence
+GET  /api/uar/search
+GET  /api/uar/graph
+GET  /api/uar/operator/*
+```
+
+### Health & metrics
+
+```text
+GET  /api/health/live
+GET  /api/health/ready
+GET  /api/health/dashboard
+GET  /api/metrics
 ```
 
 ## Streaming Contract
@@ -334,26 +381,32 @@ Production stance:
 
 ## Memory Scope
 
-Current persistence is append-only JSONL via `JsonRunStore`.
+Current persistence supports three backends:
+
+- **SQLite** (`SqliteRunStore`) — primary embedded store, writer thread + WAL
+- **Postgres** (`PostgresRunStore`) — production relational store with async support
+- **JSONL** (`JsonRunStore`) — lightweight flat-file, legacy path
+
+All stores implement the `BaseStore` interface.
 
 Appropriate for:
 
-- local development
-- debugging
-- replay validation
-- early audit logs
+- local development (SQLite)
+- production deployment (Postgres)
+- debugging and audit logs (JSONL)
+- replay validation (all backends)
+- complex querying (Postgres / SQLite)
+- concurrent writers (Postgres)
+- multi-user deployment (Postgres)
 
 Not yet appropriate for:
 
-- concurrent writers
-- multi-user deployment
-- transactional guarantees
-- complex querying
+- event sourcing at very high volume (needs sharding)
 
 Future upgrade path:
 
 ```text
-JsonRunStore -> SQLiteRunStore -> Postgres/Event Store
+SQLite / Postgres -> Event Store (optional, at volume)
 ```
 
 ## Validation Strategy
@@ -475,5 +528,8 @@ Release  blocked until production checklist is satisfied
 ## Guiding Rule
 
 ```text
-No more expansion until existing behavior is proven, documented, and releasable.
+The architecture is finally rich enough that the next improvements should come
+from observed behavior rather than design intuition.
+
+STOP BUILDING. START MEASURING.
 ```

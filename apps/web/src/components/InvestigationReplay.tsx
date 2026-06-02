@@ -7,7 +7,7 @@ interface Action {
   timestamp: number
   type: string
   description: string
-  data?: any
+  data?: Record<string, unknown>
 }
 
 interface Investigation {
@@ -35,25 +35,38 @@ export function InvestigationReplay({
   const [runId, setRunId] = useState('')
 
   const sessions = data ?? []
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const handleCreate = async () => {
-    await fetch('/api/uar/investigations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ title: title || 'Untitled', run_id: runId || undefined }),
-    })
-    setTitle('')
-    setRunId('')
-    window.location.reload()
+    setActionError(null)
+    try {
+      const res = await fetch('/api/uar/investigations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ title: title || 'Untitled', run_id: runId || undefined }),
+      })
+      if (!res.ok) throw new Error(`Create failed: ${res.status}`)
+      setTitle('')
+      setRunId('')
+      window.location.reload()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to start investigation')
+    }
   }
 
   const handleEnd = async (inv: Investigation) => {
-    await fetch(`/api/uar/investigations/${inv.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ status: 'closed', ended_at: Math.floor(Date.now() / 1000) }),
-    })
-    window.location.reload()
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/uar/investigations/${inv.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ status: 'closed', ended_at: Math.floor(Date.now() / 1000) }),
+      })
+      if (!res.ok) throw new Error(`End failed: ${res.status}`)
+      window.location.reload()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to end investigation')
+    }
   }
 
   return (
@@ -68,6 +81,7 @@ export function InvestigationReplay({
         <button className={styles.createBtn} onClick={handleCreate}>Start Investigation</button>
       </div>
 
+      {actionError && <div className={styles.error}>{actionError}</div>}
       {loading && <div className={styles.loading}>Loading…</div>}
       {error && <div className={styles.error}>{error}</div>}
 
@@ -100,8 +114,8 @@ export function InvestigationReplay({
               <div className={styles.replayPanel}>
                 <h5 className={styles.replayTitle}>Action Replay</h5>
                 {inv.actions.length === 0 && <div className={styles.noActions}>No actions recorded yet.</div>}
-                {inv.actions.map((a, i) => (
-                  <div key={i} className={styles.actionRow}>
+                {inv.actions.map((a) => (
+                  <div key={`${a.timestamp}-${a.type}`} className={styles.actionRow}>
                     <span className={styles.actionTime}>{new Date(a.timestamp * 1000).toLocaleTimeString()}</span>
                     <span className={styles.actionType}>{a.type}</span>
                     <span className={styles.actionDesc}>{a.description}</span>

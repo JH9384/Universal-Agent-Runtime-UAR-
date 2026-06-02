@@ -89,7 +89,7 @@
 |-----------|--------|-----|-----|--------|
 | Skill registration | `uar/core/registry.py` | `GET /api/uar/skills` | `SkillSelector` | ✅ |
 | Skill discovery | `uar/core/registry.py` | `GET /api/status` | `SkillGuide` | ✅ |
-| Health check | `uar/core/registry.py` | `GET /api/health/dashboard` | `HealthDashboard` | ✅ |
+| Health check | `uar/core/registry.py` | `GET /api/uar/mission-control` | `MissionControlWidget` | ✅ |
 
 ### 4.2 Skill Families (38+ registered)
 | Family | Examples | Module |
@@ -202,15 +202,16 @@
 |-----------|--------|-----|-----|--------|
 | Snapshot model | `uar/core/mission_control.py` | `GET /api/uar/mission-control` | **Missing** | 🔴 |
 | Runtime Health card | — | API | **Missing** | 🔴 |
-| Replay Confidence card | — | API | **Missing** | 🔴 |
-| Certification badge | — | API | **Missing** | 🔴 |
-| Burn-In status | — | API | **Missing** | 🔴 |
-| Active runs list | — | API | Partial (`runsHistory`) | 🟡 |
-| Alerts / Warnings | — | API | **Missing** | 🔴 |
+| Replay Confidence card | `uar/core/replay_confidence.py` | `GET /api/uar/runs/{id}/confidence` | `MissionControlWidget` | ✅ |
+| Certification badge | `uar/core/certification.py` | `GET /api/uar/certification` | `MissionControlWidget` | ✅ |
+| Burn-In status | `uar/testing/burnin/runner.py` | `GET /api/uar/burnin/latest` | `MissionControlWidget` | ✅ |
+| Active runs list | `uar/core/mission_control.py` | `GET /api/uar/mission-control` | `MissionControlWidget` | ✅ |
+| Alerts / Warnings | `uar/core/mission_control.py` | `GET /api/uar/mission-control` | `MissionControlWidget` | ✅ |
 
-**Note:** The only health UI is `HealthDashboard.tsx`, which uses the **legacy**
-`/api/health/dashboard` endpoint (skill availability + circuit breakers only).
-It does not display Trust Spine signals.
+**Note:** Trust Spine signals are now surfaced in `MissionControlWidget`, which
+consumes the unified `/api/uar/mission-control` endpoint. The legacy
+`HealthDashboard.tsx` and `/api/health/dashboard` endpoint have been removed
+from the main UI.
 
 ---
 
@@ -249,7 +250,7 @@ or execution planning (Runtime Core)? See `docs/audit/TOPOLOGY_CLARIFICATION.md`
 | Grafana dashboards | `deploy/grafana/` | — | — | ✅ |
 | Alertmanager | `observability/alertmanager.yml` | — | — | ✅ |
 | Loki logs | `observability/loki.yml` | — | — | ✅ |
-| Circuit breaker states | `uar/api/routers/health.py` | `/api/health/circuit-breakers` | `HealthDashboard` | ✅ |
+| Circuit breaker states | `uar/api/routers/health.py` | `/api/health/circuit-breakers` | `MissionControlWidget` | ✅ |
 
 ---
 

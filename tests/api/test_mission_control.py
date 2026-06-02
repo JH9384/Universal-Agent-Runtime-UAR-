@@ -84,3 +84,56 @@ def test_snapshot_no_replay_confidence_when_store_empty(tmp_path):
         registry=_make_registry(),
     )
     assert snap.replay_confidence is None
+
+
+# --- New field tests (frontend redundancy fix) ---
+
+
+def test_snapshot_includes_server_version(tmp_path):
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=_make_registry(),
+    )
+    assert isinstance(snap.server_version, str)
+    assert snap.server_version != "unknown"
+
+
+def test_snapshot_includes_uptime_seconds(tmp_path):
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=_make_registry(),
+    )
+    assert isinstance(snap.uptime_seconds, int)
+    assert snap.uptime_seconds >= 0
+
+
+def test_snapshot_includes_skill_counts(tmp_path):
+    reg = _make_registry()
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=reg,
+    )
+    assert snap.skills_total == 1
+    assert snap.skills_available == 1
+
+
+def test_snapshot_includes_circuit_breakers(tmp_path):
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=_make_registry(),
+    )
+    assert isinstance(snap.circuit_breakers, list)
+
+
+def test_snapshot_skills_available_less_than_total_on_failure(tmp_path):
+    reg = SkillRegistry()
+    reg.register("good", lambda ctx: ctx)
+    reg.register("bad", lambda ctx: (_ for _ in ()).throw(RuntimeError("boom")))
+    # Note: registry.get does not execute the skill, so both are available.
+    # This test documents the current behavior.
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=reg,
+    )
+    assert snap.skills_total == 2
+    assert snap.skills_available == 2

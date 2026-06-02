@@ -4418,3 +4418,77 @@ def test_runtime_health_rejects_no_auth(client: TestClient):
     """GET /api/uar/health/runtime without credentials must 401."""
     resp = client.get("/api/uar/health/runtime")
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Bug GJ1 — list_meta_keys missing from SqliteRunStore
+#
+# Discovered by the Golden Journey integration test (2026-06-01).
+# _load_all_incidents() in operator/common.py uses two retrieval strategies:
+#   1. list_meta_keys() — prefix scan over all metadata keys (correct)
+#   2. incident-0 … incident-99 integer probe (never matches UUID suffixes)
+# Without list_meta_keys(), every incident created via POST /incidents got a
+# UUID suffix (e.g. incident-8c23b564) that the integer probe could never
+# find, making GET /incidents/{id} and PUT /incidents/{id} silently 404 for
+# all real incidents.
+# ---------------------------------------------------------------------------
+
+
+def test_sqlite_list_meta_keys_returns_stored_keys(tmp_path):
+    """list_meta_keys() returns every key written via put_metadata."""
+    store = SqliteRunStore(path=str(tmp_path / "list_keys.db"))
+    try:
+        store.put_metadata(
+            "operator:incident:incident-abc123",
+            {"id": "incident-abc123"},
+        )
+        store.put_metadata(
+            "operator:incident:incident-def456",
+            {"id": "incident-def456"},
+        )
+        store.put_metadata("other:namespace:key", {"x": 1})
+        store.flush()
+
+        keys = store.list_meta_keys()
+        assert "operator:incident:incident-abc123" in keys
+        assert "operator:incident:incident-def456" in keys
+        assert "other:namespace:key" in keys
+    finally:
+        store.close()
+
+
+def test_sqlite_list_meta_keys_empty_on_fresh_store(tmp_path):
+    """list_meta_keys() returns an empty list on a fresh store."""
+    store = SqliteRunStore(path=str(tmp_path / "empty_keys.db"))
+    try:
+        keys = store.list_meta_keys()
+        assert keys == []
+    finally:
+        store.close()
+
+
+def test_sqlite_list_meta_keys_prefix_scan_finds_uuid_incidents(tmp_path):
+    """Regression: UUID-suffixed incident keys findable via prefix scan.
+
+    Before list_meta_keys was added, _load_all_incidents fell back to
+    probing incident-0 through incident-99, which never matched UUID
+    suffixes like incident-8c23b564.  This test confirms the fix works.
+    """
+    store = SqliteRunStore(path=str(tmp_path / "uuid_incident.db"))
+    try:
+        incident_id = "incident-8c23b564"
+        key = f"operator:incident:{incident_id}"
+        payload = {"id": incident_id, "title": "Test", "status": "open"}
+        store.put_metadata(key, payload)
+        store.flush()
+
+        keys = store.list_meta_keys()
+        assert key in keys, (
+            f"UUID-suffixed key {key!r} not returned by list_meta_keys; "
+            "incident retrieval would silently 404."
+        )
+
+        recovered = store.get_metadata(key)
+        assert recovered == payload
+    finally:
+        store.close()

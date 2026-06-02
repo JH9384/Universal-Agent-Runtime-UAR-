@@ -10,6 +10,8 @@ from __future__ import annotations
 import ast
 from typing import Any, Dict, Optional
 
+from uar.core.exceptions import UARError, ErrorCode
+
 # Whitelist of AST node types that may appear in a safe expression.
 _ALLOWED_NODES = frozenset(
     {
@@ -90,8 +92,10 @@ _DISALLOWED_ATTRS = frozenset(
 )
 
 
-class SafeEvalError(Exception):
+class SafeEvalError(UARError):
     """Raised when an expression contains disallowed constructs."""
+
+    code = ErrorCode.VALIDATION
 
 
 class SafeEvalNodeError(SafeEvalError):

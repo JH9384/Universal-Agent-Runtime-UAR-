@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     UAR_API_URL?: string;
+    UAR_API_KEY?: string;
   }
 }
 
@@ -16,11 +17,22 @@ function getBaseUrl(): string {
   return DEFAULT_BASE_URL;
 }
 
+function getApiKey(): string {
+  if (typeof window !== "undefined" && window.UAR_API_KEY) {
+    return window.UAR_API_KEY;
+  }
+  return import.meta.env.VITE_API_KEY ?? "";
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getBaseUrl()}${path}`;
+  const apiKey = getApiKey();
+  const authHeader: Record<string, string> = apiKey
+    ? { "X-API-Key": apiKey }
+    : {};
   const response = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: { "Content-Type": "application/json", ...authHeader, ...(init?.headers as Record<string, string> ?? {}) },
   });
   if (!response.ok) {
     const text = await response.text();
@@ -44,7 +56,8 @@ export interface RunRecord {
   goal_id?: string;
   status: string;
   skills?: string[];
-  timestamp?: string;
+  timestamp?: number;
+  created_at?: number;
   user_id?: string;
 }
 

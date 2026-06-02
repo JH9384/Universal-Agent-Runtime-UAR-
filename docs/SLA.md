@@ -1,7 +1,7 @@
 # UAR Service Level Agreement (SLA)
 
-**Version:** 1.1.0  
-**Effective Date:** 2026-05-24  
+**Version:** 1.2.0  
+**Effective Date:** 2026-06-01  
 **Review Cycle:** Quarterly  
 
 ---

@@ -1,0 +1,277 @@
+"""Golden Journey Integration Test.
+
+Exercises the complete operator workflow in a single continuous sequence:
+
+  POST /run             → run completes, run_id captured
+  GET  /runs            → run appears in list
+  POST /incidents       → incident created, linked to run
+  GET  /incidents/:id   → incident retrievable by ID
+  POST /feedback        → operator accepts recommendation
+  POST /outcome         → outcome recorded as resolved
+  GET  /trust           → trust layer reflects the recorded outcome
+  PUT  /incidents/:id   → incident marked resolved
+  GET  /reports/trust-validation → report generates without error
+  GET  /runs + /incidents → system state remains consistent
+
+Each step asserts the API contract for that stage before advancing.
+Any failure identifies precisely which stage broke.
+
+Implementation note: incident persistence uses put_metadata/get_metadata
+which requires SqliteRunStore (JsonRunStore has no metadata layer).
+The fixture patches the shared store so the full roundtrip is exercised.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+from uar.api.server import app
+from uar.memory.sqlite_store import SqliteRunStore
+
+API_KEY = "dev-key-12345"
+AUTH_HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+
+@pytest.fixture()
+def journey_client(tmp_path, monkeypatch):
+    """TestClient backed by a real SqliteRunStore so metadata persists.
+
+    Routers that do ``from uar.api.server import store`` re-bind at import
+    time, so we patch the canonical location (uar.api.server.store) plus the
+    module-level ``store`` used by incident/reports routers that hold a
+    direct reference at import time via ``from uar.api.state import store``.
+    """
+    import uar.api.server as _server_mod
+    import uar.api.routers.operator.common as _common_mod
+    import uar.api.routers.operator.incidents as _inc_mod
+    import uar.api.routers.operator.reports as _rpt_mod
+
+    sqlite = SqliteRunStore(path=str(tmp_path / "golden_journey.db"))
+    monkeypatch.setattr(_server_mod, "store", sqlite)
+    monkeypatch.setattr(_common_mod, "store", sqlite)
+    monkeypatch.setattr(_inc_mod, "store", sqlite)
+    monkeypatch.setattr(_rpt_mod, "store", sqlite)
+
+    with patch.dict(
+        "uar.api.middleware.API_KEYS",
+        {API_KEY: {"user": "golden-journey-tester", "tier": "admin"}},
+        clear=True,
+    ):
+        yield TestClient(app)
+
+    try:
+        sqlite.close()
+    except Exception:
+        pass
+
+
+class TestGoldenJourney:
+    """One class, one logical journey. Methods are ordered by step number."""
+
+    # ------------------------------------------------------------------
+    # Step 1 — Submit a run and confirm it completes
+    # ------------------------------------------------------------------
+
+    def test_step1_run_completes(self, journey_client):
+        resp = journey_client.post(
+            "/api/uar/run",
+            json={"goal": "golden-journey-smoke-test"},
+            headers=AUTH_HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["status"] in ("completed", "partial", "error"), (
+            f"Unexpected run status: {data['status']}"
+        )
+        assert "run_id" in data, "run_id missing from run response"
+
+    # ------------------------------------------------------------------
+    # Step 2 — Verify the run appears in the run list
+    # ------------------------------------------------------------------
+
+    def test_step2_run_visible_in_list(self, journey_client):
+        run_resp = journey_client.post(
+            "/api/uar/run",
+            json={"goal": "golden-journey-list-check"},
+            headers=AUTH_HEADERS,
+        )
+        assert run_resp.status_code == 200, run_resp.text
+        run_id = run_resp.json()["run_id"]
+
+        resp = journey_client.get("/api/uar/runs", headers=AUTH_HEADERS)
+        assert resp.status_code == 200, resp.text
+        run_ids = [r.get("run_id", r.get("id", "")) for r in resp.json()]
+        assert run_id in run_ids, (
+            f"run_id {run_id!r} not found in /api/uar/runs"
+        )
+
+    # ------------------------------------------------------------------
+    # Step 3+4 — Create an incident and retrieve it by ID
+    # ------------------------------------------------------------------
+
+    def test_step3_incident_create_and_retrieve(self, journey_client):
+        run_resp = journey_client.post(
+            "/api/uar/run",
+            json={"goal": "golden-journey-incident-run"},
+            headers=AUTH_HEADERS,
+        )
+        assert run_resp.status_code == 200, run_resp.text
+        run_id = run_resp.json()["run_id"]
+
+        create_resp = journey_client.post(
+            "/api/uar/incidents",
+            json={
+                "title": "Golden Journey Test Incident",
+                "description": "Auto-generated by golden journey test",
+                "severity": "low",
+                "status": "open",
+                "linked_run_ids": [run_id],
+            },
+            headers=AUTH_HEADERS,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        incident = create_resp.json()
+        assert "id" in incident, "incident id missing"
+        assert incident["status"] == "open"
+        assert run_id in incident.get("linked_run_ids", [])
+
+        incident_id = incident["id"]
+        get_resp = journey_client.get(
+            f"/api/uar/incidents/{incident_id}", headers=AUTH_HEADERS
+        )
+        assert get_resp.status_code == 200, (
+            f"GET /incidents/{incident_id} returned {get_resp.status_code}: "
+            f"{get_resp.text}"
+        )
+        assert get_resp.json()["id"] == incident_id
+        assert get_resp.json()["title"] == "Golden Journey Test Incident"
+
+    # ------------------------------------------------------------------
+    # Step 5+6 — Accept a recommendation, record outcome as resolved
+    # ------------------------------------------------------------------
+
+    def test_step4_feedback_and_outcome(self, journey_client):
+        rec_id = "golden-journey-rec-001"
+
+        fb_resp = journey_client.post(
+            "/api/uar/recommendations/feedback",
+            json={
+                "recommendation_id": rec_id,
+                "action": "accept",
+                "recommendation_type": "recurring_failure",
+                "confidence": 0.75,
+            },
+            headers=AUTH_HEADERS,
+        )
+        assert fb_resp.status_code == 200, fb_resp.text
+        assert fb_resp.json().get("ok") is True
+
+        out_resp = journey_client.post(
+            "/api/uar/recommendations/outcome",
+            json={
+                "recommendation_id": rec_id,
+                "outcome_type": "resolved",
+            },
+            headers=AUTH_HEADERS,
+        )
+        assert out_resp.status_code == 200, out_resp.text
+        out_data = out_resp.json()
+        assert out_data.get("ok") is True
+        assert "recorded_at" in out_data
+
+    # ------------------------------------------------------------------
+    # Step 7 — Trust layer is queryable
+    # ------------------------------------------------------------------
+
+    def test_step5_trust_layer_queryable(self, journey_client):
+        resp = journey_client.get(
+            "/api/uar/recommendations/trust", headers=AUTH_HEADERS
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert "recommendation_types" in data, (
+            "trust response missing recommendation_types"
+        )
+
+    # ------------------------------------------------------------------
+    # Step 8 — Full incident lifecycle: create → resolve → verify filtered
+    # ------------------------------------------------------------------
+
+    def test_step6_incident_full_lifecycle(self, journey_client):
+        create_resp = journey_client.post(
+            "/api/uar/incidents",
+            json={
+                "title": "Lifecycle Test Incident",
+                "severity": "medium",
+                "status": "open",
+            },
+            headers=AUTH_HEADERS,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        incident_id = create_resp.json()["id"]
+
+        resolve_resp = journey_client.put(
+            f"/api/uar/incidents/{incident_id}",
+            json={
+                "status": "resolved",
+                "resolution_notes": "Resolved via golden journey test",
+            },
+            headers=AUTH_HEADERS,
+        )
+        assert resolve_resp.status_code == 200, (
+            f"PUT /incidents/{incident_id} → {resolve_resp.status_code}: "
+            f"{resolve_resp.text}"
+        )
+        assert resolve_resp.json()["status"] == "resolved"
+        assert "golden journey" in resolve_resp.json().get(
+            "resolution_notes", ""
+        )
+
+        list_resp = journey_client.get(
+            "/api/uar/incidents?status=resolved", headers=AUTH_HEADERS
+        )
+        assert list_resp.status_code == 200, list_resp.text
+        resolved_ids = [i.get("id") for i in list_resp.json()]
+        assert incident_id in resolved_ids, (
+            f"Resolved incident {incident_id!r} absent from filtered list"
+        )
+
+    # ------------------------------------------------------------------
+    # Step 9 — Trust validation report generates without error
+    # ------------------------------------------------------------------
+
+    def test_step7_trust_validation_report(self, journey_client):
+        resp = journey_client.get(
+            "/api/uar/reports/trust-validation", headers=AUTH_HEADERS
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["report_type"] == "trust_validation"
+        assert "narrative" in data
+        assert "trust_distribution" in data
+        bands = data["trust_distribution"]
+        assert set(bands.keys()) == {
+            "highly_trusted",
+            "trusted",
+            "watch",
+            "weak",
+            "untrusted",
+        }
+
+    # ------------------------------------------------------------------
+    # Step 10 — System integrity: runs and incidents both queryable
+    # ------------------------------------------------------------------
+
+    def test_step8_system_integrity_after_journey(self, journey_client):
+        resp = journey_client.get("/api/uar/runs", headers=AUTH_HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert isinstance(resp.json(), list)
+
+        resp2 = journey_client.get(
+            "/api/uar/incidents", headers=AUTH_HEADERS
+        )
+        assert resp2.status_code == 200, resp2.text
+        assert isinstance(resp2.json(), list)

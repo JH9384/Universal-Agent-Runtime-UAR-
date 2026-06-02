@@ -78,23 +78,26 @@ export function GraphAnalytics({
           {Object.keys(data.trust_clusters).length > 0 && (
             <>
               <h5 className={styles.sectionTitle}>Trust Clusters</h5>
-              {Object.entries(data.trust_clusters).map(([band, count]) => (
-                <div key={band} className={styles.clusterRow}>
-                  <span className={styles.clusterLabel}>{band.replace('_', ' ')}</span>
-                  <div className={styles.clusterBarWrap}>
-                    <div className={styles.clusterBar} style={{ width: `${Math.min(100, count * 20)}%` }} />
+              {(() => {
+                const maxCluster = Math.max(1, ...Object.values(data.trust_clusters))
+                return Object.entries(data.trust_clusters).map(([band, count]) => (
+                  <div key={band} className={styles.clusterRow}>
+                    <span className={styles.clusterLabel}>{band.replaceAll('_', ' ')}</span>
+                    <div className={styles.clusterBarWrap}>
+                      <div className={styles.clusterBar} style={{ width: `${Math.round((count / maxCluster) * 100)}%` }} />
+                    </div>
+                    <span className={styles.clusterCount}>{count}</span>
                   </div>
-                  <span className={styles.clusterCount}>{count}</span>
-                </div>
-              ))}
+                ))
+              })()}
             </>
           )}
 
           {data.outcome_paths.length > 0 && (
             <>
               <h5 className={styles.sectionTitle}>Outcome Paths</h5>
-              {data.outcome_paths.map((p, i) => (
-                <div key={i} className={styles.pathRow}>
+              {data.outcome_paths.map((p) => (
+                <div key={`${p.recommendation}→${p.outcome}`} className={styles.pathRow}>
                   <span className={styles.pathRec}>{p.recommendation}</span>
                   <span className={styles.pathArrow}>→</span>
                   <span className={styles.pathOutcome}>{p.outcome}</span>

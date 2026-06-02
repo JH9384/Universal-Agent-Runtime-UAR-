@@ -21,6 +21,8 @@ import queue
 import resource
 from typing import Any, Dict, List
 
+from uar.core.exceptions import UARError, ErrorCode
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,8 +34,10 @@ MIN_MEMORY_MB = 32
 MAX_MEMORY_MB = 512
 
 
-class SandboxError(Exception):
+class SandboxError(UARError):
     """Raised when sandbox validation or execution fails."""
+
+    code = ErrorCode.VALIDATION
 
 
 ALLOWED_BUILTINS = {

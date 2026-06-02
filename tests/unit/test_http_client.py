@@ -10,6 +10,7 @@ from uar.core.http_client import (
     http_post,
     close_all_sessions,
 )
+from uar.core.exceptions import ValidationError
 
 
 @pytest.fixture(autouse=True)
@@ -225,3 +226,30 @@ async def test_http_post_max_retries_zero():
             m.return_value = FakeSession()
             with pytest.raises(RuntimeError, match="No attempts made"):
                 await http_post("http://example.com")
+
+
+# --- SSRF prevention tests ---
+
+
+@pytest.mark.asyncio
+async def test_http_get_blocks_private_ip():
+    with pytest.raises(ValidationError):
+        await http_get("http://192.168.1.1/internal")
+
+
+@pytest.mark.asyncio
+async def test_http_get_blocks_localhost():
+    with pytest.raises(ValidationError):
+        await http_get("http://localhost:8000/api")
+
+
+@pytest.mark.asyncio
+async def test_http_post_blocks_private_ip():
+    with pytest.raises(ValidationError):
+        await http_post("http://10.0.0.1/internal", json_data={})
+
+
+@pytest.mark.asyncio
+async def test_http_post_blocks_loopback():
+    with pytest.raises(ValidationError):
+        await http_post("http://127.0.0.1:8000/api", json_data={})

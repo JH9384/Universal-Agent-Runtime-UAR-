@@ -18,6 +18,7 @@ from uar.core.safe_eval import (
     safe_eval,
     safe_eval_with_numpy,
 )
+from uar.core.exceptions import UARError
 
 
 class TestAllowedExpressions:
@@ -203,7 +204,7 @@ class TestInternalHelpers:
         result = _disallowed_string_in(tree)
         assert result == "__class__"
 
-    def test_eval_slice_constant_index_wrapper(self):
+    def test_eval_slice_constant_wrapper(self):
         import ast
         from uar.core.safe_eval import _eval_slice_constant
 
@@ -226,3 +227,24 @@ class TestInvalidSyntax:
     def test_invalid_syntax_raises(self):
         with pytest.raises(SafeEvalError):
             safe_eval("1 + + +")
+
+
+# --- Exception hierarchy tests ---
+
+
+class TestSafeEvalExceptionHierarchy:
+    def test_safe_eval_error_is_uar_error(self):
+        exc = SafeEvalError("bad")
+        assert isinstance(exc, UARError)
+
+    def test_safe_eval_node_error_is_uar_error(self):
+        exc = SafeEvalNodeError("bad node")
+        assert isinstance(exc, UARError)
+
+    def test_safe_eval_name_error_is_uar_error(self):
+        exc = SafeEvalNameError("bad name")
+        assert isinstance(exc, UARError)
+
+    def test_safe_eval_attr_error_is_uar_error(self):
+        exc = SafeEvalAttrError("bad attr")
+        assert isinstance(exc, UARError)

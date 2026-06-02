@@ -72,7 +72,7 @@ export default function CollapsibleSection({
         tabIndex={0}
         onClick={toggle}
         onKeyDown={onKeyDown}
-        aria-expanded={!collapsed}
+        aria-expanded={!collapsed ? 'true' : 'false'}
         aria-controls={`section-${id}`}
       >
         <strong className={styles.collapsibleTitle}>{title}</strong>

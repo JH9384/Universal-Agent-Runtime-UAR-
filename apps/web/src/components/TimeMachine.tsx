@@ -32,12 +32,20 @@ export function TimeMachine({
 
   const { data: detail } = useApiFetch<Snapshot>(detailUrl)
 
+  const [actionError, setActionError] = useState<string | null>(null)
+
   const handleCapture = async () => {
-    await fetch('/api/uar/snapshots', {
-      method: 'POST',
-      headers: authHeaders(),
-    })
-    window.location.reload()
+    setActionError(null)
+    try {
+      const res = await fetch('/api/uar/snapshots', {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (!res.ok) throw new Error(`Snapshot failed: ${res.status}`)
+      window.location.reload()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Snapshot capture failed')
+    }
   }
 
   const list = snapshots ?? []
@@ -56,6 +64,7 @@ export function TimeMachine({
 
       {loading && <div className={styles.loading}>Loading snapshots…</div>}
       {error && <div className={styles.error}>{error}</div>}
+      {actionError && <div className={styles.error}>{actionError}</div>}
 
       {list.length > 0 && (
         <div className={styles.timeline}>

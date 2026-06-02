@@ -13,6 +13,7 @@ import { RecommendationPanel } from './RecommendationPanel'
 import { TrustTrendPanel } from './TrustTrendPanel'
 import { DivergenceDashboard } from './DivergenceDashboard'
 import { BurnInTimeline } from './BurnInTimeline'
+import { BurnInObservations } from './BurnInObservations'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -60,14 +61,11 @@ interface MissionControlSnapshot {
   recent_warnings: string[]
   timestamp: number
   trust_summary: TrustSummaryData | null
-}
-
-interface HealthDashboardData {
-  skills: { name: string; available: boolean; last_error?: string }[]
-  circuit_breakers: { name: string; state: string; failures?: number; threshold?: number }[]
-  recent_errors: string[]
   server_version: string
   uptime_seconds: number
+  skills_available: number
+  skills_total: number
+  circuit_breakers: { name: string; state: string; failures?: number; threshold?: number }[]
 }
 
 function tierColor(tier: string): string {
@@ -82,7 +80,6 @@ function tierColor(tier: string): string {
 
 function ScoreRing({ score, label, tier }: { score: number; label: string; tier: string }) {
   const colorClass = tierColor(tier)
-  const pct = Math.max(0, Math.min(100, score))
   return (
     <div className={styles.scoreRingCard}>
       <div className={`${styles.scoreRing} ${colorClass}`}>
@@ -113,13 +110,8 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
     { interval: 30_000 }
   )
 
-  const { data: health, loading: healthLoading, error: healthError } = useApiFetch<HealthDashboardData>(
-    '/api/health/dashboard',
-    { interval: 30_000 }
-  )
-
   const loading = mcLoading && !mc
-  const error = mcError || healthError
+  const error = mcError
 
   if (loading) return <div className={styles.loading}>Loading Mission Control…</div>
   if (error) return <div className={styles.error}>Mission Control failed: {error}</div>
@@ -129,9 +121,9 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
   const rc = mc.replay_confidence
   const cert = mc.certification
 
-  const availableCount = health?.skills.filter((s) => s.available).length ?? 0
-  const totalSkills = health?.skills.length ?? 0
-  const openBreakers = health?.circuit_breakers.filter((b) => b.state === 'open') ?? []
+  const availableCount = mc.skills_available
+  const totalSkills = mc.skills_total
+  const openBreakers = mc.circuit_breakers.filter((b) => b.state === 'open') ?? []
 
   return (
     <div className={styles.missionControl}>
@@ -265,6 +257,7 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
       {/* Evidence — drill down */}
       <div className={styles.sectionWrap}>
         <CollapsibleSection id="mc-evidence" title="Evidence" defaultOpen={false}>
+        <BurnInObservations />
         <BurnInTimeline />
         <DivergenceDashboard onOpenReplay={onOpenReplay} />
         <TrustTrendPanel />
@@ -295,9 +288,9 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
 
       {/* Footer */}
       <div className={styles.footer}>
-        <span className={styles.footerVersion}>{health?.server_version || 'UAR'}</span>
+        <span className={styles.footerVersion}>{mc.server_version || 'UAR'}</span>
         <span className={styles.footerUptime}>
-          Uptime: {health?.uptime_seconds ? formatUptime(health.uptime_seconds) : '—'}
+          Uptime: {mc.uptime_seconds ? formatUptime(mc.uptime_seconds) : '—'}
         </span>
       </div>
     </div>

@@ -18,16 +18,26 @@ export function RuntimeHealthPanel() {
         .healthDashboard()
         .then((data) => {
           if (!mounted) return;
-          const anyOpen = (data.circuit_breakers || []).some(
-            (cb) => cb.state === "open"
-          );
+          const cbs = data.circuit_breakers || [];
+          const skills = data.skills || [];
+          const openCount = cbs.filter((cb) => cb.state === "open").length;
+          const halfOpenCount = cbs.filter((cb) => cb.state === "half_open").length;
+          const totalCbs = cbs.length || 1;
+          const availableSkills = skills.filter((s) => s.available).length;
+          const totalSkills = skills.length || 1;
+          const pressure = openCount / totalCbs;
+          const oscillation = halfOpenCount / totalCbs;
+          const replayConfidence = availableSkills / totalSkills;
+          const starvation = skills.length > 0 && availableSkills === 0;
+          const healthy = openCount === 0 && !starvation;
+          const mode = openCount > 0 ? "degraded" : halfOpenCount > 0 ? "recovering" : starvation ? "starved" : "healthy";
           setHealth({
-            pressure: 0,
-            oscillation: 0,
-            replayConfidence: 1,
-            starvation: false,
-            mode: anyOpen ? "degraded" : "healthy",
-            healthy: !anyOpen,
+            pressure,
+            oscillation,
+            replayConfidence,
+            starvation,
+            mode,
+            healthy,
             emittedAt: Date.now(),
           });
           setError(null);

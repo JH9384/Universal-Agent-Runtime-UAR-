@@ -1,7 +1,7 @@
 # UAR Architecture
 
-**Version:** 1.1.0 (see `VERSION` file)  
-**Last Updated:** 2026-05-30
+**Version:** 1.2.0 (see `VERSION` file)  
+**Last Updated:** 2026-06-01
 
 ---
 
@@ -13,56 +13,133 @@ It consists of a Python backend (FastAPI + custom executor with 127 registered s
 
 ## 2. High-Level Architecture
 
+```mermaid
+graph TD
+    subgraph Client["Client Layer"]
+        C1[React Web<br/>Vite]
+        C2[curl / CLI]
+        C3[External Services<br/>UOR, Hologram]
+    end
+
+    subgraph API["API Layer (FastAPI)"]
+        A1[/api/uar/run<br/>/api/uar/stream/]
+        A2[/api/uar/stream/ws]
+        A3[/api/health/*<br/>/api/metrics<br/>/api/uar/recipes]
+        MW[Middleware Pipeline<br/>CORS → Rate Limit → Auth → Logging]
+    end
+
+    subgraph Core["Core Runtime Layer"]
+        P[Planner<br/>strategy]
+        E[Executor<br/>event loop]
+        R[Skill Registry<br/>dynamic lookup]
+        SE[Skill Execution Engine<br/>Sequential → Parallel → Retry → CB → Cache → Guardrails]
+    end
+
+    subgraph Persist["Persistence Layer"]
+        S1[JSONL / SQLite / Postgres<br/>run records]
+        S2[Audit Logger<br/>compliance]
+        S3[Cache<br/>Redis / in-mem]
+    end
+
+    subgraph Trust["Trust Spine"]
+        T1[Replay Confidence]
+        T2[Runtime Health]
+        T3[Burn-In Framework]
+        T4[Certification Engine]
+        T5[Mission Control]
+    end
+
+    subgraph Ops["Operational Intelligence"]
+        O1[Analytics]
+        O2[Search]
+        O3[Knowledge Graph]
+        O4[Insight Generation]
+    end
+
+    C1 -->|HTTP / WebSocket| A1
+    C2 -->|HTTP| A1
+    C3 -->|HTTP| A1
+    A1 --> MW
+    A2 --> MW
+    A3 --> MW
+    MW --> P
+    P --> E
+    E --> R
+    E --> SE
+    SE --> S1
+    SE --> S2
+    SE --> S3
+    S1 --> T1
+    S1 --> T2
+    T1 --> T3
+    T2 --> T3
+    T3 --> T4
+    T4 --> T5
+    T5 --> O1
+    O1 --> O2
+    O2 --> O3
+    O3 --> O4
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Client Layer                            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  React Web  │  │  curl / CLI │  │  External Services  │  │
-│  │    (Vite)   │  │             │  │  (UOR, Hologram...) │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘  │
-└─────────┼────────────────┼────────────────────┼─────────────┘
-          │                │                    │
-          └────────────────┼────────────────────┘
-                           │ HTTP / WebSocket
-┌──────────────────────────┼──────────────────────────────────┐
-│                      API Layer (FastAPI)                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  /api/uar/run │  │ /api/uar/    │  │ /api/health/*    │  │
-│  │  /api/uar/    │  │   stream/ws  │  │ /api/metrics     │  │
-│  │   stream      │  │              │  │ /api/uar/recipes │  │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬───────────┘  │
-│         │                 │                   │              │
-│         └─────────────────┼───────────────────┘              │
-│                           │                                  │
-│  ┌────────────────────────┼─────────────────────────────┐   │
-│  │              Middleware Pipeline                        │   │
-│  │  CORS → Rate Limit → Auth → Logging → Body Parsing      │   │
-│  └────────────────────────┼─────────────────────────────┘   │
-└──────────────────────────┼──────────────────────────────────┘
-                           │
-┌──────────────────────────┼──────────────────────────────────┐
-│                   Core Runtime Layer                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │   Planner    │  │   Executor   │  │  Skill Registry    │  │
-│  │  (strategy)  │  │ (event loop) │  │ (dynamic lookup)   │  │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬───────────┘  │
-│         │                 │                   │              │
-│         └─────────────────┼───────────────────┘              │
-│                           │                                  │
-│  ┌────────────────────────┼─────────────────────────────┐   │
-│  │              Skill Execution Engine                     │   │
-│  │  Sequential → Parallel → Retry → Circuit Breaker          │   │
-│  │  Cache → Guardrails → Output Validation → Metrics       │   │
-│  └────────────────────────┼─────────────────────────────┘   │
-└──────────────────────────┼──────────────────────────────────┘
-                           │
-┌──────────────────────────┼──────────────────────────────────┐
-│                   Persistence Layer                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ JSONL Store  │  │ Audit Logger │  │  Cache (optional)│  │
-│  │ (run records)│  │(compliance)  │  │  Redis / in-mem   │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
+
+### 2.1 Trust Spine Evidence Flow
+
+```mermaid
+graph LR
+    subgraph Evidence["Evidence Collection"]
+        R1[Replay<br/>Confidence]
+        R2[Runtime<br/>Health]
+        R3[Burn-In<br/>Framework]
+    end
+
+    subgraph Trust["Trust Formation"]
+        T1[Certification<br/>Engine]
+        T2[Trust<br/>Computation]
+    end
+
+    subgraph Operations["Operator Facing"]
+        O1[Mission<br/>Control]
+        O2[Replay<br/>Explorer]
+    end
+
+    R1 --> T1
+    R2 --> T1
+    R3 --> T1
+    T1 --> T2
+    T2 --> O1
+    T2 --> O2
+```
+
+### 2.2 Operational Intelligence Platform Layers
+
+```mermaid
+graph TD
+    subgraph L1["Foundation"]
+        A1[Runtime<br/>Execution, skills, streaming]
+        A2[Observability<br/>Health, metrics, Prometheus/Grafana]
+    end
+
+    subgraph L2["Learning & Evidence"]
+        B1[Learning<br/>Pattern recognition, feedback, quality]
+        B2[Evidence<br/>Replay confidence, UOR provenance]
+        B3[Trust<br/>Trust computation, trust-aware ranking]
+        B4[Validation<br/>Burn-in, certification, conformance]
+    end
+
+    subgraph L3["Operations"]
+        C1[Operations<br/>Mission control, replay explorer]
+        C2[Workflow<br/>Briefing, workbench, explorer]
+    end
+
+    subgraph L4["Intelligence"]
+        D1[Search<br/>Operational search, investigation replay]
+        D2[Knowledge Graph<br/>Topology, graph v2, time machine]
+        D3[Analytics<br/>Cross-run analytics, trust overlay]
+        D4[Insight Generation<br/>Patterns, evolution, clusters, intelligence]
+    end
+
+    L1 --> L2
+    L2 --> L3
+    L3 --> L4
 ```
 
 ## 3. Component Breakdown
@@ -324,30 +401,26 @@ class RunRecord:
 
 ### 7.2 Production (Docker Compose)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Nginx (reverse proxy)                  │
-│                    TLS termination, static files               │
-└──────────────────────┬────────────────────────────────────────┘
-                       │
-        ┌──────────────┼──────────────┐
-        │              │              │
-   ┌────▼────┐    ┌────▼────┐    ┌────▼────┐
-   │ UAR API │    │ UAR API │    │ UAR API │  ← Uvicorn workers
-   │  (8000) │    │  (8000) │    │  (8000) │     Gunicorn/Uvicorn
-   └────┬────┘    └────┬────┘    └────┬────┘
-        │              │              │
-        └──────────────┼──────────────┘
-                       │
-              ┌────────▼────────┐
-              │     Redis       │  ← Shared rate limits, skill cache
-              │   (optional)    │
-              └─────────────────┘
-                       │
-              ┌────────▼────────┐
-              │  JSONL / SQLite │  ← Run persistence
-              │   (mounted vol) │
-              └─────────────────┘
+```mermaid
+graph TD
+    Client[Client]
+    Nginx[Nginx<br/>TLS termination, static files]
+    UAR1[UAR API<br/>Worker 1 :8000]
+    UAR2[UAR API<br/>Worker 2 :8000]
+    UAR3[UAR API<br/>Worker 3 :8000]
+    Redis[Redis<br/>Shared rate limits + skill cache]
+    Store[JSONL / SQLite / Postgres<br/>Run persistence<br/>mounted volume]
+
+    Client -->|HTTPS| Nginx
+    Nginx -->|Proxy| UAR1
+    Nginx -->|Proxy| UAR2
+    Nginx -->|Proxy| UAR3
+    UAR1 --> Redis
+    UAR2 --> Redis
+    UAR3 --> Redis
+    UAR1 --> Store
+    UAR2 --> Store
+    UAR3 --> Store
 ```
 
 ## 8. Monitoring & Observability

@@ -16,9 +16,9 @@ from uar.api.middleware import auth_middleware, security, _is_dev_mode
 from uar.version import get_uar_version
 from uar.compat.uor_version import get_uor_version
 
-router = APIRouter()
+from uar.api.state import _uar_start_time
 
-_uar_start_time = time.time()
+router = APIRouter()
 
 
 @router.get("/api/health")

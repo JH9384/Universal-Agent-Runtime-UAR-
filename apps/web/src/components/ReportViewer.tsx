@@ -22,6 +22,25 @@ interface BurninReport {
   recommendation_growth: number | null
   latest_recommendation_count: number
   earliest_recommendation_count: number
+  summary?: {
+    cache_consistency_violations?: number | null
+    cache_consistency_violation_rate?: number | null
+    avg_cache_consistency_score?: number | null
+    metadata_key_count_end?: number | null
+    metadata_key_growth?: number | null
+    avg_metadata_scan_latency_ms?: number | null
+    snapshot_count_end?: number | null
+    snapshot_growth?: number | null
+    expected_snapshots?: number | null
+    avg_snapshot_retrieval_latency_ms?: number | null
+    avg_trust_report_duration_ms?: number | null
+    avg_burnin_report_duration_ms?: number | null
+    graph_node_count_end?: number | null
+    graph_edge_count_end?: number | null
+    avg_graph_generation_time_ms?: number | null
+  }
+  sample_count?: number
+  duration_hours?: number
 }
 
 export function ReportViewer() {
@@ -30,6 +49,10 @@ export function ReportViewer() {
     useApiFetch<TrustReport>('/api/uar/reports/trust-validation')
   const { data: burninData, loading: bL, error: bE } =
     useApiFetch<BurninReport>('/api/uar/reports/burnin-24h')
+
+  const maxDist = trustData
+    ? Math.max(1, ...Object.values(trustData.trust_distribution))
+    : 1
 
   return (
     <div className={styles.panel}>
@@ -55,7 +78,7 @@ export function ReportViewer() {
               </div>
               <h5 className={styles.sectionTitle}>Trust Distribution</h5>
               {Object.entries(trustData.trust_distribution).map(([band, count]) => (
-                <DistRow key={band} band={band} count={count} />
+                <DistRow key={band} band={band} count={count} max={maxDist} />
               ))}
               {trustData.drift_signals.length > 0 && (
                 <>
@@ -81,10 +104,41 @@ export function ReportViewer() {
             <>
               <div className={styles.narrative}>{burninData.narrative}</div>
               <div className={styles.statGrid}>
-                <StatBox label="Snapshots" value={burninData.snapshot_count} />
-                <StatBox label="Growth" value={burninData.recommendation_growth ?? '—'} />
-                <StatBox label="Latest Count" value={burninData.latest_recommendation_count} />
+                <StatBox label="Snapshots" value={burninData.summary?.snapshot_count_end ?? burninData.snapshot_count} />
+                <StatBox label="Samples" value={burninData.sample_count ?? '—'} />
+                <StatBox label="Duration" value={burninData.duration_hours != null ? `${burninData.duration_hours}h` : '—'} />
+                <StatBox label="Rec Growth" value={burninData.recommendation_growth ?? '—'} />
+                <StatBox label="Trust Stable" value={burninData.trust_stable == null ? '—' : burninData.trust_stable ? 'Yes' : 'No'} />
               </div>
+              {burninData.summary && (
+                <>
+                  <h5 className={styles.sectionTitle}>Cache Consistency</h5>
+                  <div className={styles.statGrid}>
+                    <StatBox label="Violations" value={burninData.summary.cache_consistency_violations ?? '—'} />
+                    <StatBox label="Rate" value={burninData.summary.cache_consistency_violation_rate != null ? `${(burninData.summary.cache_consistency_violation_rate * 100).toFixed(1)}%` : '—'} />
+                    <StatBox label="Avg Δ" value={burninData.summary.avg_cache_consistency_score?.toFixed(4) ?? '—'} />
+                  </div>
+                  <h5 className={styles.sectionTitle}>Metadata &amp; Snapshots</h5>
+                  <div className={styles.statGrid}>
+                    <StatBox label="Meta Keys" value={burninData.summary.metadata_key_count_end ?? '—'} />
+                    <StatBox label="Key Growth" value={burninData.summary.metadata_key_growth ?? '—'} />
+                    <StatBox label="Scan Avg" value={burninData.summary.avg_metadata_scan_latency_ms != null ? `${burninData.summary.avg_metadata_scan_latency_ms.toFixed(1)}ms` : '—'} />
+                    <StatBox label="Snap Growth" value={burninData.summary.snapshot_growth ?? '—'} />
+                    <StatBox label="Ret Avg" value={burninData.summary.avg_snapshot_retrieval_latency_ms != null ? `${burninData.summary.avg_snapshot_retrieval_latency_ms.toFixed(1)}ms` : '—'} />
+                  </div>
+                  <h5 className={styles.sectionTitle}>Report Timing</h5>
+                  <div className={styles.statGrid}>
+                    <StatBox label="Trust Avg" value={burninData.summary.avg_trust_report_duration_ms != null ? `${burninData.summary.avg_trust_report_duration_ms.toFixed(0)}ms` : '—'} />
+                    <StatBox label="Burn-In Avg" value={burninData.summary.avg_burnin_report_duration_ms != null ? `${burninData.summary.avg_burnin_report_duration_ms.toFixed(0)}ms` : '—'} />
+                  </div>
+                  <h5 className={styles.sectionTitle}>Knowledge Graph</h5>
+                  <div className={styles.statGrid}>
+                    <StatBox label="Nodes" value={burninData.summary.graph_node_count_end ?? '—'} />
+                    <StatBox label="Edges" value={burninData.summary.graph_edge_count_end ?? '—'} />
+                    <StatBox label="Gen Avg" value={burninData.summary.avg_graph_generation_time_ms != null ? `${burninData.summary.avg_graph_generation_time_ms.toFixed(0)}ms` : '—'} />
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -102,12 +156,12 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function DistRow({ band, count }: { band: string; count: number }) {
+function DistRow({ band, count, max }: { band: string; count: number; max: number }) {
   return (
     <div className={styles.distRow}>
-      <span className={styles.distLabel}>{band.replace('_', ' ')}</span>
+      <span className={styles.distLabel}>{band.replaceAll('_', ' ')}</span>
       <div className={styles.distBarWrap}>
-        <div className={styles.distBar} style={{ width: `${Math.min(100, count * 20)}%` }} />
+        <div className={styles.distBar} style={{ width: `${Math.round((count / max) * 100)}%` }} />
       </div>
       <span className={styles.distCount}>{count}</span>
     </div>

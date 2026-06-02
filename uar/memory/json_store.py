@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from uar.core.contracts import RunRecord
+from uar.core.json_utils import maybe_rotate_jsonl
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,12 @@ class JsonRunStore:
     _BATCH_SIZE = max(
         1, int(os.getenv("UAR_JSON_BATCH_SIZE", "1").strip() or "1")
     )
+    _MAX_FILE_SIZE_MB = max(
+        1, int(os.getenv("UAR_JSONL_MAX_SIZE_MB", "100").strip() or "100")
+    )
+    _MAX_BACKUPS = max(
+        1, int(os.getenv("UAR_JSONL_MAX_BACKUPS", "5").strip() or "5")
+    )
 
     def __init__(self, path: Optional[str] = None):
         # Use absolute path from environment or default to runs/ in project root  # noqa: E501
@@ -38,6 +45,14 @@ class JsonRunStore:
         self._lock_file = self.path.parent / ".uar_lock"
         self._thread_lock = threading.Lock()
         self._buffer: List[str] = []
+
+    def _maybe_rotate(self) -> None:
+        """Rotate the JSONL file if it exceeds the size limit."""
+        maybe_rotate_jsonl(
+            self.path,
+            max_size_mb=self._MAX_FILE_SIZE_MB,
+            max_backups=self._MAX_BACKUPS,
+        )
 
     @contextmanager
     def _acquire_lock(self, shared: bool = False):
@@ -68,6 +83,7 @@ class JsonRunStore:
         if not self._buffer:
             return
         with self._acquire_lock():
+            self._maybe_rotate()
             with self.path.open("a", encoding="utf-8") as f:
                 f.writelines(self._buffer)
                 f.flush()
@@ -249,6 +265,11 @@ class JsonRunStore:
             sort_keys=True,
         ) + "\n"
         with self._acquire_lock():
+            maybe_rotate_jsonl(
+                feedback_path,
+                max_size_mb=self._MAX_FILE_SIZE_MB,
+                max_backups=self._MAX_BACKUPS,
+            )
             with feedback_path.open("a", encoding="utf-8") as f:
                 f.write(entry)
                 f.flush()
@@ -306,6 +327,11 @@ class JsonRunStore:
             sort_keys=True,
         ) + "\n"
         with self._acquire_lock():
+            maybe_rotate_jsonl(
+                shown_path,
+                max_size_mb=self._MAX_FILE_SIZE_MB,
+                max_backups=self._MAX_BACKUPS,
+            )
             with shown_path.open("a", encoding="utf-8") as f:
                 f.write(entry)
                 f.flush()
@@ -361,6 +387,11 @@ class JsonRunStore:
             sort_keys=True,
         ) + "\n"
         with self._acquire_lock():
+            maybe_rotate_jsonl(
+                outcomes_path,
+                max_size_mb=self._MAX_FILE_SIZE_MB,
+                max_backups=self._MAX_BACKUPS,
+            )
             with outcomes_path.open("a", encoding="utf-8") as f:
                 f.write(entry)
                 f.flush()
@@ -420,6 +451,11 @@ class JsonRunStore:
             sort_keys=True,
         ) + "\n"
         with self._acquire_lock():
+            maybe_rotate_jsonl(
+                meta_path,
+                max_size_mb=self._MAX_FILE_SIZE_MB,
+                max_backups=self._MAX_BACKUPS,
+            )
             with meta_path.open("a", encoding="utf-8") as f:
                 f.write(entry)
                 f.flush()
