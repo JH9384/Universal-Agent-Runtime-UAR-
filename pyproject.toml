@@ -57,7 +57,7 @@ uor = [
   "dnspython>=2.4,<3.0",
   "pyshacl>=0.20,<1.0",
   "rdflib>=7.0,<8.0",
-  "blake3>=0.4,<1.0",
+  "blake3>=0.4,<2.0",
   "cryptography>=42.0,<43.0",
 ]
 # Sigstore signing for artifact provenance
