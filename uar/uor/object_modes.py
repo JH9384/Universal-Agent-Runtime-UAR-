@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
-    """Return a naive UTC datetime (no tzinfo)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    """Return an aware UTC datetime."""
+    return datetime.now(timezone.utc)
 
 
 class ObjectMode:

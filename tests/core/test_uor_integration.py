@@ -31,7 +31,8 @@ class TestUORObjectBranches:
     def test_compute_digest_exception(self):
         obj = UORObject(data="test")
         with patch(
-            "uar.core.uor_integration.json.dumps", side_effect=TypeError("bad")
+            "uar.uor.bounded_json.JsonValue.from_python",
+            side_effect=TypeError("bad"),
         ):
             digest = obj.compute_digest()
         assert digest is not None

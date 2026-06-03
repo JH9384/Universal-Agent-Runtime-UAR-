@@ -1,15 +1,62 @@
 """Tests for uar.skills.autonomi_storage."""
 
+import pytest
 from unittest.mock import MagicMock, patch
 
 from uar.skills.autonomi_storage import (
     _to_bool,
     _safe_filename,
     _resolve_input_path,
+    _wallet_and_payment,
     autonomi_upload,
     autonomi_download,
     autonomi_status,
 )
+
+
+class TestWalletAndPayment:
+    @pytest.fixture(autouse=True)
+    def _mock_autonomi_module(self):
+        """Provide a mock autonomi module since the real package is
+        optional."""
+        mock_mod = MagicMock()
+        mock_mod.Network = MagicMock()
+        mock_mod.PaymentOption = MagicMock()
+        mock_mod.Wallet = MagicMock()
+        with patch.dict("sys.modules", {"autonomi": mock_mod}):
+            yield
+
+    def test_rejects_empty_key_after_0x_strip(self):
+        """Regression: 0x alone strips to empty, must raise ValueError."""
+        import sys
+
+        Wallet = sys.modules["autonomi"].Wallet
+        with pytest.raises(ValueError, match="empty after stripping"):
+            _wallet_and_payment("0x", "testnet")
+        Wallet.new_from_private_key.assert_not_called()
+
+    def test_strips_0x_prefix_normally(self):
+        """Valid key with 0x prefix works after stripping."""
+        import sys
+
+        Wallet = sys.modules["autonomi"].Wallet
+        wallet = MagicMock()
+        Wallet.new_from_private_key.return_value = wallet
+        _wallet_and_payment("0xabc123", "testnet")
+        Wallet.new_from_private_key.assert_called_once()
+        _, actual_key = Wallet.new_from_private_key.call_args[0]
+        assert actual_key == "abc123"
+
+    def test_no_strip_for_plain_key(self):
+        """Key without 0x prefix is passed through unchanged."""
+        import sys
+
+        Wallet = sys.modules["autonomi"].Wallet
+        wallet = MagicMock()
+        Wallet.new_from_private_key.return_value = wallet
+        _wallet_and_payment("plainkey", "mainnet")
+        _, actual_key = Wallet.new_from_private_key.call_args[0]
+        assert actual_key == "plainkey"
 
 
 class TestToBool:

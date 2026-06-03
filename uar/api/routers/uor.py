@@ -50,7 +50,7 @@ from uar.objects import (
     register_runtime_object,
     workflow_run,
 )
-from uar.objects.alm_client import AtomicLanguageModelSkill
+from uar.objects.alm_client import ALM_SKILL
 from uar.objects.models import (
     AtomicLangModelAnalyzeReq,
     AtomicLangModelGenerateReq,
@@ -438,16 +438,14 @@ def post_delegation_plan(
 # ----------------------------------------------------------------------
 @router.post("/agents/atomic_lang_model/analyze")
 def post_alm_analyze(req: AtomicLangModelAnalyzeReq) -> Dict[str, Any]:
-    skill = AtomicLanguageModelSkill()
-    return skill.analyze_grammar(req.grammar_spec)
+    return ALM_SKILL.analyze_grammar(req.grammar_spec)
 
 
 @router.post("/agents/atomic_lang_model/generate")
 def post_alm_generate(
     req: AtomicLangModelGenerateReq,
 ) -> Dict[str, Any]:
-    skill = AtomicLanguageModelSkill()
-    generated: List[str] = skill.generate_sequence(req.prefix, req.count)
+    generated: List[str] = ALM_SKILL.generate_sequence(req.prefix, req.count)
     return {
         "generated": generated,
         "prefix": req.prefix,
@@ -457,8 +455,7 @@ def post_alm_generate(
 
 @router.post("/agents/atomic_lang_model/verify")
 def post_alm_verify(req: AtomicLangModelVerifyReq) -> Dict[str, Any]:
-    skill = AtomicLanguageModelSkill()
-    return skill.verify_syntax(req.text)
+    return ALM_SKILL.verify_syntax(req.text)
 
 
 # ----------------------------------------------------------------------

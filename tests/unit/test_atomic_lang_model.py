@@ -206,3 +206,84 @@ class TestAlmVerify:
             result = alm_verify(ctx)
         assert result["status"] == "completed"
         assert result["valid"] is True
+
+    def test_error_propagated(self):
+        ctx = MagicMock()
+        ctx.goal.metadata = {"text": "hello"}
+        with patch(
+            "uar.skills.atomic_lang_model._call_alm"
+        ) as mock_call:
+            mock_call.return_value = {
+                "status": "error",
+                "error": "conn fail",
+                "details": "details",
+            }
+            result = alm_verify(ctx)
+        assert result["status"] == "failed"
+        assert result["error"] == "conn fail"
+        assert result["details"] == "details"
+
+
+class TestEndpointMapping:
+    def test_analyze_maps_to_validate(self):
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"status": "ok"}
+        mock_client.post.return_value = mock_resp
+        with patch(
+            "uar.skills.atomic_lang_model._get_http_client"
+        ) as get_client:
+            get_client.return_value = mock_client
+            _call_alm("analyze", {"grammar_spec": "BNF"})
+        args, kwargs = mock_client.post.call_args
+        assert args[0].endswith("/validate")
+        assert kwargs["json"] == {"sentences": ["BNF"]}
+
+    def test_generate_maps_to_get_generate(self):
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"tokens": ["a"]}
+        mock_client.get.return_value = mock_resp
+        with patch(
+            "uar.skills.atomic_lang_model._get_http_client"
+        ) as get_client:
+            get_client.return_value = mock_client
+            _call_alm("generate", {"prefix": "hello", "count": 3})
+        args, kwargs = mock_client.get.call_args
+        assert args[0].endswith("/generate")
+        assert kwargs["params"] == {"count": 3, "prefix": "hello"}
+
+    def test_verify_maps_to_validate(self):
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"valid": True}
+        mock_client.post.return_value = mock_resp
+        with patch(
+            "uar.skills.atomic_lang_model._get_http_client"
+        ) as get_client:
+            get_client.return_value = mock_client
+            _call_alm("verify", {"text": "student left"})
+        args, kwargs = mock_client.post.call_args
+        assert args[0].endswith("/validate")
+        assert kwargs["json"] == {"sentences": ["student left"]}
+
+
+class TestGetHttpClientRobustness:
+    def test_invalid_timeout_env_uses_default(self):
+        with patch.dict("os.environ", {"ALM_TIMEOUT_SEC": "bad"}):
+            with patch(
+                "uar.skills.atomic_lang_model._http_client", None
+            ):
+                with patch(
+                    "uar.skills.atomic_lang_model.HTTPX_AVAILABLE", True
+                ):
+                    with patch(
+                        "uar.skills.atomic_lang_model.httpx"
+                    ) as mock_httpx:
+                        mock_client = MagicMock()
+                        mock_httpx.Client.return_value = mock_client
+                        client = _get_http_client()
+                        assert client is mock_client
+                        # Verify default timeout (30) was used
+                        call_kwargs = mock_httpx.Client.call_args.kwargs
+                        assert call_kwargs["timeout"] == 30.0

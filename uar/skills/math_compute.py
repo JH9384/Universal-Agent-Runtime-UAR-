@@ -23,14 +23,37 @@ from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.skill_utils import require_package, skill_guard
 
-# Configuration
-MATH_TIMEOUT = max(
-    1.0,
-    float(os.getenv("MATH_TIMEOUT_SECONDS", "30").strip() or "30"),
-)
-MAX_EXPRESSION_SIZE = max(
-    1, int(os.getenv("MATH_MAX_EXPRESSION_SIZE", "10000").strip() or "10000")
-)
+
+def _get_math_timeout() -> float:
+    try:
+        return max(
+            1.0,
+            float(
+                os.getenv("MATH_TIMEOUT_SECONDS", "30").strip() or "30"
+            ),
+        )
+    except (ValueError, TypeError):
+        return 30.0
+
+
+def _get_max_expression_size() -> int:
+    try:
+        return max(
+            1,
+            int(
+                os.getenv(
+                    "MATH_MAX_EXPRESSION_SIZE", "10000"
+                ).strip()
+                or "10000"
+            ),
+        )
+    except (ValueError, TypeError):
+        return 10000
+
+
+# Configuration (lazily evaluated to survive bad env vars)
+MATH_TIMEOUT = _get_math_timeout()
+MAX_EXPRESSION_SIZE = _get_max_expression_size()
 
 logger = logging.getLogger(__name__)
 

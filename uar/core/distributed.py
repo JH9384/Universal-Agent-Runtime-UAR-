@@ -18,17 +18,45 @@ from .registry import registry
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_POOL_SIZE = max(
-    1,
-    min(64, int(os.getenv("UAR_DISTRIBUTED_POOL_SIZE", "4").strip() or "4")),
-)
-DEFAULT_TIMEOUT = max(
-    1.0,
-    min(
-        300.0,
-        float(os.getenv("UAR_DISTRIBUTED_TIMEOUT", "30.0").strip() or "30.0"),
-    ),
-)
+
+def _get_default_pool_size() -> int:
+    try:
+        return max(
+            1,
+            min(
+                64,
+                int(
+                    os.getenv(
+                        "UAR_DISTRIBUTED_POOL_SIZE", "4"
+                    ).strip()
+                    or "4"
+                ),
+            ),
+        )
+    except (ValueError, TypeError):
+        return 4
+
+
+def _get_default_timeout() -> float:
+    try:
+        return max(
+            1.0,
+            min(
+                300.0,
+                float(
+                    os.getenv(
+                        "UAR_DISTRIBUTED_TIMEOUT", "30.0"
+                    ).strip()
+                    or "30.0"
+                ),
+            ),
+        )
+    except (ValueError, TypeError):
+        return 30.0
+
+
+DEFAULT_POOL_SIZE = _get_default_pool_size()
+DEFAULT_TIMEOUT = _get_default_timeout()
 
 
 @dataclass

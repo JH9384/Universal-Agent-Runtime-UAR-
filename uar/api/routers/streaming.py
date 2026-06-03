@@ -412,6 +412,8 @@ async def stream_goal_ws(websocket: WebSocket):
                     "request_id": request_id,
                 }
             )
+        except WebSocketDisconnect:
+            raise
         except Exception as e:
             logger.error(
                 "[%s] WebSocket error: %s",

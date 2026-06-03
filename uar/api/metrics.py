@@ -147,13 +147,19 @@ class MetricsCollector:
     """
 
     _REDIS_KEY = "uar:metrics:totals"
-    _FLUSH_INTERVAL = max(
-        0.1,
-        min(
-            300.0,
-            float(os.getenv("UAR_METRICS_FLUSH_SEC", "5.0").strip() or "5.0"),
-        ),
-    )
+    try:
+        _FLUSH_INTERVAL = max(
+            0.1,
+            min(
+                300.0,
+                float(
+                    os.getenv("UAR_METRICS_FLUSH_SEC", "5.0").strip()
+                    or "5.0"
+                ),
+            ),
+        )
+    except (ValueError, TypeError):
+        _FLUSH_INTERVAL = 5.0
     _WINDOW_ENABLED = (
         os.getenv("UAR_METRICS_WINDOW", "true").lower() == "true"
     )

@@ -45,7 +45,8 @@ def ensure_tag_matches_version(tag: str) -> None:
 
 
 def download(url: str) -> bytes:
-    with urlopen(url) as response:  # nosec: trusted GitHub HTTPS endpoint
+    # nosec: trusted GitHub HTTPS endpoint
+    with urlopen(url, timeout=60) as response:
         return response.read()
 
 

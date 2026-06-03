@@ -100,6 +100,22 @@ def with_circuit_breaker(
         cb = get_circuit_breaker(
             service_name, failure_threshold, recovery_timeout, half_open_max
         )
+        # Fail fast if an existing breaker was returned with different
+        # parameters — silently using the wrong thresholds is a bug.
+        if (
+            cb.failure_threshold != failure_threshold
+            or cb.recovery_timeout != recovery_timeout
+            or cb.half_open_max != half_open_max
+        ):
+            raise ValueError(
+                f"Circuit breaker {service_name!r} already exists with "
+                f"different parameters (threshold={cb.failure_threshold} "
+                f"timeout={cb.recovery_timeout} "
+                f"half_open={cb.half_open_max}); "
+                f"requested (threshold={failure_threshold} "
+                f"timeout={recovery_timeout} half_open={half_open_max}). "
+                f"Use the same parameters or a unique service name."
+            )
 
         if inspect.iscoroutinefunction(func):
             @wraps(func)

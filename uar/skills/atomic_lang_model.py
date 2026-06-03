@@ -48,12 +48,18 @@ def _get_http_client():
     if not HTTPX_AVAILABLE:
         return None
     if _http_client is None:
-        timeout = max(
-            1.0,
-            float(
-                os.getenv("ALM_TIMEOUT_SEC", "30").strip() or "30"
-            ),
-        )
+        try:
+            timeout = max(
+                1.0,
+                float(
+                    os.getenv("ALM_TIMEOUT_SEC", "30").strip() or "30"
+                ),
+            )
+        except (ValueError, TypeError):
+            logger.warning(
+                "Invalid ALM_TIMEOUT_SEC, using default 30"
+            )
+            timeout = 30.0
         limits = httpx.Limits(
             max_connections=10,
             max_keepalive_connections=5,
@@ -115,12 +121,38 @@ def _call_alm(
         return _mock_alm_response(endpoint, payload)
 
     base_url = _get_service_url(ctx)
-    url = f"{base_url}/{endpoint}"
 
-    logger.info("Calling ALM service at %s", url)
+    # Map pipeline endpoints to actual ALM service API
+    endpoint_map = {
+        "analyze": ("POST", f"{base_url}/validate"),
+        "generate": ("GET", f"{base_url}/generate"),
+        "verify": ("POST", f"{base_url}/validate"),
+    }
+    method, url = endpoint_map.get(
+        endpoint, ("POST", f"{base_url}/{endpoint}")
+    )
+
+    logger.info("Calling ALM service %s %s", method, url)
 
     try:
-        response = client.post(url, json=payload)
+        if method == "GET":
+            req_payload = payload.copy()
+            params = {}
+            if "count" in req_payload:
+                params["count"] = req_payload.pop("count")
+            if "prefix" in req_payload:
+                params["prefix"] = req_payload.pop("prefix")
+            if "text" in req_payload:
+                params["prefix"] = req_payload.pop("text")
+            response = client.get(url, params=params)
+        else:
+            if endpoint == "analyze":
+                req_body = {"sentences": [payload.get("grammar_spec", "")]}
+            elif endpoint == "verify":
+                req_body = {"sentences": [payload.get("text", "")]}
+            else:
+                req_body = payload
+            response = client.post(url, json=req_body)
         response.raise_for_status()
         return response.json()
     except httpx.HTTPStatusError as e:
@@ -256,6 +288,14 @@ def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     result = _call_alm("generate", {"prefix": prefix, "count": count}, ctx)
+    if result.get("status") == "error":
+        return {
+            "status": "failed",
+            "prefix": prefix,
+            "count": count,
+            "error": result.get("error", "ALM generation failed"),
+            "details": result.get("details"),
+        }
     return {
         "status": "completed",
         "prefix": prefix,
@@ -289,12 +329,17 @@ def alm_verify(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     result = _call_alm("verify", {"text": text}, ctx)
+    if result.get("status") == "error":
+        return {
+            "status": "failed",
+            "text": text,
+            "error": result.get("error", "ALM verification failed"),
+            "details": result.get("details"),
+        }
     return {
         "status": "completed",
         "text": text,
         "valid": result.get("valid", False),
         "proof_id": result.get("proof_id"),
         "notes": result.get("notes"),
-        "error": result.get("error"),
-        "details": result.get("details"),
     }

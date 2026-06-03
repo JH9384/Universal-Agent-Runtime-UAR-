@@ -355,6 +355,44 @@ class TestWrapperMetadata:
         assert my_async_skill.__name__ == "my_async_skill"
 
 
+class TestDecoratorParamMismatch:
+    def test_fails_fast_when_existing_cb_has_different_params(self):
+        """Regression: decorator must raise ValueError, not silently ignore.
+
+        Creating a CB with one set of thresholds and then decorating a
+        function with the same name but different thresholds used to silently
+        use the existing (wrong) thresholds. Now it fails fast at decoration
+        time so the mismatch is caught immediately.
+        """
+        # Pre-create a breaker with threshold=5
+        get_circuit_breaker("mismatch_svc", failure_threshold=5)
+
+        with pytest.raises(ValueError, match="already exists with different"):
+            @with_circuit_breaker("mismatch_svc", failure_threshold=3)
+            def _():
+                return "ok"
+
+    def test_allows_same_params(self):
+        """Decorating with identical params should succeed."""
+        get_circuit_breaker("same_params_svc", failure_threshold=3)
+
+        @with_circuit_breaker("same_params_svc", failure_threshold=3)
+        def ok_fn():
+            return "ok"
+
+        assert ok_fn() == "ok"
+
+    def test_allows_different_service_names(self):
+        """Different service names should always be independent."""
+        get_circuit_breaker("svc_alpha", failure_threshold=5)
+
+        @with_circuit_breaker("svc_beta", failure_threshold=3)
+        def beta_fn():
+            return "beta"
+
+        assert beta_fn() == "beta"
+
+
 class TestGetCircuitBreakerDetails:
     def test_returns_snapshot_dict(self):
         from uar.core.circuit_breaker_decorator import (

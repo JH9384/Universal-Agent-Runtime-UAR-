@@ -184,9 +184,14 @@ class UORAddrClient:
         """Resolve a UOR digest via the integrator object cache."""
         return self.integrator.get_object_by_digest(digest)
 
-    def wrap_with_uor(self, data: Any, source: str = "uor-addr") -> UORObject:
+    def wrap_with_uor(
+        self,
+        data: Any,
+        source: str = "uor-addr",
+        envelope: Optional[Dict[str, Any]] = None,
+    ) -> UORObject:
         """Canonicalize *data* and wrap as a UOR object."""
-        env = self.canonicalize(data)
+        env = envelope or self.canonicalize(data)
         uor_obj = UORObject(
             data={"content": data, "addr": env},
             mode=ObjectMode.IMMUTABLE_SINGULAR,
@@ -348,6 +353,17 @@ class PrismBTCClient:
         self.enabled = True
         self.api_url = os.getenv("PRISM_BTC_API_URL", "").rstrip("/")
 
+    @staticmethod
+    def _ripemd160(data: bytes) -> bytes:
+        """RIPEMD-160 with fallback for OpenSSL 3.0+ builds."""
+        try:
+            return hashlib.new("ripemd160", data).digest()
+        except ValueError:
+            logger.warning(
+                "ripemd160 not available; using SHA-256 prefix fallback"
+            )
+            return hashlib.sha256(data).digest()[:20]
+
     def anchor_digest(self, digest: str) -> Dict[str, Any]:
         """Anchor a UOR digest on Bitcoin."""
         if self.api_url:
@@ -361,7 +377,7 @@ class PrismBTCClient:
         # mock OP_RETURN transaction from the digest.
         digest_bytes = digest.encode("utf-8")
         sha = hashlib.sha256(digest_bytes).digest()
-        ripe = hashlib.new("ripemd160", sha).digest()
+        ripe = self._ripemd160(sha)
         # P2PKH address (mainnet prefix 0x00)
         addr_hash = bytes([0x00]) + ripe
         checksum = hashlib.sha256(
@@ -433,7 +449,7 @@ class PrismBTCClient:
         # Local verification: re-derive the address and tx hash
         digest_bytes = digest.encode("utf-8")
         sha = hashlib.sha256(digest_bytes).digest()
-        ripe = hashlib.new("ripemd160", sha).digest()
+        ripe = self._ripemd160(sha)
         addr_hash = bytes([0x00]) + ripe
         checksum = hashlib.sha256(
             hashlib.sha256(addr_hash).digest()

@@ -28,18 +28,27 @@ _MAX_SESSIONS = max(
     ),
 )
 
+
+def _get_int_env(name: str, default: int, lo: int, hi: int) -> int:
+    try:
+        raw = os.getenv(name, str(default)).strip() or str(default)
+        return max(lo, min(hi, int(raw)))
+    except (ValueError, TypeError):
+        return default
+
+
+def _get_float_env(name: str, default: float, lo: float, hi: float) -> float:
+    try:
+        raw = os.getenv(name, str(default)).strip() or str(default)
+        return max(lo, min(hi, float(raw)))
+    except (ValueError, TypeError):
+        return default
+
+
 # Retry configuration
-_MAX_RETRIES = max(
-    0, min(10, int(os.getenv("UAR_HTTP_MAX_RETRIES", "3").strip() or "3"))
-)
-_BASE_DELAY = max(
-    0.0,
-    min(5.0, float(os.getenv("UAR_HTTP_BASE_DELAY", "0.5").strip() or "0.5")),
-)
-_MAX_DELAY = max(
-    0.0,
-    min(60.0, float(os.getenv("UAR_HTTP_MAX_DELAY", "8.0").strip() or "8.0")),
-)
+_MAX_RETRIES = _get_int_env("UAR_HTTP_MAX_RETRIES", 3, 0, 10)
+_BASE_DELAY = _get_float_env("UAR_HTTP_BASE_DELAY", 0.5, 0.0, 5.0)
+_MAX_DELAY = _get_float_env("UAR_HTTP_MAX_DELAY", 8.0, 0.0, 60.0)
 
 
 async def _get_session(url: str):

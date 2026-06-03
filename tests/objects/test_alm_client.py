@@ -143,7 +143,7 @@ class TestWithMockedHttpx:
         if not HTTPX_AVAILABLE:
             return
         skill = AtomicLanguageModelSkill()
-        with patch.object(skill.client, "get",
+        with patch.object(skill.client, "post",
                           return_value=self._mock_resp({"valid": True})):
             result = skill.verify_syntax("hello")
         assert result["valid"] is True
@@ -217,26 +217,28 @@ class TestWithMockedHttpx:
         if not HTTPX_AVAILABLE:
             return
         skill = AtomicLanguageModelSkill()
-        with patch.object(skill.client, "get",
+        with patch.object(skill.client, "post",
                           return_value=self._mock_resp({"is_valid": True})):
             result = skill.verify_syntax("hello")
         assert result["valid"] is True
 
-    def test_verify_syntax_prediction_response(self):
+    def test_verify_syntax_results_array(self):
         if not HTTPX_AVAILABLE:
             return
         skill = AtomicLanguageModelSkill()
-        with patch.object(skill.client, "get",
-                          return_value=self._mock_resp({"prediction": "x"})):
+        with patch.object(skill.client, "post",
+                          return_value=self._mock_resp({
+                              "results": [{"valid": True, "sentence": "hello"}]
+                          })):
             result = skill.verify_syntax("hello")
         assert result["valid"] is True
-        assert result["prediction"] == "x"
+        assert result["all_results"][0]["sentence"] == "hello"
 
     def test_verify_syntax_unknown_response(self):
         if not HTTPX_AVAILABLE:
             return
         skill = AtomicLanguageModelSkill()
-        with patch.object(skill.client, "get",
+        with patch.object(skill.client, "post",
                           return_value=self._mock_resp({"other": "x"})):
             result = skill.verify_syntax("hello")
         assert result["valid"] is True
@@ -246,7 +248,7 @@ class TestWithMockedHttpx:
         if not HTTPX_AVAILABLE:
             return
         skill = AtomicLanguageModelSkill()
-        with patch.object(skill.client, "get", side_effect=Exception("fail")):
+        with patch.object(skill.client, "post", side_effect=Exception("fail")):
             result = skill.verify_syntax("hello")
         assert result["valid"] is False
 
@@ -273,6 +275,29 @@ class TestWithMockedHttpx:
         with patch.object(skill.client, "get", side_effect=Exception("fail")):
             result = skill.generate_sentences(count=3)
         assert result == ["sentence_0", "sentence_1", "sentence_2"]
+
+    def test_generate_sequence_includes_prefix(self):
+        if not HTTPX_AVAILABLE:
+            return
+        skill = AtomicLanguageModelSkill()
+        with patch.object(skill.client, "get") as mock_get:
+            mock_resp = self._mock_resp({"tokens": ["a"]})
+            mock_get.return_value = mock_resp
+            skill.generate_sequence("hello", count=1)
+        _, kwargs = mock_get.call_args
+        assert kwargs["params"]["prefix"] == "hello"
+
+    def test_verify_syntax_uses_validate(self):
+        if not HTTPX_AVAILABLE:
+            return
+        skill = AtomicLanguageModelSkill()
+        with patch.object(skill.client, "post") as mock_post:
+            mock_resp = self._mock_resp({"valid": True})
+            mock_post.return_value = mock_resp
+            skill.verify_syntax("hello")
+        args, kwargs = mock_post.call_args
+        assert args[0].endswith("/validate")
+        assert kwargs["json"] == {"sentences": ["hello"]}
 
     def test_init_timeout_from_env(self):
         with patch.dict("os.environ", {"ALM_TIMEOUT_SEC": "60"}):

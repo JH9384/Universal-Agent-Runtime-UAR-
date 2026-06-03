@@ -189,6 +189,9 @@ class JsonValue:
         elif algorithm == "sha3_256":
             return "sha3_256:" + hashlib.sha3_256(canonical).hexdigest()
         elif algorithm == "blake3":
+            if sys.version_info >= (3, 14):
+                logger.warning("blake3 unsupported on Python 3.14+")
+                return "sha256:" + hashlib.sha256(canonical).hexdigest()
             try:
                 import blake3  # type: ignore
 

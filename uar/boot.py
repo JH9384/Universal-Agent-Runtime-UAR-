@@ -34,10 +34,23 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-SHUTDOWN_SLEEP = max(
-    0.0,
-    float(os.getenv("SHUTDOWN_GRACE_SECONDS", "30").strip() or "30"),
-)
+
+def _get_shutdown_sleep() -> float:
+    try:
+        return max(
+            0.0,
+            float(
+                os.getenv(
+                    "SHUTDOWN_GRACE_SECONDS", "30"
+                ).strip()
+                or "30"
+            ),
+        )
+    except (ValueError, TypeError):
+        return 30.0
+
+
+SHUTDOWN_SLEEP = _get_shutdown_sleep()
 
 _is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
 _default_cors = "" if _is_production else "http://localhost:3000"

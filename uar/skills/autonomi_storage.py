@@ -20,6 +20,7 @@ Goal metadata overrides:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -113,6 +114,8 @@ def _wallet_and_payment(private_key: str, network_name: str):
     net = Network(network_name.lower() == "mainnet")
     if private_key.startswith("0x"):
         private_key = private_key[2:]
+    if not private_key:
+        raise ValueError("Private key is empty after stripping 0x prefix")
     wallet = Wallet.new_from_private_key(net, private_key)
     payment = PaymentOption.wallet(wallet)
     return wallet, payment
@@ -187,7 +190,6 @@ def autonomi_upload(ctx):
             result = await client.file_upload(str(src), payment)
         return result
 
-    import asyncio
     result = _autonomi_cb.call(
         lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
     )
@@ -279,7 +281,6 @@ def autonomi_download(ctx):
             await client.file_download(address, str(dest))
         return str(dest)
 
-    import asyncio
     _autonomi_cb.call(
         lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
     )

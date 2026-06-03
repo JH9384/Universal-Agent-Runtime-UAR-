@@ -4,6 +4,7 @@ Covers connection lifecycle, event streaming, schema validation,
 error handling, and server-side batching behavior.
 """
 
+import inspect
 import json
 import time
 from unittest.mock import patch
@@ -12,6 +13,7 @@ import pytest
 
 from fastapi.testclient import TestClient
 
+from uar.api.routers.streaming import stream_goal_ws
 from uar.api.server import app
 
 client = TestClient(app)
@@ -233,3 +235,28 @@ def test_ws_batching_accumulates_and_flushes():
     assert "orchestration_plan" in types
     assert "complete" in types
     assert "persisted" in types
+
+
+def test_ws_disconnect_propagates_past_generic_exception_handler():
+    """Regression: WebSocketDisconnect must not be swallowed by
+    ``except Exception as e`` inside the streaming loop.
+
+    The inner try block in ``stream_goal_ws`` has both
+    ``except WebSocketDisconnect: raise`` and ``except Exception as e:``.
+    This test asserts the disconnect handler precedes the generic handler
+    so client disconnects propagate to the outer ``except WebSocketDisconnect``
+    (logged as INFO) instead of being caught as an ERROR.
+    """
+    source = inspect.getsource(stream_goal_ws)
+    ws_disconnect_idx = source.find("except WebSocketDisconnect:")
+    generic_exc_idx = source.find("except Exception as e:")
+
+    assert ws_disconnect_idx != -1, (
+        "WebSocketDisconnect handler missing from stream_goal_ws"
+    )
+    assert generic_exc_idx != -1, (
+        "Generic Exception handler missing from stream_goal_ws"
+    )
+    assert ws_disconnect_idx < generic_exc_idx, (
+        "WebSocketDisconnect handler must precede generic Exception handler"
+    )

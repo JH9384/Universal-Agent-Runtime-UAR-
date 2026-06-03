@@ -26,17 +26,40 @@ from uar.core.skill_utils import require_package, skill_guard
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-PHYSICS_TIMEOUT = max(
-    1.0,
-    float(os.getenv("PHYSICS_TIMEOUT_SECONDS", "30").strip() or "30"),
-)
-MAX_DATA_SIZE = max(
-    1,
-    int(
-        os.getenv("PHYSICS_MAX_DATA_SIZE", "10485760").strip() or "10485760"
-    ),
-)
+
+def _get_physics_timeout() -> float:
+    try:
+        return max(
+            1.0,
+            float(
+                os.getenv(
+                    "PHYSICS_TIMEOUT_SECONDS", "30"
+                ).strip()
+                or "30"
+            ),
+        )
+    except (ValueError, TypeError):
+        return 30.0
+
+
+def _get_max_data_size() -> int:
+    try:
+        return max(
+            1,
+            int(
+                os.getenv(
+                    "PHYSICS_MAX_DATA_SIZE", "10485760"
+                ).strip()
+                or "10485760"
+            ),
+        )
+    except (ValueError, TypeError):
+        return 10485760
+
+
+# Configuration (lazily evaluated to survive bad env vars)
+PHYSICS_TIMEOUT = _get_physics_timeout()
+MAX_DATA_SIZE = _get_max_data_size()
 
 
 def _convert_units(value: str, from_unit: str, to_unit: str) -> Dict[str, Any]:

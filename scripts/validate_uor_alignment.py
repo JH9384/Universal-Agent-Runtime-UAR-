@@ -10,8 +10,6 @@ from jsonschema import Draft202012Validator
 from pyshacl import validate as shacl_validate
 from rdflib import Graph
 
-from uar.core.executor import make_executor_event
-
 ROOT = Path(__file__).resolve().parents[1]
 UOR_DIR = ROOT / "third_party" / "uor"
 DEFAULT_TAG = (UOR_DIR / "VERSION").read_text().strip()
@@ -42,13 +40,16 @@ def _ensure_cache_dir(tag: str) -> Path:
 
 
 def _sample_event() -> dict:
-    return make_executor_event(
-        event_type="sample",
-        run_id="run-uor-validate",
-        goal_id="goal-uor-validate",
-        skill="diagnostic",
-        payload={"demo": True, "note": "SHACL/JSON schema validation"},
-    )
+    return {
+        "event_type": "sample",
+        "run_id": "run-uor-validate",
+        "goal_id": "goal-uor-validate",
+        "skill": "diagnostic",
+        "payload": {
+            "demo": True,
+            "note": "SHACL/JSON schema validation",
+        },
+    }
 
 
 def validate_json_schema(cache_dir: Path) -> None:

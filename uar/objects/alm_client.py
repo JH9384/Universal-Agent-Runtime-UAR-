@@ -201,10 +201,10 @@ class AtomicLanguageModelSkill:
                     json={"prefix": prefix, "count": count},
                 )
             else:
-                # Actual ALM API: GET /generate?count=<n>
+                # Actual ALM API: GET /generate?count=<n>&prefix=<text>
                 response = self.client.get(
                     f"{self.base_url}/generate",
-                    params={"count": count},
+                    params={"count": count, "prefix": prefix},
                 )
             response.raise_for_status()
             result = response.json()
@@ -265,10 +265,10 @@ class AtomicLanguageModelSkill:
                     f"{self.base_url}/verify", json={"text": text}
                 )
             else:
-                # Actual ALM API: GET /predict?prefix=<text>
-                response = self.client.get(
-                    f"{self.base_url}/predict",
-                    params={"prefix": text},
+                # Actual ALM API: POST /validate with sentences array
+                response = self.client.post(
+                    f"{self.base_url}/validate",
+                    json={"sentences": [text]},
                 )
             response.raise_for_status()
             result = response.json()
@@ -277,12 +277,12 @@ class AtomicLanguageModelSkill:
                 return result
             elif "is_valid" in result:
                 return {"valid": result["is_valid"], **result}
-            elif "prediction" in result:
-                # For predict endpoint, infer validity from prediction
+            elif "results" in result and result["results"]:
+                first = result["results"][0]
                 return {
-                    "valid": True,
-                    "prediction": result["prediction"],
-                    "notes": "Next token prediction successful",
+                    "valid": first.get("valid", False),
+                    **first,
+                    "all_results": result["results"],
                 }
             else:
                 return {"valid": True, "result": result}

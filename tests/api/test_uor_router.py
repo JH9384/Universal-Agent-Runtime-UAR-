@@ -136,9 +136,9 @@ class TestLineage:
 class TestALM:
     def test_analyze(self, client):
         with patch(
-            "uar.objects.alm_client.AtomicLanguageModelSkill"
+            "uar.api.routers.uor.ALM_SKILL"
         ) as mock_skill:
-            mock_skill.return_value.analyze_grammar.return_value = {"ok": True}
+            mock_skill.analyze_grammar.return_value = {"ok": True}
             response = client.post(
                 "/agents/atomic_lang_model/analyze",
                 json={"grammar_spec": "test"},
@@ -147,9 +147,9 @@ class TestALM:
 
     def test_generate(self, client):
         with patch(
-            "uar.objects.alm_client.AtomicLanguageModelSkill"
+            "uar.api.routers.uor.ALM_SKILL"
         ) as mock_skill:
-            mock_skill.return_value.generate_sequence.return_value = ["a"]
+            mock_skill.generate_sequence.return_value = ["a"]
             response = client.post(
                 "/agents/atomic_lang_model/generate",
                 json={"prefix": "a", "count": 1},
@@ -159,9 +159,9 @@ class TestALM:
 
     def test_verify(self, client):
         with patch(
-            "uar.objects.alm_client.AtomicLanguageModelSkill"
+            "uar.api.routers.uor.ALM_SKILL"
         ) as mock_skill:
-            mock_skill.return_value.verify_syntax.return_value = {"ok": True}
+            mock_skill.verify_syntax.return_value = {"ok": True}
             response = client.post(
                 "/agents/atomic_lang_model/verify",
                 json={"text": "hello"},

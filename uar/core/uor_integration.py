@@ -88,14 +88,16 @@ class UORObject:
             return "application/json"
 
     def compute_digest(self) -> str:
-        """Compute UOR digest for the object."""
+        """Compute UOR digest via UOR-ADDR-1 canonicalization."""
         try:
-            data_str = json.dumps(self.data, sort_keys=True, default=str)
-            hash_obj = hashlib.sha256(data_str.encode())
-            self.digest = f"{self.digest_algorithm}:{hash_obj.hexdigest()}"
+            from uar.uor.bounded_json import compute_uor_digest
+
+            self.digest = compute_uor_digest(self.data, self.digest_algorithm)
             return self.digest
         except Exception:
-            logger.exception("Failed to compute digest")
+            logger.exception(
+                "Failed to compute UOR-ADDR-1 digest, falling back"
+            )
             hash_obj = hashlib.sha256(str(self.data).encode())
             self.digest = f"{self.digest_algorithm}:{hash_obj.hexdigest()}"
             return self.digest

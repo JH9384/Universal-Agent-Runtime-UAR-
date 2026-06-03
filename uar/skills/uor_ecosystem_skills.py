@@ -51,7 +51,7 @@ def uor_addr_canonicalize(ctx: PipelineContext) -> Dict[str, Any]:
 
     eco = get_uor_ecosystem()
     envelope = eco.uor_addr.canonicalize(data)
-    uor_obj = eco.uor_addr.wrap_with_uor(data)
+    uor_obj = eco.uor_addr.wrap_with_uor(data, envelope=envelope)
     return {
         "status": "completed",
         "envelope": envelope,
