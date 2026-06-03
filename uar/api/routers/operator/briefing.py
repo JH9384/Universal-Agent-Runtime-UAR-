@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.routers.operator.common import (
@@ -42,7 +43,9 @@ async def get_briefing(
 
         outcomes = store.get_outcomes(limit=5000)
         metadata = store.get_recommendation_metadata(limit=5000)
-        trust_result = compute_trust(outcomes, metadata)
+        trust_result = await run_in_threadpool(
+            compute_trust, outcomes, metadata
+        )
         types = trust_result.get("recommendation_types", [])
 
         for t in types:

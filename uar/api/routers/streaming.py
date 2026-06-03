@@ -358,7 +358,7 @@ async def stream_goal_ws(websocket: WebSocket):
         # Get user info
         user_info = auth_middleware(credentials)
 
-        # Log request (request_id generated at line 556)
+        # Log request (request_id generated at line 103 above)
         user_str = user_info.get("user") if user_info else "anonymous"
         logger.info(
             "[%s] WebSocket request from %s", request_id, user_str
@@ -725,6 +725,38 @@ async def websocket_run(websocket: WebSocket):
             correlation_id=correlation_id,
         )
 
+    # Parse Authorization header BEFORE accepting so we can rate-limit
+    # up front and prevent connection-exhaustion attacks.
+    auth_header = websocket.headers.get("authorization", "")
+    credentials: Optional[HTTPAuthorizationCredentials] = None
+    if auth_header.lower().startswith("bearer "):
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=auth_header[7:],
+        )
+
+    # Browser WebSocket cannot send custom headers, so also accept
+    # token via query parameter (e.g. /ws/run?token=...).
+    if credentials is None:
+        token = websocket.query_params.get("token")
+        if token:
+            credentials = HTTPAuthorizationCredentials(
+                scheme="Bearer",
+                credentials=token,
+            )
+
+    # Apply connection-level rate limiting BEFORE accepting.
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
+    allowed, _ = rate_limiter.is_allowed(
+        rate_limit_key,
+        RATE_LIMITS.get(tier, RATE_LIMITS["default"])["requests"],
+        RATE_LIMITS.get(tier, RATE_LIMITS["default"])["window"],
+    )
+    if not allowed:
+        await websocket.close(code=1008, reason="Rate limit exceeded")
+        return
+
     # Enforce global WebSocket connection cap
     if not await _ws_conn_counter.acquire():
         await websocket.close(code=1008, reason="Too many connections")
@@ -739,52 +771,9 @@ async def websocket_run(websocket: WebSocket):
     heartbeat_task = None
     heartbeat_stop = asyncio.Event()
     try:
-        # Parse Authorization header manually because HTTPBearer
-        # depends on a Request object which is unavailable for
-        # WebSocket connections in FastAPI/TestClient.
-        auth_header = websocket.headers.get("authorization", "")
-        credentials: Optional[HTTPAuthorizationCredentials] = None
-        if auth_header.lower().startswith("bearer "):
-            credentials = HTTPAuthorizationCredentials(
-                scheme="Bearer",
-                credentials=auth_header[7:],
-            )
-
-        # Browser WebSocket cannot send custom headers, so also accept
-        # token via query parameter (e.g. /ws/run?token=...).
-        if credentials is None:
-            token = websocket.query_params.get("token")
-            if token:
-                credentials = HTTPAuthorizationCredentials(
-                    scheme="Bearer",
-                    credentials=token,
-                )
-
         # Get user info for ownership tracking
         user_info = auth_middleware(credentials)
         user_str = user_info.get("user") if user_info else None
-
-        # Apply rate limiting
-        client_ip = websocket.client.host if websocket.client else "unknown"
-        rate_limit_key, tier = build_rate_limit_key(client_ip, credentials)
-        allowed, _ = rate_limiter.is_allowed(
-            rate_limit_key,
-            RATE_LIMITS.get(tier, RATE_LIMITS["default"])["requests"],
-            RATE_LIMITS.get(tier, RATE_LIMITS["default"])["window"],
-        )
-        if not allowed:
-            await websocket.send_json(
-                create_event(
-                    "error",
-                    run_id="unknown",
-                    error="Rate limit exceeded",
-                    payload={
-                        "request_id": request_id,
-                    },
-                )
-            )
-            await websocket.close(code=1008)
-            return
 
         websocket_timeout = max(
             1,
@@ -817,6 +806,39 @@ async def websocket_run(websocket: WebSocket):
             )
             await websocket.close()
             return
+
+        # Validate request size before parsing
+        from uar.api.middleware import DEFAULT_MAX_REQUEST_BODY_BYTES
+        max_body_size = int(
+            os.getenv(
+                "MAX_REQUEST_BODY_BYTES",
+                str(DEFAULT_MAX_REQUEST_BODY_BYTES),
+            )
+        )
+        json_size = len(json.dumps(data))
+        if json_size > max_body_size:
+            logger.warning(
+                "WebSocket request too large: %s bytes > %s",
+                json_size,
+                max_body_size,
+            )
+            await websocket.send_json(
+                create_event(
+                    "error",
+                    run_id="unknown",
+                    error="Request body too large",
+                    payload={
+                        "message": (
+                            f"Maximum body size is {max_body_size} bytes"
+                        ),
+                        "request_id": request_id,
+                        "code": "BODY_TOO_LARGE",
+                    },
+                )
+            )
+            await websocket.close()
+            return
+
         try:
             req = RunRequest(**data)
         except PydanticValidationError as e:

@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.state import store
@@ -34,7 +35,9 @@ async def get_trust_explorer(
         outcomes = store.get_outcomes(limit=5000)
         metadata = store.get_recommendation_metadata(limit=5000)
 
-        trust_result = compute_trust(outcomes, metadata)
+        trust_result = await run_in_threadpool(
+            compute_trust, outcomes, metadata
+        )
         type_data = None
         for t in trust_result.get("recommendation_types", []):
             if t.get("type") == rec_type:
@@ -47,7 +50,9 @@ async def get_trust_explorer(
                 detail=f"Type '{rec_type}' not found",
             )
 
-        eff = compute_effectiveness(outcomes, metadata)
+        eff = await run_in_threadpool(
+            compute_effectiveness, outcomes, metadata
+        )
         eff_type = next(
             (
                 e
@@ -57,13 +62,17 @@ async def get_trust_explorer(
             {},
         )
 
-        cal = compute_calibration(outcomes, metadata)
+        cal = await run_in_threadpool(
+            compute_calibration, outcomes, metadata
+        )
         cal_type = next(
             (c for c in cal.get("types", []) if c.get("type") == rec_type),
             {},
         )
 
-        ev = aggregate_evidence(outcomes, metadata)
+        ev = await run_in_threadpool(
+            aggregate_evidence, outcomes, metadata
+        )
         ev_type = next(
             (
                 e

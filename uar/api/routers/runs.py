@@ -425,7 +425,8 @@ async def get_provenance(
 
     # Verify ownership if not admin
     is_admin = user_info.get("tier") == "admin" if user_info else False
-    if record.get("user_id") != user and not is_admin:
+    owner = record.get("user_id") or record.get("user", "")
+    if owner and owner != user and not is_admin:
         raise HTTPException(
             status_code=403, detail="Not authorized to access this run"
         )

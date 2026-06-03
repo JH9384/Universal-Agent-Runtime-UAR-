@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 
@@ -41,63 +42,78 @@ async def topology_correlation(
     import time
     from uar.api.server import store
 
+    user = user_info.get("user")
+    is_admin = user_info.get("tier") == "admin"
     cutoff = time.time() - (hours * 3600)
-    runs = store.list_records(limit=50000)
+    runs = store.list_records(
+        user_id=None if is_admin else user, limit=50000
+    )
 
-    # Group by goal_id
-    goal_groups: Dict[str, list] = {}
-    for r in runs:
-        if r.get("created_at", 0) < cutoff:
-            continue
-        gid = r.get("goal_id") or "no_goal"
-        goal_groups.setdefault(gid, []).append(r)
+    def _correlate(records, ts_cutoff, min_runs_req):
+        goal_groups: Dict[str, list] = {}
+        for r in records:
+            if r.get("created_at", 0) < ts_cutoff:
+                continue
+            gid = r.get("goal_id") or "no_goal"
+            goal_groups.setdefault(gid, []).append(r)
 
-    # Filter groups with min_runs
-    correlations = []
-    for gid, group in goal_groups.items():
-        if len(group) < min_runs:
-            continue
+        correlations = []
+        for gid, group in goal_groups.items():
+            if len(group) < min_runs_req:
+                continue
 
-        statuses = [r.get("status") for r in group]
-        failures = sum(1 for s in statuses if s and "fail" in str(s).lower())
+            statuses = [r.get("status") for r in group]
+            failures = sum(
+                1 for s in statuses if s and "fail" in str(s).lower()
+            )
 
-        # Shared skills
-        skill_sets = []
-        for r in group:
-            skills = r.get("skills", "[]")
-            try:
-                import json
-                skill_list = json.loads(skills)
-                if isinstance(skill_list, list):
-                    skill_sets.append(set(skill_list))
-                else:
+            skill_sets = []
+            for r in group:
+                skills = r.get("skills", "[]")
+                try:
+                    import json
+                    skill_list = json.loads(skills)
+                    if isinstance(skill_list, list):
+                        skill_sets.append(set(skill_list))
+                    else:
+                        skill_sets.append(set())
+                except Exception:
                     skill_sets.append(set())
-            except Exception:
-                skill_sets.append(set())
 
-        common_skills = set.intersection(*skill_sets) if skill_sets else set()
-        all_skills = set.union(*skill_sets) if skill_sets else set()
+            common_skills = (
+                set.intersection(*skill_sets) if skill_sets else set()
+            )
+            all_skills = (
+                set.union(*skill_sets) if skill_sets else set()
+            )
 
-        correlations.append(
-            {
-                "goal_id": gid,
-                "run_count": len(group),
-                "failure_count": failures,
-                "failure_rate": round(failures / len(group), 4),
-                "common_skills": (
-                    sorted(common_skills) if common_skills else None
-                ),
-                "unique_skill_count": len(all_skills),
-                "time_span_hours": round(
-                    (max(r.get("created_at", 0) for r in group) -
-                     min(r.get("created_at", 0) for r in group))
-                    / 3600,
-                    2,
-                ),
-            }
-        )
+            correlations.append(
+                {
+                    "goal_id": gid,
+                    "run_count": len(group),
+                    "failure_count": failures,
+                    "failure_rate": round(failures / len(group), 4),
+                    "common_skills": (
+                        sorted(common_skills) if common_skills else None
+                    ),
+                    "unique_skill_count": len(all_skills),
+                    "time_span_hours": round(
+                        (
+                            max(r.get("created_at", 0) for r in group) -
+                            min(r.get("created_at", 0) for r in group)
+                        )
+                        / 3600,
+                        2,
+                    ),
+                }
+            )
 
-    correlations.sort(key=lambda x: x["failure_rate"], reverse=True)
+        correlations.sort(key=lambda x: x["failure_rate"], reverse=True)
+        return correlations, goal_groups
+
+    correlations, goal_groups = await run_in_threadpool(
+        _correlate, runs, cutoff, min_runs
+    )
 
     return {
         "generated_at": time.time(),
@@ -131,54 +147,62 @@ async def topology_trends(
     from collections import defaultdict
     from uar.api.server import store
 
+    user = user_info.get("user")
+    is_admin = user_info.get("tier") == "admin"
     cutoff = time.time() - (hours * 3600)
-    runs = store.list_records(limit=50000)
-
-    bucket_sizes = {"hour": 3600, "day": 86400, "week": 604800}
-    bucket_size = bucket_sizes.get(interval, 86400)
-
-    buckets: Dict[int, Dict[str, Any]] = defaultdict(
-        lambda: {
-            "run_count": 0,
-            "failures": 0,
-            "unique_skills": set(),
-            "unique_goals": set(),
-        }
+    runs = store.list_records(
+        user_id=None if is_admin else user, limit=50000
     )
 
-    for r in runs:
-        ts = r.get("created_at", 0)
-        if ts < cutoff:
-            continue
-        bucket = int(ts // bucket_size) * bucket_size
-        b = buckets[bucket]
-        b["run_count"] += 1
-        if r.get("status") and "fail" in str(r["status"]).lower():
-            b["failures"] += 1
-        b["unique_goals"].add(r.get("goal_id") or "none")
-        try:
-            import json
-            skills = json.loads(r.get("skills", "[]"))
-            if isinstance(skills, list):
-                b["unique_skills"].update(skills)
-        except Exception:
-            pass
+    def _trends(records, ts_cutoff, interval_key):
+        bucket_sizes = {"hour": 3600, "day": 86400, "week": 604800}
+        bucket_size = bucket_sizes.get(interval_key, 86400)
 
-    trend_list = []
-    for bucket_ts in sorted(buckets):
-        b = buckets[bucket_ts]
-        trend_list.append(
-            {
-                "timestamp": bucket_ts,
-                "run_count": b["run_count"],
-                "failure_count": b["failures"],
-                "failure_rate": round(
-                    b["failures"] / max(b["run_count"], 1), 4
-                ),
-                "unique_goals": len(b["unique_goals"]),
-                "unique_skills": len(b["unique_skills"]),
+        buckets: Dict[int, Dict[str, Any]] = defaultdict(
+            lambda: {
+                "run_count": 0,
+                "failures": 0,
+                "unique_skills": set(),
+                "unique_goals": set(),
             }
         )
+
+        for r in records:
+            ts = r.get("created_at", 0)
+            if ts < ts_cutoff:
+                continue
+            bucket = int(ts // bucket_size) * bucket_size
+            b = buckets[bucket]
+            b["run_count"] += 1
+            if r.get("status") and "fail" in str(r["status"]).lower():
+                b["failures"] += 1
+            b["unique_goals"].add(r.get("goal_id") or "none")
+            try:
+                import json
+                skills = json.loads(r.get("skills", "[]"))
+                if isinstance(skills, list):
+                    b["unique_skills"].update(skills)
+            except Exception:
+                pass
+
+        trend_list = []
+        for bucket_ts in sorted(buckets):
+            b = buckets[bucket_ts]
+            trend_list.append(
+                {
+                    "timestamp": bucket_ts,
+                    "run_count": b["run_count"],
+                    "failure_count": b["failures"],
+                    "failure_rate": round(
+                        b["failures"] / max(b["run_count"], 1), 4
+                    ),
+                    "unique_goals": len(b["unique_goals"]),
+                    "unique_skills": len(b["unique_skills"]),
+                }
+            )
+        return trend_list
+
+    trend_list = await run_in_threadpool(_trends, runs, cutoff, interval)
 
     return {
         "generated_at": time.time(),

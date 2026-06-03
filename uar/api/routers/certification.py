@@ -11,6 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.core.certification import certify_runtime
@@ -52,9 +53,10 @@ async def get_certification(
     from uar.api.routers.burn_in import BurnInProxy
 
     burnin_proxy = BurnInProxy.from_latest(store=store)
-    snapshot = build_runtime_snapshot(store)
+    snapshot = await run_in_threadpool(build_runtime_snapshot, store)
 
-    rh_report = score_runtime_health(
+    rh_report = await run_in_threadpool(
+        score_runtime_health,
         registry=registry,
         burnin_report=burnin_proxy,
         snapshot=snapshot,
@@ -64,14 +66,15 @@ async def get_certification(
     try:
         if snapshot.latest_record is not None:
             run_record = run_record_from_dict(snapshot.latest_record)
-            rc = score_replay(run_record)
+            rc = await run_in_threadpool(score_replay, run_record)
             replay_score = rc.score
     except Exception as exc:
         logging.getLogger(__name__).warning(
             "Failed to score replay confidence: %s", exc
         )
 
-    cert = certify_runtime(
+    cert = await run_in_threadpool(
+        certify_runtime,
         replay_confidence_score=replay_score,
         burnin_report=burnin_proxy,
         runtime_health_score=rh_report.score,

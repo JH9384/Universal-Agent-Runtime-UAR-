@@ -184,16 +184,20 @@ def post_runtimes_register(
 def get_runtimes(
     store: ObjectStore = Depends(get_store),
 ) -> Dict[str, Any]:
-    return {
-        "runtimes": [
+    runtimes: list[dict] = []
+    for name, digest in sorted(store.list_runtimes().items()):
+        try:
+            obj = store.get_object(digest)
+        except KeyError:
+            obj = {}
+        runtimes.append(
             {
                 "name": name,
                 "digest": digest,
-                "attributes": store.get_object(digest).get("attributes", {}),
+                "attributes": obj.get("attributes", {}),
             }
-            for name, digest in sorted(store.list_runtimes().items())
-        ]
-    }
+        )
+    return {"runtimes": runtimes}
 
 
 @router.get("/runtimes/{name}")

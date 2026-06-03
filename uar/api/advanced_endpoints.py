@@ -12,11 +12,48 @@ import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from uar.api.middleware import api_error_handler
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/advanced", tags=["advanced"])
+
+
+# ------------------------------------------------------------------
+# Request body models for POST endpoints (previously query params)
+# ------------------------------------------------------------------
+class BudgetCreateReq(BaseModel):
+    agent_id: str = Field(..., description="Agent identifier")
+    max_tokens: int = Field(100000, ge=1)
+    max_api_calls: int = Field(1000, ge=1)
+    max_cost_usd: float = Field(10.0, ge=0.0)
+    max_duration_seconds: int = Field(3600, ge=1)
+
+
+class PipelineRunReq(BaseModel):
+    pipeline_name: str = Field(
+        ..., description="Name of the pipeline to execute"
+    )
+    context: dict[str, Any] | None = Field(None)
+
+
+class GraphRAGQueryReq(BaseModel):
+    query: str = Field(..., description="Query string")
+    strategy: str = Field("hybrid")
+    top_k: int = Field(5, ge=1)
+
+
+class CrewAIAgentReq(BaseModel):
+    role: str = Field(..., description="Agent role")
+    agent_id: str = Field(..., description="Unique agent identifier")
+    name: str | None = Field(None)
+    description: str | None = Field(None)
+
+
+class CrewAIWorkflowReq(BaseModel):
+    workflow_type: str = Field(..., description="Type of workflow to execute")
+    input_data: dict[str, Any] = Field(..., description="Workflow input data")
 
 
 @router.get("/orchestrator/status")
@@ -42,22 +79,18 @@ async def get_governance_status() -> Dict[str, Any]:
 @router.post("/governance/budget")
 @api_error_handler("budget creation")
 async def create_agent_budget(
-    agent_id: str,
-    max_tokens: int = 100000,
-    max_api_calls: int = 1000,
-    max_cost_usd: float = 10.0,
-    max_duration_seconds: int = 3600,
+    req: BudgetCreateReq,
 ) -> Dict[str, Any]:
     """Create a budget for an agent."""
     from uar.core.guardrails import get_governance_system
 
     governance = get_governance_system()
     budget = governance.create_budget(
-        agent_id=agent_id,
-        max_tokens=max_tokens,
-        max_api_calls=max_api_calls,
-        max_cost_usd=max_cost_usd,
-        max_duration_seconds=max_duration_seconds,
+        agent_id=req.agent_id,
+        max_tokens=req.max_tokens,
+        max_api_calls=req.max_api_calls,
+        max_cost_usd=req.max_cost_usd,
+        max_duration_seconds=req.max_duration_seconds,
     )
     return budget.to_dict()
 
@@ -121,16 +154,15 @@ async def get_dagster_status() -> Dict[str, Any]:
 @router.post("/dagster/pipeline")
 @api_error_handler("Dagster pipeline execution")
 async def execute_dagster_pipeline(
-    pipeline_name: str,
-    context: Optional[Dict[str, Any]] = None,
+    req: PipelineRunReq,
 ) -> Dict[str, Any]:
     """Execute a Dagster pipeline."""
     from uar.core.dagster_orchestration import get_orchestrator
 
     orchestrator = get_orchestrator()
     execution = orchestrator.execute_pipeline(
-        pipeline_name,
-        context=context or {},
+        req.pipeline_name,
+        context=req.context or {},
     )
     return execution.to_dict()
 
@@ -148,9 +180,7 @@ async def get_graphrag_status() -> Dict[str, Any]:
 @router.post("/graphrag/query")
 @api_error_handler("GraphRAG query")
 async def query_graphrag(
-    query: str,
-    strategy: str = "hybrid",
-    top_k: int = 5,
+    req: GraphRAGQueryReq,
 ) -> Dict[str, Any]:
     """Query the knowledge graph."""
     from uar.core.flexible_graphrag import (
@@ -167,9 +197,9 @@ async def query_graphrag(
         "rdf_sparql": SearchStrategy.RDF_SPARQL,
         "hybrid": SearchStrategy.HYBRID,
     }
-    strategy_enum = strategy_map.get(strategy, SearchStrategy.HYBRID)
+    strategy_enum = strategy_map.get(req.strategy, SearchStrategy.HYBRID)
 
-    result = graphrag.query_graph(query, strategy_enum, top_k)
+    result = graphrag.query_graph(req.query, strategy_enum, req.top_k)
     return result
 
 
@@ -186,10 +216,7 @@ async def get_crewai_status() -> Dict[str, Any]:
 @router.post("/crewai/agent")
 @api_error_handler("CrewAI agent creation")
 async def create_crewai_agent(
-    role: str,
-    agent_id: str,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
+    req: CrewAIAgentReq,
 ) -> Dict[str, Any]:
     """Create a CrewAI agent with a specific role."""
     from uar.core.crewai_integration import (
@@ -210,19 +237,19 @@ async def create_crewai_agent(
         "executor": AgentRole.EXECUTOR,
         "coordinator": AgentRole.COORDINATOR,
     }
-    role_enum = role_map.get(role.lower(), AgentRole.RESEARCHER)
+    role_enum = role_map.get(req.role.lower(), AgentRole.RESEARCHER)
 
-    agent = create_standard_agent(role=role_enum, agent_id=agent_id)
-    if name:
-        agent.name = name
-    if description:
-        agent.description = description
+    agent = create_standard_agent(role=role_enum, agent_id=req.agent_id)
+    if req.name:
+        agent.name = req.name
+    if req.description:
+        agent.description = req.description
 
     orchestrator.register_agent(agent)
 
     return {
         "agent_id": agent.agent_id,
-        "role": role,
+        "role": req.role,
         "name": agent.name,
         "description": agent.description,
     }
@@ -231,14 +258,13 @@ async def create_crewai_agent(
 @router.post("/crewai/workflow")
 @api_error_handler("CrewAI workflow execution")
 async def execute_crewai_workflow(
-    workflow_type: str,
-    input_data: Dict[str, Any],
+    req: CrewAIWorkflowReq,
 ) -> Dict[str, Any]:
     """Execute a standard CrewAI workflow."""
     from uar.core.crewai_integration import execute_standard_workflow
 
     result = execute_standard_workflow(
-        workflow_type=workflow_type,
-        input_data=input_data,
+        workflow_type=req.workflow_type,
+        input_data=req.input_data,
     )
     return result  # type: ignore[return-value]

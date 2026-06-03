@@ -10,6 +10,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.core.runtime_health import (
@@ -43,8 +44,9 @@ async def get_runtime_health(
     from uar.core.registry import registry
     from uar.api.routers.burn_in import BurnInProxy
 
-    snapshot = build_runtime_snapshot(store)
-    report = score_runtime_health(
+    snapshot = await run_in_threadpool(build_runtime_snapshot, store)
+    report = await run_in_threadpool(
+        score_runtime_health,
         registry=registry,
         burnin_report=BurnInProxy.from_latest(store=store),
         snapshot=snapshot,

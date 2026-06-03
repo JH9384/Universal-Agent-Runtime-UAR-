@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.rbac import has_permission
@@ -74,8 +75,9 @@ async def get_mission_control(
     from uar.core.registry import registry
     from uar.api.routers.burn_in import BurnInProxy
 
-    rt_snapshot = build_runtime_snapshot(store)
-    mc_snapshot = build_snapshot(
+    rt_snapshot = await run_in_threadpool(build_runtime_snapshot, store)
+    mc_snapshot = await run_in_threadpool(
+        build_snapshot,
         store=store,
         registry=registry,
         burnin_report=BurnInProxy.from_latest(store=store),
@@ -174,11 +176,11 @@ async def get_confidence_drift(
         extract_confidence_drift,
     )
 
-    snapshot = build_analytics_snapshot(
-        recent_runs, user, is_admin, hours, limit
+    snapshot = await run_in_threadpool(
+        build_analytics_snapshot, recent_runs, user, is_admin, hours, limit
     )
-    result = extract_confidence_drift(
-        snapshot, _MC_HISTORY, _BURNIN_HISTORY, hours
+    result = await run_in_threadpool(
+        extract_confidence_drift, snapshot, _MC_HISTORY, _BURNIN_HISTORY, hours
     )
     result["meta"] = {
         "runs_loaded": len(all_runs),
@@ -241,8 +243,9 @@ async def get_alerts_summary(
     cutoff = time.time() - (hours * 3600)
 
     # ---- Mission Control snapshot ----
-    rt_snapshot = build_runtime_snapshot(store)
-    mc_snapshot = build_snapshot(
+    rt_snapshot = await run_in_threadpool(build_runtime_snapshot, store)
+    mc_snapshot = await run_in_threadpool(
+        build_snapshot,
         store=store,
         registry=registry,
         burnin_report=BurnInProxy.from_latest(store=store),
@@ -264,20 +267,20 @@ async def get_alerts_summary(
         if r.get("created_at", 0) >= cutoff
         or r.get("timestamp", 0) >= cutoff
     ]
-    snap = build_analytics_snapshot(
-        recent_runs, user, is_admin, hours, limit
+    snap = await run_in_threadpool(
+        build_analytics_snapshot, recent_runs, user, is_admin, hours, limit
     )
 
     # Confidence drift
-    cd = extract_confidence_drift(
-        snap, _MC_HISTORY, _BURNIN_HISTORY, hours
+    cd = await run_in_threadpool(
+        extract_confidence_drift, snap, _MC_HISTORY, _BURNIN_HISTORY, hours
     )
 
     # Failure hotspots
-    hs = extract_failure_hotspots(snap, top=10)
+    hs = await run_in_threadpool(extract_failure_hotspots, snap, top=10)
 
     # Recipe intelligence
-    ri = extract_recipe_intelligence(snap)
+    ri = await run_in_threadpool(extract_recipe_intelligence, snap)
 
     alerts: list[dict] = []
 
@@ -466,13 +469,15 @@ async def get_recommendations(
         generate_all_recommendations,
     )
 
-    snap = build_analytics_snapshot(
-        recent_runs, user, is_admin, hours, limit
+    snap = await run_in_threadpool(
+        build_analytics_snapshot, recent_runs, user, is_admin, hours, limit
     )
 
     # Extract multi-run intelligence
-    recurring = find_recurring_failures(recent_runs, min_occurrences=2)
-    recovery = build_recovery_atlas(recent_runs)
+    recurring = await run_in_threadpool(
+        find_recurring_failures, recent_runs, min_occurrences=2
+    )
+    recovery = await run_in_threadpool(build_recovery_atlas, recent_runs)
 
     # Topology evolution: compare earliest and latest snapshot
     # For a single-window request we use one point; for future
@@ -514,7 +519,8 @@ async def get_recommendations(
         }
     ]
 
-    recommendations = generate_all_recommendations(
+    recommendations = await run_in_threadpool(
+        generate_all_recommendations,
         recurring_patterns=recurring,
         recovery_paths=recovery,
         topology_points=topology_points,
@@ -529,11 +535,12 @@ async def get_recommendations(
             build_quality_stats,
             compute_modifier,
         )
-        quality = build_quality_stats(shown, feedback)
+        quality = await run_in_threadpool(build_quality_stats, shown, feedback)
         for rec in recommendations:
             try:
                 stats = quality.get(rec.recommendation_id, {})
-                modifier = compute_modifier(
+                modifier = await run_in_threadpool(
+                    compute_modifier,
                     stats.get("shown_count", 0),
                     stats.get("accepted_count", 0),
                     stats.get("rejected_count", 0),
@@ -564,18 +571,21 @@ async def get_recommendations(
             attach_trust_to_recommendations,
             sort_by_blend,
         )
-        trust_result = compute_trust(
+        trust_result = await run_in_threadpool(
+            compute_trust,
             store.get_outcomes(limit=50000),
             store.get_recommendation_metadata(limit=50000),
         )
-        attach_trust_to_recommendations(recommendations, trust_result)
+        await run_in_threadpool(
+            attach_trust_to_recommendations, recommendations, trust_result
+        )
     except Exception:
         import logging as _logging
 
         _logging.getLogger(__name__).exception("Trust attachment failed")
     try:
         if config.enable_trust_ranking:
-            sort_by_blend(recommendations)
+            await run_in_threadpool(sort_by_blend, recommendations)
     except Exception:
         import logging as _logging
 
@@ -836,7 +846,7 @@ async def get_recommendation_effectiveness(
 
     outcomes = store.get_outcomes(limit=50000)
     metadata = store.get_recommendation_metadata(limit=50000)
-    return compute_effectiveness(outcomes, metadata)
+    return await run_in_threadpool(compute_effectiveness, outcomes, metadata)
 
 
 @router.get("/api/uar/recommendations/calibration")
@@ -866,7 +876,7 @@ async def get_recommendation_calibration(
 
     outcomes = store.get_outcomes(limit=50000)
     metadata = store.get_recommendation_metadata(limit=50000)
-    return compute_calibration(outcomes, metadata)
+    return await run_in_threadpool(compute_calibration, outcomes, metadata)
 
 
 @router.get("/api/uar/recommendations/evidence")
@@ -900,7 +910,9 @@ async def get_recommendation_evidence(
     metadata = store.get_recommendation_metadata(limit=50000)
 
     if recommendation_id:
-        evidence = get_evidence(recommendation_id, outcomes, metadata)
+        evidence = await run_in_threadpool(
+            get_evidence, recommendation_id, outcomes, metadata
+        )
         if evidence is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -911,7 +923,7 @@ async def get_recommendation_evidence(
             )
         return evidence
 
-    return aggregate_evidence(outcomes, metadata)
+    return await run_in_threadpool(aggregate_evidence, outcomes, metadata)
 
 
 @router.get("/api/uar/recommendations/trust")
@@ -942,7 +954,7 @@ async def get_recommendation_trust(
 
     outcomes = store.get_outcomes(limit=50000)
     metadata = store.get_recommendation_metadata(limit=50000)
-    return compute_trust(outcomes, metadata)
+    return await run_in_threadpool(compute_trust, outcomes, metadata)
 
 
 @router.post("/api/uar/recommendations/feedback")

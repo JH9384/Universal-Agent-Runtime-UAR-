@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.routers.operator.common import (
@@ -27,51 +28,73 @@ router = APIRouter()
 # ------------------------------------------------------------------
 
 
+def _check_run_access(run_id: str, user: str, is_admin: bool) -> bool:
+    """Return True if user may access run_id."""
+    if is_admin:
+        return True
+    rec = store.get_by_run_id(run_id)
+    if rec is None:
+        return False
+    owner = rec.get("user_id") or rec.get("user", "")
+    return not owner or owner == user
+
+
 @router.get("/api/uar/investigate/{run_id}")
 async def investigate_run(
     run_id: str,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
     """Begin guided investigation for a run."""
-    auth_middleware(credentials)
+    user_info = auth_middleware(credentials)
+    user = user_info.get("user") if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
 
-    # Gather evidence
-    record = None
-    try:
-        record = store.get_by_run_id(run_id)
-    except Exception:
-        pass
+    if not _check_run_access(run_id, user or "", is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "forbidden", "message": "Access denied"},
+        )
 
-    recommendations = []
-    try:
-        metadata = store.get_recommendation_metadata(limit=5000)
-        for m in metadata:
-            if m.get("run_id") == run_id:
-                recommendations.append(
-                    {
-                        "id": m.get("recommendation_id"),
-                        "title": m.get("title"),
-                        "confidence": m.get("confidence"),
-                        "category": m.get("category"),
-                    }
-                )
-    except Exception:
-        pass
+    def _gather_evidence(run_id: str):
+        # Gather evidence
+        record = None
+        try:
+            record = store.get_by_run_id(run_id)
+        except Exception:
+            pass
 
-    # Check for linked incidents
-    linked_incidents = [
-        i
-        for i in _load_all_incidents()
-        if run_id in i.get("linked_run_ids", [])
-    ]
+        recommendations = []
+        try:
+            metadata = store.get_recommendation_metadata(limit=5000)
+            for m in metadata:
+                if m.get("run_id") == run_id:
+                    recommendations.append(
+                        {
+                            "id": m.get("recommendation_id"),
+                            "title": m.get("title"),
+                            "confidence": m.get("confidence"),
+                            "category": m.get("category"),
+                        }
+                    )
+        except Exception:
+            pass
 
-    return {
-        "run_id": run_id,
-        "status": "investigating",
-        "recommendations": recommendations,
-        "linked_incidents": linked_incidents,
-        "suggested_actions": _suggest_actions(record, recommendations),
-    }
+        # Check for linked incidents
+        linked_incidents = [
+            i
+            for i in _load_all_incidents()
+            if run_id in i.get("linked_run_ids", [])
+        ]
+
+        return {
+            "run_id": run_id,
+            "status": "investigating",
+            "recommendations": recommendations,
+            "linked_incidents": linked_incidents,
+            "suggested_actions": _suggest_actions(record, recommendations),
+        }
+
+    return await run_in_threadpool(_gather_evidence, run_id)
 
 
 def _suggest_actions(record, recommendations: list) -> list:

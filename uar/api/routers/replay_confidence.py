@@ -6,6 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.core.replay_confidence import score_replay
@@ -50,4 +51,5 @@ async def get_run_confidence(
         )
 
     run_record = run_record_from_dict(record)
-    return score_replay(run_record).to_dict()
+    report = await run_in_threadpool(score_replay, run_record)
+    return report.to_dict()

@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import security
 from uar.api.responses import error_response
@@ -80,7 +81,7 @@ async def sandbox_eval_endpoint(
 
     expression = body.get("expression", "")
     try:
-        result = sandbox_eval(expression)
+        result = await run_in_threadpool(sandbox_eval, expression)
         return {"status": "completed", "result": result}
     except Exception as exc:
         logger.warning("sandbox_eval failed: %s", exc)

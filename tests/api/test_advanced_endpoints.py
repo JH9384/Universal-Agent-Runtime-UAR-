@@ -71,7 +71,8 @@ class TestGovernance:
             return_value=self._mock_gov(),
         ):
             resp = client.post(
-                "/api/advanced/governance/budget?agent_id=a1"
+                "/api/advanced/governance/budget",
+                json={"agent_id": "a1"},
             )
         assert resp.status_code == 200
         assert resp.json()["agent_id"] == "a1"
@@ -141,7 +142,8 @@ class TestDagster:
             return_value=self._mock_orchestrator(),
         ):
             resp = client.post(
-                "/api/advanced/dagster/pipeline?pipeline_name=test"
+                "/api/advanced/dagster/pipeline",
+                json={"pipeline_name": "test"},
             )
         assert resp.status_code == 200
         assert resp.json()["status"] == "completed"
@@ -181,7 +183,8 @@ class TestGraphRAG:
                 mock_strategy,
             ):
                 resp = client.post(
-                    "/api/advanced/graphrag/query?query=hello"
+                    "/api/advanced/graphrag/query",
+                    json={"query": "hello"},
                 )
         assert resp.status_code == 200
 
@@ -210,8 +213,8 @@ class TestCrewAI:
             return_value=self._mock_orchestrator(),
         ):
             resp = client.post(
-                "/api/advanced/crewai/agent"
-                "?role=researcher&agent_id=a1&name=Test"
+                "/api/advanced/crewai/agent",
+                json={"role": "researcher", "agent_id": "a1", "name": "Test"},
             )
         assert resp.status_code == 200
         assert resp.json()["agent_id"] == "a1"
@@ -224,9 +227,13 @@ class TestCrewAI:
             return_value=self._mock_orchestrator(),
         ):
             resp = client.post(
-                "/api/advanced/crewai/agent"
-                "?role=researcher&agent_id=a2&name=Test2"
-                "&description=A+test+agent"
+                "/api/advanced/crewai/agent",
+                json={
+                    "role": "researcher",
+                    "agent_id": "a2",
+                    "name": "Test2",
+                    "description": "A test agent",
+                },
             )
         assert resp.status_code == 200
         assert resp.json()["agent_id"] == "a2"
@@ -238,8 +245,12 @@ class TestCrewAI:
             return_value=self._mock_orchestrator(),
         ):
             resp = client.post(
-                "/api/advanced/crewai/agent"
-                "?role=researcher&agent_id=a3&description=desc"
+                "/api/advanced/crewai/agent",
+                json={
+                    "role": "researcher",
+                    "agent_id": "a3",
+                    "description": "desc",
+                },
             )
         assert resp.status_code == 200
         assert resp.json()["agent_id"] == "a3"
@@ -253,8 +264,10 @@ class TestCrewAI:
             new=_mock_workflow,
         ):
             resp = client.post(
-                "/api/advanced/crewai/workflow"
-                "?workflow_type=research_analyze_write",
-                json={"topic": "AI"},
+                "/api/advanced/crewai/workflow",
+                json={
+                    "workflow_type": "research_analyze_write",
+                    "input_data": {"topic": "AI"},
+                },
             )
         assert resp.status_code == 200

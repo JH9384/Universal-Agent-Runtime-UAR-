@@ -69,12 +69,18 @@ class TestGraphRouter:
     async def test_get_knowledge_graph(self):
         from uar.api.routers.operator.graph import get_knowledge_graph
         with patch("uar.api.routers.operator.graph.store") as m:
-            m.get_by_run_id.return_value = None
-            m.get_recommendation_metadata.return_value = []
-            m.get_outcomes.return_value = []
-            result = await get_knowledge_graph("run-1", credentials=None)
-            assert "nodes" in result
-            assert "edges" in result
+            with patch(
+                "uar.api.routers.operator.graph._check_run_access",
+                return_value=True,
+            ):
+                m.get_by_run_id.return_value = None
+                m.get_recommendation_metadata.return_value = []
+                m.get_outcomes.return_value = []
+                result = await get_knowledge_graph(
+                    "run-1", credentials=None
+                )
+                assert "nodes" in result
+                assert "edges" in result
 
     @pytest.mark.asyncio
     async def test_get_knowledge_graph_with_data(self):
@@ -83,14 +89,20 @@ class TestGraphRouter:
         rec.goal_id = "goal-1"
         rec.goal = {"id": "goal-1"}
         with patch("uar.api.routers.operator.graph.store") as m:
-            m.get_by_run_id.return_value = rec
-            m.get_recommendation_metadata.return_value = [
-                {"run_id": "run-1", "recommendation_id": "rec-1",
-                 "title": "Test"}
-            ]
-            m.get_outcomes.return_value = []
-            result = await get_knowledge_graph("run-1", credentials=None)
-            assert any(n["type"] == "goal" for n in result["nodes"])
+            with patch(
+                "uar.api.routers.operator.graph._check_run_access",
+                return_value=True,
+            ):
+                m.get_by_run_id.return_value = rec
+                m.get_recommendation_metadata.return_value = [
+                    {"run_id": "run-1", "recommendation_id": "rec-1",
+                     "title": "Test"}
+                ]
+                m.get_outcomes.return_value = []
+                result = await get_knowledge_graph(
+                    "run-1", credentials=None
+                )
+                assert any(n["type"] == "goal" for n in result["nodes"])
 
 
 class TestInsightsRouter:
@@ -135,10 +147,16 @@ class TestInvestigationsRouter:
     async def test_investigate_run(self):
         from uar.api.routers.operator.investigations import investigate_run
         with patch("uar.api.routers.operator.investigations.store") as m:
-            m.get_by_run_id.return_value = None
-            result = await investigate_run("run-1", credentials=None)
-            assert result["run_id"] == "run-1"
-            assert result["status"] == "investigating"
+            with patch(
+                "uar.api.routers.operator.investigations._check_run_access",
+                return_value=True,
+            ):
+                m.get_by_run_id.return_value = None
+                result = await investigate_run(
+                    "run-1", credentials=None
+                )
+                assert result["run_id"] == "run-1"
+                assert result["status"] == "investigating"
 
     @pytest.mark.asyncio
     async def test_list_investigations(self):

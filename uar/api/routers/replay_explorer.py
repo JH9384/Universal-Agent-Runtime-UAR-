@@ -15,6 +15,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.core.replay_confidence import score_replay
@@ -105,7 +106,7 @@ async def get_replay_explorer(
         timeline = {}
 
     try:
-        rc_report = score_replay(record)
+        rc_report = await run_in_threadpool(score_replay, record)
         confidence = rc_report.to_dict().get("confidence", {})
     except Exception as exc:
         logger.warning(
@@ -137,7 +138,9 @@ async def get_replay_explorer(
             outcomes = store.get_outcomes(limit=5000)
             shown = store.get_shown_recommendations(user_id=user, limit=5000)
             feedback = store.get_feedback(user_id=user, limit=5000)
-            quality = build_quality_stats(shown, feedback)
+            quality = await run_in_threadpool(
+                build_quality_stats, shown, feedback
+            )
 
             # Build quick outcome lookup
             outcome_by_rec: dict[str, str] = {}
@@ -147,7 +150,9 @@ async def get_replay_explorer(
                     outcome_by_rec[rid] = o.get("outcome_type", "unknown")
 
             # Compute trust per category
-            trust_result = compute_trust(outcomes, all_metadata)
+            trust_result = await run_in_threadpool(
+                compute_trust, outcomes, all_metadata
+            )
             trust_by_type = {
                 t["type"]: t
                 for t in trust_result.get("recommendation_types", [])
@@ -160,7 +165,8 @@ async def get_replay_explorer(
                 base_conf = meta.get("confidence", 0.0)
 
                 stats = quality.get(rec_id, {})
-                modifier = compute_modifier(
+                modifier = await run_in_threadpool(
+                    compute_modifier,
                     stats.get("shown_count", 0),
                     stats.get("accepted_count", 0),
                     stats.get("rejected_count", 0),

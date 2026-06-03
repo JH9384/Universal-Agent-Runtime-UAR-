@@ -13,6 +13,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 
@@ -297,7 +298,7 @@ async def run_burnin(
         store=store,
         registry=registry,
     )
-    report = runner.run_smoke()
+    report = await run_in_threadpool(runner.run_smoke)
     report_dict = report.to_dict()
     persisted = _set_latest_report(report_dict, store=store)
     if not persisted:

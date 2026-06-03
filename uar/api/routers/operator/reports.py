@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.routers.operator.common import _load_all_snapshots
@@ -31,8 +32,12 @@ async def get_trust_validation_report(
 
         outcomes = store.get_outcomes(limit=5000)
         metadata = store.get_recommendation_metadata(limit=5000)
-        trust_result = compute_trust(outcomes, metadata)
-        eff_result = compute_effectiveness(outcomes, metadata)
+        trust_result = await run_in_threadpool(
+            compute_trust, outcomes, metadata
+        )
+        eff_result = await run_in_threadpool(
+            compute_effectiveness, outcomes, metadata
+        )
         trust_types = trust_result.get("recommendation_types", [])
         eff_types = eff_result.get("recommendation_types", [])
 

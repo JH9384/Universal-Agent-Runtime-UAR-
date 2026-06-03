@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.routers.operator.common import _load_all_incidents
@@ -97,7 +98,9 @@ async def get_graph_analytics(
 
         outcomes = store.get_outcomes(limit=5000)
         metadata = store.get_recommendation_metadata(limit=5000)
-        trust_result = compute_trust(outcomes, metadata)
+        trust_result = await run_in_threadpool(
+            compute_trust, outcomes, metadata
+        )
         for t in trust_result.get("recommendation_types", []):
             score = t.get("trust_score", 0.0)
             if score >= 0.80:

@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import security
 from uar.services import AuthService, RecipeService
@@ -184,10 +185,10 @@ async def get_recipe_intelligence(
         extract_recipe_intelligence,
     )
 
-    snapshot = build_analytics_snapshot(
-        recent_runs, user, is_admin, hours, limit
+    snapshot = await run_in_threadpool(
+        build_analytics_snapshot, recent_runs, user, is_admin, hours, limit
     )
-    result = extract_recipe_intelligence(snapshot)
+    result = await run_in_threadpool(extract_recipe_intelligence, snapshot)
     result["meta"] = {
         "runs_loaded": len(all_runs),
         "runs_analyzed": snapshot.runs_analyzed,

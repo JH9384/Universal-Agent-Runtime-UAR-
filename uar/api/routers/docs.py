@@ -8,7 +8,7 @@ import os
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
@@ -181,7 +181,7 @@ async def docs_presets(
 
 @router.post("/api/uar/docs/upload")
 async def docs_upload(
-    files: list,
+    files: list[UploadFile],
     overwrite: bool = False,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):

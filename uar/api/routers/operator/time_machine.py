@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.routers.operator.common import (
@@ -47,7 +48,9 @@ async def create_snapshot(
 
         outcomes = store.get_outcomes(limit=5000)
         metadata = store.get_recommendation_metadata(limit=5000)
-        snap["trust"] = compute_trust(outcomes, metadata)
+        snap["trust"] = await run_in_threadpool(
+            compute_trust, outcomes, metadata
+        )
     except Exception as exc:
         logger.warning("snapshot trust capture failed: %s", exc)
         snap["trust"] = None
