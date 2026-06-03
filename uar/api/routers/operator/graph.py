@@ -78,8 +78,8 @@ async def get_knowledge_graph(
                             "type": "has_goal",
                         }
                     )
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Graph-v1: goal extraction failed: %s", _exc)
 
         try:
             metadata = store.get_recommendation_metadata(limit=5000)
@@ -127,8 +127,10 @@ async def get_knowledge_graph(
                                                 "type": "has_outcome",
                                             }
                                         )
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning(
+                "Graph-v1: recommendation metadata failed: %s", _exc
+            )
 
         try:
             for inc in _load_all_incidents():
@@ -151,8 +153,8 @@ async def get_knowledge_graph(
                                 "type": "has_incident",
                             }
                         )
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Graph-v1: incident lookup failed: %s", _exc)
 
         return {"nodes": nodes, "edges": edges}
 
@@ -207,8 +209,8 @@ async def get_knowledge_graph_v2(
                     if goal_id:
                         add_node(goal_id, "goal", goal_id)
                         add_edge(run_id, goal_id, "has_goal")
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.warning("Graph-v2: goal extraction failed: %s", _exc)
 
             try:
                 metadata = store.get_recommendation_metadata(limit=5000)
@@ -234,8 +236,10 @@ async def get_knowledge_graph_v2(
                                         o.get("outcome_type", "unknown"),
                                     )
                                     add_edge(rid, oid, "has_outcome")
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.warning(
+                    "Graph-v2: recommendation metadata failed: %s", _exc
+                )
 
             try:
                 for i in range(50):
@@ -247,8 +251,8 @@ async def get_knowledge_graph_v2(
                             aid = ev.get("id", f"alert-{i}")
                             add_node(aid, "alert", ev.get("type", "alert"))
                             add_edge(run_id, aid, "has_alert")
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.warning("Graph-v2: alert metadata failed: %s", _exc)
 
         for inc in _load_all_incidents():
             if center_id in inc.get("linked_run_ids", []):
@@ -267,8 +271,8 @@ async def get_knowledge_graph_v2(
                     sid = f"snap:{snap['timestamp']}"
                     add_node(sid, "snapshot", f"Snap {snap['timestamp']}")
                     add_edge(center_id, sid, "has_snapshot")
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Graph-v2: snapshot lookup failed: %s", _exc)
 
         for inc in _load_all_incidents():
             if center_id in (inc.get("linked_run_ids", []) + [center_id]):
