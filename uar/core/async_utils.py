@@ -28,8 +28,10 @@ Why not ``asyncio.run()`` directly?
 from __future__ import annotations
 
 import asyncio
+import atexit
 import concurrent.futures
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 from typing import Any, Coroutine, TypeVar, Union
@@ -39,6 +41,22 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 _LockType = Union[threading.Lock, threading.RLock]
+
+# Shared thread pool for run_sync_safe to avoid creating a new executor
+# on every call.  A parallel wave of N async skills would otherwise spin
+# up N one-shot ThreadPoolExecutors, wasting memory and startup time.
+_RUN_SYNC_MAX = max(
+    1,
+    min(
+        32,
+        int(os.getenv("UAR_RUN_SYNC_MAX", "4").strip() or "4"),
+    ),
+)
+_RUN_SYNC_POOL = concurrent.futures.ThreadPoolExecutor(
+    max_workers=_RUN_SYNC_MAX,
+    thread_name_prefix="uar_run_sync",
+)
+atexit.register(_RUN_SYNC_POOL.shutdown, wait=False)
 
 
 @asynccontextmanager
@@ -91,9 +109,8 @@ def run_sync_safe(coro: Coroutine[Any, Any, T]) -> T:
     except RuntimeError:
         return asyncio.run(coro)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(_run_in_new_loop, coro)
-        return future.result()
+    future = _RUN_SYNC_POOL.submit(_run_in_new_loop, coro)
+    return future.result()
 
 
 def _run_in_new_loop(coro: Coroutine[Any, Any, T]) -> T:

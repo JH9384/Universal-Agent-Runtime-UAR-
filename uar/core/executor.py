@@ -27,7 +27,7 @@ from .exceptions import SkillExecutionError, TimeoutError, ValidationError
 from .recipes import DEFAULT_RECIPES
 from .registry import registry
 from .schema import validate_event
-from .scheduler import schedule as dag_schedule
+from .scheduler import CircularDependencyError, schedule as dag_schedule
 from .validation import validate_timeout
 
 # Scheduler strategy: "sequential" | "greedy" | "dag"
@@ -170,19 +170,18 @@ def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
     """Fast snapshot of context data for retry / parallel isolation.
 
     Uses ``pickle`` (3-10x faster than ``copy.deepcopy`` for large dicts)
-    and falls back to ``copy.deepcopy`` if pickle fails.  Always returns
-    a plain dict so callers can safely assign to ``ctx.data``.
+    and falls back to ``copy.deepcopy`` if pickle fails.  Raises on
+    complete failure so callers do not silently lose context data.
     """
     if data is None:
         return {}
     if not _USE_PICKLE_SNAPSHOT:
         try:
             return copy.deepcopy(data)
-        except Exception:
-            logger.warning(
-                "copy.deepcopy snapshot failed, returning empty dict"
-            )
-            return {}
+        except Exception as exc:
+            raise RuntimeError(
+                "copy.deepcopy snapshot failed"
+            ) from exc
     try:
         import io
         serialized = pickle.dumps(data, protocol=_PICKLE_PROTOCOL)
@@ -190,12 +189,10 @@ def _snapshot_context(data: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         try:
             return copy.deepcopy(data)
-        except Exception:
-            logger.warning(
-                "Pickle and deepcopy snapshot both failed, "
-                "returning empty dict"
-            )
-            return {}
+        except Exception as deep_exc:
+            raise RuntimeError(
+                "Pickle and deepcopy snapshot both failed"
+            ) from deep_exc
 
 
 def _estimate_size(obj, max_depth=3, current_depth=0):
@@ -1035,27 +1032,34 @@ class Executor:
             "enable_parallel", True
         )
         if _UAR_SCHEDULER == "dag" and enable_parallel:
-            # Full dependency-aware DAG scheduling
-            try:
-                skill_groups = dag_schedule(
-                    strategy.ordered_skills, registry
-                )
-            except Exception:
-                logger.exception("DAG scheduling failed, falling back")
-                skill_groups = _get_parallel_groups(
-                    strategy.ordered_skills
-                )
+            # Full dependency-aware DAG scheduling.
+            # If the strategy already carries waves from the orchestration
+            # plan, use them directly so the client sees the same plan
+            # that is actually executed.
+            if strategy.waves:
+                skill_groups = list(strategy.waves)
             else:
-                # Emit parallel_wave event for UI tracking
-                for wi, wave in enumerate(skill_groups):
-                    if len(wave) > 1:
-                        yield _ev(
-                            "parallel_wave",
-                            payload={
-                                "wave_index": wi,
-                                "skills": wave,
-                            },
-                        )
+                try:
+                    skill_groups = dag_schedule(
+                        strategy.ordered_skills, registry
+                    )
+                except CircularDependencyError:
+                    raise
+                except Exception:
+                    logger.exception("DAG scheduling failed, falling back")
+                    skill_groups = _get_parallel_groups(
+                        strategy.ordered_skills
+                    )
+            # Emit parallel_wave event for UI tracking
+            for wi, wave in enumerate(skill_groups):
+                if len(wave) > 1:
+                    yield _ev(
+                        "parallel_wave",
+                        payload={
+                            "wave_index": wi,
+                            "skills": wave,
+                        },
+                    )
         elif enable_parallel and strategy.waves:
             # DAG-aware parallel waves from orchestration plan
             skill_groups: List[List[str]] = []
@@ -1700,7 +1704,11 @@ class Executor:
                             if ctx_copy is not None:
                                 ctx_copy.close()
 
-                    # Cancel remaining futures if fail_fast and any failed
+                    # Cancel remaining futures if fail_fast and any failed.
+                    # NOTE: ThreadPoolExecutor futures can only be cancelled
+                    # before their thread begins execution.  A running skill
+                    # will continue to completion — there is no thread
+                    # interruption primitive in CPython.
                     if fail_fast and any_failed:
                         for future in future_to_skill:
                             if not future.done():

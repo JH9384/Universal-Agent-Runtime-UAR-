@@ -6,7 +6,6 @@ both WebSocket handlers.
 """
 
 import asyncio
-import collections
 import json
 import logging
 import os
@@ -31,10 +30,6 @@ _MAX_STREAM_EVENTS = max(
     1,
     min(100000, int(os.getenv("MAX_STREAM_EVENTS", "5000").strip() or "5000")),
 )
-_EVENT_BUFFER_SIZE = max(
-    1,
-    min(10000, int(os.getenv("EVENT_BUFFER_SIZE", "200").strip() or "200")),
-)
 BACKPRESSURE_ENABLED = (
     os.getenv("BACKPRESSURE_ENABLED", "true").lower() == "true"
 )
@@ -47,7 +42,6 @@ _BACKPRESSURE_LIMIT = max(
         int(os.getenv("UAR_BACKPRESSURE_LIMIT", "1000").strip() or "1000"),
     ),
 )
-_backpressure_sem = asyncio.Semaphore(_BACKPRESSURE_LIMIT)
 
 
 class AdaptiveBackpressure:
@@ -102,14 +96,12 @@ class GoalExecutionService(BaseService):
         event_service: Optional[EventService] = None,
         store: Optional[RunStoreProtocol] = None,
         max_stream_events: int = _MAX_STREAM_EVENTS,
-        event_buffer_size: int = _EVENT_BUFFER_SIZE,
         **deps: Any,
     ) -> None:
         super().__init__(**deps)
         self._event = event_service or EventService()
         self._store = store or JsonRunStore()
         self.max_stream_events = max_stream_events
-        self.event_buffer_size = event_buffer_size
 
     async def stream_goal(
         self,
@@ -164,9 +156,9 @@ class GoalExecutionService(BaseService):
         )
 
         bp = AdaptiveBackpressure(enabled=BACKPRESSURE_ENABLED)
-        events: collections.deque = collections.deque(
-            maxlen=self.event_buffer_size
-        )
+        # Per-request in-flight event limit so slow consumers block only
+        # their own stream, not all concurrent streams.
+        bp_sem = asyncio.Semaphore(_BACKPRESSURE_LIMIT)
         persisted = False
         event_count = 0
 
@@ -216,7 +208,7 @@ class GoalExecutionService(BaseService):
 
         try:
             async for raw_event in self._iter_events(
-                strategy, goal, timeout, cid
+                strategy, goal, timeout, cid, bp_sem
             ):
                 event_count += 1
                 if event_count >= self.max_stream_events:
@@ -249,7 +241,6 @@ class GoalExecutionService(BaseService):
                     yield comp
                     break
 
-                events.append(raw_event)
                 _write_buf.append(fast_dumps(raw_event) + "\n")
                 if len(_write_buf) >= _write_buf_size:
                     _flush_write_buf()
@@ -492,6 +483,7 @@ class GoalExecutionService(BaseService):
         goal: GoalSpec,
         timeout: float,
         cid: str,
+        bp_sem: asyncio.Semaphore,
     ) -> AsyncIterator[dict[str, Any]]:
         """Bridge sync Executor.iter_events into async stream.
 
@@ -527,8 +519,8 @@ class GoalExecutionService(BaseService):
             for event in batch:
                 if event is None:
                     return
-                await _backpressure_sem.acquire()
+                await bp_sem.acquire()
                 try:
                     yield event
                 finally:
-                    _backpressure_sem.release()
+                    bp_sem.release()
