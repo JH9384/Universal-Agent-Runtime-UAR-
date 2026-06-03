@@ -726,6 +726,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
       // Handle localStorage quota exceeded errors gracefully
       if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
         console.error('localStorage quota exceeded - recipes not saved')
+        setError({ message: 'Storage full: recipe changes not persisted. Clear browser storage or export recipes.', timestamp: Date.now(), code: 'STORAGE_QUOTA' })
       } else {
         console.warn('Failed to save recipes to localStorage:', e)
       }
@@ -736,7 +737,6 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const wsRef = useRef<WebSocket | null>(null)
   const eventCountRef = useRef(0)
   const eventsContainerRef = useRef<HTMLDivElement | null>(null)
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
   const libInFlightRef = useRef(0)
 
@@ -1782,7 +1782,8 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
               if (json.type === 'skill_failed' && json.error) setError({ message: `${json.skill ? `[${json.skill}] ` : ''}${json.error}`, timestamp: Date.now() })
             } catch (parseError) {
               console.error('Failed to parse SSE data:', parseError, 'Data:', line)
-              setError({ message: 'Failed to parse server response', timestamp: Date.now() })
+              // Parse errors on individual SSE chunks are logged but don't
+              // overwrite the real error state — the server may recover.
             }
           }
           if (eventCountRef.current >= MAX_EVENTS) break
@@ -1851,17 +1852,8 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
     }
   }, [events])
 
-  // Auto-dismiss non-critical errors after 8 seconds
-  useEffect(() => {
-    if (!error) return
-    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-    errorTimerRef.current = setTimeout(() => {
-      setError(null)
-    }, 8000)
-    return () => {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-    }
-  }, [error])
+  // Error state is persistent until manually dismissed — no auto-dismiss
+  // timer so users don't miss critical execution failures.
 
   // Graph rendering is delegated to GraphVisualizer component
 
@@ -1996,7 +1988,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
       )}
 
       {error && (
-        <div className={styles.errorBox} role="alert" aria-live="assertive">
+        <div className={styles.errorBox} role="alert" aria-live="polite">
           <strong>Error:</strong> {error.message}
           {error.code && <span className={styles.errorCode}>[{error.code}]</span>}
           {error.requestId && <span className={styles.errorCode}>req: {error.requestId}</span>}
@@ -2602,10 +2594,10 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           )}
           {(isRunning || isStopping) && (
             <span className={styles.runStatus} aria-live="polite" aria-atomic="true">
-              {isStopping ? 'Stopping' : currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s
+              {isStopping ? 'Stopping' : currentSkill} • {Math.floor((Date.now() - startTime) / 1000)}s • {eventCountRef.current} events
               {useWebSocket && wsStatus !== 'idle' && wsStatus !== 'open' && (
                 <span className={styles.wsStatusSuffix}>
-                  ({wsStatus})
+                  ({wsStatus === 'reconnecting' ? 'Reconnecting…' : wsStatus})
                 </span>
               )}
             </span>
