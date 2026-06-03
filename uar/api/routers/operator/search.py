@@ -65,8 +65,8 @@ async def search_all(
                         },
                         score=10,
                     )
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Search: run lookup failed: %s", _exc)
 
         for inc in _load_all_incidents():
             hay = (
@@ -85,8 +85,8 @@ async def search_all(
                 )
                 if search_query in hay.lower():
                     add_result("recommendation", m, score=7)
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Search: recommendation metadata failed: %s", _exc)
 
         for snap in _load_all_snapshots(limit=50):
             ts_str = str(snap.get("timestamp", ""))
@@ -105,8 +105,8 @@ async def search_all(
                     hay = f"{ev.get('type', '')} {ev.get('message', '')}"
                     if search_query in hay.lower():
                         add_result("alert", ev, score=6)
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Search: alert metadata failed: %s", _exc)
 
         for item in _load_all_inbox_items():
             hay = f"{item.get('title', '')} {item.get('category', '')}"

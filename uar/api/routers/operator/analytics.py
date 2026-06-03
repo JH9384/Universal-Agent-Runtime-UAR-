@@ -57,8 +57,10 @@ async def get_graph_analytics(
                     rid = m["recommendation_id"]
                     add_node(rid, "recommendation", m.get("title", rid))
                     add_edge(run_id, rid, "has_recommendation")
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning(
+                "Analytics: recommendation metadata failed: %s", _exc
+            )
 
     for inc in _load_all_incidents():
         if center_id in inc.get("linked_run_ids", []):
@@ -89,8 +91,8 @@ async def get_graph_analytics(
                         "outcome": o.get("outcome_type", "unknown"),
                     }
                 )
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Analytics: outcome paths failed: %s", _exc)
 
     clusters: Dict[str, int] = {}
     try:
@@ -114,8 +116,8 @@ async def get_graph_analytics(
             else:
                 band = "untrusted"
             clusters[band] = clusters.get(band, 0) + 1
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Analytics: trust clustering failed: %s", _exc)
 
     routes: Dict[str, Dict[str, int]] = {}
     try:
@@ -136,8 +138,8 @@ async def get_graph_analytics(
                 if cat not in routes:
                     routes[cat] = {}
                 routes[cat][otype] = routes[cat].get(otype, 0) + 1
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Analytics: outcome routes failed: %s", _exc)
 
     analytics["node_count"] = len(nodes)
     analytics["edge_count"] = len(edges)

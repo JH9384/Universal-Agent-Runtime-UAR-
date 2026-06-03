@@ -678,8 +678,12 @@ async def get_recommendations(
                     if rec.affected_runs else ""
                 ),
             )
-        except Exception:
-            pass  # shown and metadata tracking is best-effort
+        except Exception as _exc:
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "Recommendation metadata tracking failed: %s", _exc
+            )
     return result
 
 
