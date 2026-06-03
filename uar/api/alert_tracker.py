@@ -130,8 +130,8 @@ class AlertTracker:
                 elif hasattr(self._store, "put_meta"):
                     import json
                     self._store.put_meta(key, json.dumps(event))
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("AlertTracker: store persist failed: %s", _exc)
         # Always keep in memory: acts as fallback when the store lacks
         # list_meta_keys and as a cache for in-process reads.
         self._pending = [
@@ -155,8 +155,8 @@ class AlertTracker:
                     raw = self._store.get_metadata(key)
                     if raw:
                         return json.loads(raw)
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("AlertTracker: store load failed: %s", _exc)
         for e in self._pending:
             if e["id"] == alert_id:
                 return e
@@ -181,10 +181,13 @@ class AlertTracker:
                                     if ev_id and ev_id not in seen:
                                         seen.add(ev_id)
                                         events.append(ev)
-                                except Exception:
-                                    pass
-            except Exception:
-                pass
+                                except Exception as _exc:
+                                    logger.debug(
+                                        "AlertTracker: corrupt alert JSON: %s",
+                                        _exc,
+                                    )
+            except Exception as _exc:
+                logger.debug("AlertTracker: list_meta_keys failed: %s", _exc)
         for e in self._pending:
             e_id = e.get("id")
             if e_id and e_id not in seen:
