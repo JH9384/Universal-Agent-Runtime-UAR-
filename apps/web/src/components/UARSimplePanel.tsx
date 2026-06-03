@@ -148,31 +148,26 @@ export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps)
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const eventCountRef = useRef(0)
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Auto-dismiss errors after 8 seconds
-  useEffect(() => {
-    if (!error) return
-    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-    errorTimerRef.current = setTimeout(() => setError(''), 8000)
-    return () => {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-    }
-  }, [error])
+  // Errors persist until manually dismissed — no auto-dismiss timer.
 
   useEffect(() => {
     try {
       localStorage.setItem(RECENT_KEY, JSON.stringify(recentRuns.slice(0, RECENT_MAX)))
-    } catch {
-      // Silently ignore quota exceeded / private browsing errors
+    } catch (e) {
+      if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
+        setError('Storage full: recent runs not saved. Clear browser storage.')
+      }
     }
   }, [recentRuns])
 
   useEffect(() => {
     try {
       localStorage.setItem(SKILLS_KEY, JSON.stringify(editableSkills))
-    } catch {
-      // ignore
+    } catch (e) {
+      if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
+        setError('Storage full: skill changes not saved. Clear browser storage.')
+      }
     }
   }, [editableSkills])
 
