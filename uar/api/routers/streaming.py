@@ -453,10 +453,11 @@ async def stream_goal_ws(websocket: WebSocket):
         )
     finally:
         await _ws_conn_counter.release()
-        try:
-            await websocket.close()
-        except Exception:
-            logger.warning("WebSocket close failed", exc_info=True)
+        if websocket.client_state == WebSocketState.CONNECTED:
+            try:
+                await websocket.close()
+            except Exception:
+                logger.warning("WebSocket close failed", exc_info=True)
 
 
 @router.post(
@@ -944,6 +945,8 @@ async def websocket_run(websocket: WebSocket):
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
+    except asyncio.CancelledError:
+        raise
     except Exception:
         logger.exception("WebSocket error")
         if websocket.client_state == WebSocketState.CONNECTED:

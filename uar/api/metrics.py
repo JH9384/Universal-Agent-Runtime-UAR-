@@ -3,6 +3,7 @@ Metrics middleware and collection for UAR API.
 Provides Prometheus-compatible metrics and basic runtime statistics.
 """
 
+import asyncio
 import atexit
 import functools
 import inspect
@@ -574,6 +575,8 @@ def timed(
                 error = False
                 try:
                     return await func(*args, **kwargs)
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     error = True
                     if record_error:

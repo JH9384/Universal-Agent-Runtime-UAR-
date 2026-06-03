@@ -1,5 +1,6 @@
 """API middleware for rate limiting, authentication, and logging"""
 
+import asyncio
 import os
 import threading
 import time
@@ -1002,6 +1003,8 @@ def register_metrics_middleware(app) -> None:
         start = time.perf_counter()
         try:
             response = await call_next(request)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             duration = time.perf_counter() - start
             get_metrics_collector().record_request(
@@ -1054,6 +1057,8 @@ def api_error_handler(operation_name: str):
         async def wrapper(*args, **kwargs):
             try:
                 return await fn(*args, **kwargs)
+            except asyncio.CancelledError:
+                raise
             except HTTPException:
                 raise
             except (UARError, ValidationError):
