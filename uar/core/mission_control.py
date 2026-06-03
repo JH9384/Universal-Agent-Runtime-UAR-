@@ -169,8 +169,12 @@ def build_snapshot(
                 try:
                     registry.get(name)
                     skills_available += 1
-                except Exception:
-                    pass
+                except Exception as _exc:
+                    import logging as _logging
+
+                    _logging.getLogger(__name__).debug(
+                        "Skill %s listed but not gettable: %s", name, _exc
+                    )
         from uar.core.circuit_breaker_decorator import (
             get_circuit_breaker_details,
         )

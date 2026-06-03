@@ -63,8 +63,8 @@ class WebhookAlerter:
             from uar.api.alert_tracker import get_alert_tracker
             tracker = get_alert_tracker()
             tracker.record_fired(alert_type, severity, message, data)
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.debug("Webhook alert tracking failed: %s", _exc)
 
         try:
             req = Request(
