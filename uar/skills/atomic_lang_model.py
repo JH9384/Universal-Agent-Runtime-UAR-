@@ -31,6 +31,7 @@ except ImportError:  # pragma: no cover
     HTTPX_AVAILABLE = False
     httpx = None  # type: ignore
 
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.skill_utils import skill_guard
@@ -87,7 +88,7 @@ def _get_service_url(ctx: PipelineContext | None = None) -> str:
     if urlparse(url).scheme not in ("http", "https"):
         logger.warning("Ignoring invalid ALM_SERVICE_URL scheme: %s", url)
         url = "http://localhost:5001/api/v1"
-    return url
+    return url.rstrip("/")
 
 
 def _call_alm(
@@ -203,6 +204,7 @@ def _mock_alm_response(
 
 @register_skill("alm_analyze")
 @skill_guard("Alm Analyze", status="failed")
+@with_circuit_breaker("alm", failure_threshold=3, recovery_timeout=30.0)
 def alm_analyze(ctx: PipelineContext) -> Dict[str, Any]:
     """Analyze a formal grammar specification using ALM.
 
@@ -230,6 +232,7 @@ def alm_analyze(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("alm_generate")
 @skill_guard("Alm Generate", status="failed")
+@with_circuit_breaker("alm", failure_threshold=3, recovery_timeout=30.0)
 def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate a token sequence from a prefix using ALM.
 
@@ -263,6 +266,7 @@ def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("alm_verify")
 @skill_guard("Alm Verify", status="failed")
+@with_circuit_breaker("alm", failure_threshold=3, recovery_timeout=30.0)
 def alm_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """Validate text against ALM grammar.
 

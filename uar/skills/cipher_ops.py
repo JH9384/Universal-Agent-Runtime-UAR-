@@ -21,16 +21,10 @@ import base64
 from typing import Dict, Any
 
 from uar.core.registry import register_skill
-from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
 from uar.core.skill_utils import require_package, skill_guard
 
 logger = logging.getLogger(__name__)
-
-# Circuit breaker for crypto operations
-_cipher_cb = CircuitBreaker(
-    "cipher_ops", failure_threshold=3, recovery_timeout=30.0
-)
 
 # Configuration
 CIPHER_TIMEOUT = max(
@@ -285,9 +279,7 @@ def cipher_ops(ctx: PipelineContext) -> Dict[str, Any]:
                 "operation": operation,
             }
 
-    result = _cipher_cb.call(
-        lambda: _execute_operation(operation, algorithm, data, key, iv)
-    )
+    result = _execute_operation(operation, algorithm, data, key, iv)
 
     # Add metadata to result
     result["operation"] = operation

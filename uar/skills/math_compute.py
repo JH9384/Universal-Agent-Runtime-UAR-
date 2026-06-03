@@ -20,14 +20,8 @@ import os
 from typing import Dict, Any
 
 from uar.core.registry import register_skill
-from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
 from uar.core.skill_utils import require_package, skill_guard
-
-# Circuit breaker for SymPy computations (handles timeouts and errors)
-_math_cb = CircuitBreaker(
-    "math_compute", failure_threshold=3, recovery_timeout=30.0
-)
 
 # Configuration
 MATH_TIMEOUT = max(
@@ -222,10 +216,7 @@ def math_compute(ctx: PipelineContext) -> Dict[str, Any]:
             "operation": operation,
         }
 
-    # Execute operation with circuit breaker
-    result = _math_cb.call(
-        lambda: _execute_operation(operation, expression, variable)
-    )
+    result = _execute_operation(operation, expression, variable)
 
     # Add metadata to result
     result["operation"] = operation

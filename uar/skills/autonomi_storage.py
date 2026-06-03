@@ -26,7 +26,7 @@ import re
 from pathlib import Path
 
 from uar.core.async_utils import run_sync_safe
-from uar.core.circuit_breaker import CircuitBreaker
+from uar.core.circuit_breaker_decorator import get_circuit_breaker
 from uar.core.compat import lazy_import
 from uar.core.exceptions import PathSecurityError
 from uar.core.registry import register_skill
@@ -41,7 +41,7 @@ ALLOWED_ROOT = (
     Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
 )
 
-_autonomi_cb = CircuitBreaker(
+_autonomi_cb = get_circuit_breaker(
     "autonomi", failure_threshold=3, recovery_timeout=60.0
 )
 
@@ -74,9 +74,10 @@ def _resolve_input_path(ctx) -> Path | None:
     """
     raw = ctx.goal.metadata.get("input_path")
     if raw:
-        p = Path(raw).resolve()
+        raw_p = Path(raw)
         try:
-            validate_path_security(p, ALLOWED_ROOT)
+            validate_path_security(raw_p, ALLOWED_ROOT)
+            p = raw_p.resolve()
             return p if p.exists() else None
         except Exception:
             logger.warning(
@@ -91,9 +92,10 @@ def _resolve_input_path(ctx) -> Path | None:
             if isinstance(d, dict):
                 path_val = d.get("path")
                 if path_val and isinstance(path_val, str):
-                    resolved = Path(path_val).resolve()
+                    raw_p = Path(path_val)
                     try:
-                        validate_path_security(resolved, ALLOWED_ROOT)
+                        validate_path_security(raw_p, ALLOWED_ROOT)
+                        resolved = raw_p.resolve()
                         if resolved.exists():
                             return resolved
                     except Exception:
@@ -142,11 +144,12 @@ def autonomi_upload(ctx):
             "error": "Missing autonomi_source in metadata",
         }
 
-    src = Path(source).resolve()
+    raw_src = Path(source)
     try:
-        validate_path_security(src, ALLOWED_ROOT)
+        validate_path_security(raw_src, ALLOWED_ROOT)
     except PathSecurityError:
         return {"status": "failed", "error": "Path security violation"}
+    src = raw_src.resolve()
 
     if not src.exists():
         return {"status": "failed", "error": "Source not found"}
@@ -243,17 +246,18 @@ def autonomi_download(ctx):
             / "downloads"
             / _safe_filename(str(address))
         )
-    dest = Path(dest_raw).resolve()
+    raw_dest = Path(dest_raw)
 
-    # Validate destination path security
+    # Validate destination path security on the original path
     try:
-        validate_path_security(dest, ALLOWED_ROOT)
+        validate_path_security(raw_dest, ALLOWED_ROOT)
     except PathSecurityError:
         return {
             "status": "failed",
             "error": "Destination path security violation",
             "address": address,
         }
+    dest = raw_dest.resolve()
 
     dest.parent.mkdir(parents=True, exist_ok=True)
 

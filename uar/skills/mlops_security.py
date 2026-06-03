@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.contracts import PipelineContext
 from uar.core.registry import register_skill
 from uar.core.skill_utils import require_package, skill_guard
@@ -16,6 +17,9 @@ from uar.core.skill_utils import require_package, skill_guard
 
 @register_skill("security_audit")
 @skill_guard("Security Audit")
+@with_circuit_breaker(
+    "security_tools", failure_threshold=3, recovery_timeout=30.0
+)
 def security_audit(ctx: PipelineContext) -> Dict[str, Any]:
     """Run security audits with bandit and safety.
 
@@ -95,6 +99,7 @@ def security_audit(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("pentest_scan")
 @skill_guard("Pentest Scan")
+@with_circuit_breaker("nmap", failure_threshold=3, recovery_timeout=30.0)
 def pentest_scan(ctx: PipelineContext) -> Dict[str, Any]:
     """Network penetration testing scan with python-nmap.
 
@@ -150,6 +155,7 @@ def pentest_scan(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("osint_recon")
 @skill_guard("OSINT Recon")
+@with_circuit_breaker("osint", failure_threshold=3, recovery_timeout=30.0)
 def osint_recon(ctx: PipelineContext) -> Dict[str, Any]:
     """Open-source intelligence reconnaissance.
 
@@ -245,6 +251,7 @@ def osint_recon(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("mlflow_track")
 @skill_guard("MLflow Track")
+@with_circuit_breaker("mlflow", failure_threshold=3, recovery_timeout=30.0)
 def mlflow_track(ctx: PipelineContext) -> Dict[str, Any]:
     """Log params, metrics, and artifacts to MLflow.
 
@@ -291,6 +298,7 @@ def mlflow_track(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("mlflow_deploy")
 @skill_guard("MLflow Deploy")
+@with_circuit_breaker("mlflow", failure_threshold=3, recovery_timeout=30.0)
 def mlflow_deploy(ctx: PipelineContext) -> Dict[str, Any]:
     """Load a model from MLflow registry and return deployment info.
 
@@ -339,6 +347,7 @@ def mlflow_deploy(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("model_reg")
 @skill_guard("Model Reg")
+@with_circuit_breaker("mlflow", failure_threshold=3, recovery_timeout=30.0)
 def model_reg(ctx: PipelineContext) -> Dict[str, Any]:
     """Register and stage a model in MLflow Model Registry.
 

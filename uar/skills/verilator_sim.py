@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from typing import Any, Dict
 
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 
@@ -39,6 +40,7 @@ def _check_verilator() -> Dict[str, Any]:
     }
 
 
+@with_circuit_breaker("verilator", failure_threshold=3, recovery_timeout=30.0)
 def verilator_sim(ctx: PipelineContext) -> Dict[str, Any]:
     """Check Verilator availability and report status.
 

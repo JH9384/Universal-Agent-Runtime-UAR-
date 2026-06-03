@@ -6,6 +6,7 @@ automatically.
 
 from typing import Any, Dict
 
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.contracts import PipelineContext
 from uar.core.registry import register_skill
 from uar.core.skill_utils import require_package, skill_guard
@@ -13,6 +14,7 @@ from uar.core.skill_utils import require_package, skill_guard
 
 @register_skill("solana_tx")
 @skill_guard("Solana Tx")
+@with_circuit_breaker("solana", failure_threshold=3, recovery_timeout=30.0)
 def solana_tx(ctx: PipelineContext) -> Dict[str, Any]:
     """Solana keypair creation, balance check, and test-transfer.
 
@@ -103,6 +105,7 @@ def solana_tx(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("smart_contract")
 @skill_guard("Smart Contract")
+@with_circuit_breaker("ethereum", failure_threshold=3, recovery_timeout=30.0)
 def smart_contract(ctx: PipelineContext) -> Dict[str, Any]:
     """Deploy a simple smart contract via web3 to a local node.
 
@@ -204,6 +207,7 @@ def smart_contract(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("nft_mint")
 @skill_guard("Nft Mint")
+@with_circuit_breaker("ethereum", failure_threshold=3, recovery_timeout=30.0)
 def nft_mint(ctx: PipelineContext) -> Dict[str, Any]:
     """Mint an ERC-721 NFT on a local testnet.
 

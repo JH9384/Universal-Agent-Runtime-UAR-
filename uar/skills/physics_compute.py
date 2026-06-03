@@ -21,16 +21,10 @@ import logging
 from typing import Dict, Any
 
 from uar.core.registry import register_skill
-from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
 from uar.core.skill_utils import require_package, skill_guard
 
 logger = logging.getLogger(__name__)
-
-# Circuit breaker for physics operations
-_physics_cb = CircuitBreaker(
-    "physics_compute", failure_threshold=3, recovery_timeout=30.0
-)
 
 # Configuration
 PHYSICS_TIMEOUT = max(
@@ -185,11 +179,8 @@ def physics_compute(ctx: PipelineContext) -> Dict[str, Any]:
             "operation": operation,
         }
 
-    # Execute operation with circuit breaker
-    result = _physics_cb.call(
-        lambda: _execute_operation(
-            operation, physics_type, value, from_unit, to_unit
-        )
+    result = _execute_operation(
+        operation, physics_type, value, from_unit, to_unit
     )
 
     # Add metadata to result

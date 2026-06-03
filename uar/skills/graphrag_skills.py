@@ -27,7 +27,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 from uar.core.registry import register_skill
-from uar.core.circuit_breaker import CircuitBreaker
+from uar.core.circuit_breaker_decorator import get_circuit_breaker
 from uar.core.exceptions import PathSecurityError
 from uar.core.skill_utils import skill_guard
 from uar.core.validation import validate_path_security
@@ -48,7 +48,7 @@ ALLOWED_ROOT = (
     Path(_allowed_root_env).resolve() if _allowed_root_env else Path.cwd()
 )
 
-_graphrag_cb = CircuitBreaker(
+_graphrag_cb = get_circuit_breaker(
     "graphrag",
     failure_threshold=DEFAULT_FAILURE_THRESHOLD,
     recovery_timeout=DEFAULT_RECOVERY_TIMEOUT,
@@ -435,13 +435,14 @@ def graphrag_index(ctx):
     root = _ensure_workspace()
     meta = ctx.goal.metadata or {}
     src = meta.get("input_path") or str(_project_root() / ".uar_library")
-    source = Path(src).resolve()
+    raw_source = Path(src)
 
-    # Validate path security
+    # Validate path security on the original path before resolving
     try:
-        validate_path_security(source, ALLOWED_ROOT)
+        validate_path_security(raw_source, ALLOWED_ROOT)
     except PathSecurityError:
         return {"status": "failed", "error": "Path security violation"}
+    source = raw_source.resolve()
 
     if not source.exists():
         return {

@@ -284,8 +284,21 @@ def _extract_with_fallback(file_path: Path) -> List[DocumentElement]:
         List of DocumentElement objects
     """
     try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
+        # O_NOFOLLOW prevents following a symlink that may have been
+        # swapped in between validation and open.
+        if hasattr(os, "O_NOFOLLOW"):
+            fd = os.open(
+                file_path, os.O_RDONLY | os.O_NOFOLLOW
+            )
+            with os.fdopen(
+                fd, "r", encoding="utf-8", errors="replace"
+            ) as f:
+                content = f.read()
+        else:
+            with open(
+                file_path, "r", encoding="utf-8", errors="replace"
+            ) as f:
+                content = f.read()
 
         return [
             DocumentElement(
@@ -407,10 +420,19 @@ def _read_file_enhanced(
                 e,
             )
             try:
-                with open(
-                    file_path, "r", encoding="utf-8", errors="replace"
-                ) as f:
-                    content = f.read()
+                if hasattr(os, "O_NOFOLLOW"):
+                    fd = os.open(
+                        file_path, os.O_RDONLY | os.O_NOFOLLOW
+                    )
+                    with os.fdopen(
+                        fd, "r", encoding="utf-8", errors="replace"
+                    ) as f:
+                        content = f.read()
+                else:
+                    with open(
+                        file_path, "r", encoding="utf-8", errors="replace"
+                    ) as f:
+                        content = f.read()
                 return {
                     "path": str(file_path.relative_to(allowed_root)),
                     "text": content,
@@ -571,10 +593,13 @@ def doc_ingest_enhanced(ctx):
         logger.warning("Invalid strategy %s, using AUTO", strategy_str)
 
     try:
-        path = Path(input_path).resolve()
+        raw_path = Path(input_path)
 
-        # Validate path security
-        validate_path_security(path, ALLOWED_ROOT)
+        # Validate path security on the ORIGINAL path so symlinks are
+        # detected before resolve() silently follows them.
+        validate_path_security(raw_path, ALLOWED_ROOT)
+
+        path = raw_path.resolve()
 
         # Process documents
         documents = []

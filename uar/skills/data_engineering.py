@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
+from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.contracts import PipelineContext
 from uar.core.registry import register_skill
 from uar.core.skill_utils import require_package, skill_guard
@@ -109,6 +110,7 @@ def airflow_dag(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("dbt_transform")
 @skill_guard("Dbt Transform")
+@with_circuit_breaker("dbt", failure_threshold=3, recovery_timeout=30.0)
 def dbt_transform(ctx: PipelineContext) -> Dict[str, Any]:
     """Run dbt compile on a project and return model list.
 
@@ -232,6 +234,7 @@ def spark_process(ctx: PipelineContext) -> Dict[str, Any]:
 
 @register_skill("snowflake_etl")
 @skill_guard("Snowflake Etl")
+@with_circuit_breaker("snowflake", failure_threshold=3, recovery_timeout=30.0)
 def snowflake_etl(ctx: PipelineContext) -> Dict[str, Any]:
     """Connect to Snowflake, execute query, return results.
 

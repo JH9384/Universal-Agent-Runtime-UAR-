@@ -13,14 +13,9 @@ Skills:
 from typing import Dict, Any
 
 from uar.core.registry import register_skill
-from uar.core.circuit_breaker import CircuitBreaker
 from uar.core.contracts import PipelineContext
 from uar.core.safe_eval import safe_eval
 from uar.core.skill_utils import require_package, skill_guard
-
-
-def _cb(name: str) -> CircuitBreaker:
-    return CircuitBreaker(name, failure_threshold=3, recovery_timeout=30.0)
 
 
 # ---------------------------------------------------------------------------

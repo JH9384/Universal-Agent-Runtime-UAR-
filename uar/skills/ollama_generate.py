@@ -5,12 +5,12 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from uar.core.registry import register_skill
-from uar.core.circuit_breaker import CircuitBreaker
+from uar.core.circuit_breaker_decorator import get_circuit_breaker
 from uar.core.skill_utils import skill_guard
 
 logger = logging.getLogger(__name__)
 
-_ollama_cb = CircuitBreaker(
+_ollama_cb = get_circuit_breaker(
     "ollama", failure_threshold=3, recovery_timeout=30.0
 )
 

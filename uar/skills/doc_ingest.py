@@ -349,9 +349,20 @@ def _read_file_safely(file_path: Path, allowed_root: Path) -> dict[str, Any]:
                 }
 
         # Plain text path - use errors="replace" for better compatibility
-        # with files that have encoding issues
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
+        # with files that have encoding issues.
+        # O_NOFOLLOW prevents a TOCTOU race where a file is replaced with a
+        # symlink between validation and open.
+        if hasattr(os, "O_NOFOLLOW"):
+            fd = os.open(file_path, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(
+                fd, "r", encoding="utf-8", errors="replace"
+            ) as f:
+                content = f.read()
+        else:
+            with open(
+                file_path, "r", encoding="utf-8", errors="replace"
+            ) as f:
+                content = f.read()
         return {
             "path": str(file_path.relative_to(allowed_root)),
             "text": content,
@@ -488,10 +499,13 @@ def doc_ingest(ctx):
         return {"documents": [], "warning": "No input_path provided"}
 
     try:
-        path = Path(input_path).resolve()
+        raw_path = Path(input_path)
 
-        # Validate path security before any access
-        validate_path_security(path, ALLOWED_ROOT)
+        # Validate path security on the ORIGINAL path so symlinks are
+        # detected before resolve() silently follows them.
+        validate_path_security(raw_path, ALLOWED_ROOT)
+
+        path = raw_path.resolve()
 
         # Use generator and convert to list with size limits enforced
         documents = []
