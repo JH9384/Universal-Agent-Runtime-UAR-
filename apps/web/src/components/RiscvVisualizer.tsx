@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import styles from './RiscvVisualizer.module.css'
 
 interface Register {
@@ -39,12 +39,23 @@ interface RiscvVisualizerProps {
 export function RiscvVisualizer({ data, darkMode = false }: RiscvVisualizerProps) {
   const [activeTab, setActiveTab] = useState<'registers' | 'memory' | 'trace'>('registers')
   const [copyFlash, setCopyFlash] = useState(false)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    }
+  }, [])
 
   const handleCopy = useCallback(() => {
     if (!data) return
     navigator.clipboard.writeText(JSON.stringify(data, null, 2)).catch(() => {})
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
     setCopyFlash(true)
-    setTimeout(() => setCopyFlash(false), 1000)
+    flashTimerRef.current = setTimeout(() => {
+      setCopyFlash(false)
+      flashTimerRef.current = null
+    }, 1000)
   }, [data])
 
   if (!data) {

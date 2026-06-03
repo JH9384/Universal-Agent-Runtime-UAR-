@@ -35,17 +35,22 @@ export function AlertBanner() {
 
   if (loading && !data) return null
   if (error) return null
-  if (!data) return null
+  if (!data || !data.top_alert) return null
 
   const top = data.top_alert
   const levelClass = LEVEL_CLASS[top.level] || styles.info
 
   return (
-    <div className={`${styles.banner} ${levelClass}`}>
-      <span className={styles.icon}>{LEVEL_ICON[top.level] || '🔵'}</span>
+    <div
+      className={`${styles.banner} ${levelClass}`}
+      role="alert"
+    >
+      <span className={styles.icon} aria-hidden="true">
+        {LEVEL_ICON[top.level] || '🔵'}
+      </span>
       <span className={styles.message}>{top.message}</span>
-      {data.count > 1 && (
-        <span className={styles.count}>+{data.count - 1}</span>
+      {data.alerts.length > 1 && (
+        <span className={styles.count}>+{data.alerts.length - 1}</span>
       )}
     </div>
   )

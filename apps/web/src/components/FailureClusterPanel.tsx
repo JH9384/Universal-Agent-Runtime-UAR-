@@ -42,7 +42,7 @@ interface FailureClusterPanelProps {
   onOpenReplay?: (runId: string) => void
 }
 
-function ReplayButton({ runIds, onOpen, panel }: { runIds: string[]; onOpen?: (runId: string) => void; panel: string }) {
+function ReplayButton({ runIds, onOpen, panel = 'failure_cluster' }: { runIds: string[]; onOpen?: (runId: string) => void; panel?: string }) {
   if (!onOpen || runIds.length === 0) return null
   return (
     <button
@@ -60,7 +60,8 @@ function ReplayButton({ runIds, onOpen, panel }: { runIds: string[]; onOpen?: (r
 
 export function FailureClusterPanel({ onOpenReplay }: FailureClusterPanelProps) {
   const { data, loading, error } = useApiFetch<FailureClusterResponse>(
-    '/api/uar/runs/failure-clusters?hours=24&top=10'
+    '/api/uar/runs/failure-clusters?hours=24&top=10',
+    { interval: 30_000 }
   )
 
   const maxSkillCount = useMemo(() => {
@@ -95,7 +96,7 @@ export function FailureClusterPanel({ onOpenReplay }: FailureClusterPanelProps) 
                   <span className={styles.clusterName}>{sc.skill}</span>
                   <span className={styles.clusterCount}>{sc.count} failures</span>
                   <span className={styles.clusterRuns}>{sc.run_count} runs</span>
-                  <ReplayButton runIds={sc.run_ids || []} onOpen={onOpenReplay} panel="failure_cluster" />
+                  <ReplayButton runIds={sc.run_ids || []} onOpen={onOpenReplay} />
                 </div>
                 <MiniBar value={sc.count} max={maxSkillCount} />
                 {sc.latest_error && (
@@ -121,7 +122,7 @@ export function FailureClusterPanel({ onOpenReplay }: FailureClusterPanelProps) 
                   <span className={styles.clusterCount}>{ec.count}×</span>
                   <span className={styles.clusterRuns}>{ec.run_count} runs</span>
                   <span className={styles.clusterRuns}>{ec.skill_count} skills</span>
-                  <ReplayButton runIds={ec.run_ids || []} onOpen={onOpenReplay} panel="failure_cluster" />
+                  <ReplayButton runIds={ec.run_ids || []} onOpen={onOpenReplay} />
                 </div>
                 <MiniBar value={ec.count} max={maxErrorCount} />
               </div>

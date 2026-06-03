@@ -91,7 +91,7 @@ export function BurnInHistory() {
         ) : (
           reports.map((report, i) => (
             <div
-              key={i}
+              key={`${report.timestamp}-${i}`}
               className={`${styles.reportCard} ${report.passed ? styles.reportPass : styles.reportFail}`}
             >
               <div className={styles.reportHeader}>

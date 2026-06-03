@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
 import { authHeaders } from '../utils/auth'
 import styles from './InvestigationReplay.module.css'
@@ -26,7 +26,7 @@ export function InvestigationReplay({
 }: {
   onOpenReplay?: (runId: string) => void
 }) {
-  const { data, loading, error } = useApiFetch<Investigation[]>(
+  const { data, loading, error, refetch } = useApiFetch<Investigation[]>(
     '/api/uar/investigations',
     { interval: 30_000 }
   )
@@ -36,8 +36,17 @@ export function InvestigationReplay({
 
   const sessions = data ?? []
   const [actionError, setActionError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  const createInFlightRef = useRef(false)
+  const endInFlightRef = useRef<string | null>(null)
 
   const handleCreate = async () => {
+    if (createInFlightRef.current) return
+    createInFlightRef.current = true
     setActionError(null)
     try {
       const res = await fetch('/api/uar/investigations', {
@@ -46,26 +55,38 @@ export function InvestigationReplay({
         body: JSON.stringify({ title: title || 'Untitled', run_id: runId || undefined }),
       })
       if (!res.ok) throw new Error(`Create failed: ${res.status}`)
+      if (!mountedRef.current) return
       setTitle('')
       setRunId('')
-      window.location.reload()
+      refetch()
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Failed to start investigation')
+      if (mountedRef.current) {
+        setActionError(e instanceof Error ? e.message : 'Failed to start investigation')
+      }
+    } finally {
+      createInFlightRef.current = false
     }
   }
 
   const handleEnd = async (inv: Investigation) => {
+    if (endInFlightRef.current === inv.id) return
+    endInFlightRef.current = inv.id
     setActionError(null)
     try {
-      const res = await fetch(`/api/uar/investigations/${inv.id}`, {
+      const res = await fetch(`/api/uar/investigations/${encodeURIComponent(inv.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ status: 'closed', ended_at: Math.floor(Date.now() / 1000) }),
       })
       if (!res.ok) throw new Error(`End failed: ${res.status}`)
-      window.location.reload()
+      if (!mountedRef.current) return
+      refetch()
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Failed to end investigation')
+      if (mountedRef.current) {
+        setActionError(e instanceof Error ? e.message : 'Failed to end investigation')
+      }
+    } finally {
+      endInFlightRef.current = null
     }
   }
 

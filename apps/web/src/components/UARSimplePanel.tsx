@@ -281,14 +281,14 @@ export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps)
         if (abortControllerRef.current?.signal.aborted) break
 
         buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split('\n\n')
+        const parts = buffer.split(/\n\n|\r\n\r\n/)
         buffer = parts.pop() || ''
 
         for (const part of parts) {
-          for (const line of part.split('\n')) {
+          for (const line of part.split(/\r?\n/)) {
             if (!line.startsWith('data:')) continue
             try {
-              const json = JSON.parse(line.replace('data: ', ''))
+              const json = JSON.parse(line.replace(/^data:\s?/, ''))
               if (eventCountRef.current >= MAX_EVENTS) break
               eventCountRef.current++
 
@@ -317,8 +317,9 @@ export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps)
                   }
                 }
               }
-            } catch {
-              // ignore parse errors
+            } catch (parseErr) {
+              // eslint-disable-next-line no-console
+              console.warn('SSE parse error:', parseErr, 'line:', line);
             }
           }
         }
@@ -359,7 +360,10 @@ export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps)
     } finally {
       setIsRunning(false)
       setCurrentSkill('')
-      if (reader) try { reader.releaseLock() } catch {}
+      if (reader) {
+        try { await reader.cancel(); } catch {}
+        try { reader.releaseLock(); } catch {}
+      }
     }
   }, [goal, isRunning, selectedSkills, selectedRecipes, editableRecipes])
 

@@ -737,6 +737,8 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   const eventCountRef = useRef(0)
   const eventsContainerRef = useRef<HTMLDivElement | null>(null)
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mountedRef = useRef(true)
+  const libInFlightRef = useRef(0)
 
   const cleanup = useCallback(() => {
     if (abortControllerRef.current) {
@@ -752,6 +754,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
   useEffect(() => () => cleanup(), [])
 
   const refreshLibrary = useCallback(async () => {
+    libInFlightRef.current += 1
     setLibBusy(true)
     try {
       const r = await fetch('/api/uar/docs/library', { headers: authHeaders() })
@@ -761,14 +764,19 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
         setLibraryPath(j.library || '')
       }
     } catch { /* ignore */ }
-    finally { setLibBusy(false) }
+    finally {
+      libInFlightRef.current -= 1
+      if (libInFlightRef.current === 0) setLibBusy(false)
+    }
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     const ctrl1 = new AbortController()
     fetch('/api/uar/docs/presets', { headers: authHeaders(), signal: ctrl1.signal })
       .then((r) => r.json())
       .then((d) => {
+        if (!mountedRef.current) return
         setPresets(d.presets || [])
         setPresetsLoaded(true)
         setProjectRoot(d.project_root || '')
@@ -780,6 +788,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
       })
       .catch((err) => {
         if ((err as Error)?.name === 'AbortError') return
+        if (!mountedRef.current) return
         console.error('Failed to load presets:', err)
         setPresetsError(true)
         setPresetsLoaded(true)
@@ -790,10 +799,12 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
     fetch('/api/uar/skills', { headers: authHeaders(), signal: ctrl2.signal })
       .then((r) => r.json())
       .then((d) => {
+        if (!mountedRef.current) return
         setBackendSkills(d.skills || [])
       })
       .catch((err) => {
         if ((err as Error)?.name === 'AbortError') return
+        if (!mountedRef.current) return
         // Fallback to AVAILABLE_SKILLS if endpoint fails
         setBackendSkills(AVAILABLE_SKILLS.map(s => s.id))
       })
@@ -802,6 +813,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
     fetch('/api/uar/recipes', { headers: authHeaders(), signal: ctrl3.signal })
       .then((r) => r.json())
       .then((d) => {
+        if (!mountedRef.current) return
         const fetched = (d.recipes || []) as Recipe[]
         if (fetched.length === 0) return
         setRecipes((prev) => {
@@ -827,6 +839,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
         // Silently fall back to existing localStorage/hardcoded recipes
       })
     return () => {
+      mountedRef.current = false
       ctrl1.abort()
       ctrl2.abort()
       ctrl3.abort()
@@ -869,13 +882,16 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
     if (!confirm(`Delete "${name}" from library?`)) return
     try {
       const r = await fetch(`/api/uar/docs/library?name=${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders() })
+      if (!mountedRef.current) return
       if (r.ok) refreshLibrary()
       else {
         const j = await r.json().catch(() => ({}))
         setUploadMsg(`Delete failed: ${j.message || r.status}`)
       }
     } catch (e: unknown) {
-      setUploadMsg(`Delete error: ${e instanceof Error ? e.message : 'unknown'}`)
+      if (mountedRef.current) {
+        setUploadMsg(`Delete error: ${e instanceof Error ? e.message : 'unknown'}`)
+      }
     }
   }
 
@@ -1428,10 +1444,12 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
       let retryCount = 0
       let heartbeatTimer: ReturnType<typeof setInterval> | null = null
       let abortCheckTimer: ReturnType<typeof setInterval> | null = null
+      let connectTimeout: ReturnType<typeof setTimeout> | null = null
 
       const cleanup = () => {
         if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
         if (abortCheckTimer) { clearInterval(abortCheckTimer); abortCheckTimer = null }
+        if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null }
         if (ws) { try { ws.close() } catch {} ws = null }
         wsRef.current = null
       }
@@ -1565,6 +1583,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           const onClose = () => {
             if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
             if (abortCheckTimer) { clearInterval(abortCheckTimer); abortCheckTimer = null }
+            if (connectTimeout) { clearTimeout(connectTimeout); connectTimeout = null }
             wsRef.current = null
             setWsStatus('closed')
             resolve(false)
@@ -1575,7 +1594,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
           ws.onclose = onClose
 
           // Connection timeout fallback
-          setTimeout(() => {
+          connectTimeout = setTimeout(() => {
             if (ws?.readyState !== WebSocket.OPEN) {
               ws?.close()
               resolve(false)
@@ -1687,13 +1706,13 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
         lastEventTime = Date.now()
 
         buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split('\n\n')
+        const parts = buffer.split(/\n\n|\r\n\r\n/)
         buffer = parts.pop() || ''
         for (const part of parts) {
-          for (const line of part.split('\n')) {
+          for (const line of part.split(/\r?\n/)) {
             if (!line.startsWith('data:')) continue
             try {
-              const json = JSON.parse(line.replace('data: ', ''))
+              const json = JSON.parse(line.replace(/^data:\s?/, ''))
               // Skip heartbeat events from UI log to avoid noise
               if (json.type === 'heartbeat') continue
               // Check event limit before processing to avoid processing events beyond limit
@@ -1776,7 +1795,10 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
     } finally {
       clearTimeout(timeoutId)
       if (heartbeatTimer) clearInterval(heartbeatTimer)
-      if (reader) try { reader.releaseLock() } catch {}
+      if (reader) {
+        try { reader.cancel(); } catch {}
+        try { reader.releaseLock(); } catch {}
+      }
       setIsRunning(false)
       setIsStopping(false)
       if (!abortControllerRef.current?.signal.aborted) {
@@ -2953,9 +2975,10 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
                         : e?.type === 'recipe_end'
                           ? styles.recipeEnd
                           : ''
+                      const eventKey = `${e?.type || 'event'}-${e?.skill || ''}-${e?.timestamp || i}-${i}`
                       return (
                         <span
-                          key={i}
+                          key={eventKey}
                           className={isRecipeEvent ? `${styles.recipeEvent} ${recipeClass}` : ''}
                         >
                           {JSON.stringify(e, null, 2)}
@@ -3976,7 +3999,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
                         const isNew = !editingRecipe.id
                         const url = isNew
                           ? '/api/uar/recipes'
-                          : `/api/uar/recipes/${editingRecipe.id}`
+                          : `/api/uar/recipes/${encodeURIComponent(editingRecipe.id)}`
                         const method = isNew ? 'POST' : 'PUT'
                         try {
                           const res = await fetch(url, {
@@ -4264,7 +4287,7 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
                           e.stopPropagation()
                           if (!confirm(`Delete recipe "${r.label}"?`)) return
                           try {
-                            const res = await fetch(`/api/uar/recipes/${r.id}`, {
+                            const res = await fetch(`/api/uar/recipes/${encodeURIComponent(r.id)}`, {
                               method: 'DELETE',
                               headers: authHeaders(),
                             })

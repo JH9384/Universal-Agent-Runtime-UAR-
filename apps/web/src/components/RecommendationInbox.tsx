@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
 import { authHeaders } from '../utils/auth'
 import styles from './RecommendationInbox.module.css'
@@ -21,12 +21,18 @@ interface InboxItem {
 const STATUS_OPTIONS = ['new', 'assigned', 'investigating', 'resolved', 'dismissed'] as const
 
 export function RecommendationInbox() {
-  const { data, loading, error } = useApiFetch<InboxItem[]>('/api/uar/inbox', { interval: 30_000 })
+  const { data, loading, error, refetch } = useApiFetch<InboxItem[]>('/api/uar/inbox', { interval: 30_000 })
   const [filter, setFilter] = useState<string>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNotes, setEditNotes] = useState('')
   const [editAssignee, setEditAssignee] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  const updateInFlightRef = useRef<string | null>(null)
 
   const items = data ?? []
   const filtered = filter === 'all' ? items : items.filter((i) => i.status === filter)
@@ -36,9 +42,11 @@ export function RecommendationInbox() {
   }, {} as Record<string, number>)
 
   const handleUpdate = async (item: InboxItem, status: string) => {
+    if (updateInFlightRef.current === item.id) return
+    updateInFlightRef.current = item.id
     setActionError(null)
     try {
-      const res = await fetch(`/api/uar/inbox/${item.id}`, {
+      const res = await fetch(`/api/uar/inbox/${encodeURIComponent(item.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -48,9 +56,14 @@ export function RecommendationInbox() {
         }),
       })
       if (!res.ok) throw new Error(`Update failed: ${res.status}`)
-      window.location.reload()
+      if (!mountedRef.current) return
+      refetch()
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Update failed')
+      if (mountedRef.current) {
+        setActionError(e instanceof Error ? e.message : 'Update failed')
+      }
+    } finally {
+      updateInFlightRef.current = null
     }
   }
 

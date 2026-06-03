@@ -73,7 +73,7 @@ export function KnowledgeGraphV2({
     if (inputId.trim()) {
       setActiveId(inputId.trim())
       setActiveType(inputType)
-      setGraphUrl(`/api/uar/graph-v2/${inputId.trim()}?center_type=${inputType}`)
+      setGraphUrl(`/api/uar/graph-v2/${encodeURIComponent(inputId.trim())}?center_type=${inputType}`)
     }
   }
 

@@ -55,13 +55,18 @@ export function FilePicker(props: FilePickerProps) {
   const [err, setErr] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const abortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
+  const inFlightRef = useRef(0)
 
   const load = useCallback(async (p: string, recursive = false) => {
+    inFlightRef.current += 1
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
-    setBusy(true)
-    setErr(null)
+    if (mountedRef.current) {
+      setBusy(true)
+      setErr(null)
+    }
     try {
       const r = await fetch(
         `/api/uar/docs/browse?path=${encodeURIComponent(p)}&limit=500&recursive=${recursive}`,
@@ -69,6 +74,7 @@ export function FilePicker(props: FilePickerProps) {
       )
       const j = await r.json()
       if (ctrl.signal.aborted) return
+      if (!mountedRef.current) return
       if (!r.ok) setErr(j.message || j.error || `HTTP ${r.status}`)
       else {
         setData(j)
@@ -76,18 +82,22 @@ export function FilePicker(props: FilePickerProps) {
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return
-      setErr(e instanceof Error ? e.message : 'Browse failed')
+      if (mountedRef.current) setErr(e instanceof Error ? e.message : 'Browse failed')
     } finally {
       if (abortRef.current === ctrl) {
         abortRef.current = null
       }
-      setBusy(false)
+      inFlightRef.current -= 1
+      if (mountedRef.current && inFlightRef.current === 0) {
+        setBusy(false)
+      }
     }
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     if (open) load(initialPath || projectRoot)
-    return () => { abortRef.current?.abort() }
+    return () => { mountedRef.current = false; abortRef.current?.abort() }
   }, [open, initialPath, projectRoot, load])
 
   useEffect(() => {

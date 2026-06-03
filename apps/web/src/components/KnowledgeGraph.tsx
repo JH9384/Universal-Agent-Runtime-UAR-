@@ -53,7 +53,7 @@ export function KnowledgeGraph({ runId, onOpenReplay }: KnowledgeGraphProps) {
   const handleSearch = useCallback(() => {
     if (inputRunId.trim()) {
       setActiveRunId(inputRunId.trim())
-      setGraphUrl(`/api/uar/graph/${inputRunId.trim()}`)
+      setGraphUrl(`/api/uar/graph/${encodeURIComponent(inputRunId.trim())}`)
     }
   }, [inputRunId])
 

@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useEffect } from 'react'
 
 export interface RecorderState {
   isRecording: boolean
@@ -36,31 +36,52 @@ export function useCanvasRecorder(
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountedRef = useRef(true)
   const [state, setState] = useState<RecorderState>({
     isRecording: false,
     recordedSeconds: 0,
   })
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      const recorder = mediaRecorderRef.current
+      if (recorder && recorder.state !== 'inactive') {
+        try { recorder.stop() } catch {}
+      }
+      mediaRecorderRef.current = null
+    }
+  }, [])
+
   const startRecording = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) {
-      setError('Canvas not ready')
+      if (mountedRef.current) setError('Canvas not ready')
       return
     }
 
     // Reset
     chunksRef.current = []
-    setError(null)
-    setState({ isRecording: true, recordedSeconds: 0 })
+    if (mountedRef.current) {
+      setError(null)
+      setState({ isRecording: true, recordedSeconds: 0 })
+    }
 
     // Capture stream from canvas
     let stream: MediaStream
     try {
       stream = canvas.captureStream(fps)
     } catch (e) {
-      setError('captureStream failed: ' + String(e))
-      setState({ isRecording: false, recordedSeconds: 0 })
+      if (mountedRef.current) {
+        setError('captureStream failed: ' + String(e))
+        setState({ isRecording: false, recordedSeconds: 0 })
+      }
       return
     }
 
@@ -76,8 +97,10 @@ export function useCanvasRecorder(
     try {
       recorder = new MediaRecorder(stream, { mimeType: finalMimeType })
     } catch (e) {
-      setError('MediaRecorder failed: ' + String(e))
-      setState({ isRecording: false, recordedSeconds: 0 })
+      if (mountedRef.current) {
+        setError('MediaRecorder failed: ' + String(e))
+        setState({ isRecording: false, recordedSeconds: 0 })
+      }
       return
     }
 
@@ -99,8 +122,10 @@ export function useCanvasRecorder(
     }
 
     recorder.onerror = (e) => {
-      setError('Recording error: ' + String(e))
-      setState((s) => ({ ...s, isRecording: false }))
+      if (mountedRef.current) {
+        setError('Recording error: ' + String(e))
+        setState((s) => ({ ...s, isRecording: false }))
+      }
     }
 
     mediaRecorderRef.current = recorder
@@ -110,7 +135,9 @@ export function useCanvasRecorder(
     const startTime = Date.now()
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000)
-      setState({ isRecording: true, recordedSeconds: elapsed })
+      if (mountedRef.current) {
+        setState({ isRecording: true, recordedSeconds: elapsed })
+      }
     }, 1000)
   }, [canvasRef, fps, mimeType])
 
@@ -124,7 +151,9 @@ export function useCanvasRecorder(
       recorder.stop()
     }
     mediaRecorderRef.current = null
-    setState({ isRecording: false, recordedSeconds: 0 })
+    if (mountedRef.current) {
+      setState({ isRecording: false, recordedSeconds: 0 })
+    }
   }, [])
 
   return { startRecording, stopRecording, state, error }

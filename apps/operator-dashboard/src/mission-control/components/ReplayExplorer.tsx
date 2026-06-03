@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { api } from "../../api/client";
 import type { RunRecord } from "../../api/client";
 
@@ -15,38 +15,67 @@ export function ReplayExplorer() {
   const [copied, setCopied] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let mounted = true;
-    const fetchData = () => {
-      api
-        .listRuns()
-        .then((data) => {
-          if (!mounted) return;
-          setRuns(data.slice(0, 50));
-          setError(null);
-        })
-        .catch((err) => {
-          if (!mounted) return;
-          setError(String(err));
-        })
-        .finally(() => {
-          if (mounted) setLoading(false);
-        });
-    };
-    fetchData();
-    const id = setInterval(fetchData, 10_000);
-    return () => { mounted = false; clearInterval(id); };
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const data = await api.listRuns(signal ? { signal } : undefined);
+      if (!mountedRef.current) return;
+      setRuns(data.slice(0, 50));
+      setError(null);
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+      if (mountedRef.current) setError(String(err));
+    }
   }, []);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    setLoading(true);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let inFlight = false;
+    const abortCtrl = new AbortController();
+
+    function tick() {
+      if (inFlight) return;
+      inFlight = true;
+      fetchData(abortCtrl.signal).finally(() => {
+        inFlight = false;
+        if (mountedRef.current) setLoading(false);
+      });
+    }
+
+    tick();
+    timeoutId = setInterval(tick, 10_000);
+    return () => {
+      mountedRef.current = false;
+      abortCtrl.abort();
+      clearInterval(timeoutId);
+    };
+  }, [fetchData]);
+
   function copyId(id: string) {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     navigator.clipboard.writeText(id).then(() => {
+      if (!mountedRef.current) return;
       setCopied(id);
-      setTimeout(() => setCopied(null), 1500);
+      copyTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current) return;
+        setCopied((prev) => (prev === id ? null : prev));
+        copyTimerRef.current = null;
+      }, 1500);
     }).catch(() => {
-      setCopied(null);
+      if (!mountedRef.current) return;
+      setCopied((prev) => (prev === id ? null : prev));
     });
   }
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const visible = filter.trim()
     ? runs.filter(
@@ -78,7 +107,7 @@ export function ReplayExplorer() {
     <section aria-label="Replay explorer" className="mission-panel">
       <header>
         <h2>Replay Explorer</h2>
-        <span>{visible.length} / {runs.length} runs</span>
+        <span aria-live="polite">{visible.length} / {runs.length} runs</span>
       </header>
 
       <input
@@ -94,7 +123,7 @@ export function ReplayExplorer() {
           const color = STATUS_COLOR[r.status] ?? "#94a3b8";
           return (
             <li key={r.run_id} className="mc-row" style={{ "--mc-status-color": color } as React.CSSProperties}>
-              <span className="mc-dot" />
+              <span className="mc-dot" aria-hidden="true" />
               <code className="mc-run-id">{r.run_id}</code>
               <span className="mc-status-badge">
                 {r.status}
@@ -105,6 +134,7 @@ export function ReplayExplorer() {
                 </span>
               )}
               <button
+                type="button"
                 onClick={() => copyId(r.run_id)}
                 title="Copy run ID"
                 className={copied === r.run_id ? "mc-copy-btn mc-copy-btn--copied" : "mc-copy-btn"}
@@ -115,7 +145,7 @@ export function ReplayExplorer() {
           );
         })}
         {visible.length === 0 && (
-          <li className="mc-meta--muted">
+          <li key="empty" className="mc-meta--muted">
             {filter ? "No matching runs." : "No runs yet."}
           </li>
         )}

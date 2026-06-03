@@ -109,10 +109,13 @@ function EvidenceBlock({ rec }: { rec: Recommendation }) {
   )
 }
 
-function FeedbackButtons({ recId }: { recId: string }) {
+function FeedbackButtons({ recId, onSuccess }: { recId: string; onSuccess?: () => void }) {
   const [state, setState] = useState<'idle' | 'accept' | 'reject' | 'dismiss' | 'error'>('idle')
+  const [pending, setPending] = useState(false)
 
   const send = async (action: 'accept' | 'reject' | 'dismiss') => {
+    if (pending) return
+    setPending(true)
     setState(action)
     try {
       const res = await fetch('/api/uar/recommendations/feedback', {
@@ -122,28 +125,32 @@ function FeedbackButtons({ recId }: { recId: string }) {
       })
       if (!res.ok) {
         setState('error')
+      } else {
+        onSuccess?.()
       }
     } catch {
       setState('error')
+    } finally {
+      setPending(false)
     }
   }
 
-  if (state === 'accept') {
+  if (state === 'accept' && !pending) {
     return <div className={styles.feedbackRow}><span className={styles.feedbackOk}>Accepted</span></div>
   }
-  if (state === 'reject') {
+  if (state === 'reject' && !pending) {
     return <div className={styles.feedbackRow}><span className={styles.feedbackNo}>Rejected</span></div>
   }
-  if (state === 'dismiss') {
+  if (state === 'dismiss' && !pending) {
     return <div className={styles.feedbackRow}><span className={styles.feedbackMuted}>Dismissed</span></div>
   }
 
   return (
     <div className={styles.feedbackRow}>
-      <button className={styles.feedbackBtnAccept} onClick={() => send('accept')}>Accept</button>
-      <button className={styles.feedbackBtnReject} onClick={() => send('reject')}>Reject</button>
-      <button className={styles.feedbackBtnDismiss} onClick={() => send('dismiss')}>Dismiss</button>
-      {state === 'error' && <span className={styles.feedbackNo}>Failed</span>}
+      <button className={styles.feedbackBtnAccept} onClick={() => send('accept')} disabled={pending}>Accept</button>
+      <button className={styles.feedbackBtnReject} onClick={() => send('reject')} disabled={pending}>Reject</button>
+      <button className={styles.feedbackBtnDismiss} onClick={() => send('dismiss')} disabled={pending}>Dismiss</button>
+      {state === 'error' && !pending && <span className={styles.feedbackNo}>Failed</span>}
     </div>
   )
 }
@@ -153,8 +160,9 @@ interface RecommendationPanelProps {
 }
 
 export function RecommendationPanel({ onOpenReplay }: RecommendationPanelProps) {
-  const { data, loading, error } = useApiFetch<RecommendationsResponse>(
-    '/api/uar/recommendations?hours=24&limit=1000'
+  const { data, loading, error, refetch } = useApiFetch<RecommendationsResponse>(
+    '/api/uar/recommendations?hours=24&limit=1000',
+    { interval: 30_000 }
   )
 
   if (loading) return <div className={styles.loading}>Loading recommendations…</div>
@@ -222,7 +230,7 @@ export function RecommendationPanel({ onOpenReplay }: RecommendationPanelProps) 
               </div>
             )}
 
-            <FeedbackButtons recId={rec.recommendation_id} />
+            <FeedbackButtons recId={rec.recommendation_id} onSuccess={refetch} />
           </div>
         ))}
       </div>

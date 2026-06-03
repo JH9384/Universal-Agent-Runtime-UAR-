@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { api } from "../../api/client";
 import type { RunRecord } from "../../api/client";
 
@@ -21,32 +21,44 @@ export function RuntimeTimeline() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const data = await api.listRuns(signal ? { signal } : undefined);
+      if (!mountedRef.current) return;
+      setRuns(data.slice(0, 25));
+      setError(null);
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+      if (mountedRef.current) setError(String(err));
+    }
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
-    const fetchData = () => {
-      api
-        .listRuns()
-        .then((data) => {
-          if (!mounted) return;
-          setRuns(data.slice(0, 25));
-          setError(null);
-        })
-        .catch((err) => {
-          if (!mounted) return;
-          setError(String(err));
-        })
-        .finally(() => {
-          if (mounted) setLoading(false);
-        });
-    };
-    fetchData();
-    const id = setInterval(fetchData, 5000);
+    mountedRef.current = true;
+    setLoading(true);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let inFlight = false;
+    const abortCtrl = new AbortController();
+
+    function tick() {
+      if (inFlight) return;
+      inFlight = true;
+      fetchData(abortCtrl.signal).finally(() => {
+        inFlight = false;
+        if (mountedRef.current) setLoading(false);
+      });
+    }
+
+    tick();
+    timeoutId = setInterval(tick, 5000);
     return () => {
-      mounted = false;
-      clearInterval(id);
+      mountedRef.current = false;
+      abortCtrl.abort();
+      clearInterval(timeoutId);
     };
-  }, []);
+  }, [fetchData]);
 
   if (loading) {
     return (
@@ -70,7 +82,7 @@ export function RuntimeTimeline() {
     <section aria-label="Runtime timeline" className="mission-panel">
       <header>
         <h2>Runtime Timeline</h2>
-        <span>{runs.length} runs</span>
+        <span aria-live="polite">{runs.length} runs</span>
       </header>
       <ul>
         {runs.map((r) => {
@@ -78,7 +90,7 @@ export function RuntimeTimeline() {
           const ts = r.created_at ?? r.timestamp;
           return (
             <li key={r.run_id} className="mc-row" style={{ "--mc-status-color": color } as React.CSSProperties}>
-              <span className="mc-dot" />
+              <span className="mc-dot" aria-hidden="true" />
               <code className="mc-run-id">
                 {r.run_id.slice(0, 12)}
               </code>
@@ -92,7 +104,7 @@ export function RuntimeTimeline() {
           );
         })}
         {runs.length === 0 && (
-          <li className="mc-meta--muted">No runs yet.</li>
+          <li key="empty" className="mc-meta--muted">No runs yet.</li>
         )}
       </ul>
     </section>

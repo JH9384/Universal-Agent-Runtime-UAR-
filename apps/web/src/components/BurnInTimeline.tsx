@@ -67,7 +67,7 @@ function buildTimeline(
     events.push({
       id: `cal-${trust.generated_at}`,
       type: 'calibration',
-      label: `Calibration: ${trust.system_calibration_error.toFixed(3)}`,
+      label: `Calibration: ${trust.system_calibration_error?.toFixed(3) ?? '—'}`,
       detail: `${trust.recommendation_types.length} recommendation type(s) tracked`,
       severity: 'info',
       timestamp: new Date(trust.generated_at * 1000).toLocaleString(),
@@ -111,10 +111,16 @@ function severityClass(severity: string): string {
 
 export function BurnInTimeline() {
   const { data: recsData, loading: recsLoading } =
-    useApiFetch<RecommendationsResponse>('/api/uar/recommendations?hours=24&limit=100')
+    useApiFetch<RecommendationsResponse>(
+      '/api/uar/recommendations?hours=24&limit=100',
+      { interval: 30_000 }
+    )
 
   const { data: trustData, loading: trustLoading } =
-    useApiFetch<TrustResponse>('/api/uar/recommendations/trust')
+    useApiFetch<TrustResponse>(
+      '/api/uar/recommendations/trust',
+      { interval: 30_000 }
+    )
 
   const loading = recsLoading || trustLoading
 

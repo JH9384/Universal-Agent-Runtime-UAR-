@@ -76,8 +76,8 @@ export function DocIngestDashboard({ data, darkMode = false }: DocIngestDashboar
               <span>Size</span>
               <span>Lines</span>
             </div>
-            {files.map((doc, i) => (
-              <div key={i} className={styles.fileRow}>
+            {files.map((doc) => (
+              <div key={doc.path} className={styles.fileRow}>
                 <span className={styles.filePath} title={doc.path}>
                   {doc.path}
                 </span>
@@ -97,8 +97,8 @@ export function DocIngestDashboard({ data, darkMode = false }: DocIngestDashboar
 
       {activeTab === 'errors' && (
         <div className={styles.scrollContent}>
-          {errors.map((err, i) => (
-            <div key={i} className={styles.errorItem}>
+          {errors.map((err) => (
+            <div key={err} className={styles.errorItem}>
               <span className={styles.errorIcon}>⚠️</span>
               <span className={styles.errorMsg}>{err}</span>
             </div>

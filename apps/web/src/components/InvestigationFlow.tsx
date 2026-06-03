@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
 import { authHeaders } from '../utils/auth'
 import styles from './InvestigationFlow.module.css'
@@ -35,9 +35,16 @@ export function InvestigationFlow({
   const [activeRunId, setActiveRunId] = useState(runId ?? '')
   const [completed, setCompleted] = useState<Set<number>>(new Set())
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  const snapshotInFlightRef = useRef(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   const { data, loading, error } = useApiFetch<FlowData>(
-    activeRunId ? `/api/uar/investigate/${activeRunId}` : ''
+    activeRunId ? `/api/uar/investigate/${encodeURIComponent(activeRunId)}` : ''
   )
 
   const handleSearch = () => {
@@ -52,14 +59,19 @@ export function InvestigationFlow({
     } else if (step.type === 'graph') {
       onOpenGraph?.(activeRunId)
     } else if (step.type === 'snapshot') {
+      if (snapshotInFlightRef.current) return
+      snapshotInFlightRef.current = true
       setSnapshotError(null)
       fetch('/api/uar/snapshots', { method: 'POST', headers: authHeaders() })
         .then((res) => {
           if (!res.ok) throw new Error(`Snapshot failed: ${res.status}`)
-          setCompleted((prev) => new Set(prev).add(step.step))
+          if (mountedRef.current) setCompleted((prev) => new Set(prev).add(step.step))
         })
         .catch((err: unknown) => {
-          setSnapshotError(err instanceof Error ? err.message : 'Snapshot failed')
+          if (mountedRef.current) setSnapshotError(err instanceof Error ? err.message : 'Snapshot failed')
+        })
+        .finally(() => {
+          snapshotInFlightRef.current = false
         })
       return
     }
@@ -110,7 +122,7 @@ export function InvestigationFlow({
                   {s.items && s.items.length > 0 && (
                     <ul className={styles.stepItems}>
                       {s.items.map((it, i) => (
-                        <li key={i}>
+                        <li key={it.id || it.rec_id || `${it.title || 'item'}-${i}`}>
                           {it.title || it.id || it.rec_id}
                           {it.status && <span className={styles.itemStatus}> ({it.status})</span>}
                         </li>

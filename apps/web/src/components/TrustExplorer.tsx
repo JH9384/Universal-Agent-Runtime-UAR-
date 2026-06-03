@@ -64,7 +64,7 @@ export function TrustExplorer() {
 
   const handleSelect = (type: string) => {
     setSelected(type)
-    setDetailUrl(`/api/uar/trust-explorer/${type}`)
+    setDetailUrl(`/api/uar/trust-explorer/${encodeURIComponent(type)}`)
   }
 
   const { data: detail, loading: detailLoading } =

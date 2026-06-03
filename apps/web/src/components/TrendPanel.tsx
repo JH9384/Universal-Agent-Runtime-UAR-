@@ -102,7 +102,8 @@ function TrendCard({
 
 export function TrendPanel() {
   const { data, loading, error } = useApiFetch<HistoryResponse>(
-    '/api/uar/mission-control/history?hours=24'
+    '/api/uar/mission-control/history?hours=24',
+    { interval: 30_000 }
   )
 
   const snapshots = useMemo(() => data?.snapshots || [], [data])

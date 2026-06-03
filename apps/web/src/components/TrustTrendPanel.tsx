@@ -12,7 +12,7 @@ interface TrustTypeData {
 
 interface TrustResponse {
   generated_at: number
-  system_calibration_error: number
+  system_calibration_error: number | null
   recommendation_types: TrustTypeData[]
 }
 
@@ -34,7 +34,8 @@ function trustBandLabel(score: number): string {
 
 export function TrustTrendPanel() {
   const { data, loading, error } = useApiFetch<TrustResponse>(
-    '/api/uar/recommendations/trust'
+    '/api/uar/recommendations/trust',
+    { interval: 30_000 }
   )
 
   if (loading) return <div className={styles.loading}>Loading trust data…</div>
@@ -119,7 +120,7 @@ export function TrustTrendPanel() {
       <div className={styles.footer}>
         <span className={styles.footerLabel}>System Calibration Error:</span>
         <span className={styles.footerValue}>
-          {data.system_calibration_error.toFixed(3)}
+          {data.system_calibration_error?.toFixed(3) ?? '—'}
         </span>
       </div>
     </div>

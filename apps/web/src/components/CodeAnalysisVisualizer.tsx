@@ -141,8 +141,8 @@ export function CodeAnalysisVisualizer({ data, darkMode = false }: CodeAnalysisV
             <div style={{ marginBottom: '16px' }}>
               <h4 className={styles.sectionTitle}>Imports / Modules</h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {result.imports.map((imp, i) => (
-                  <span key={i} className={styles.chip}>
+                {result.imports.map((imp) => (
+                  <span key={imp} className={styles.chip}>
                     {imp}
                   </span>
                 ))}
@@ -158,8 +158,8 @@ export function CodeAnalysisVisualizer({ data, darkMode = false }: CodeAnalysisV
             <div style={{ marginBottom: '16px' }}>
               <h4 className={styles.sectionTitle}>Functions ({result.functions.length})</h4>
               <ul style={{ margin: 0, padding: '0 0 0 16px' }}>
-                {result.functions.map((fn, i) => (
-                  <li key={i} style={{ marginBottom: '2px' }}><code>{fn}()</code></li>
+                {result.functions.map((fn) => (
+                  <li key={fn} style={{ marginBottom: '2px' }}><code>{fn}()</code></li>
                 ))}
               </ul>
             </div>
@@ -168,8 +168,8 @@ export function CodeAnalysisVisualizer({ data, darkMode = false }: CodeAnalysisV
             <div>
               <h4 className={styles.sectionTitle}>Classes ({result.classes.length})</h4>
               <ul style={{ margin: 0, padding: '0 0 0 16px' }}>
-                {result.classes.map((cls, i) => (
-                  <li key={i} style={{ marginBottom: '2px' }}><code>{cls}</code></li>
+                {result.classes.map((cls) => (
+                  <li key={cls} style={{ marginBottom: '2px' }}><code>{cls}</code></li>
                 ))}
               </ul>
             </div>
@@ -187,7 +187,7 @@ export function CodeAnalysisVisualizer({ data, darkMode = false }: CodeAnalysisV
             <div>
               {result.issues.map((issue, i) => (
                 <div
-                  key={i}
+                  key={`${issue.type}-${issue.message}-${i}`}
                   style={{
                     padding: '8px 12px',
                     marginBottom: '6px',

@@ -29,7 +29,8 @@ interface RecommendationsResponse {
 
 export function DivergenceDashboard({ onOpenReplay }: { onOpenReplay?: (runId: string) => void }) {
   const { data, loading, error } = useApiFetch<RecommendationsResponse>(
-    '/api/uar/recommendations?hours=24&limit=1000'
+    '/api/uar/recommendations?hours=24&limit=1000',
+    { interval: 30_000 }
   )
 
   const [expanded, setExpanded] = useState<'none' | 'high_low' | 'low_high'>('none')

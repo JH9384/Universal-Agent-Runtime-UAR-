@@ -12,9 +12,9 @@ const DEFAULT_BASE_URL =
 
 function getBaseUrl(): string {
   if (typeof window !== "undefined" && window.UAR_API_URL) {
-    return window.UAR_API_URL;
+    return window.UAR_API_URL.replace(/\/$/, "");
   }
-  return DEFAULT_BASE_URL;
+  return DEFAULT_BASE_URL.replace(/\/$/, "");
 }
 
 function getApiKey(): string {
@@ -24,18 +24,33 @@ function getApiKey(): string {
   return import.meta.env.VITE_API_KEY ?? "";
 }
 
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+interface FetchJsonInit extends RequestInit {
+  /** Status codes that carry valid JSON payloads and should not throw. */
+  acceptStatus?: number[];
+}
+
+async function fetchJson<T>(path: string, init?: FetchJsonInit): Promise<T> {
   const url = `${getBaseUrl()}${path}`;
   const apiKey = getApiKey();
   const authHeader: Record<string, string> = apiKey
     ? { "X-API-Key": apiKey }
     : {};
+  const extraHeaders: Record<string, string> =
+    init?.headers instanceof Headers
+      ? Object.fromEntries(init.headers.entries())
+      : (init?.headers as Record<string, string> ?? {});
+  const hasBody = init?.body != null;
   const response = await fetch(url, {
     ...init,
-    headers: { "Content-Type": "application/json", ...authHeader, ...(init?.headers as Record<string, string> ?? {}) },
+    headers: {
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...authHeader,
+      ...extraHeaders,
+    },
   });
-  if (!response.ok) {
-    const text = await response.text();
+  const isAccepted = init?.acceptStatus?.includes(response.status);
+  if (!response.ok && !isAccepted) {
+    const text = await response.text().catch(() => response.statusText);
     throw new Error(
       `HTTP ${response.status} ${response.statusText}: ${text}`
     );
@@ -75,48 +90,62 @@ export interface SkillPingResult {
   latency_ms?: number;
 }
 
+export interface CircuitBreakerInfo {
+  state: string;
+  failures: number;
+  half_open_count: number;
+  half_open_successes: number;
+  last_failure_time: number;
+}
+
 export interface CircuitBreakerStates {
   status: string;
-  circuits: Record<string, { state: string; failures: number }>;
+  circuits: Record<string, CircuitBreakerInfo>;
 }
 
 export const api = {
-  healthDashboard(): Promise<HealthDashboardData> {
-    return fetchJson("/api/health/dashboard");
+  healthDashboard(init?: RequestInit): Promise<HealthDashboardData> {
+    return fetchJson("/api/health/dashboard", init);
   },
 
-  listRuns(): Promise<RunRecord[]> {
-    return fetchJson("/api/uar/runs");
+  listRuns(init?: RequestInit): Promise<RunRecord[]> {
+    return fetchJson("/api/uar/runs", init);
   },
 
-  compareRuns(a: string, b: string): Promise<RunComparison> {
-    return fetchJson(`/api/uar/runs/${a}/compare/${b}`);
+  compareRuns(a: string, b: string, init?: RequestInit): Promise<RunComparison> {
+    return fetchJson(`/api/uar/runs/${encodeURIComponent(a)}/compare/${encodeURIComponent(b)}`, init);
   },
 
-  pingSkill(name: string): Promise<SkillPingResult> {
+  pingSkill(name: string, init?: RequestInit): Promise<SkillPingResult> {
     return fetchJson("/api/uar/skills/ping", {
       method: "POST",
       body: JSON.stringify({ skill: name }),
+      ...init,
     });
   },
 
-  circuitBreakers(): Promise<CircuitBreakerStates> {
-    return fetchJson("/api/health/circuit-breakers");
+  circuitBreakers(init?: RequestInit): Promise<CircuitBreakerStates> {
+    return fetchJson("/api/health/circuit-breakers", {
+      acceptStatus: [503],
+      ...init,
+    });
   },
 
-  resetCircuitBreaker(name: string): Promise<{ status: string }> {
-    return fetchJson(`/api/health/circuit-breakers/${name}/reset`, {
+  resetCircuitBreaker(name: string, init?: RequestInit): Promise<{ status: string }> {
+    return fetchJson(`/api/health/circuit-breakers/${encodeURIComponent(name)}/reset`, {
       method: "POST",
+      ...init,
     });
   },
 
   bulkDeleteRuns(body: {
     run_ids?: string[];
     older_than_days?: number;
-  }): Promise<{ deleted: number; filter: string }> {
+  }, init?: RequestInit): Promise<{ deleted: number; filter: string }> {
     return fetchJson("/api/uar/runs/bulk-delete", {
       method: "POST",
       body: JSON.stringify(body),
+      ...init,
     });
   },
 };

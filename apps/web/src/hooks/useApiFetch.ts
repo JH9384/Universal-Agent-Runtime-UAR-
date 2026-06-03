@@ -4,6 +4,8 @@ import { authHeaders } from '../utils/auth'
 interface UseApiFetchOptions {
   /** Polling interval in ms; omit for single fetch. */
   interval?: number
+  /** Non-2xx status codes that carry valid JSON and should not be treated as errors. */
+  acceptStatus?: number[]
 }
 
 interface UseApiFetchResult<T> {
@@ -33,53 +35,71 @@ export function useApiFetch<T>(
 
   const abortRef = useRef<AbortController | null>(null)
   const hasFetchedRef = useRef(false)
+  const mountedRef = useRef(true)
+  const inFlightRef = useRef(0)
 
   const fetchData = useCallback(async () => {
     // Skip fetch when URL is empty — callers use '' as a "not yet ready" sentinel.
     if (!url) {
-      setLoading(false)
-      setData(null)
-      setError(null)
+      if (mountedRef.current) {
+        setLoading(false)
+        setData(null)
+        setError(null)
+      }
       return
     }
 
+    inFlightRef.current += 1
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
 
     // Only show loading spinner on the initial fetch to avoid flicker
     // during subsequent polling refreshes.
-    if (!hasFetchedRef.current) {
+    if (!hasFetchedRef.current && mountedRef.current) {
       setLoading(true)
     }
-    setError(null)
+    if (mountedRef.current) setError(null)
 
     try {
       const res = await fetch(url, {
         headers: authHeaders(),
         signal: ctrl.signal,
       })
-      if (!res.ok) {
+      if (!res.ok && !options.acceptStatus?.includes(res.status)) {
         throw new Error(`HTTP ${res.status}`)
       }
       const json = (await res.json()) as T
-      setData(json)
-      hasFetchedRef.current = true
+      if (mountedRef.current) {
+        setData(json)
+        hasFetchedRef.current = true
+      }
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') return
-      setError(String(e))
+      if (mountedRef.current) setError(String(e))
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setLoading(false)
+      inFlightRef.current -= 1
     }
   }, [url])
 
   useEffect(() => {
-    fetchData()
-    if (!options.interval) return
+    mountedRef.current = true
+    hasFetchedRef.current = false
+    let intervalId: ReturnType<typeof setInterval> | undefined
 
-    const id = setInterval(fetchData, options.interval)
+    function tick() {
+      if (inFlightRef.current > 0) return
+      fetchData()
+    }
+
+    tick()
+    if (options.interval != null && options.interval > 0) {
+      intervalId = setInterval(tick, options.interval)
+    }
     return () => {
-      clearInterval(id)
+      mountedRef.current = false
+      clearInterval(intervalId)
       abortRef.current?.abort()
     }
   }, [fetchData, options.interval])

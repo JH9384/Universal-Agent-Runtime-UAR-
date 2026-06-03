@@ -92,7 +92,8 @@ interface RecipeIntelligencePanelProps {
 
 export function RecipeIntelligencePanel({ onOpenReplay }: RecipeIntelligencePanelProps) {
   const { data, loading, error } = useApiFetch<IntelligenceResponse>(
-    '/api/uar/recipes/intelligence?hours=168'
+    '/api/uar/recipes/intelligence?hours=168',
+    { interval: 30_000 }
   )
 
   const recommended = useMemo(

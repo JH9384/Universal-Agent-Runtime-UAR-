@@ -26,6 +26,7 @@ export function App() {
           {TABS.map((t) => (
             <button
               key={t.id}
+              type="button"
               role="tab"
               aria-selected={tab === t.id ? "true" : "false"}
               className={`mc-tab${tab === t.id ? " mc-tab--active" : ""}`}

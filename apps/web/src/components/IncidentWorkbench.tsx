@@ -68,7 +68,7 @@ export function IncidentWorkbench({
             onStatusChange={async (status) => {
               setStatusError(null)
               try {
-                const res = await fetch(`/api/uar/incidents/${inc.id}`, {
+                const res = await fetch(`/api/uar/incidents/${encodeURIComponent(inc.id)}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json', ...authHeaders() },
                   body: JSON.stringify({ status }),
@@ -194,7 +194,7 @@ function IncidentForm({
       linked_rec_ids: linkedRecs.split(',').map((s) => s.trim()).filter(Boolean),
       resolution_notes: resolutionNotes,
     }
-    const url = incident ? `/api/uar/incidents/${incident.id}` : '/api/uar/incidents'
+    const url = incident ? `/api/uar/incidents/${encodeURIComponent(incident.id)}` : '/api/uar/incidents'
     const method = incident ? 'PUT' : 'POST'
     try {
       const res = await fetch(url, {

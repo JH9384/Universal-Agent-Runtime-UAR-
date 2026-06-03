@@ -55,7 +55,8 @@ function MiniSparkline({ data }: { data: number[] }) {
 
 export function ConfidenceDriftPanel() {
   const { data, loading, error } = useApiFetch<DriftData>(
-    '/api/uar/confidence-drift?hours=24'
+    '/api/uar/confidence-drift?hours=24',
+    { interval: 30_000 }
   )
 
   const history = data?.confidence_history || []
@@ -110,8 +111,8 @@ export function ConfidenceDriftPanel() {
         <div className={styles.contributorsSection}>
           <h5 className={styles.sectionTitle}>Top Contributors</h5>
           <div className={styles.contributorList}>
-            {data.top_contributors.map((c, i) => (
-              <div key={i} className={styles.contributorRow}>
+            {data.top_contributors.map((c) => (
+              <div key={c.name} className={styles.contributorRow}>
                 <span className={styles.contributorName}>{c.name}</span>
                 <span className={`${styles.contributorImpact} ${c.impact < 0 ? styles.negative : c.impact > 0 ? styles.positive : ''}`}>
                   {c.impact > 0 ? '+' : ''}{c.impact}

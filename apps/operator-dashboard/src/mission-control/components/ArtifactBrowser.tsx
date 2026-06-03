@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { api } from "../../api/client";
 import type { RunRecord } from "../../api/client";
 
@@ -16,29 +16,44 @@ export function ArtifactBrowser() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const data = await api.listRuns(signal ? { signal } : undefined);
+      if (!mountedRef.current) return;
+      setRuns(data);
+      setError(null);
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+      if (mountedRef.current) setError(String(err));
+    }
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
-    const fetchData = () => {
-      api
-        .listRuns()
-        .then((data) => {
-          if (!mounted) return;
-          setRuns(data);
-          setError(null);
-        })
-        .catch((err) => {
-          if (!mounted) return;
-          setError(String(err));
-        })
-        .finally(() => {
-          if (mounted) setLoading(false);
-        });
+    mountedRef.current = true;
+    setLoading(true);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let inFlight = false;
+    const abortCtrl = new AbortController();
+
+    function tick() {
+      if (inFlight) return;
+      inFlight = true;
+      fetchData(abortCtrl.signal).finally(() => {
+        inFlight = false;
+        if (mountedRef.current) setLoading(false);
+      });
+    }
+
+    tick();
+    timeoutId = setInterval(tick, 10_000);
+    return () => {
+      mountedRef.current = false;
+      abortCtrl.abort();
+      clearInterval(timeoutId);
     };
-    fetchData();
-    const id = setInterval(fetchData, 10_000);
-    return () => { mounted = false; clearInterval(id); };
-  }, []);
+  }, [fetchData]);
 
   const visible = filter === "all" ? runs : runs.filter((r) => r.status === filter);
 
@@ -71,7 +86,7 @@ export function ArtifactBrowser() {
     <section aria-label="Artifact browser" className="mission-panel">
       <header>
         <h2>Artifacts</h2>
-        <span>{visible.length} / {runs.length} records</span>
+        <span aria-live="polite">{visible.length} / {runs.length} records</span>
       </header>
 
       <div className="mc-filter-bar">
@@ -81,6 +96,7 @@ export function ArtifactBrowser() {
           return (
             <button
               key={f}
+              type="button"
               onClick={() => setFilter(f)}
               className={active ? "mc-filter-btn mc-filter-btn--active" : "mc-filter-btn"}
               style={{
@@ -102,7 +118,7 @@ export function ArtifactBrowser() {
           return (
             <li key={r.run_id} style={{ "--mc-status-color": color } as import("react").CSSProperties}>
               <div className="mc-row mc-row--sm-gap">
-                <span className="mc-dot mc-dot--sm" />
+                <span className="mc-dot mc-dot--sm" aria-hidden="true" />
                 <code className="mc-run-id">{r.run_id}</code>
                 <span className="mc-status-badge">{r.status}</span>
               </div>
@@ -113,7 +129,7 @@ export function ArtifactBrowser() {
           );
         })}
         {visible.length === 0 && (
-          <li className="mc-meta--muted">No records match this filter.</li>
+          <li key="empty" className="mc-meta--muted">No records match this filter.</li>
         )}
       </ul>
     </section>

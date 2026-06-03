@@ -123,7 +123,7 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
 
   const availableCount = mc.skills_available
   const totalSkills = mc.skills_total
-  const openBreakers = mc.circuit_breakers.filter((b) => b.state === 'open') ?? []
+  const openBreakers = mc.circuit_breakers.filter((b) => b.state === 'open')
 
   return (
     <div className={styles.missionControl}>
@@ -159,7 +159,7 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
               <span className={styles.skillHealthLabel}>skills available</span>
             </div>
             {openBreakers.length > 0 ? (
-              <div className={styles.alertBadge}>{openBreakers.length} open circuit breaker(s)</div>
+              <div className={styles.alertBadge} role="status">{openBreakers.length} open circuit breaker(s)</div>
             ) : (
               <div className={styles.okBadge}>All circuit breakers closed</div>
             )}
@@ -173,7 +173,7 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
                   {(cert.evidence.burnin_passed as boolean) ? (
                     <span className={styles.okBadge}>Passed</span>
                   ) : (
-                    <span className={styles.alertBadge}>Not passed</span>
+                    <span className={styles.alertBadge} role="status">Not passed</span>
                   )}
                 </div>
               </>
@@ -188,7 +188,7 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
             ) : (
               <ul className={styles.warningList}>
                 {mc.recent_warnings.slice(0, 5).map((w, i) => (
-                  <li key={i} className={styles.warningItem}>{w}</li>
+                  <li key={`${w}-${i}`} className={styles.warningItem}>{w}</li>
                 ))}
               </ul>
             )}
@@ -211,7 +211,7 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
                   <span>{mc.trust_summary.highly_trusted_count} highly trusted</span>
                 </div>
                 {mc.trust_summary.drift_count > 0 && (
-                  <div className={styles.alertBadge}>
+                  <div className={styles.alertBadge} role="status">
                     {mc.trust_summary.drift_count} drift signal(s)
                   </div>
                 )}

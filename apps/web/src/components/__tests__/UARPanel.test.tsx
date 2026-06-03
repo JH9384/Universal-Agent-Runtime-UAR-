@@ -582,4 +582,64 @@ describe('UARPanel', () => {
       })
     })
   })
+
+  describe('Library refresh race condition', () => {
+    it('libBusy stays true when overlapping refreshLibrary calls abort the old one', async () => {
+      // Regression: rapid clicks on the refresh button would start multiple
+      // fetches; the old fetch's finally() cleared libBusy while the new
+      // fetch was still in-flight.
+      const pendingResolvers: Array<() => void> = []
+      let callCount = 0
+
+      vi.mocked(global.fetch).mockImplementation((url: string) => {
+        if (url !== '/api/uar/docs/library') {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({}),
+          } as Response)
+        }
+        callCount++
+        return new Promise((resolve, reject) => {
+          pendingResolvers.push(() =>
+            resolve({
+              ok: true,
+              json: () => Promise.resolve({ entries: [], library: '/test' }),
+            } as Response)
+          )
+        })
+      })
+
+      render(<UARPanel />)
+
+      // Wait for initial mount fetches to resolve
+      await waitFor(() => expect(callCount).toBeGreaterThanOrEqual(1))
+      pendingResolvers.forEach((r) => r())
+      pendingResolvers.length = 0
+
+      // Wait for UI to settle
+      await waitFor(() => {
+        expect(screen.queryByText(/refreshing/i)).not.toBeInTheDocument()
+      })
+
+      // Find and click the refresh library button twice in rapid succession
+      const refreshBtn = await screen.findByTitle('Refresh library list')
+      fireEvent.click(refreshBtn)
+      fireEvent.click(refreshBtn)
+
+      // Two library fetches should have been issued
+      await waitFor(() => expect(callCount).toBeGreaterThanOrEqual(3))
+
+      // libBusy should still be true because the second fetch is in-flight
+      expect(screen.getByText(/refreshing/i)).toBeInTheDocument()
+
+      // Resolve remaining pending fetches
+      pendingResolvers.forEach((r) => r())
+      pendingResolvers.length = 0
+
+      // Now libBusy should clear
+      await waitFor(() => {
+        expect(screen.queryByText(/refreshing/i)).not.toBeInTheDocument()
+      })
+    })
+  })
 })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
 import { authHeaders } from '../utils/auth'
 import styles from './TimeMachine.module.css'
@@ -19,7 +19,7 @@ export function TimeMachine({
 }: {
   onOpenReplay?: (runId: string) => void
 }) {
-  const { data: snapshots, loading, error } = useApiFetch<Snapshot[]>(
+  const { data: snapshots, loading, error, refetch } = useApiFetch<Snapshot[]>(
     '/api/uar/snapshots?limit=48'
   )
   const [selected, setSelected] = useState<number | null>(null)
@@ -27,14 +27,22 @@ export function TimeMachine({
 
   const handleSelect = (ts: number) => {
     setSelected(ts)
-    setDetailUrl(`/api/uar/snapshots/${ts}`)
+    setDetailUrl(`/api/uar/snapshots/${encodeURIComponent(String(ts))}`)
   }
 
   const { data: detail } = useApiFetch<Snapshot>(detailUrl)
 
   const [actionError, setActionError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+  const captureInFlightRef = useRef(false)
 
   const handleCapture = async () => {
+    if (captureInFlightRef.current) return
+    captureInFlightRef.current = true
     setActionError(null)
     try {
       const res = await fetch('/api/uar/snapshots', {
@@ -42,9 +50,14 @@ export function TimeMachine({
         headers: authHeaders(),
       })
       if (!res.ok) throw new Error(`Snapshot failed: ${res.status}`)
-      window.location.reload()
+      if (!mountedRef.current) return
+      refetch()
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Snapshot capture failed')
+      if (mountedRef.current) {
+        setActionError(e instanceof Error ? e.message : 'Snapshot capture failed')
+      }
+    } finally {
+      captureInFlightRef.current = false
     }
   }
 

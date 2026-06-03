@@ -17,8 +17,8 @@
 </script>
 
 <div class="mb-4">
-  <label class="mb-1 block text-sm font-medium">Skills</label>
-  <div class="flex flex-wrap gap-2">
+  <label for="skill-selector" class="mb-1 block text-sm font-medium">Skills</label>
+  <div id="skill-selector" class="flex flex-wrap gap-2" role="group" aria-label="Skills">
     {#each skills as skill}
       <button
         on:click={() => toggle(skill)}

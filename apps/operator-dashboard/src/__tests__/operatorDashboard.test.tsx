@@ -15,6 +15,7 @@ import { App } from '../App'
 import { ArtifactBrowser } from '../mission-control/components/ArtifactBrowser'
 import { ReplayExplorer } from '../mission-control/components/ReplayExplorer'
 import { RuntimeTimeline } from '../mission-control/components/RuntimeTimeline'
+import { RuntimeHealthPanel } from '../mission-control/components/RuntimeHealthPanel'
 import { TopologyGraph } from '../mission-control/components/TopologyGraph'
 
 // ── mock the api client ────────────────────────────────────────────────────
@@ -268,5 +269,165 @@ describe('ReplayExplorer — filter input', () => {
     fireEvent.change(screen.getByPlaceholderText(/Filter/i), { target: { value: 'zzznomatch' } })
     await waitFor(() => screen.getByText(/No matching runs/i))
     expect(screen.getByText(/No matching runs/i).className).toContain('mc-meta--muted')
+  })
+})
+
+// ── Regression: React key prop on conditional list items ──────────────────
+/**
+ * Every <li> rendered inside a .map() or conditional block inside a <ul>
+ * must carry a stable key prop. React warns (console.error) when a sibling
+ * array element lacks a key. Empty-state conditionals are easy to miss
+ * because they only render when the list is empty.
+ */
+describe('React key prop — empty-state list items', () => {
+  const keyWarning = /Warning: Each child in a list should have a unique "key" prop/
+
+  function assertNoKeyWarning<T>(renderFn: () => T): T {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const result = renderFn()
+      const keyCalls = spy.mock.calls.filter((call) =>
+        call.some((arg) => typeof arg === 'string' && keyWarning.test(arg))
+      )
+      expect(keyCalls).toHaveLength(0)
+      return result
+    } finally {
+      spy.mockRestore()
+    }
+  }
+
+  it('TopologyGraph: no key warning when circuits are empty', () => {
+    vi.mocked(api.circuitBreakers).mockResolvedValue({ status: 'ok', circuits: {} })
+    assertNoKeyWarning(() => render(<TopologyGraph />))
+  })
+
+  it('ArtifactBrowser: no key warning when records are empty', () => {
+    vi.mocked(api.listRuns).mockResolvedValue([])
+    assertNoKeyWarning(() => render(<ArtifactBrowser />))
+  })
+
+  it('ReplayExplorer: no key warning when runs are empty', () => {
+    vi.mocked(api.listRuns).mockResolvedValue([])
+    assertNoKeyWarning(() => render(<ReplayExplorer />))
+  })
+
+  it('RuntimeTimeline: no key warning when runs are empty', () => {
+    vi.mocked(api.listRuns).mockResolvedValue([])
+    assertNoKeyWarning(() => render(<RuntimeTimeline />))
+  })
+})
+
+// ── A11y: button type="button" ───────────────────────────────────────────
+describe('A11y — buttons have explicit type="button"', () => {
+  it('App: tab buttons have type="button"', () => {
+    render(<App />)
+    const tabs = screen.getAllByRole('tab')
+    for (const tab of tabs) {
+      expect(tab.getAttribute('type')).toBe('button')
+    }
+  })
+
+  it('ArtifactBrowser: filter buttons have type="button"', async () => {
+    render(<ArtifactBrowser />)
+    await waitFor(() => screen.getByRole('button', { name: /^all/i }))
+    const filterBtns = screen.getAllByRole('button').filter(
+      (b: HTMLElement) => b.hasAttribute('aria-pressed'),
+    )
+    for (const btn of filterBtns) {
+      expect(btn.getAttribute('type')).toBe('button')
+    }
+  })
+
+  it('ReplayExplorer: copy button has type="button"', async () => {
+    vi.mocked(api.listRuns).mockResolvedValue([fakeRun('run-btn-type', 'completed') as never])
+    render(<ReplayExplorer />)
+    await waitFor(() => screen.getByTitle('Copy run ID'))
+    expect(screen.getByTitle('Copy run ID').getAttribute('type')).toBe('button')
+  })
+
+  it('TopologyGraph: reset button has type="button"', async () => {
+    vi.mocked(api.circuitBreakers).mockResolvedValue({
+      circuits: { 'svc.a': { state: 'open', failures: 1 } },
+    } as never)
+    render(<TopologyGraph />)
+    await waitFor(() => screen.getByRole('button', { name: /reset/i }))
+    expect(screen.getByRole('button', { name: /reset/i }).getAttribute('type')).toBe('button')
+  })
+})
+
+// ── A11y: decorative dots hidden from assistive tech ──────────────────────
+describe('A11y — decorative dots have aria-hidden="true"', () => {
+  it('TopologyGraph: status dot is aria-hidden', async () => {
+    vi.mocked(api.circuitBreakers).mockResolvedValue({
+      circuits: { 'svc.b': { state: 'closed', failures: 0 } },
+    } as never)
+    render(<TopologyGraph />)
+    await waitFor(() => document.querySelector('.mc-dot'))
+    const dot = document.querySelector('.mc-dot')
+    expect(dot).not.toBeNull()
+    expect(dot!.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('ArtifactBrowser: status dot is aria-hidden', async () => {
+    vi.mocked(api.listRuns).mockResolvedValue([fakeRun('run-dot', 'completed') as never])
+    render(<ArtifactBrowser />)
+    await waitFor(() => document.querySelector('.mc-dot'))
+    const dot = document.querySelector('.mc-dot')
+    expect(dot).not.toBeNull()
+    expect(dot!.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('ReplayExplorer: status dot is aria-hidden', async () => {
+    vi.mocked(api.listRuns).mockResolvedValue([fakeRun('run-dot2', 'failed') as never])
+    render(<ReplayExplorer />)
+    await waitFor(() => document.querySelector('.mc-dot'))
+    const dot = document.querySelector('.mc-dot')
+    expect(dot).not.toBeNull()
+    expect(dot!.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('RuntimeTimeline: status dot is aria-hidden', async () => {
+    vi.mocked(api.listRuns).mockResolvedValue([fakeRun('run-dot3', 'pending') as never])
+    render(<RuntimeTimeline />)
+    await waitFor(() => document.querySelector('.mc-dot'))
+    const dot = document.querySelector('.mc-dot')
+    expect(dot).not.toBeNull()
+    expect(dot!.getAttribute('aria-hidden')).toBe('true')
+  })
+})
+
+// ── A11y: polling summaries have aria-live="polite" ───────────────────────
+describe('A11y — polling status summaries have aria-live="polite"', () => {
+  it('TopologyGraph: open circuit summary is aria-live', async () => {
+    vi.mocked(api.circuitBreakers).mockResolvedValue({
+      circuits: { 'svc.c': { state: 'closed', failures: 0 } },
+    } as never)
+    render(<TopologyGraph />)
+    await waitFor(() => screen.getByText('All closed'))
+    expect(screen.getByText('All closed').getAttribute('aria-live')).toBe('polite')
+  })
+
+  it('ArtifactBrowser: record count is aria-live', async () => {
+    render(<ArtifactBrowser />)
+    await waitFor(() => screen.getByText(/records/))
+    expect(screen.getByText(/records/).getAttribute('aria-live')).toBe('polite')
+  })
+
+  it('ReplayExplorer: run count is aria-live', async () => {
+    render(<ReplayExplorer />)
+    await waitFor(() => screen.getByText(/runs/))
+    expect(screen.getByText(/runs/).getAttribute('aria-live')).toBe('polite')
+  })
+
+  it('RuntimeTimeline: run count is aria-live', async () => {
+    render(<RuntimeTimeline />)
+    await waitFor(() => screen.getByText(/runs/))
+    expect(screen.getByText(/runs/).getAttribute('aria-live')).toBe('polite')
+  })
+
+  it('RuntimeHealthPanel: health status is aria-live', async () => {
+    render(<RuntimeHealthPanel />)
+    await waitFor(() => screen.getByText(/Healthy|Attention/))
+    expect(screen.getByText(/Healthy|Attention/).getAttribute('aria-live')).toBe('polite')
   })
 })

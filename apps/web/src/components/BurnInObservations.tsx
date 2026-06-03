@@ -162,7 +162,7 @@ export function BurnInObservations() {
           <span className={styles.stripLabel}>Cache consistency (recent)</span>
           <div className={styles.stripDots}>
             {data.samples.slice(-20).map((s, i) => (
-              <StatusDot key={i} ok={s.cache_consistency_ok} />
+              <StatusDot key={`sample-${data.samples.length - 20 + i}`} ok={s.cache_consistency_ok} />
             ))}
           </div>
         </div>

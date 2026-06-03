@@ -76,7 +76,8 @@ function ReplayButton({ runIds, onOpen, panel }: { runIds: string[]; onOpen?: (r
 
 export function FailureHotspotPanel({ onOpenReplay }: FailureHotspotPanelProps) {
   const { data, loading, error } = useApiFetch<HotspotResponse>(
-    '/api/uar/topology/failure-hotspots?hours=168&top=10'
+    '/api/uar/topology/failure-hotspots?hours=168&top=10',
+    { interval: 30_000 }
   )
 
   if (loading) return <div className={styles.loading}>Loading hotspots…</div>

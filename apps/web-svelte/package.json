@@ -9,11 +9,10 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "test": "vitest"
+    "test": "vitest",
+    "test:run": "vitest run"
   },
-  "dependencies": {
-    "convex": "^1.15.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@sveltejs/adapter-vercel": "^6.3.3",
     "@sveltejs/kit": "^2.5.0",

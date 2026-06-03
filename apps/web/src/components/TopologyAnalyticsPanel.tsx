@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { useApiFetch } from '../hooks/useApiFetch'
 import styles from './TopologyAnalyticsPanel.module.css'
 
@@ -29,18 +28,6 @@ interface HotPathsResponse {
   recipes: RecipeUtil[]
 }
 
-function RateBar({ rate }: { rate: number }) {
-  const pct = Math.round(rate * 100)
-  return (
-    <div className={styles.rateTrack}>
-      <div
-        className={styles.rateFill}
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  )
-}
-
 function SuccessPill({ rate }: { rate: number }) {
   const pct = Math.round(rate * 100)
   const color =
@@ -50,18 +37,9 @@ function SuccessPill({ rate }: { rate: number }) {
 
 export function TopologyAnalyticsPanel() {
   const { data, loading, error } = useApiFetch<HotPathsResponse>(
-    '/api/uar/topology/hot-paths?hours=168&top=10'
+    '/api/uar/topology/hot-paths?hours=168&top=10',
+    { interval: 30_000 }
   )
-
-  const maxInvocations = useMemo(() => {
-    if (!data?.nodes?.length) return 1
-    return Math.max(...data.nodes.map((n) => n.invocations))
-  }, [data])
-
-  const maxTransitions = useMemo(() => {
-    if (!data?.edges?.length) return 1
-    return Math.max(...data.edges.map((e) => e.transitions))
-  }, [data])
 
   if (loading) return <div className={styles.loading}>Loading topology analytics…</div>
   if (error) return <div className={styles.error}>Analytics failed: {error}</div>
