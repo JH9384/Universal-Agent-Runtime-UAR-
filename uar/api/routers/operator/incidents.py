@@ -121,6 +121,6 @@ async def delete_incident(
             store.put_metadata(key, None)
         elif hasattr(store, "put_meta"):
             store.put_meta(key, "null")
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Incident delete failed for %s: %s", incident_id, _exc)
     return {"deleted": incident_id}

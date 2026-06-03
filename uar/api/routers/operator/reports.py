@@ -79,8 +79,8 @@ async def get_trust_validation_report(
             if len(ts) >= 3:
                 c, _ = spearmanr(ts, rr)
                 corr = round(float(c), 3) if c is not None else None
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Report: correlation failed: %s", _exc)
 
         drift = [t for t in trust_types if t.get("drift_penalty", 0) > 0]
 

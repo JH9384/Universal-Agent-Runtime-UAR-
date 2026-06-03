@@ -74,8 +74,8 @@ async def get_briefing(
         open_incidents = len(
             [i for i in _load_all_incidents() if i.get("status") != "resolved"]
         )
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Briefing: open incident count failed: %s", _exc)
 
     try:
         outcomes = store.get_outcomes(limit=5000)
@@ -86,8 +86,8 @@ async def get_briefing(
             for m in metadata
             if m.get("recommendation_id") not in resolved_ids
         )
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Briefing: unresolved rec count failed: %s", _exc)
 
     greeting = _greeting_for_hour()
 

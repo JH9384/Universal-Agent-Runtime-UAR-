@@ -310,8 +310,8 @@ async def get_knowledge_clusters(
                 cat = m.get("category", "")
                 if cat:
                     rec_cat_counts[cat] = rec_cat_counts.get(cat, 0) + 1
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Insight: rec category count failed: %s", _exc)
 
         narrative_parts = ["Knowledge Cluster Analysis"]
         if clusters:

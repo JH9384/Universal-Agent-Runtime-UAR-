@@ -60,8 +60,8 @@ async def investigate_run(
         record = None
         try:
             record = store.get_by_run_id(run_id)
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Investigation: run lookup failed: %s", _exc)
 
         recommendations = []
         try:
@@ -76,8 +76,8 @@ async def investigate_run(
                             "category": m.get("category"),
                         }
                     )
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Investigation: metadata lookup failed: %s", _exc)
 
         # Check for linked incidents
         linked_incidents = [
