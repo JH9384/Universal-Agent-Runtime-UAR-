@@ -9,7 +9,7 @@
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -54,14 +54,9 @@ def test_lifespan_raises_on_validation_failure():
     ), pytest.raises(
         RuntimeError, match="UAR startup validation failed"
     ):
-        from uar.api.lifespan import create_lifespan
-        from fastapi import FastAPI
+        from uar.boot import boot
 
-        app = FastAPI()
-        cm = create_lifespan(MagicMock())(app)
-        import asyncio
-
-        asyncio.run(cm.__aenter__())
+        boot()
 
 
 # ── Skill ping endpoint ─────────────────────────────────────────────────────

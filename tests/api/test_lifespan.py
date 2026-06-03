@@ -8,8 +8,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from uar.api.lifespan import (
+from uar.boot import (
     SHUTDOWN_SLEEP,
+    BootContext,
     create_lifespan,
 )
 
@@ -26,17 +27,19 @@ class TestConfigConstants:
         with patch.dict("os.environ", env, clear=True):
             # Need to reimport to pick up env change
             import importlib
-            from uar.api import lifespan
-            importlib.reload(lifespan)
-            assert lifespan.CORS_ORIGINS == ["https://app.com"]
+            from uar import boot
+            importlib.reload(boot)
+            assert boot.CORS_ORIGINS == ["https://app.com"]
 
 
 class TestCreateLifespan:
     """Lifespan factory."""
 
     def test_returns_callable(self):
-        counter = type("Counter", (), {"count": 0})()
-        lifespan = create_lifespan(counter)
+        ws_counter = MagicMock()
+        ws_counter.count = 0
+        ctx = BootContext(ws_conn_counter=ws_counter)
+        lifespan = create_lifespan(ctx)
         assert callable(lifespan)
 
 
@@ -77,6 +80,16 @@ class TestLifespanStartup:
             "config_advanced.log": patch(
                 "uar.config_advanced.log_validation_results"
             ),
+            "metrics.get_collector": patch(
+                "uar.api.metrics.get_metrics_collector",
+                return_value=MagicMock(),
+            ),
+            "postgres.shutdown": patch(
+                "uar.memory.postgres_store._shutdown_postgres_pool"
+            ),
+            "http.close": patch(
+                "uar.core.http_client.close_all_sessions"
+            ),
         }
 
     @pytest.mark.asyncio
@@ -84,8 +97,10 @@ class TestLifespanStartup:
         from fastapi import FastAPI
 
         app = FastAPI()
-        counter = type("Counter", (), {"count": 0})()
-        lifespan = create_lifespan(counter)
+        ws_counter = MagicMock()
+        ws_counter.count = 0
+        ctx = BootContext(ws_conn_counter=ws_counter)
+        lifespan = create_lifespan(ctx)
 
         patches = self._patches()
         with ExitStack() as stack:
@@ -94,13 +109,8 @@ class TestLifespanStartup:
             async with lifespan(app):
                 pass  # Startup + immediate shutdown
 
-    @pytest.mark.asyncio
-    async def test_startup_validation_fails(self):
-        from fastapi import FastAPI
-
-        app = FastAPI()
-        counter = type("Counter", (), {"count": 0})()
-        lifespan = create_lifespan(counter)
+    def test_startup_validation_fails(self):
+        from uar.boot import boot
 
         patches = self._patches()
         with ExitStack() as stack:
@@ -110,8 +120,7 @@ class TestLifespanStartup:
             # Make validation fail
             mocks["config.validate"].return_value = ["missing env"]
             with pytest.raises(RuntimeError, match="startup validation"):
-                async with lifespan(app):
-                    pass
+                boot()
 
 
 class TestLifespanShutdown:
@@ -168,14 +177,16 @@ class TestLifespanShutdown:
         from fastapi import FastAPI
 
         app = FastAPI()
-        counter = type("Counter", (), {"count": 0})()
-        lifespan = create_lifespan(counter)
+        ws_counter = MagicMock()
+        ws_counter.count = 0
+        ctx = BootContext(ws_conn_counter=ws_counter)
+        lifespan = create_lifespan(ctx)
 
         patches = self._patches()
         with ExitStack() as stack:
             for p in patches.values():
                 stack.enter_context(p)
-            with patch("uar.api.lifespan.SHUTDOWN_SLEEP", 0.1):
+            with patch("uar.boot.SHUTDOWN_SLEEP", 0.1):
                 async with lifespan(app):
                     pass
 
@@ -184,14 +195,16 @@ class TestLifespanShutdown:
         from fastapi import FastAPI
 
         app = FastAPI()
-        counter = type("Counter", (), {"count": 2})()
-        lifespan = create_lifespan(counter)
+        ws_counter = MagicMock()
+        ws_counter.count = 2
+        ctx = BootContext(ws_conn_counter=ws_counter)
+        lifespan = create_lifespan(ctx)
 
         patches = self._patches()
         with ExitStack() as stack:
             for p in patches.values():
                 stack.enter_context(p)
-            with patch("uar.api.lifespan.SHUTDOWN_SLEEP", 0.1):
-                with patch("uar.api.lifespan.asyncio.sleep"):
+            with patch("uar.boot.SHUTDOWN_SLEEP", 0.1):
+                with patch("uar.boot.asyncio.sleep"):
                     async with lifespan(app):
                         pass

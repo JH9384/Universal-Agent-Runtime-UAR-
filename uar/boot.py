@@ -174,7 +174,6 @@ async def _retention_purge_loop() -> None:
     store = get_store()
     while True:
         try:
-            await asyncio.sleep(3600)
             removed = store.purge_old_records(config.run_retention_days)
             if removed > 0:
                 logger.info(
@@ -182,6 +181,7 @@ async def _retention_purge_loop() -> None:
                     removed,
                     config.run_retention_days,
                 )
+            await asyncio.sleep(3600)
         except asyncio.CancelledError:
             break
         except Exception as exc:
@@ -470,7 +470,8 @@ async def wait_for_health(
     *,
     attempts: int = 40,
     interval: float = 0.25,
-    timeout: float = 10.0,
+    request_timeout: float = 2.0,
+    max_duration: float = 30.0,
 ) -> bool:
     """Poll *url* until it returns 200 or limits are exhausted.
 
@@ -479,15 +480,18 @@ async def wait_for_health(
     import urllib.request
 
     loop = asyncio.get_running_loop()
+    start = time.monotonic()
 
     def _check() -> bool:
         try:
-            with urllib.request.urlopen(url, timeout=timeout) as resp:
+            with urllib.request.urlopen(url, timeout=request_timeout) as resp:
                 return resp.status == 200
         except Exception:
             return False
 
     for _ in range(attempts):
+        if time.monotonic() - start >= max_duration:
+            return False
         if await loop.run_in_executor(None, _check):
             return True
         await asyncio.sleep(interval)
@@ -699,8 +703,8 @@ async def boot_full_stack(
         dashboard_port if start_dashboard else "(skipped)",
     )
 
-    # Boot context + FastAPI app (context is created inside create_app)
-    _ = boot()  # noqa: F841 — side-effect only (skills, validation)
+    # FastAPI app and full boot sequence run inside the uvicorn subprocess
+    # (uar.api.server → create_app → boot). No need to boot twice here.
 
     # Determine Python executable
     python_exe = sys.executable
@@ -865,16 +869,17 @@ def boot_cli() -> None:
             finally:
                 supervisor.stop_all()
 
-        supervisor = asyncio.run(
-            boot_full_stack(
+        async def _boot_and_monitor() -> None:
+            supervisor = await boot_full_stack(
                 api_port=args.port,
                 host=args.host,
                 open_browser_ui=not args.no_browser,
                 start_web=start_web,
                 start_dashboard=start_dashboard,
             )
-        )
-        asyncio.run(_monitor(supervisor))
+            await _monitor(supervisor)
+
+        asyncio.run(_boot_and_monitor())
     else:
         # API-only (simple path)
         import uvicorn

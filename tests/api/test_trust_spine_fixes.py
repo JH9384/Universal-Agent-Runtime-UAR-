@@ -2626,7 +2626,7 @@ def test_wait_for_health_does_not_block_event_loop():
             "http://localhost:59999/__nonexistent__",
             attempts=2,
             interval=0.01,
-            timeout=0.01,
+            request_timeout=0.01,
         )
 
     loop_ran_other_task = False

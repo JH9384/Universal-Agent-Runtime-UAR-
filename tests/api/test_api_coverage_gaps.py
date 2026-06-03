@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 
 def test_retention_purge_loop_zero_days():
     """When retention_days <= 0, purge loop exits immediately."""
-    from uar.api.lifespan import _retention_purge_loop
+    from uar.boot import _retention_purge_loop
 
     with patch("uar.config.config") as mock_cfg:
         mock_cfg.run_retention_days = 0
@@ -29,12 +29,13 @@ def test_retention_purge_loop_zero_days():
 @pytest.mark.asyncio
 async def test_retention_purge_loop_cancelled():
     """CancelledError must break the loop silently."""
-    from uar.api.lifespan import _retention_purge_loop
+    from uar.boot import _retention_purge_loop
 
     with patch("uar.config.config") as mock_cfg:
         mock_cfg.run_retention_days = 1
         with patch("uar.memory.base_store.get_store") as mock_get_store:
             store = MagicMock()
+            store.purge_old_records.return_value = 0
             mock_get_store.return_value = store
             task = asyncio.create_task(_retention_purge_loop())
             await asyncio.sleep(0.05)
