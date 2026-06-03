@@ -42,20 +42,24 @@ def _load_all_incidents() -> List[Dict[str, Any]]:
                         if iid and iid not in seen:
                             seen.add(iid)
                             incidents.append(ev)
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Incident list_meta_keys failed: %s", _exc)
     try:
         for i in range(100):
             test_key = f"{_INCIDENT_NAMESPACE}:incident-{i}"
             raw = store.get_metadata(test_key)
             if raw:
-                ev = json.loads(raw) if isinstance(raw, str) else raw
+                try:
+                    ev = json.loads(raw) if isinstance(raw, str) else raw
+                except Exception as _exc:
+                    logger.debug("Corrupt incident JSON: %s", _exc)
+                    continue
                 iid = ev.get("id")
                 if iid and iid not in seen:
                     seen.add(iid)
                     incidents.append(ev)
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Incident metadata scan failed: %s", _exc)
     return sorted(
         incidents, key=lambda x: x.get("created_at", 0), reverse=True
     )
@@ -101,8 +105,8 @@ def _get_snapshot_for_day(day_timestamp: int) -> Optional[Dict[str, Any]]:
             raw = store.get_metadata(key)
             if raw:
                 return json.loads(raw) if isinstance(raw, str) else raw
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Snapshot lookup failed: %s", _exc)
     return None
 
 
@@ -117,13 +121,18 @@ def _load_all_snapshots(limit: int = 100) -> List[Dict[str, Any]]:
             key = _snapshot_key(ts)
             raw = store.get_metadata(key)
             if raw:
-                snap = json.loads(raw) if isinstance(raw, str) else raw
+                try:
+                    snap = json.loads(raw) if isinstance(raw, str) else raw
+                except Exception as _exc:
+                    logger.debug("Corrupt snapshot JSON: %s", _exc)
+                    continue
                 ts_val = snap.get("timestamp")
                 if ts_val and ts_val not in seen:
                     seen.add(ts_val)
                     snapshots.append(snap)
-        except Exception:
-            pass
+        except Exception as _exc:
+            logger.warning("Snapshot metadata scan failed: %s", _exc)
+            break
     return sorted(snapshots, key=lambda x: x.get("timestamp", 0), reverse=True)
 
 
@@ -145,13 +154,17 @@ def _load_all_inbox_items() -> List[Dict[str, Any]]:
             test_key = f"{_INBOX_NAMESPACE}:item-{i}"
             raw = store.get_metadata(test_key)
             if raw:
-                ev = json.loads(raw) if isinstance(raw, str) else raw
+                try:
+                    ev = json.loads(raw) if isinstance(raw, str) else raw
+                except Exception as _exc:
+                    logger.debug("Corrupt inbox JSON: %s", _exc)
+                    continue
                 iid = ev.get("id")
                 if iid and iid not in seen:
                     seen.add(iid)
                     items.append(ev)
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Inbox metadata scan failed: %s", _exc)
     return sorted(items, key=lambda x: x.get("created_at", 0), reverse=True)
 
 
@@ -227,13 +240,17 @@ def _load_all_investigations() -> List[Dict[str, Any]]:
             test_key = f"{_INVESTIGATION_NAMESPACE}:inv-{i}"
             raw = store.get_metadata(test_key)
             if raw:
-                ev = json.loads(raw) if isinstance(raw, str) else raw
+                try:
+                    ev = json.loads(raw) if isinstance(raw, str) else raw
+                except Exception as _exc:
+                    logger.debug("Corrupt investigation JSON: %s", _exc)
+                    continue
                 sid = ev.get("id")
                 if sid and sid not in seen:
                     seen.add(sid)
                     sessions.append(ev)
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.warning("Investigation metadata scan failed: %s", _exc)
     return sorted(sessions, key=lambda x: x.get("started_at", 0), reverse=True)
 
 
