@@ -69,13 +69,14 @@ if ! port_free "$API_PORT"; then
 fi
 
 # ---- Cleanup on exit ----
-declare -A PIDS
-PIDS=()
+PID_api=""
+PID_web=""
+PID_dashboard=""
 cleanup() {
     echo ""
     echo "Shutting down UAR services..."
-    for name in "${!PIDS[@]}"; do
-        pid="${PIDS[$name]}"
+    for var in PID_api PID_web PID_dashboard; do
+        pid=$(eval "echo \$$var")
         [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
     done
     wait 2>/dev/null || true
@@ -93,15 +94,15 @@ start_api() {
     echo -n "Starting API on :$API_PORT... "
     $PYTHON -m uvicorn uar.api.server:app --host 127.0.0.1 --port "$API_PORT" \
         > /tmp/uar_api.log 2>&1 &
-    PIDS[api]=$!
+    PID_api=$!
 
-    for i in $(seq 1 40); do
+    for i in $(seq 1 80); do
         if curl -fs "$API_URL/api/health" >/dev/null 2>&1; then
-            echo "OK (pid=${PIDS[api]})"
+            echo "OK (pid=$PID_api)"
             return 0
         fi
         sleep 0.25
-        if ! kill -0 "${PIDS[api]}" 2>/dev/null; then
+        if ! kill -0 "$PID_api" 2>/dev/null; then
             echo "FAIL"
             cat /tmp/uar_api.log
             return 1
@@ -133,15 +134,15 @@ start_web() {
     echo -n "Starting Web UI on :$WEB_PORT... "
     (cd apps/web && npm run dev -- --port "$WEB_PORT" --host 127.0.0.1) \
         > /tmp/uar_web.log 2>&1 &
-    PIDS[web]=$!
+    PID_web=$!
 
-    for i in $(seq 1 40); do
+    for i in $(seq 1 80); do
         if curl -fs "$WEB_URL" >/dev/null 2>&1; then
-            echo "OK (pid=${PIDS[web]})"
+            echo "OK (pid=$PID_web)"
             return 0
         fi
         sleep 0.5
-        if ! kill -0 "${PIDS[web]}" 2>/dev/null; then
+        if ! kill -0 "$PID_web" 2>/dev/null; then
             echo "FAIL"
             cat /tmp/uar_web.log
             return 1
@@ -171,17 +172,17 @@ start_dashboard() {
     fi
 
     echo -n "Starting Mission Control on :$DASHBOARD_PORT... "
-    (cd apps/operator-dashboard && npm run dev) \
+    (cd apps/operator-dashboard && npm run dev -- --port "$DASHBOARD_PORT" --host 127.0.0.1) \
         > /tmp/uar_dashboard.log 2>&1 &
-    PIDS[dashboard]=$!
+    PID_dashboard=$!
 
-    for i in $(seq 1 40); do
+    for i in $(seq 1 80); do
         if curl -fs "$DASHBOARD_URL" >/dev/null 2>&1; then
-            echo "OK (pid=${PIDS[dashboard]})"
+            echo "OK (pid=$PID_dashboard)"
             return 0
         fi
         sleep 0.5
-        if ! kill -0 "${PIDS[dashboard]}" 2>/dev/null; then
+        if ! kill -0 "$PID_dashboard" 2>/dev/null; then
             echo "FAIL"
             cat /tmp/uar_dashboard.log
             return 1
@@ -195,6 +196,12 @@ start_dashboard() {
 # ---- Orchestrate startup ----
 if needs_api; then
     has_service api || SERVICES="api $SERVICES"
+fi
+
+# Dashboard is now embedded in the web UI; skip standalone when web is also requested
+if has_service web && has_service dashboard; then
+    echo "Note: Dashboard is now embedded in the Web UI. Standalone dashboard skipped."
+    SERVICES=$(echo "$SERVICES" | sed 's/dashboard//g')
 fi
 
 for svc in $SERVICES; do

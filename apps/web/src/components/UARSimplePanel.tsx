@@ -110,9 +110,10 @@ interface RecentRun {
 interface UARSimplePanelProps {
   onToggleMode?: () => void
   modeLabel?: string
+  onGoDashboard?: () => void
 }
 
-export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps) {
+export function UARSimplePanel({ onToggleMode, modeLabel, onGoDashboard }: UARSimplePanelProps) {
   const [goal, setGoal] = useState('')
   const [selectedSkills, setSelectedSkills] = useState<string[]>(['openai_chat'])
   const [selectedRecipes, setSelectedRecipes] = useState<string[]>([])
@@ -417,6 +418,16 @@ export function UARSimplePanel({ onToggleMode, modeLabel }: UARSimplePanelProps)
             aria-label={`Switch to ${modeLabel} mode`}
           >
             {modeLabel}
+          </button>
+        )}
+        {onGoDashboard && (
+          <button
+            onClick={onGoDashboard}
+            className={styles.skillGuideButton}
+            title="Open Mission Control Dashboard"
+            aria-label="Open Mission Control Dashboard"
+          >
+            Dashboard
           </button>
         )}
         <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" className={styles.uorIcon} onError={() => setUorImageError(true)} />}</a></span>

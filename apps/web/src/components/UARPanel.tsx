@@ -447,9 +447,10 @@ const INITIAL_UNIFIED_ORDER: {id: string; type: 'skill' | 'recipe'; content: str
 interface UARPanelProps {
   onToggleMode?: () => void
   modeLabel?: string
+  onGoDashboard?: () => void
 }
 
-export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
+export function UARPanel({ onToggleMode, modeLabel, onGoDashboard }: UARPanelProps) {
   const [goal, setGoal] = useState('')
   const [inputPath, setInputPath] = useState('')
   const [darkMode, setDarkMode] = useDarkMode()
@@ -1951,6 +1952,16 @@ export function UARPanel({ onToggleMode, modeLabel }: UARPanelProps) {
             aria-label={`Switch to ${modeLabel} mode`}
           >
             {modeLabel}
+          </button>
+        )}
+        {onGoDashboard && (
+          <button
+            onClick={onGoDashboard}
+            className={styles.skillGuideButton}
+            title="Open Mission Control Dashboard"
+            aria-label="Open Mission Control Dashboard"
+          >
+            Dashboard
           </button>
         )}
         <span className={styles.projectRoot}>UOR Support <a href="https://uor.foundation" target="_blank" rel="noopener noreferrer">{uorImageError ? <span className={styles.uorFallbackIcon}>🔗</span> : <img src="https://uor.foundation/assets/uor-icon-new-CQuNVmtH.png" alt="UOR" width="20" height="20" className={styles.uorIcon} onError={() => setUorImageError(true)} />}</a></span>
