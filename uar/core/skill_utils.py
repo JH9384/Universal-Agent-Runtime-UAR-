@@ -7,9 +7,12 @@ across skill implementations.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import logging
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Union
+
+from .exceptions import UARError
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +24,12 @@ def skill_guard(
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator that wraps a skill in canonical error handling.
 
-    Catches any uncaught exception, logs it at ERROR level, and returns
+    Catches unexpected exceptions, logs them at ERROR level, and returns
     the standard UAR error dict so the pipeline can continue gracefully.
+
+    Framework-level exceptions (subclasses of :class:`UARError`) are
+    **not** caught — they propagate to the executor so that retry,
+    circuit-breaker, and timeout logic work correctly.
 
     Args:
         operation_name: Human-readable name used in log messages.
@@ -41,10 +48,29 @@ def skill_guard(
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         mod_logger = logging.getLogger(fn.__module__)
 
+        if inspect.iscoroutinefunction(fn):
+            @wraps(fn)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                try:
+                    return await fn(*args, **kwargs)
+                except UARError:
+                    raise
+                except Exception as exc:
+                    mod_logger.exception("%s failed", operation_name)
+                    return {
+                        "status": status,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "message": f"{operation_name} failed",
+                    }
+
+            return async_wrapper
+
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 return fn(*args, **kwargs)
+            except UARError:
+                raise
             except Exception as exc:
                 mod_logger.exception("%s failed", operation_name)
                 return {

@@ -17,6 +17,7 @@ Usage:
 import atexit
 import functools
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -360,6 +361,17 @@ def get_skill_cache(maxsize: int = 1024) -> Any:
                     _global_skill_cache = SkillCache(maxsize=maxsize)
             else:
                 _global_skill_cache = SkillCache(maxsize=maxsize)
+        else:
+            existing_max = getattr(
+                _global_skill_cache, "_maxsize", None
+            ) or getattr(_global_skill_cache, "maxsize", None)
+            if existing_max is not None and existing_max != maxsize:
+                logger.warning(
+                    "Global skill cache already created with maxsize=%s; "
+                    "requested maxsize=%s ignored.",
+                    existing_max,
+                    maxsize,
+                )
         return _global_skill_cache
 
 
@@ -418,6 +430,40 @@ def cached_skill(
     def decorator(fn: Callable) -> Callable:
         cache = get_skill_cache(maxsize=maxsize)
 
+        if inspect.iscoroutinefunction(fn):
+            @functools.wraps(fn)
+            async def async_wrapper(ctx: Any) -> Any:
+                from uar.core.async_utils import async_lock
+
+                metadata = getattr(ctx, "goal", {}).get("metadata", {})
+                if not isinstance(metadata, dict):
+                    metadata = {}
+
+                async with async_lock(cache._lock):
+                    cached = cache.get(fn.__name__, metadata)
+                if cached is not None:
+                    return cached
+
+                result = await fn(ctx)
+
+                if isinstance(result, dict):
+                    if skip_on_error and result.get("status") == "failed":
+                        pass
+                    else:
+                        async with async_lock(cache._lock):
+                            cache.set(
+                                fn.__name__, metadata, result, ttl_seconds
+                            )
+
+                return result
+
+            _fn_name = fn.__name__
+            async_wrapper.cache_invalidate = (  # type: ignore
+                lambda: cache.invalidate(_fn_name)
+            )
+            async_wrapper.cache_stats = lambda: cache.stats()  # type: ignore
+            return async_wrapper
+
         @functools.wraps(fn)
         def wrapper(ctx: Any) -> Any:
             metadata = getattr(ctx, "goal", {}).get("metadata", {})
@@ -463,6 +509,13 @@ class CompiledSkillCache:
     """
 
     def __init__(self) -> None:
+        self._max_size = max(
+            1,
+            int(
+                os.getenv("UAR_SKILL_CACHE_SIZE", "256").strip()
+                or "256"
+            ),
+        )
         self._cache: Dict[str, Any] = {}
         self._lock = threading.Lock()
 
@@ -474,6 +527,8 @@ class CompiledSkillCache:
     def set(self, module_path: str, skill: Any) -> None:
         """Cache a compiled skill callable."""
         with self._lock:
+            while len(self._cache) >= self._max_size:
+                self._cache.pop(next(iter(self._cache)), None)
             self._cache[module_path] = skill
 
     def invalidate(self, module_path: str) -> None:
@@ -489,7 +544,7 @@ class CompiledSkillCache:
     def stats(self) -> Dict[str, int]:
         """Return cache stats (size and capacity)."""
         with self._lock:
-            return {"size": len(self._cache), "capacity": 0}
+            return {"size": len(self._cache), "capacity": self._max_size}
 
 
 _compiled_skill_cache = CompiledSkillCache()

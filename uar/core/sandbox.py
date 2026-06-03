@@ -279,11 +279,12 @@ _pool_size = max(
 )
 
 if _WASMTIME_AVAILABLE:
-    try:
-        for _ in range(_pool_size):
+    for _ in range(_pool_size):
+        try:
             _sandbox_pool.append(WASMSandbox())
-    except Exception:
-        logger.exception("WASM sandbox pool init failed")
+        except Exception:
+            logger.exception("WASM sandbox pool init failed")
+            break
 
 _pool_idx = 0
 _pool_lock = threading.Lock()

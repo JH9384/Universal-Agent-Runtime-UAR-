@@ -452,9 +452,12 @@ def score_runtime_health(
 def _get_circuit_states() -> Dict[str, str]:
     try:
         from uar.core.circuit_breaker_decorator import (
-            get_circuit_breaker_states,
+            get_circuit_breaker_details,
         )
-        return dict(get_circuit_breaker_states())
+        from uar.core.async_utils import run_sync_safe
+
+        details = run_sync_safe(get_circuit_breaker_details())
+        return {name: info["state"] for name, info in details.items()}
     except ImportError:
         return {}
 

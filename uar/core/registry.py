@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import importlib.util
+import inspect
 import logging
 import threading
 from typing import Any, Callable, Dict, List, Optional
@@ -288,6 +289,20 @@ def requires_package(
     """
 
     def decorator(fn: Callable) -> Callable:
+        if inspect.iscoroutinefunction(fn):
+            @wraps(fn)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                if importlib.util.find_spec(package) is None:
+                    hint = f" {install_hint}" if install_hint else ""
+                    return {
+                        "status": "failed",
+                        "error": (
+                            f"{package} is not installed.{hint}"
+                        ),
+                    }
+                return await fn(*args, **kwargs)
+            return async_wrapper
+
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if importlib.util.find_spec(package) is None:

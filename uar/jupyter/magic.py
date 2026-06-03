@@ -34,7 +34,7 @@ class UARMagics(Magics):
         self._last_result: Optional[Dict[str, Any]] = None
         self._server_url = os.getenv(
             "UAR_SERVER_URL", "http://localhost:8000"
-        )
+        ).rstrip("/")
 
     @line_magic
     @magic_arguments()

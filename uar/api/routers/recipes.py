@@ -171,7 +171,7 @@ async def get_recipe_intelligence(
     cutoff = time.time() - (hours * 3600)
 
     all_runs = store.list_records(
-        user_id=user if is_admin else user, limit=limit
+        user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
         r for r in all_runs

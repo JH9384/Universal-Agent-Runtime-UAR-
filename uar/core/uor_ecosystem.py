@@ -28,6 +28,7 @@ import logging
 import os
 import re
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 from .uor_integration import UORObject, ObjectMode, get_uor_integrator
 
@@ -223,7 +224,7 @@ class HologramClient:
         self.api_key = os.getenv("HOLOGRAM_API_KEY", "")
         self.base_url = os.getenv(
             "HOLOGRAM_API_URL", "https://api.gethologram.ai"
-        )
+        ).rstrip("/")
         self.enabled = bool(self.api_key)
 
     def _headers(self) -> Dict[str, str]:
@@ -300,7 +301,7 @@ class MoltbookClient:
         self.api_key = os.getenv("MOLTBOOK_API_KEY", "")
         self.base_url = os.getenv(
             "MOLTBOOK_API_URL", "https://moltbook.com/api/v1"
-        )
+        ).rstrip("/")
 
     def list_topics(
         self, category: str = "uor", limit: int = 10
@@ -345,7 +346,7 @@ class PrismBTCClient:
 
     def __init__(self) -> None:
         self.enabled = True
-        self.api_url = os.getenv("PRISM_BTC_API_URL", "")
+        self.api_url = os.getenv("PRISM_BTC_API_URL", "").rstrip("/")
 
     def anchor_digest(self, digest: str) -> Dict[str, Any]:
         """Anchor a UOR digest on Bitcoin."""
@@ -661,7 +662,7 @@ class UORFoundationClient:
         self.base_url = os.getenv(
             "UOR_FOUNDATION_API_URL",
             "https://api.uor.foundation/v1",
-        )
+        ).rstrip("/")
         self.enabled = True
 
     def verify(self, x: int = 42) -> Dict[str, Any]:
@@ -702,7 +703,7 @@ class AnunixClient:
 
     def __init__(self) -> None:
         self.enabled = True
-        self.api_url = os.getenv("ANUNIX_API_URL", "")
+        self.api_url = os.getenv("ANUNIX_API_URL", "").rstrip("/")
         self.api_key = os.getenv("ANUNIX_API_KEY", "")
 
     @staticmethod
@@ -791,7 +792,7 @@ class AnunixClient:
         """Check health of a host."""
         if self.api_url:
             return _http_get(
-                f"{self.api_url}/hosts/{host_id}/health",
+                f"{self.api_url}/hosts/{quote(host_id, safe='')}/health",
                 timeout=10.0,
             )
 
@@ -818,7 +819,7 @@ class AnunixClient:
         """Execute a command on a host."""
         if self.api_url:
             return _http_post(
-                f"{self.api_url}/hosts/{host_id}/exec",
+                f"{self.api_url}/hosts/{quote(host_id, safe='')}/exec",
                 {"command": command},
                 timeout=30.0,
             )

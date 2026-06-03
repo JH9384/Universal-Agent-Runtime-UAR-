@@ -133,7 +133,7 @@ async def stream_goal_ws(websocket: WebSocket):
 
     try:
         await websocket.accept()
-    except Exception:
+    except BaseException:
         await _ws_conn_counter.release()
         raise
 
@@ -730,7 +730,7 @@ async def websocket_run(websocket: WebSocket):
 
     try:
         await websocket.accept()
-    except Exception:
+    except BaseException:
         await _ws_conn_counter.release()
         raise
 

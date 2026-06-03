@@ -108,46 +108,6 @@ async def topology_correlation(
     }
 
 
-@router.get("/api/uar/topology/hot-paths")
-async def topology_hot_paths(
-    hours: int = Query(168, ge=1, le=720),
-    top: int = Query(20, ge=1, le=100),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
-):
-    """Most frequent skill transitions and recipe executions."""
-    user_info = auth_middleware(credentials)
-    if user_info is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "authentication_required",
-                "message": "Authentication required",
-            },
-        )
-
-    import time
-    from uar.api.server import store
-    from uar.core.analytics_snapshot import (
-        build_analytics_snapshot,
-        extract_topology_hot_paths,
-    )
-
-    runs = store.list_records(limit=50000)
-    snapshot = build_analytics_snapshot(runs)
-    paths = extract_topology_hot_paths(snapshot, top)
-
-    return {
-        "generated_at": time.time(),
-        "hours": hours,
-        "top": top,
-        "nodes": paths.get("nodes", []),
-        "edges": paths.get("edges", []),
-        "recipes": paths.get("recipes", []),
-    }
-
-
 @router.get("/api/uar/topology/trends")
 async def topology_trends(
     hours: int = Query(168, ge=1, le=720),

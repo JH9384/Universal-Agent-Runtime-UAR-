@@ -4,6 +4,7 @@ Provides a convenient decorator to wrap functions with retry logic,
 exponential backoff, and configurable retry policies.
 """
 
+import inspect
 import time
 import logging
 from functools import wraps
@@ -49,10 +50,46 @@ def with_retry(
     """
 
     def decorator(func: Callable) -> Callable:
+        if inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs) -> Any:
+                last_error = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        return await func(*args, **kwargs)
+                    except retry_on as exc:
+                        last_error = exc
+                        if attempt < max_retries:
+                            backoff = min(backoff_base**attempt, max_backoff)
+                            logger.warning(
+                                "Retry %s/%s for %s after %ss: %s",
+                                attempt + 1,
+                                max_retries,
+                                func.__name__,
+                                backoff,
+                                exc,
+                            )
+                            if on_retry:
+                                on_retry(attempt + 1, exc)
+                            await __import__("asyncio").sleep(backoff)
+                        else:
+                            logger.error(
+                                "Max retries (%s) exceeded for %s: %s",
+                                max_retries,
+                                func.__name__,
+                                exc,
+                            )
+                            raise
+                raise (
+                    last_error
+                    if last_error
+                    else Exception("Unexpected error in retry")
+                )
+            return async_wrapper
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> Any:
             last_error = None
-
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
@@ -79,8 +116,6 @@ def with_retry(
                             exc,
                         )
                         raise
-
-            # This should never be reached, but for type safety
             raise (
                 last_error
                 if last_error

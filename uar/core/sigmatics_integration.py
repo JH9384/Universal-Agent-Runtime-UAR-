@@ -16,6 +16,7 @@ provides a Python interface that can either:
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
 import subprocess
@@ -111,6 +112,13 @@ class SigmaticsIntegrator:
         """
         self.use_cli = use_cli
         self.cli_available = False
+        self._max_cache_size = max(
+            1,
+            int(
+                os.getenv("UAR_SIGMATICS_CACHE_SIZE", "1000").strip()
+                or "1000"
+            ),
+        )
         self.expression_cache: Dict[str, SigilExpression] = {}
 
         if self.use_cli:
@@ -144,6 +152,8 @@ class SigmaticsIntegrator:
         """Create a sigil expression."""
         expr = SigilExpression(sigils=sigils, operation=operation)
         expr_id = self._generate_expression_id(expr)
+        while len(self.expression_cache) >= self._max_cache_size:
+            self.expression_cache.pop(next(iter(self.expression_cache)), None)
         self.expression_cache[expr_id] = expr
         return expr
 

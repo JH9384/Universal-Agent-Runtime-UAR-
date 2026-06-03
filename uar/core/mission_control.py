@@ -171,20 +171,16 @@ def build_snapshot(
                     skills_available += 1
                 except Exception:
                     pass
-        if hasattr(registry, "get_circuit_breaker_states"):
-            circuit_breakers = [
-                {"name": name, "state": state}
-                for name, state in registry.get_circuit_breaker_states().items()
-            ]
-        else:
-            from uar.core.circuit_breaker_decorator import (
-                get_circuit_breaker_states,
-            )
+        from uar.core.circuit_breaker_decorator import (
+            get_circuit_breaker_details,
+        )
+        from uar.core.async_utils import run_sync_safe
 
-            circuit_breakers = [
-                {"name": name, "state": state}
-                for name, state in get_circuit_breaker_states().items()
-            ]
+        cb_details = run_sync_safe(get_circuit_breaker_details())
+        circuit_breakers = [
+            {"name": name, **info}
+            for name, info in cb_details.items()
+        ]
     except Exception as exc:
         warnings.append(f"registry_health: {exc}")
 

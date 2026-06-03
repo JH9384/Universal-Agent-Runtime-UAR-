@@ -105,19 +105,11 @@ async def health_circuit_breakers(
         )
 
     from uar.core.circuit_breaker_decorator import (
-        get_circuit_breaker_states,
-        get_circuit_breaker,
+        get_circuit_breaker_details,
     )
 
-    states = get_circuit_breaker_states()
-    details = {}
-    any_open = False
-    for name, state in states.items():
-        cb = get_circuit_breaker(name)
-        failures = getattr(cb, "_failures", 0)
-        details[name] = {"state": state, "failures": failures}
-        if state == "open":
-            any_open = True
+    details = await get_circuit_breaker_details()
+    any_open = any(info["state"] == "open" for info in details.values())
 
     status_code = 200 if not any_open else 503
     return JSONResponse(
@@ -160,10 +152,11 @@ async def reset_circuit_breaker(
 
     from uar.core.circuit_breaker_decorator import (
         reset_circuit_breaker as _reset_cb,
-        get_circuit_breaker_states,
+        get_circuit_breaker_details,
     )
 
-    if service_name not in get_circuit_breaker_states():
+    details = await get_circuit_breaker_details()
+    if service_name not in details:
         return JSONResponse(
             status_code=404,
             content={
@@ -174,8 +167,11 @@ async def reset_circuit_breaker(
             },
         )
 
-    _reset_cb(service_name)
-    return {"status": "reset", "service": service_name}
+    await _reset_cb(service_name)
+    return JSONResponse(
+        status_code=200,
+        content={"status": "reset", "service": service_name},
+    )
 
 
 @router.get("/api/health/dashboard")
@@ -199,7 +195,7 @@ async def health_dashboard(
         )
     from uar.core.registry import registry
     from uar.core.circuit_breaker_decorator import (
-        get_circuit_breaker_states,
+        get_circuit_breaker_details,
     )
 
     skill_health = []
@@ -214,9 +210,10 @@ async def health_dashboard(
                 "last_error": "Skill unavailable",
             })
 
+    cb_details = await get_circuit_breaker_details()
     circuit_breakers = [
-        {"name": name, "state": state}
-        for name, state in get_circuit_breaker_states().items()
+        {"name": name, **info}
+        for name, info in cb_details.items()
     ]
 
     return {

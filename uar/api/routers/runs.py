@@ -774,10 +774,10 @@ async def bulk_delete_runs(
 
 @router.get("/api/uar/runs/failure-clusters")
 async def get_failure_clusters(
+    request: Request,
     hours: int = Query(24, ge=1, le=168),
     top: int = Query(10, ge=1, le=50),
     limit: int = Query(1000, ge=1, le=50000),
-    request: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -806,7 +806,7 @@ async def get_failure_clusters(
     cutoff = time.time() - (hours * 3600)
 
     all_runs = store.list_records(
-        user_id=user if is_admin else user, limit=limit
+        user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
         r for r in all_runs
@@ -878,7 +878,7 @@ async def get_topology_hot_paths(
     cutoff = time.time() - (hours * 3600)
 
     all_runs = store.list_records(
-        user_id=user if is_admin else user, limit=limit
+        user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
         r for r in all_runs
@@ -948,7 +948,7 @@ async def get_failure_hotspots(
     cutoff = time.time() - (hours * 3600)
 
     all_runs = store.list_records(
-        user_id=user if is_admin else user, limit=limit
+        user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
         r for r in all_runs
@@ -975,3 +975,31 @@ async def get_failure_hotspots(
         "failure-hotspots", user, is_admin, hours, limit, result
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Route ordering fix: static paths must precede dynamic /{run_id} paths
+# ---------------------------------------------------------------------------
+# FastAPI matches routes in definition order.  /api/uar/runs/{run_id} was
+# defined before /api/uar/runs/failure-clusters, so "failure-clusters"
+# was interpreted as a run_id and returned 404.  Reorder so static
+# routes are checked first.
+_STATIC_FIRST_PATHS = {
+    "/api/uar/runs/failure-clusters",
+}
+
+for _path in _STATIC_FIRST_PATHS:
+    _static_idx = None
+    _dynamic_idx = None
+    for _i, _route in enumerate(router.routes):
+        if getattr(_route, "path", None) == _path:
+            _static_idx = _i
+        # Find the first /api/uar/runs/{run_id} route
+        if getattr(_route, "path", None) == "/api/uar/runs/{run_id}":
+            _dynamic_idx = _i
+    if (
+        _static_idx is not None
+        and _dynamic_idx is not None
+        and _static_idx > _dynamic_idx
+    ):
+        router.routes.insert(_dynamic_idx, router.routes.pop(_static_idx))

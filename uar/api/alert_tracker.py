@@ -10,10 +10,21 @@ Usage:
 """
 from __future__ import annotations
 
+import logging
+import os
 import time
 from typing import Any, Dict, List, Optional
 
+logger = logging.getLogger(__name__)
+
 _ALERT_NAMESPACE = "alert_tracker"
+_MAX_PENDING_ALERTS = max(
+    1,
+    int(
+        os.getenv("UAR_MAX_PENDING_ALERTS", "1000").strip()
+        or "1000"
+    ),
+)
 
 
 class AlertTracker:
@@ -22,6 +33,7 @@ class AlertTracker:
     def __init__(self, store: Optional[Any] = None) -> None:
         self._store = store
         self._pending: List[Dict[str, Any]] = []
+        self._max_pending = _MAX_PENDING_ALERTS
 
     def bind_store(self, store: Any) -> None:
         """Bind to a store that supports put_meta/get_metadata."""
@@ -126,6 +138,12 @@ class AlertTracker:
             e for e in self._pending if e["id"] != event["id"]
         ]
         self._pending.append(event)
+        # Evict oldest if over capacity
+        while len(self._pending) > self._max_pending:
+            dropped = self._pending.pop(0)
+            logger.debug(
+                "Dropped oldest alert from memory: %s", dropped["id"]
+            )
 
     def _load_event(self, alert_id: str) -> Optional[Dict[str, Any]]:
         """Load a single event by ID."""

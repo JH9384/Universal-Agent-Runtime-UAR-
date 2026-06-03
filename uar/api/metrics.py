@@ -5,6 +5,7 @@ Provides Prometheus-compatible metrics and basic runtime statistics.
 
 import atexit
 import functools
+import inspect
 import logging
 import math
 import os
@@ -556,6 +557,34 @@ def timed(
     """
     def decorator(func: Callable) -> Callable:
         name = endpoint or func.__qualname__
+
+        if inspect.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                from uar.core.async_utils import async_lock
+
+                collector = get_metrics_collector()
+                start = time.perf_counter()
+                error = False
+                try:
+                    return await func(*args, **kwargs)
+                except Exception:
+                    error = True
+                    if record_error:
+                        duration = time.perf_counter() - start
+                        async with async_lock(collector._lock):
+                            collector.record_request(
+                                name, duration, error=True
+                            )
+                    raise
+                finally:
+                    if not error:
+                        duration = time.perf_counter() - start
+                        async with async_lock(collector._lock):
+                            collector.record_request(
+                                name, duration, error=False
+                            )
+            return async_wrapper
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):

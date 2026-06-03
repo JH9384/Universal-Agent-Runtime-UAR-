@@ -16,12 +16,21 @@ Architecture:
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+_MAX_ANALYTICS_CACHE_SIZE = max(
+    1,
+    int(
+        os.getenv("UAR_ANALYTICS_CACHE_SIZE", "256").strip()
+        or "256"
+    ),
+)
 
 
 @dataclass
@@ -41,8 +50,13 @@ class AnalyticsCache:
     collide.
     """
 
-    def __init__(self, ttl_seconds: float = 60.0) -> None:
+    def __init__(
+        self,
+        ttl_seconds: float = 60.0,
+        max_size: int = _MAX_ANALYTICS_CACHE_SIZE,
+    ) -> None:
         self._ttl = ttl_seconds
+        self._max_size = max_size
         self._store: Dict[str, _CacheEntry] = {}
         self._lock = threading.Lock()
 
@@ -87,6 +101,10 @@ class AnalyticsCache:
         """Store payload in cache."""
         key = self._key(endpoint, user, is_admin, hours, limit)
         with self._lock:
+            # Evict oldest entries if at capacity
+            while len(self._store) >= self._max_size:
+                oldest = next(iter(self._store))
+                del self._store[oldest]
             self._store[key] = _CacheEntry(
                 payload=payload,
                 generated_at=time.time(),

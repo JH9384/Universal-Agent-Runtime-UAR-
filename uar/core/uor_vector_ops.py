@@ -12,6 +12,7 @@ Key features:
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 import numpy as np
@@ -48,6 +49,13 @@ class UORVectorOps:
     def __init__(self):
         self.enabled = True
         self.lie_ops = LieGroupOperations()
+        self._max_cache_size = max(
+            1,
+            int(
+                os.getenv("UAR_VECTOR_CACHE_SIZE", "1000").strip()
+                or "1000"
+            ),
+        )
         self.vector_cache: Dict[str, UORVector] = {}
 
     def create_vector(
@@ -64,6 +72,8 @@ class UORVectorOps:
         )
 
         if vector.digest:
+            while len(self.vector_cache) >= self._max_cache_size:
+                self.vector_cache.pop(next(iter(self.vector_cache)), None)
             self.vector_cache[vector.digest] = vector
 
         return vector

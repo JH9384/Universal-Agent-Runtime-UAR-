@@ -1,6 +1,8 @@
 """Input validation utilities for UAR"""
 
+import os
 import re
+import stat
 from pathlib import Path
 from typing import List, Optional
 
@@ -181,6 +183,46 @@ def validate_input_path(
     return input_path
 
 
+def _has_symlink_in_path(path: Path, allowed_root: Path) -> bool:
+    """Return True if any component under *allowed_root* in *path* is a
+    symlink.
+
+    Only checks path components at or below *allowed_root*; components above
+    the root (e.g. ``/tmp`` on macOS, which is a symlink to ``/private/tmp``)
+    are ignored to avoid false positives from system-level symlinks.
+
+    Uses :func:`os.lstat` so symlinks are detected without being followed.
+    Broken symlinks are also detected via :func:`os.readlink`.
+    """
+    abs_path = os.path.abspath(str(path))
+    abs_root = os.path.abspath(str(allowed_root))
+
+    # If the path is not under the root, the relative_to check in the
+    # caller will catch it; just return False here.
+    if not abs_path.startswith(abs_root + os.sep) and abs_path != abs_root:
+        return False
+
+    # Walk only the components at or below the allowed root.
+    rel = os.path.relpath(abs_path, abs_root)
+    if rel == ".":
+        return False
+
+    current = Path(abs_root)
+    for part in Path(rel).parts:
+        current = current / part
+        try:
+            if stat.S_ISLNK(os.lstat(current).st_mode):
+                return True
+        except (OSError, FileNotFoundError):
+            # A broken symlink is still a symlink — try readlink.
+            try:
+                os.readlink(current)
+                return True
+            except OSError:
+                pass
+    return False
+
+
 def validate_path_security(path: Path, allowed_root: Path) -> None:
     """Validate path is within allowed bounds with comprehensive checks."""
     try:
@@ -196,19 +238,15 @@ def validate_path_security(path: Path, allowed_root: Path) -> None:
                 str(path), "Path outside allowed root"
             ) from None
 
-        # Check for symlinks at any point in the path chain
-        # Check every component from root to target
-        current = resolved_root
-        for part in resolved_path.parts[len(resolved_root.parts):]:
-            current = current / part
-            if current.is_symlink():
-                raise PathSecurityError(
-                    str(path), f"Symlink detected in path: {current}"
-                )
-
-        # Direct symlink check for the target itself
-        if path.is_symlink():
-            raise PathSecurityError(str(path), "Symlinks are not allowed")
+        # Check for symlinks at any point in the ORIGINAL path chain.
+        # resolve() silently follows symlinks, so checking the resolved
+        # path misses intermediate symlinks — even ones that point inside
+        # the allowed root.  _has_symlink_in_path uses lstat() on each
+        # component of the original path so no symlink goes undetected.
+        if _has_symlink_in_path(path, allowed_root):
+            raise PathSecurityError(
+                str(path), "Symlinks are not allowed in path"
+            )
 
         # Ensure we can stat the path when it exists (sanity check only).
         # Note: hard links cannot cross filesystems, so a cross-device check is

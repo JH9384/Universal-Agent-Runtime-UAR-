@@ -104,7 +104,7 @@ class GreptileClient(BaseIntegration):
         return resp.json()
 
     @with_circuit_breaker(
-        "greptile", failure_threshold=3, recovery_timeout=60.0
+        "greptile", failure_threshold=5, recovery_timeout=60.0
     )
     async def index_repo(
         self, repo: Optional[str] = None, branch: str = "main"

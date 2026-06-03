@@ -161,7 +161,7 @@ async def get_confidence_drift(
 
     # Build snapshot from recent runs
     all_runs = store.list_records(
-        user_id=user if is_admin else user, limit=limit
+        user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
         r for r in all_runs
@@ -257,7 +257,7 @@ async def get_alerts_summary(
 
     # ---- Analytics snapshot ----
     all_runs = store.list_records(
-        user_id=user if is_admin else user, limit=limit
+        user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
         r for r in all_runs
@@ -282,27 +282,38 @@ async def get_alerts_summary(
     alerts: list[dict] = []
 
     # ---- Critical alerts ----
+    cert_issues = []
     if "degraded" in cert_level or "failed" in cert_level:
+        cert_issues.append(f"degraded: {cert_level}")
+    if cert_score is not None and cert_score < 50:
+        cert_issues.append(f"score collapsed to {cert_score}")
+    if cert_issues:
         alerts.append({
             "level": "critical",
             "source": "certification",
-            "message": f"Certification degraded: {cert_level}",
+            "message": f"Certification {'; '.join(cert_issues)}",
             "detail": cert.get("violations", []),
         })
-    if cert_score is not None and cert_score < 50:
+    confidence_issues = []
+    if cd.get("state") == "degrading":
+        if cd.get("delta", 0) < -10:
+            confidence_issues.append(
+                f"collapsing: {cd.get('current_score')} (Δ {cd.get('delta')})"
+            )
+        else:
+            confidence_issues.append(
+                f"degrading: {cd.get('current_score')} (Δ {cd.get('delta')})"
+            )
+    if confidence_issues:
+        level = (
+            "critical"
+            if "collapsing" in confidence_issues[0]
+            else "warning"
+        )
         alerts.append({
-            "level": "critical",
-            "source": "certification",
-            "message": f"Certification score collapsed to {cert_score}",
-        })
-    if cd.get("state") == "degrading" and cd.get("delta", 0) < -10:
-        alerts.append({
-            "level": "critical",
+            "level": level,
             "source": "confidence",
-            "message": (
-                f"Confidence collapsing: {cd.get('current_score')}"
-                f" (Δ {cd.get('delta')})"
-            ),
+            "message": f"Confidence {'; '.join(confidence_issues)}",
         })
     for node in hs.get("nodes", []):
         if node.get("severity") == "critical":
@@ -316,16 +327,7 @@ async def get_alerts_summary(
             })
 
     # ---- Warning alerts ----
-    if cd.get("state") == "degrading":
-        alerts.append({
-            "level": "warning",
-            "source": "confidence",
-            "message": (
-                f"Confidence degrading: {cd.get('current_score')}"
-                f" (Δ {cd.get('delta')})"
-            ),
-        })
-    if burnin_passed is False:
+    if burnin_passed is not None and not burnin_passed:
         alerts.append({
             "level": "warning",
             "source": "burnin",
@@ -368,7 +370,7 @@ async def get_alerts_summary(
                 f"New recommended recipe: {recommended[0]['recipe']}"
             ),
         })
-    if burnin_passed is True:
+    if burnin_passed is not None and burnin_passed:
         alerts.append({
             "level": "info",
             "source": "burnin",
@@ -445,7 +447,7 @@ async def get_recommendations(
 
     # Build analytics snapshot from recent runs
     all_runs = store.list_records(
-        user_id=user if is_admin else user, limit=limit
+        user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
         r for r in all_runs
@@ -529,20 +531,29 @@ async def get_recommendations(
         )
         quality = build_quality_stats(shown, feedback)
         for rec in recommendations:
-            stats = quality.get(rec.recommendation_id, {})
-            modifier = compute_modifier(
-                stats.get("shown_count", 0),
-                stats.get("accepted_count", 0),
-                stats.get("rejected_count", 0),
-                stats.get("dismissed_count", 0),
-            )
-            rec.adaptive_modifier = modifier
-            rec.base_confidence = rec.confidence
-            rec.confidence = rec.base_confidence * modifier
+            try:
+                stats = quality.get(rec.recommendation_id, {})
+                modifier = compute_modifier(
+                    stats.get("shown_count", 0),
+                    stats.get("accepted_count", 0),
+                    stats.get("rejected_count", 0),
+                    stats.get("dismissed_count", 0),
+                )
+                rec.adaptive_modifier = modifier
+                rec.base_confidence = rec.confidence
+                rec.confidence = rec.base_confidence * modifier
+            except Exception:
+                import logging as _logging
+
+                _logging.getLogger(__name__).exception(
+                    "Adaptive confidence failed for %s", rec.recommendation_id
+                )
     except Exception:
         import logging as _logging
 
-        _logging.getLogger(__name__).exception("Adaptive confidence failed")
+        _logging.getLogger(__name__).exception(
+            "Adaptive confidence setup failed"
+        )
 
     # Ω-7b: Attach trust scores (always computed, used for ranking if
     # feature flag enabled).
@@ -558,19 +569,24 @@ async def get_recommendations(
             store.get_recommendation_metadata(limit=50000),
         )
         attach_trust_to_recommendations(recommendations, trust_result)
+    except Exception:
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Trust attachment failed")
+    try:
         if config.enable_trust_ranking:
             sort_by_blend(recommendations)
     except Exception:
         import logging as _logging
 
-        _logging.getLogger(__name__).exception("Trust ranking failed")
+        _logging.getLogger(__name__).exception("Trust sort failed")
 
     # Ω-7B.1: Webhook alerts for divergence and drift
     try:
         from uar.api.webhook_alerts import get_webhook_alerter
 
         alerter = get_webhook_alerter()
-        if trust_result:
+        if trust_result is not None:
             # Divergence alert
             div_cases = [
                 r
@@ -647,7 +663,10 @@ async def get_recommendations(
                 source=rec.source,
                 title=rec.title,
                 confidence=rec.confidence,
-                run_id=rec.affected_runs[0] if rec.affected_runs else "",
+                run_id=(
+                    ",".join(rec.affected_runs)
+                    if rec.affected_runs else ""
+                ),
             )
         except Exception:
             pass  # shown and metadata tracking is best-effort
@@ -973,6 +992,7 @@ async def post_recommendation_feedback(
 
     user = user_info.get("user") if user_info else None
     store.record_feedback(rec_id, action, user_id=user)
+    _analytics_cache().invalidate("recommendations-v2")
     return {"ok": True, "recorded_at": time.time()}
 
 
@@ -1029,6 +1049,7 @@ async def post_recommendation_outcome(
     from uar.api.server import store
 
     store.record_outcome(rec_id, outcome_type)
+    _analytics_cache().invalidate("recommendations-v2")
     return {"ok": True, "recorded_at": time.time()}
 
 
@@ -1110,6 +1131,8 @@ async def bulk_record_outcome(
                 }
             )
 
+    if recorded:
+        _analytics_cache().invalidate("recommendations-v2")
     return {
         "ok": True,
         "recorded": len(recorded),
@@ -1349,4 +1372,5 @@ async def record_alert_action(
                 "message": f"Alert {alert_id} not found",
             },
         )
+    _analytics_cache().invalidate("alerts-summary")
     return {"ok": True, "alert_id": alert_id, "status": status_value}

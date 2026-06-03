@@ -1,8 +1,9 @@
-"""Shared HTTP client with per-domain connection pools,
-circuit breaker integration, and exponential backoff retry.
+"""Shared HTTP client with per-domain connection pools
+and exponential backoff retry.
 """
 
 import asyncio
+import collections
 import logging
 import os
 import random
@@ -13,9 +14,19 @@ from uar.core.validation_utils import validate_url
 
 logger = logging.getLogger(__name__)
 
-# Per-domain aiohttp session cache
-_sessions: Dict[str, Any] = {}
+# Per-domain aiohttp session cache (bounded FIFO)
+_sessions: "collections.OrderedDict[str, Any]" = collections.OrderedDict()
 _session_lock = asyncio.Lock()
+_MAX_SESSIONS = max(
+    1,
+    min(
+        256,
+        int(
+            os.getenv("UAR_HTTP_MAX_SESSIONS", "32").strip()
+            or "32"
+        ),
+    ),
+)
 
 # Retry configuration
 _MAX_RETRIES = max(
@@ -82,9 +93,25 @@ async def _get_session(url: str):
             enable_cleanup_closed=True,
             force_close=False,
         )
+        # Evict oldest sessions if at capacity (close after releasing lock)
+        to_close = []
+        while len(_sessions) >= _MAX_SESSIONS:
+            oldest_domain, oldest_sess = _sessions.popitem(last=False)
+            to_close.append((oldest_domain, oldest_sess))
         sess = aiohttp.ClientSession(connector=conn, timeout=timeout)
         _sessions[domain] = sess
-        return sess
+    for oldest_domain, oldest_sess in to_close:
+        try:
+            await oldest_sess.close()
+        except Exception:
+            logger.exception("Session close failed for %s", oldest_domain)
+    return sess
+
+
+def _is_client_error(exc: BaseException) -> bool:
+    """Return True for 4xx client errors that should not be retried."""
+    status = getattr(exc, "status", None)
+    return isinstance(status, int) and 400 <= status <= 499
 
 
 async def http_get(
@@ -92,7 +119,7 @@ async def http_get(
     headers: Optional[Dict[str, str]] = None,
     **kwargs: Any,
 ) -> Any:
-    """GET with per-domain pool, circuit breaker, and retry."""
+    """GET with per-domain pool and retry."""
     validate_url(url, field_name="url")
     session = await _get_session(url)
     if session is None:
@@ -101,8 +128,11 @@ async def http_get(
     for attempt in range(_MAX_RETRIES):
         try:
             async with session.get(url, headers=headers, **kwargs) as resp:
+                resp.raise_for_status()
                 return await resp.json()
         except Exception as exc:
+            if _is_client_error(exc):
+                raise
             last_exc = exc
             if attempt == _MAX_RETRIES - 1:
                 break
@@ -138,8 +168,11 @@ async def http_post(
             async with session.post(
                 url, json=json_data, headers=headers, **kwargs
             ) as resp:
+                resp.raise_for_status()
                 return await resp.json()
         except Exception as exc:
+            if _is_client_error(exc):
+                raise
             last_exc = exc
             if attempt == _MAX_RETRIES - 1:
                 break

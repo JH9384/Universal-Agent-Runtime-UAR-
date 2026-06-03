@@ -138,3 +138,24 @@ async def compare_snapshots(
         "recommendation_delta": rec_b - rec_a,
         "trust_changes": changes,
     }
+
+
+# Route ordering fix: static paths must precede dynamic /{timestamp} paths
+_STATIC_FIRST_PATHS = {
+    "/api/uar/snapshots/compare",
+}
+
+for _path in _STATIC_FIRST_PATHS:
+    _static_idx = None
+    _dynamic_idx = None
+    for _i, _route in enumerate(router.routes):
+        if getattr(_route, "path", None) == _path:
+            _static_idx = _i
+        if getattr(_route, "path", None) == "/api/uar/snapshots/{timestamp}":
+            _dynamic_idx = _i
+    if (
+        _static_idx is not None
+        and _dynamic_idx is not None
+        and _static_idx > _dynamic_idx
+    ):
+        router.routes.insert(_dynamic_idx, router.routes.pop(_static_idx))

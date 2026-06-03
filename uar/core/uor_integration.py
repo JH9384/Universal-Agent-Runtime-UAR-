@@ -19,6 +19,7 @@ Key features:
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -148,6 +149,13 @@ class UORIntegrator:
 
     def __init__(self):
         self.enabled = True
+        self._max_cache_size = max(
+            1,
+            int(
+                os.getenv("UAR_OBJECT_CACHE_SIZE", "1000").strip()
+                or "1000"
+            ),
+        )
         self.object_cache: Dict[str, UORObject] = {}
         self.digest_history: List[Dict[str, Any]] = []
 
@@ -161,6 +169,8 @@ class UORIntegrator:
 
         # Cache the object
         if uor_obj.digest:
+            while len(self.object_cache) >= self._max_cache_size:
+                self.object_cache.pop(next(iter(self.object_cache)), None)
             self.object_cache[uor_obj.digest] = uor_obj
 
         # Track digest history
@@ -215,6 +225,8 @@ class UORIntegrator:
 
         # Cache the new object
         if new_obj.digest:
+            while len(self.object_cache) >= self._max_cache_size:
+                self.object_cache.pop(next(iter(self.object_cache)), None)
             self.object_cache[new_obj.digest] = new_obj
 
         return new_obj

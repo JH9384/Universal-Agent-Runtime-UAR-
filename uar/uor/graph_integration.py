@@ -5,6 +5,7 @@ enabling graph-based traversal and querying of UOR object collections.
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
@@ -40,6 +41,13 @@ class UORGraphMapper:
         Args:
             graphrag: Optional FlexibleGraphRAG instance for querying
         """
+        self._max_cache_size = max(
+            1,
+            int(
+                os.getenv("UAR_GRAPH_CACHE_SIZE", "1000").strip()
+                or "1000"
+            ),
+        )
         self.entity_cache: Dict[str, Any] = {}
         self.relation_cache: Dict[str, Any] = {}
         self.graphrag = graphrag
@@ -66,6 +74,7 @@ class UORGraphMapper:
             },
         )
 
+        self._enforce_bound(self.entity_cache)
         self.entity_cache[envelope.digest] = entity
         return entity
 
@@ -91,6 +100,7 @@ class UORGraphMapper:
             )
             relations.append(relation)
 
+        self._enforce_bound(self.relation_cache)
         self.relation_cache[envelope.digest] = relations
         return relations
 
@@ -121,6 +131,11 @@ class UORGraphMapper:
             "entity_count": len(entities),
             "relation_count": len(relations),
         }
+
+    def _enforce_bound(self, cache: Dict[str, Any]) -> None:
+        """Evict oldest entries if cache exceeds max size."""
+        while len(cache) >= self._max_cache_size:
+            cache.pop(next(iter(cache)), None)
 
     def query_by_attributes(
         self, envelopes: List[UOREnvelope], attributes: Dict[str, Any]

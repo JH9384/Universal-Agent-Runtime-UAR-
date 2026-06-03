@@ -4,6 +4,7 @@ Provides a convenient decorator to wrap external service calls with
 circuit breaker protection.
 """
 
+import inspect
 from functools import wraps
 from typing import Callable, Any
 from .circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
@@ -43,6 +44,26 @@ def get_circuit_breaker(
                 recovery_timeout=recovery_timeout,
                 half_open_max=half_open_max,
             )
+        else:
+            existing = _circuit_breakers[name]
+            if (
+                existing.failure_threshold,
+                existing.recovery_timeout,
+                existing.half_open_max,
+            ) != (failure_threshold, recovery_timeout, half_open_max):
+                logger.warning(
+                    "Circuit breaker %r already exists with different "
+                    "params (threshold=%s timeout=%s half_open=%s); "
+                    "requested (threshold=%s timeout=%s half_open=%s) "
+                    "ignored.",
+                    name,
+                    existing.failure_threshold,
+                    existing.recovery_timeout,
+                    existing.half_open_max,
+                    failure_threshold,
+                    recovery_timeout,
+                    half_open_max,
+                )
         return _circuit_breakers[name]
 
 
@@ -68,9 +89,34 @@ def with_circuit_breaker(
     """
 
     def decorator(func: Callable) -> Callable:
+        if (inspect.isgeneratorfunction(func)
+                or inspect.isasyncgenfunction(func)):
+            raise TypeError(
+                f"with_circuit_breaker cannot wrap generator function "
+                f"{func.__name__!r}. Circuit breakers require immediate "
+                "execution, but generators defer it."
+            )
+
         cb = get_circuit_breaker(
             service_name, failure_threshold, recovery_timeout, half_open_max
         )
+
+        if inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs) -> Any:
+                try:
+                    return await cb.call_async(func, *args, **kwargs)
+                except CircuitBreakerOpenError as e:
+                    logger.warning(
+                        "Circuit breaker open for %s, skipping %s",
+                        service_name,
+                        func.__name__,
+                    )
+                    raise SkillExecutionError(
+                        func.__name__, original_error=e
+                    ) from e
+
+            return async_wrapper
 
         @wraps(func)
         def wrapper(*args, **kwargs) -> Any:
@@ -92,25 +138,47 @@ def with_circuit_breaker(
     return decorator
 
 
-def reset_circuit_breaker(service_name: str) -> None:
+async def reset_circuit_breaker(service_name: str) -> bool:
     """Reset a circuit breaker to closed state.
 
     Useful for testing or manual recovery.
 
     Args:
         service_name: Name of the service to reset
+
+    Returns:
+        True if the circuit breaker existed and was reset, False otherwise.
     """
-    with _circuit_breakers_lock:
+    from uar.core.async_utils import async_lock
+
+    async with async_lock(_circuit_breakers_lock):
         if service_name in _circuit_breakers:
             _circuit_breakers[service_name].reset()
             logger.info("Reset circuit breaker for %s", service_name)
+            return True
+        return False
 
 
-def get_circuit_breaker_states() -> dict[str, str]:
+async def get_circuit_breaker_states() -> dict[str, str]:
     """Get current state of all circuit breakers.
 
     Returns:
         Dict mapping service names to their current state
     """
-    with _circuit_breakers_lock:
+    from uar.core.async_utils import async_lock
+
+    async with async_lock(_circuit_breakers_lock):
         return {name: cb.state.value for name, cb in _circuit_breakers.items()}
+
+
+async def get_circuit_breaker_details() -> dict[str, dict]:
+    """Get full snapshot of all circuit breakers.
+
+    Returns:
+        Dict mapping service names to snapshot dicts (state, failures,
+        half_open_count, half_open_successes, last_failure_time).
+    """
+    from uar.core.async_utils import async_lock
+
+    async with async_lock(_circuit_breakers_lock):
+        return {name: cb.snapshot() for name, cb in _circuit_breakers.items()}

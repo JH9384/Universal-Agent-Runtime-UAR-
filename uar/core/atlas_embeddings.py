@@ -93,7 +93,6 @@ class AtlasEmbeddingsIntegrator:
 
     def __init__(self):
         self.enabled = True
-        self.vector_cache: Dict[str, GoldenSeedVector] = {}
 
     def create_golden_seed(
         self, dimensions: int = 248, random: bool = True

@@ -19,6 +19,7 @@ Issue: #62
 from __future__ import annotations
 
 from typing import Any, Callable, Dict
+from urllib.parse import quote
 
 from uar.testing.burnin.contracts import BurnInEvidence
 
@@ -263,7 +264,7 @@ def _scenario_replay_confidence_http(
                 score=0,
             )
         resp = client.get(
-            f"{base_url}/api/uar/runs/{run_id}/confidence",
+            f"{base_url}/api/uar/runs/{quote(run_id, safe='')}/confidence",
             timeout=5,
         )
         if resp.status_code == 200:

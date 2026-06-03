@@ -4,11 +4,18 @@ Provides :func:`run_sync_safe` — a single, correct entry-point for
 running an async coroutine from synchronous code regardless of whether
 an event loop is already running (e.g. inside FastAPI/uvicorn).
 
+Also provides :func:`async_lock` — a context manager that acquires a
+:cls:`threading.Lock` (or :cls:`threading.RLock`) from async code
+without blocking the event loop thread.
+
 Usage::
 
-    from uar.core.async_utils import run_sync_safe
+    from uar.core.async_utils import run_sync_safe, async_lock
 
     result = run_sync_safe(some_async_fn(arg1, arg2))
+
+    async with async_lock(some_threading_lock):
+        do_sync_work()
 
 Why not ``asyncio.run()`` directly?
     ``asyncio.run()`` raises ``RuntimeError: This event loop is already
@@ -23,11 +30,40 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-from typing import Any, Coroutine, TypeVar
+import threading
+from contextlib import asynccontextmanager
+from typing import Any, Coroutine, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+_LockType = Union[threading.Lock, threading.RLock]
+
+
+@asynccontextmanager
+async def async_lock(lock: _LockType):
+    """Acquire a :cls:`threading.Lock` / :cls:`threading.RLock` from async
+    code without blocking the event-loop thread.
+
+    The lock is acquired in the default :cls:`ThreadPoolExecutor` so the
+    event loop can continue processing other tasks while waiting.  Hold
+    times should remain short (microseconds) — long-running critical
+    sections still hurt throughput even when off-loaded to a worker.
+
+    Usage::
+
+        async def my_async_fn():
+            async with async_lock(my_thread_lock):
+                # runs in thread-pool while event loop stays free
+                mutate_shared_state()
+    """
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, lock.acquire)
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def run_sync_safe(coro: Coroutine[Any, Any, T]) -> T:

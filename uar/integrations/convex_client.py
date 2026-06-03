@@ -65,6 +65,9 @@ class ConvexClient(BaseIntegration):
         client = self._lazy_client()
         return await client.query("runs:get", {"runId": run_id})
 
+    @with_circuit_breaker(
+        "convex", failure_threshold=5, recovery_timeout=30.0
+    )
     async def list_runs(
         self, user_id: Optional[str] = None, limit: int = 100
     ) -> list[dict[str, Any]]:
