@@ -118,17 +118,42 @@ def test_snapshot_includes_skill_counts(tmp_path):
 
 
 def test_snapshot_includes_circuit_breakers(tmp_path):
+    from uar.core.circuit_breaker_decorator import get_circuit_breaker
+
+    cb = get_circuit_breaker("mc_test_svc", failure_threshold=1)
+
+    def _fail():
+        raise RuntimeError("fail")
+
+    try:
+        cb.call(_fail)
+    except Exception:
+        pass
+
     snap = build_snapshot(
         store=_make_store(tmp_path),
         registry=_make_registry(),
     )
     assert isinstance(snap.circuit_breakers, list)
+    assert len(snap.circuit_breakers) > 0
+    circuit = next(
+        (c for c in snap.circuit_breakers if c["name"] == "mc_test_svc"),
+        None,
+    )
+    assert circuit is not None
+    assert circuit["state"] == "open"
+    assert "failures" in circuit
+    assert "half_open_count" in circuit
+    assert "half_open_successes" in circuit
+    assert "last_failure_time" in circuit
 
 
 def test_snapshot_skills_available_less_than_total_on_failure(tmp_path):
     reg = SkillRegistry()
     reg.register("good", lambda ctx: ctx)
-    reg.register("bad", lambda ctx: (_ for _ in ()).throw(RuntimeError("boom")))
+    reg.register(
+        "bad", lambda ctx: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     # Note: registry.get does not execute the skill, so both are available.
     # This test documents the current behavior.
     snap = build_snapshot(

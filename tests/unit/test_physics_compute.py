@@ -320,25 +320,6 @@ class TestPhysicsCompute:
         assert result["status"] == "failed"
         assert "Unknown operation" in result["error"]
 
-    def test_circuit_breaker_failure(self):
-        with patch(
-            "uar.skills.physics_compute.require_package", return_value=None
-        ):
-            with patch(
-                "uar.skills.physics_compute._physics_cb.call"
-            ) as mock_call:
-                mock_call.side_effect = RuntimeError("boom")
-                result = physics_compute(
-                    self._make_ctx({
-                        "physics_operation": "convert",
-                        "physics_type": "unit",
-                        "physics_value": "1",
-                        "physics_from_unit": "m",
-                        "physics_to_unit": "km",
-                    })
-                )
-        assert result["status"] == "failed"
-
 
 class TestExecuteOperation:
     def test_unknown_operation(self):

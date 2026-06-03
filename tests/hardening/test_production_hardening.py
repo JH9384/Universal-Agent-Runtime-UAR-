@@ -1,5 +1,7 @@
 """Tests for production hardening features."""
 
+import asyncio
+
 from uar.core.circuit_breaker import CircuitBreaker, State
 from uar.core.circuit_breaker_decorator import (
     get_circuit_breaker,
@@ -68,7 +70,7 @@ class TestCircuitBreakerDecorator:
 
     def test_get_circuit_breaker_states(self):
         get_circuit_breaker("svc_state")
-        states = get_circuit_breaker_states()
+        states = asyncio.run(get_circuit_breaker_states())
         assert "svc_state" in states
         assert states["svc_state"] == "closed"
 
@@ -79,7 +81,7 @@ class TestCircuitBreakerDecorator:
         except Exception:
             pass
         assert cb.state == State.OPEN
-        reset_circuit_breaker("svc_reset")
+        asyncio.run(reset_circuit_breaker("svc_reset"))
         assert cb.state == State.CLOSED
 
     def test_decorator_wraps_function(self):

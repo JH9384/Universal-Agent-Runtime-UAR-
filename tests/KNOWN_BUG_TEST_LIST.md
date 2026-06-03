@@ -136,6 +136,36 @@ Each entry includes: **status** (fixed/open), **severity**, **pattern descriptio
       assert coro.cr_code is None or coro.cr_frame is None  # closed
   ```
 
+### B4. Session use-after-close race during cache eviction — FIXED
+- **Severity**: High
+- **Pattern**: `_get_session` fast path returns a session reference without
+  holding `_session_lock`. Eviction (`popitem` + `close`) happened under the
+  same lock, so a concurrent getter could receive a session that was then closed
+  mid-request, causing `RuntimeError("Session is closed")`.
+- **File**: `uar/core/http_client.py`
+- **Fix**: Collect evicted sessions in a list under the lock, then `close()`
+  them **after** releasing the lock.
+- **Test**:
+  ```python
+  def test_get_session_eviction_does_not_race_fast_path():
+      # Concurrent getter + evicter stress test; assert no closed-session
+      # errors after 200 eviction cycles.
+  ```
+
+### B5. HTTP retry loop retries deterministic 4xx errors — FIXED
+- **Severity**: Medium
+- **Pattern**: `http_get` and `http_post` retry loops caught all `Exception`
+  including `raise_for_status()` failures for `404`, `403`, `401`, etc.
+  These deterministic client errors wasted retries and could trigger rate limits.
+- **File**: `uar/core/http_client.py`
+- **Fix**: Add `_is_client_error()` helper checking `400 <= status <= 499`;
+  re-raise immediately without retrying.
+- **Test**:
+  ```python
+  def test_http_get_does_not_retry_4xx():
+      # Mock session that raises a 404-like error; assert no retries.
+  ```
+
 ---
 
 ## Category C: Error Handling & Conventions
@@ -323,12 +353,33 @@ Each entry includes: **status** (fixed/open), **severity**, **pattern descriptio
           safe_eval("d['__'+'class__']", {"d": {}})
   ```
 
-### F2. doc_ingest path traversal validation — PARTIALLY FIXED
+### F2. doc_ingest path traversal validation — FIXED
 - **Severity**: High
-- **Pattern**: `validate_path_security` is called, but some code paths may bypass
-  it or not re-validate resolved paths after symlink resolution.
-- **Files**: `uar/skills/doc_ingest.py`, `uar/skills/doc_ingest_enhanced.py`
-- **Test**: Fuzz with symlink chains pointing outside `ALLOWED_ROOT`.
+- **Pattern**: `validate_path_security` resolved the path first (`path.resolve()`),
+  then checked for symlinks on the *resolved* path.  Intermediate symlinks that
+  pointed *inside* the allowed root were silently followed and never detected.
+  Additionally, files were opened with plain `open()` which follows symlinks,
+  enabling TOCTOU attacks where a file is replaced by a symlink between
+  validation and open.
+- **Files**: `uar/core/validation.py`, `uar/skills/doc_ingest.py`,
+  `uar/skills/doc_ingest_enhanced.py`
+- **Fix**:
+  1. Added `_has_symlink_in_path()` which walks the *original* path using
+     `os.lstat()` on each component, detecting symlinks without following them.
+  2. Replaced the resolved-path symlink loop in `validate_path_security` with
+     `_has_symlink_in_path(path)` so intermediate symlinks are caught.
+  3. Changed `doc_ingest` and `doc_ingest_enhanced` entry points to validate the
+     *original* (unresolved) path before calling `resolve()`.
+  4. Added `os.open(..., os.O_NOFOLLOW)` fallback in `_read_file_safely` and
+     `_extract_text_fallback` to prevent TOCTOU symlink swaps at open time.
+- **Tests**:
+  - `tests/unit/test_validation_path_security.py` — 10 tests covering:
+    `_has_symlink_in_path` (no-symlink, intermediate, final, broken, chain),
+    `validate_path_security` (intermediate-inside-root, outside-root, broken,
+    normal-file, traversal, O_NOFOLLOW, source-inspection).
+  - `tests/skills/test_doc_ingest_security.py` — 4 regression tests appended:
+    intermediate symlink inside root, broken symlink, symlink chain,
+    O_NOFOLLOW symlink swap.
 
 ---
 

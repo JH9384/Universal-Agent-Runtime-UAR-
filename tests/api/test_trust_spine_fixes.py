@@ -4492,3 +4492,154 @@ def test_sqlite_list_meta_keys_prefix_scan_finds_uuid_incidents(tmp_path):
         assert recovered == payload
     finally:
         store.close()
+
+
+# ---------------------------------------------------------------------------
+# Batch 8 — Admin visibility tautology & FastAPI param ordering (2026-06-02)
+# ---------------------------------------------------------------------------
+
+
+def _source_has_tautology(src: str) -> bool:
+    """Detect the broken pattern `user_id=user if is_admin else user`."""
+    return "user_id=user if is_admin else user" in src
+
+
+def test_runs_router_no_admin_visibility_tautology():
+    """Regression: `user_id=user if is_admin else user` is a no-op that
+    silently prevents admins from viewing cross-user analytics."""
+    import inspect
+    import uar.api.routers.runs as _runs_mod
+
+    src = inspect.getsource(_runs_mod)
+    assert not _source_has_tautology(src), (
+        "runs.py still contains admin-visibility tautology"
+    )
+
+
+def test_mission_control_router_no_admin_visibility_tautology():
+    """Same regression check for mission_control router."""
+    import inspect
+    import uar.api.routers.mission_control as _mc_mod
+
+    src = inspect.getsource(_mc_mod)
+    assert not _source_has_tautology(src), (
+        "mission_control.py still contains admin-visibility tautology"
+    )
+
+
+def test_recipes_router_no_admin_visibility_tautology():
+    """Same regression check for recipes router."""
+    import inspect
+    import uar.api.routers.recipes as _recipes_mod
+
+    src = inspect.getsource(_recipes_mod)
+    assert not _source_has_tautology(src), (
+        "recipes.py still contains admin-visibility tautology"
+    )
+
+
+def test_failure_clusters_admin_sees_other_user_runs(
+    client: TestClient, isolated_store: SqliteRunStore
+):
+    """Admin must see runs from other users in failure-clusters endpoint."""
+    from uar.core.contracts import RunRecord
+
+    # Create a run for regular_user
+    rec = RunRecord(
+        run_id="run-user-a",
+        goal_id="g1",
+        skills=["fail_skill"],
+        events=[{"type": "error", "skill": "fail_skill", "error": "boom"}],
+        status="failed",
+        user_id="regular_user",
+    )
+    isolated_store.append(rec)
+    isolated_store.flush()
+
+    # Admin should see the failure cluster containing regular_user's run
+    resp = client.get(
+        "/api/uar/runs/failure-clusters?hours=24&top=10",
+        headers=_ADMIN_HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_failures"] >= 1
+    skills = [s["skill"] for s in data.get("top_skills", [])]
+    assert "fail_skill" in skills
+
+    # Regular user should NOT see the admin's perspective (only their own)
+    # Since the run belongs to regular_user, they see it too in this case.
+    # But if we had an admin-only run, the regular user should not see it.
+
+
+def test_failure_clusters_request_param_precedes_defaults():
+    """Regression: `request: Request` must come before `Query(...)` defaults
+    to avoid SyntaxError: non-default argument follows default argument."""
+    import inspect
+    import uar.api.routers.runs as _runs_mod
+
+    src = inspect.getsource(_runs_mod.get_failure_clusters)
+    # Verify request: Request appears before hours: int = Query(...)
+    idx_request = src.find("request: Request")
+    idx_hours = src.find("hours: int = Query")
+    assert idx_request >= 0 and idx_hours >= 0
+    assert idx_request < idx_hours, (
+        "get_failure_clusters has `request: Request` after default params"
+    )
+
+
+def test_snapshots_compare_route_not_shadowed_by_dynamic():
+    """Regression: /api/uar/snapshots/compare must resolve to the compare
+    endpoint, not be captured by /api/uar/snapshots/{timestamp}."""
+    import uar.api.routers.operator.time_machine as _tm_mod
+
+    paths = [getattr(r, "path", None) for r in _tm_mod.router.routes]
+    idx_compare = next(
+        (i for i, p in enumerate(paths) if p == "/api/uar/snapshots/compare"),
+        None,
+    )
+    idx_dynamic = next(
+        (
+            i
+            for i, p in enumerate(paths)
+            if p == "/api/uar/snapshots/{timestamp}"
+        ),
+        None,
+    )
+    assert idx_compare is not None
+    assert idx_dynamic is not None
+    assert idx_compare < idx_dynamic, (
+        "/api/uar/snapshots/compare is shadowed by /{timestamp} route ordering"
+    )
+
+
+def test_websocket_accept_uses_baseexception_not_exception():
+    """Regression: `except Exception:` after `await websocket.accept()`
+    leaks the connection counter on `asyncio.CancelledError`.
+    Must use `except BaseException:` so the counter is always released."""
+    import inspect
+    import uar.api.routers.streaming as _stream_mod
+
+    src = inspect.getsource(_stream_mod)
+    # Find each `await websocket.accept()` block and verify it uses
+    # `except BaseException:`, not `except Exception:`.
+    accept_blocks = []
+    lines = src.splitlines()
+    for i, line in enumerate(lines):
+        if "await websocket.accept()" in line:
+            # Look at the next 5 lines for the except handler
+            block = "\n".join(lines[i:i + 5])
+            accept_blocks.append(block)
+
+    assert len(accept_blocks) >= 2, (
+        "Expected at least 2 websocket.accept() calls in streaming.py"
+    )
+    for block in accept_blocks:
+        assert "except BaseException:" in block, (
+            "websocket.accept() must use `except BaseException:` "
+            "to release the connection counter on CancelledError"
+        )
+        assert "except Exception:" not in block, (
+            "Found `except Exception:` after websocket.accept() — "
+            "this leaks the connection counter on BaseException"
+        )

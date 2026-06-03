@@ -4,6 +4,7 @@ Covers health probes, circuit breaker inspection, dashboard, and
 circuit breaker reset endpoints.
 """
 
+import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -21,7 +22,7 @@ def _reset_all_circuit_breakers():
         reset_circuit_breaker,
     )
     for name in list(_circuit_breakers.keys()):
-        reset_circuit_breaker(name)
+        asyncio.run(reset_circuit_breaker(name))
 
 
 @pytest.fixture(autouse=True)
@@ -79,9 +80,16 @@ class TestCircuitBreakers:
             get_circuit_breaker,
         )
 
-        cb = get_circuit_breaker("test_open_svc")
-        cb._state = cb._state.__class__("open")
-        cb._last_failure_time = __import__("time").time()
+        cb = get_circuit_breaker("test_open_svc", failure_threshold=1)
+
+        def _fail():
+            raise RuntimeError("fail")
+
+        try:
+            cb.call(_fail)
+        except Exception:
+            pass
+
         response = client.get(
             "/api/health/circuit-breakers",
             headers={"Authorization": "Bearer dev-key-12345"},
@@ -97,11 +105,18 @@ class TestCircuitBreakers:
             get_circuit_breaker_states,
         )
 
-        cb = get_circuit_breaker("test_reset_svc")
-        # Force the circuit open by simulating failures
-        cb._state = cb._state.__class__("open")
-        cb._last_failure_time = __import__("time").time()
-        assert get_circuit_breaker_states()["test_reset_svc"] == "open"
+        cb = get_circuit_breaker("test_reset_svc", failure_threshold=1)
+
+        def _fail():
+            raise RuntimeError("fail")
+
+        try:
+            cb.call(_fail)
+        except Exception:
+            pass
+
+        states = asyncio.run(get_circuit_breaker_states())
+        assert states["test_reset_svc"] == "open"
 
         response = client.post(
             "/api/health/circuit-breakers/test_reset_svc/reset",
@@ -109,7 +124,8 @@ class TestCircuitBreakers:
         )
         assert response.status_code == 200
         assert response.json()["status"] == "reset"
-        assert get_circuit_breaker_states()["test_reset_svc"] == "closed"
+        states = asyncio.run(get_circuit_breaker_states())
+        assert states["test_reset_svc"] == "closed"
 
     def test_reset_unknown_breaker(self):
         response = client.post(
@@ -117,6 +133,33 @@ class TestCircuitBreakers:
             headers={"Authorization": "Bearer dev-key-12345"},
         )
         assert response.status_code == 404
+
+    def test_circuit_breakers_returns_rich_details(self):
+        _reset_all_circuit_breakers()
+        from uar.core.circuit_breaker_decorator import get_circuit_breaker
+
+        cb = get_circuit_breaker("rich_detail_svc", failure_threshold=1)
+
+        def _fail():
+            raise RuntimeError("fail")
+
+        try:
+            cb.call(_fail)
+        except Exception:
+            pass
+
+        response = client.get(
+            "/api/health/circuit-breakers",
+            headers={"Authorization": "Bearer dev-key-12345"},
+        )
+        assert response.status_code == 503
+        data = response.json()
+        circuit = data["circuits"]["rich_detail_svc"]
+        assert circuit["state"] == "open"
+        assert circuit["failures"] == 1
+        assert "half_open_count" in circuit
+        assert "half_open_successes" in circuit
+        assert "last_failure_time" in circuit
 
 
 class TestHealthDashboard:
@@ -136,6 +179,41 @@ class TestHealthDashboard:
         with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
             response = client.get("/api/health/dashboard")
             assert response.status_code == 401
+
+    def test_dashboard_circuit_breakers_rich_details(self):
+        _reset_all_circuit_breakers()
+        from uar.core.circuit_breaker_decorator import get_circuit_breaker
+
+        cb = get_circuit_breaker("dash_detail_svc", failure_threshold=1)
+
+        def _fail():
+            raise RuntimeError("fail")
+
+        try:
+            cb.call(_fail)
+        except Exception:
+            pass
+
+        response = client.get(
+            "/api/health/dashboard",
+            headers={"Authorization": "Bearer dev-key-12345"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        circuit = next(
+            (
+                c
+                for c in data["circuit_breakers"]
+                if c["name"] == "dash_detail_svc"
+            ),
+            None,
+        )
+        assert circuit is not None
+        assert circuit["state"] == "open"
+        assert circuit["failures"] == 1
+        assert "half_open_count" in circuit
+        assert "half_open_successes" in circuit
+        assert "last_failure_time" in circuit
 
 
 class TestReadinessProbeEdgeCases:

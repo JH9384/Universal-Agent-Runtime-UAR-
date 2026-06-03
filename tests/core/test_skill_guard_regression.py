@@ -6,8 +6,17 @@ properly handle exceptions and return the expected status values
 based on their configuration.
 """
 
+import asyncio
+
+import pytest
 from unittest.mock import MagicMock, patch
 from uar.core.contracts import PipelineContext
+from uar.core.exceptions import (
+    SkillExecutionError,
+    TimeoutError,
+    UARError,
+    ValidationError,
+)
 from uar.core.skill_utils import skill_guard
 
 
@@ -295,3 +304,132 @@ class TestSkillGuardRegressionSpecific:
         result = outer_function(_ctx())
         assert result["status"] == "error"
         assert "nonexistent_package" in result["error"]
+
+
+class TestSkillGuardUARErrorPropagation:
+    """Regression: skill_guard must NOT swallow framework-level UARErrors."""
+
+    def test_skill_execution_error_propagates(self):
+        """SkillExecutionError from circuit breaker must propagate."""
+
+        @skill_guard("CB test", status="failed")
+        def raises_skill_exec_error(ctx):
+            raise SkillExecutionError(
+                "my_skill",
+                original_error=RuntimeError("circuit open"),
+            )
+
+        with pytest.raises(SkillExecutionError, match="circuit open"):
+            raises_skill_exec_error(_ctx())
+
+    def test_validation_error_propagates(self):
+        """ValidationError must propagate for executor retry logic."""
+
+        @skill_guard("Validation test")
+        def raises_validation(ctx):
+            raise ValidationError("bad input", field="goal")
+
+        with pytest.raises(ValidationError, match="bad input"):
+            raises_validation(_ctx())
+
+    def test_timeout_error_propagates(self):
+        """TimeoutError must propagate for executor retry logic."""
+
+        @skill_guard("Timeout test")
+        def raises_timeout(ctx):
+            raise TimeoutError(5.0)
+
+        with pytest.raises(TimeoutError, match="5.0"):
+            raises_timeout(_ctx())
+
+    def test_generic_uarerror_propagates(self):
+        """Bare UARError must propagate."""
+
+        @skill_guard("Bare UAR test")
+        def raises_uar(ctx):
+            raise UARError("framework issue")
+
+        with pytest.raises(UARError, match="framework issue"):
+            raises_uar(_ctx())
+
+    def test_non_uarerror_still_caught(self):
+        """Plain exceptions are still caught and converted to dict."""
+
+        @skill_guard("Plain exc test")
+        def raises_plain(ctx):
+            raise ValueError("plain")
+
+        result = raises_plain(_ctx())
+        assert result["status"] == "error"
+        assert "plain" in result["error"]
+
+
+class TestSkillGuardAsync:
+    """Regression: skill_guard must support async skill functions."""
+
+    def test_async_successful_call(self):
+        """Async wrapper returns result when no exception."""
+
+        @skill_guard("Async ok")
+        async def async_ok(ctx):
+            return {"status": "completed", "value": 42}
+
+        result = asyncio.run(async_ok(_ctx()))
+        assert result["status"] == "completed"
+        assert result["value"] == 42
+
+    def test_async_catches_plain_exception(self):
+        """Async wrapper catches plain exceptions."""
+
+        @skill_guard("Async fail")
+        async def async_fail(ctx):
+            raise RuntimeError("async boom")
+
+        result = asyncio.run(async_fail(_ctx()))
+        assert result["status"] == "error"
+        assert "async boom" in result["error"]
+
+    def test_async_propagates_uarerror(self):
+        """Async wrapper does NOT catch UARError."""
+
+        @skill_guard("Async UAR")
+        async def async_uar(ctx):
+            raise SkillExecutionError(
+                "async_skill",
+                original_error=RuntimeError("async cb open"),
+            )
+
+        with pytest.raises(SkillExecutionError, match="async cb open"):
+            asyncio.run(async_uar(_ctx()))
+
+
+class TestSkillGuardWithCircuitBreaker:
+    """Regression: full decorator stack preserves CB semantics."""
+
+    def test_cb_open_propagates_through_skill_guard(self):
+        """Circuit breaker open → SkillExecutionError → not swallowed."""
+        from uar.core.circuit_breaker_decorator import (
+            with_circuit_breaker,
+            reset_circuit_breaker,
+        )
+
+        svc = "sg_regression_test"
+        reset_circuit_breaker(svc)
+
+        @skill_guard("CB wrapped", status="failed")
+        @with_circuit_breaker(svc, failure_threshold=1)
+        def cb_skill(ctx):
+            raise ValueError("always fails")
+
+        # First call: circuit closed, ValueError is caught by skill_guard
+        # (circuit breaker still sees it and opens the circuit)
+        result = cb_skill(_ctx())
+        assert result["status"] == "failed"
+        assert "always fails" in result["error"]
+
+        # Second call: circuit open, SkillExecutionError propagates
+        # (skill_guard no longer swallows UARError subclasses)
+        with pytest.raises(SkillExecutionError, match="Circuit breaker open"):
+            cb_skill(_ctx())
+
+        reset_circuit_breaker(svc)

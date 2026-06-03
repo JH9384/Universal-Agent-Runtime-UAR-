@@ -77,6 +77,67 @@ class TestPathTraversalPrevention:
             assert "status" not in result or result["status"] != "failed"
             assert len(result["documents"]) >= 1
 
+    def test_intermediate_symlink_inside_root_blocked(self, tmp_path):
+        """Regression: symlink pointing *inside* root was missed because
+        resolve() silently followed it and the resolved-path symlink loop
+        never saw it."""
+        safe = tmp_path / "safe"
+        safe.mkdir()
+        sub = safe / "subdir"
+        sub.mkdir()
+        doc = sub / "doc.txt"
+        doc.write_text("hello")
+        link = safe / "link"
+        link.symlink_to(sub)
+
+        with patch("uar.skills.doc_ingest.ALLOWED_ROOT", safe):
+            result = doc_ingest(_ctx(str(link / "doc.txt")))
+            assert result["status"] == "failed"
+
+    def test_broken_symlink_blocked(self, tmp_path):
+        """Broken symlinks must be rejected; they are still symlinks."""
+        safe = tmp_path / "safe"
+        safe.mkdir()
+        broken = safe / "broken"
+        broken.symlink_to("/does/not/exist")
+
+        with patch("uar.skills.doc_ingest.ALLOWED_ROOT", safe):
+            result = doc_ingest(_ctx(str(broken)))
+            assert result["status"] == "failed"
+
+    def test_symlink_chain_blocked(self, tmp_path):
+        """Chains of symlinks (even if they stay inside root) must be
+        rejected to prevent traversal confusion and TOCTOU attacks."""
+        safe = tmp_path / "safe"
+        safe.mkdir()
+        a = safe / "a"
+        a.mkdir()
+        doc = a / "doc.txt"
+        doc.write_text("hello")
+        link1 = safe / "link1"
+        link1.symlink_to(a)
+        link2 = safe / "link2"
+        link2.symlink_to(link1)
+
+        with patch("uar.skills.doc_ingest.ALLOWED_ROOT", safe):
+            result = doc_ingest(_ctx(str(link2 / "doc.txt")))
+            assert result["status"] == "failed"
+
+    def test_nofollow_prevents_symlink_swap(self, tmp_path):
+        """O_NOFOLLOW must reject a file that was replaced by a symlink
+        between validation and open (TOCTOU mitigation)."""
+        safe = tmp_path / "safe"
+        safe.mkdir()
+        real = safe / "real.txt"
+        real.write_text("safe content")
+        link = safe / "link.txt"
+        link.symlink_to(real)
+
+        with patch("uar.skills.doc_ingest.ALLOWED_ROOT", safe):
+            # This should be caught at validation (symlink in path)
+            result = doc_ingest(_ctx(str(link)))
+            assert result["status"] == "failed"
+
 
 class TestProductionRootValidation:
     """Production environment enforcement."""

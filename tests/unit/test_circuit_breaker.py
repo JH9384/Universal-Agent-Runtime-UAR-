@@ -11,6 +11,42 @@ from uar.core.circuit_breaker import (
 )
 
 
+class TestCircuitBreakerValidation:
+    """Regression: invalid parameters must raise ValueError at init."""
+
+    def test_empty_name_rejected(self):
+        with pytest.raises(ValueError, match="name must not be empty"):
+            CircuitBreaker("", failure_threshold=1)
+
+    def test_failure_threshold_zero_rejected(self):
+        with pytest.raises(ValueError, match="failure_threshold must be >= 1"):
+            CircuitBreaker("test", failure_threshold=0)
+
+    def test_failure_threshold_negative_rejected(self):
+        with pytest.raises(ValueError, match="failure_threshold must be >= 1"):
+            CircuitBreaker("test", failure_threshold=-1)
+
+    def test_recovery_timeout_negative_rejected(self):
+        with pytest.raises(ValueError, match="recovery_timeout must be >= 0"):
+            CircuitBreaker("test", recovery_timeout=-0.1)
+
+    def test_half_open_max_zero_rejected(self):
+        with pytest.raises(ValueError, match="half_open_max must be >= 1"):
+            CircuitBreaker("test", half_open_max=0)
+
+    def test_half_open_max_negative_rejected(self):
+        with pytest.raises(ValueError, match="half_open_max must be >= 1"):
+            CircuitBreaker("test", half_open_max=-1)
+
+    def test_boundary_values_accepted(self):
+        cb = CircuitBreaker(
+            "test", failure_threshold=1, recovery_timeout=0, half_open_max=1
+        )
+        assert cb.failure_threshold == 1
+        assert cb.recovery_timeout == 0
+        assert cb.half_open_max == 1
+
+
 class TestCircuitBreakerBasic:
     """Test basic circuit breaker functionality"""
 
@@ -79,12 +115,12 @@ class TestCircuitBreakerBasic:
         except Exception:
             pass
 
-        assert cb._failures == 2
+        assert cb.failures == 2
 
         # Success resets failures
         result = cb.call(successful_function)
         assert result == "success"
-        assert cb._failures == 0
+        assert cb.failures == 0
 
     def test_half_open_transition_after_timeout(self):
         """Circuit transitions to HALF_OPEN after recovery timeout"""
@@ -184,14 +220,14 @@ class TestCircuitBreakerBasic:
             pass
 
         assert cb.state == State.OPEN
-        assert cb._failures == 2
+        assert cb.failures == 2
 
         # Reset
         cb.reset()
 
         assert cb.state == State.CLOSED
-        assert cb._failures == 0
-        assert cb._half_open_count == 0
+        assert cb.failures == 0
+        assert cb.half_open_count == 0
 
 
 class TestCircuitBreakerConcurrency:
@@ -226,7 +262,7 @@ class TestCircuitBreakerConcurrency:
 
         # Circuit should be open
         assert cb.state == State.OPEN
-        assert cb._failures >= 5
+        assert cb.failures >= 5
 
     def test_concurrent_successes_dont_corrupt_state(self):
         """Concurrent successes should not corrupt state"""
@@ -255,7 +291,7 @@ class TestCircuitBreakerConcurrency:
         assert len(results) == 20
         assert all(r == "success" for r in results)
         # Failure count should be 0
-        assert cb._failures == 0
+        assert cb.failures == 0
         assert cb.state == State.CLOSED
 
 
@@ -340,7 +376,8 @@ class TestCircuitBreakerParameters:
         # First success in HALF_OPEN - should stay HALF_OPEN (max=2)
         cb.call(successful_function)
         assert cb.state == State.HALF_OPEN
-        assert cb._half_open_count == 1
+        # Slot is released when call completes
+        assert cb.half_open_count == 0
 
         # Second success - should close circuit
         cb.call(successful_function)
@@ -387,31 +424,6 @@ class TestCircuitBreakerAdvanced:
 
         t.join()
         assert cb.state == State.CLOSED
-
-    def test_pending_calls_tracked(self):
-        """_pending_calls increments and decrements correctly."""
-        cb = CircuitBreaker("test", failure_threshold=3)
-
-        def fn():
-            return "ok"
-
-        assert cb._pending_calls == 0
-        cb.call(fn)
-        assert cb._pending_calls == 0
-
-    def test_pending_calls_on_failure(self):
-        """_pending_calls decrements even on failure."""
-        cb = CircuitBreaker("test", failure_threshold=3)
-
-        def fn():
-            raise Exception("fail")
-
-        assert cb._pending_calls == 0
-        try:
-            cb.call(fn)
-        except Exception:
-            pass
-        assert cb._pending_calls == 0
 
     def test_mixed_concurrent_half_open(self):
         """Concurrent success and failure in half-open race safely."""
@@ -481,3 +493,154 @@ class TestCircuitBreakerError:
 
         error = CircuitBreakerOpenError("test-service")
         assert error.code == ErrorCode.EXTERNAL_DOWN
+
+
+class TestCircuitBreakerAsync:
+    """Test async circuit breaker functionality via call_async"""
+
+    def test_async_success(self):
+        cb = CircuitBreaker("async_test", failure_threshold=3)
+
+        async def good():
+            return "ok"
+
+        import asyncio
+        result = asyncio.run(cb.call_async(good))
+        assert result == "ok"
+        assert cb.state == State.CLOSED
+
+    def test_async_failure_opens(self):
+        cb = CircuitBreaker("async_test", failure_threshold=2)
+
+        async def bad():
+            raise Exception("fail")
+
+        import asyncio
+        # First failure
+        with pytest.raises(Exception, match="fail"):
+            asyncio.run(cb.call_async(bad))
+        assert cb.state == State.CLOSED
+
+        # Second failure opens circuit
+        with pytest.raises(Exception, match="fail"):
+            asyncio.run(cb.call_async(bad))
+        assert cb.state == State.OPEN
+
+    def test_async_open_rejects(self):
+        cb = CircuitBreaker("async_test", failure_threshold=1)
+
+        async def bad():
+            raise Exception("fail")
+
+        import asyncio
+        with pytest.raises(Exception):
+            asyncio.run(cb.call_async(bad))
+        assert cb.state == State.OPEN
+
+        with pytest.raises(CircuitBreakerOpenError):
+            asyncio.run(cb.call_async(bad))
+
+    def test_async_half_open_recovery(self):
+        cb = CircuitBreaker(
+            "async_test", failure_threshold=1, recovery_timeout=0.1
+        )
+
+        async def bad():
+            raise Exception("fail")
+
+        async def good():
+            return "ok"
+
+        import asyncio
+        with pytest.raises(Exception):
+            asyncio.run(cb.call_async(bad))
+        assert cb.state == State.OPEN
+
+        time.sleep(0.15)
+        assert cb.state == State.HALF_OPEN
+
+        result = asyncio.run(cb.call_async(good))
+        assert result == "ok"
+        assert cb.state == State.CLOSED
+
+    def test_async_half_open_failure_reopens(self):
+        cb = CircuitBreaker(
+            "async_test", failure_threshold=1, recovery_timeout=0.1
+        )
+
+        async def bad():
+            raise Exception("fail")
+
+        import asyncio
+        with pytest.raises(Exception):
+            asyncio.run(cb.call_async(bad))
+
+        time.sleep(0.15)
+        assert cb.state == State.HALF_OPEN
+
+        with pytest.raises(Exception):
+            asyncio.run(cb.call_async(bad))
+        assert cb.state == State.OPEN
+
+
+class TestCircuitBreakerPublicProperties:
+    """Public properties expose internal state without private-field access."""
+
+    def test_failures_property(self):
+        cb = CircuitBreaker("test", failure_threshold=3)
+        assert cb.failures == 0
+        try:
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        except ValueError:
+            pass
+        assert cb.failures == 1
+
+    def test_half_open_count_property(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=0.1)
+        try:
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        except ValueError:
+            pass
+        time.sleep(0.15)
+        assert cb.state == State.HALF_OPEN
+        assert cb.half_open_count == 0  # no active reservations
+
+    def test_half_open_successes_property(self):
+        cb = CircuitBreaker(
+            "test", failure_threshold=1, recovery_timeout=0.1, half_open_max=2
+        )
+        try:
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        except ValueError:
+            pass
+        time.sleep(0.15)
+        cb.call(lambda: "ok")
+        assert cb.half_open_successes == 1
+
+    def test_last_failure_time_property(self):
+        cb = CircuitBreaker("test", failure_threshold=1)
+        before = time.monotonic()
+        try:
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        except ValueError:
+            pass
+        assert cb.last_failure_time >= before
+
+    def test_snapshot_returns_dict(self):
+        cb = CircuitBreaker("test", failure_threshold=1)
+        snap = cb.snapshot()
+        assert snap["state"] == "closed"
+        assert snap["failures"] == 0
+        assert snap["half_open_count"] == 0
+        assert snap["half_open_successes"] == 0
+        assert "last_failure_time" in snap
+
+    def test_snapshot_reflects_failures(self):
+        cb = CircuitBreaker("test", failure_threshold=3)
+        try:
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        except ValueError:
+            pass
+        snap = cb.snapshot()
+        assert snap["failures"] == 1
+        assert snap["state"] == "closed"

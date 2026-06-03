@@ -257,14 +257,24 @@ class TestReadFileSafely:
         assert "Extraction failed" in result["error"]
 
     def test_unicode_decode_error(self, tmp_path):
+        import os as _os
+
         safe = tmp_path / "safe"
         safe.mkdir()
         bad = safe / "test.txt"
         bad.write_bytes(b"\x00\xff\x80")
-        with patch("builtins.open", side_effect=UnicodeDecodeError(
+
+        # _read_file_safely uses os.fdopen when O_NOFOLLOW is available,
+        # so we must patch the actual I/O function that raises.
+        exc = UnicodeDecodeError(
             "utf-8", b"\x00", 0, 1, "invalid start byte"
-        )):
-            result = _read_file_safely(bad, safe)
+        )
+        if hasattr(_os, "O_NOFOLLOW"):
+            with patch("os.fdopen", side_effect=exc):
+                result = _read_file_safely(bad, safe)
+        else:
+            with patch("builtins.open", side_effect=exc):
+                result = _read_file_safely(bad, safe)
         assert "encoding error" in result["error"].lower()
 
 
