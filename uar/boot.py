@@ -30,7 +30,7 @@ import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, NamedTuple
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +226,11 @@ class BootContext:
 # Core boot sequence
 # ---------------------------------------------------------------------------
 
+class _BootStep(NamedTuple):
+    name: str
+    duration_ms: float
+
+
 def boot() -> BootContext:
     """Run the synchronous portion of the boot sequence.
 
@@ -236,32 +241,51 @@ def boot() -> BootContext:
     _boot_message()
 
     ctx = BootContext()
+    steps: list[_BootStep] = []
+    total_start = time.perf_counter()
+
+    def _step(name: str, fn) -> Any:
+        start = time.perf_counter()
+        try:
+            return fn()
+        finally:
+            duration = (time.perf_counter() - start) * 1000
+            steps.append(_BootStep(name, duration))
 
     # 1. Register skills
-    _register_skills()
+    _step("register_skills", _register_skills)
 
     # 2. Validate recipes (must happen after skills are loaded)
-    _validate_recipes()
+    _step("validate_recipes", _validate_recipes)
 
     # 3. Clean up orphaned temp files
-    ctx.temp_files_cleaned = _cleanup_temp_files()
+    ctx.temp_files_cleaned = _step("cleanup_temp_files", _cleanup_temp_files)
 
     # 4. Seed UOR runtimes
-    _seed_uor_runtimes()
+    _step("seed_uor_runtimes", _seed_uor_runtimes)
 
     # 5. Load external plugins
-    ctx.plugins_loaded = _load_plugins()
+    ctx.plugins_loaded = _step("load_plugins", _load_plugins)
 
     # 6. Production security checks
-    _production_checks()
+    _step("production_checks", _production_checks)
 
     # 7. Validate environment (fail-fast)
-    _validate_environment()
+    _step("validate_environment", _validate_environment)
 
     # 8. Validate advanced configs
-    _validate_advanced_config()
+    _step("validate_advanced_config", _validate_advanced_config)
 
-    logger.info("Boot sequence complete")
+    total_ms = (time.perf_counter() - total_start) * 1000
+    slow = [s for s in steps if s.duration_ms > 100]
+    if slow:
+        logger.warning(
+            "Boot completed in %.1fms; slow steps: %s",
+            total_ms,
+            ", ".join(f"{s.name}={s.duration_ms:.1f}ms" for s in slow),
+        )
+    else:
+        logger.info("Boot sequence complete in %.1fms", total_ms)
     return ctx
 
 
@@ -804,6 +828,8 @@ async def boot_full_stack(
                     "Dashboard directory not found: %s", dash_dir
                 )
 
+    except (KeyboardInterrupt, SystemExit):
+        raise
     except Exception:
         supervisor.stop_all()
         raise
@@ -877,6 +903,8 @@ def boot_cli() -> None:
                         for name in supervisor._procs
                     ):
                         break
+            except asyncio.CancelledError:
+                raise
             except KeyboardInterrupt:
                 pass
             finally:
