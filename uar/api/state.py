@@ -63,8 +63,6 @@ WS_BATCH_TIMEOUT = max(
 # Streaming bounds
 MAX_STREAM_EVENTS = 5000
 # ^ hard cap on events per run to prevent memory exhaustion
-EVENT_BUFFER_SIZE = 200
-# ^ ring buffer size for SSE persistence
 
 # ------------------------------------------------------------------
 # Idempotency cache: key -> (timestamp, result)
@@ -181,5 +179,4 @@ _exec_svc = GoalExecutionService(
     event_service=_event_svc,
     store=store,  # type: ignore[arg-type]
     max_stream_events=MAX_STREAM_EVENTS,
-    event_buffer_size=EVENT_BUFFER_SIZE,
 )

@@ -42,7 +42,6 @@ from uar.api.state import (  # noqa: F401
     WS_BATCH_SIZE,
     WS_BATCH_TIMEOUT,
     MAX_STREAM_EVENTS,
-    EVENT_BUFFER_SIZE,
     store,
     _auth_svc,
     _event_svc,

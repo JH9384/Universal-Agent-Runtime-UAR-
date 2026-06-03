@@ -40,7 +40,6 @@ class TestGoalExecutionService:
     def test_init_defaults(self):
         svc = GoalExecutionService()
         assert svc.max_stream_events > 0
-        assert svc.event_buffer_size > 0
 
     def test_persist_from_file_filter(self, tmp_path):
         svc = GoalExecutionService()
