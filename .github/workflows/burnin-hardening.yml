@@ -1,5 +1,8 @@
 name: burnin-hardening
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:

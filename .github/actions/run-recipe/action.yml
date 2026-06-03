@@ -46,12 +46,13 @@ runs:
     - name: Submit UAR recipe
       id: submit
       shell: bash
+      env:
+        API_KEY: ${{ inputs.api-key }}
       run: |
         set -euo pipefail
 
         SERVER="${{ inputs.server }}"
         SERVER="${SERVER%/}"  # strip trailing slash to prevent double slashes
-        API_KEY="${{ inputs.api-key }}"
         RECIPE="${{ inputs.recipe }}"
         GOAL="${{ inputs.goal }}"
         INPUT_PATH="${{ inputs.input-path }}"

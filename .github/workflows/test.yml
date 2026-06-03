@@ -1,21 +1,10 @@
 name: UAR Validation
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
-    inputs:
-      validation_scope:
-        description: 'Validation scope to run'
-        required: true
-        default: 'foundation'
-        type: choice
-        options:
-          - foundation
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
   python-tests:
@@ -31,7 +20,7 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Run pytest (foundation scope)
+      - name: Run pytest
         run: make validate PYTHON=python
 
   web-tests:

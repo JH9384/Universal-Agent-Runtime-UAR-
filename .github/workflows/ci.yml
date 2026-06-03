@@ -14,6 +14,7 @@ jobs:
   python-tests:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12']
     steps:
@@ -55,9 +56,16 @@ jobs:
         run: make validate-uor PYTHON=python
 
       - name: Run benchmark (non-blocking)
-        run: |
-          .venv/bin/python tests/performance/benchmark_skills.py || true
+        run: .venv/bin/python tests/performance/benchmark_skills.py
         continue-on-error: true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results-py${{ matrix.python-version }}
+          path: benchmark_results.json
+          retention-days: 14
 
       - name: Flaky test detection (3 random seeds)
         run: |
@@ -96,9 +104,9 @@ jobs:
           import importlib
 
           modules = {
-              "advanced": ["crewai", "dagster", "neo4j"],
+              "advanced": ["crewai", "dagster", "autogen", "qdrant_client"],
               "doc-processing": ["unstructured", "docling"],
-              "agent-orchestration": ["crewai"],
+              "agent-orchestration": ["crewai", "autogen"],
           }
           for module in modules["${{ matrix.extra }}"]:
               importlib.import_module(module)
