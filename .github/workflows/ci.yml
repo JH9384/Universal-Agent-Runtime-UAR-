@@ -16,9 +16,6 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
-    defaults:
-      run:
-        working-directory: .
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,6 +83,8 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      # No .venv here: this job tests importability of optional deps in a
+      # clean system environment, not the full test suite that requires .venv.
       - name: Install optional dependency group
         run: |
           python -m pip install --upgrade pip
@@ -131,9 +130,62 @@ jobs:
       - name: Build
         run: npm run build
 
+  operator-dashboard-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/operator-dashboard
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/operator-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
+
+  web-svelte-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web-svelte
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web-svelte/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Build
+        run: npm run build
+
+      - name: Check
+        run: npm run check
+
   sign-uor-artifacts:
     runs-on: ubuntu-latest
-    needs: [python-tests, web-tests]
+    needs: [python-tests, web-tests, operator-dashboard-tests, web-svelte-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: write  # For uploading signatures
@@ -144,8 +196,6 @@ jobs:
 
       - name: Install Sigstore
         uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: 'v2.2.0'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -155,8 +205,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          make install PYTHON=python
 
       - name: Sign UOR artifacts
         run: |
@@ -183,12 +232,13 @@ jobs:
       - name: Update UOR alignment metrics
         run: |
           # Record successful signing for monitoring
-          python -c "
+          VERSION=$(tr -d '\n' < VERSION)
+          .venv/bin/python -c "
           from uar.api.uor_alignment_metrics import get_uor_alignment_metrics
           metrics = get_uor_alignment_metrics()
           metrics.record_alignment_check(
-              local_version='v0.5.2',
-              upstream_version='v0.5.2',
+              local_version='v${VERSION}',
+              upstream_version='v${VERSION}',
               validation_passed=True
           )
           print('UOR alignment metrics updated')

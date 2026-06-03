@@ -13,7 +13,6 @@ on:
   push:
     branches:
       - main
-      - uar-modular-runtime-v1
   pull_request:
     branches:
       - main
@@ -35,10 +34,9 @@ jobs:
       - name: Run pytest (foundation scope)
         run: make validate PYTHON=python
 
-  web-build:
-    name: Staged Web Build Signal
+  web-tests:
+    name: Web Tests
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: apps/web
@@ -56,5 +54,63 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web app (non-blocking staged UI signal)
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Build web app
         run: npm run build
+
+  operator-dashboard-tests:
+    name: Operator Dashboard Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/operator-dashboard
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/operator-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npx vitest run
+
+      - name: Build operator dashboard
+        run: npm run build
+
+  web-svelte-tests:
+    name: Web Svelte Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web-svelte
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web-svelte/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Build web svelte
+        run: npm run build
+
+      - name: Check
+        run: npm run check

@@ -19,6 +19,7 @@ Select one:
 - [ ] UX
 - [ ] UOR
 - [ ] DOC
+- [ ] CI/CD
 
 ## User behavior enabled
 
@@ -31,6 +32,7 @@ What can a user do after this change?
 - [ ] Existing demo flow still works
 - [ ] No raw digests exposed in UI unless explicitly debugging
 - [ ] No new feature without a user path
+- [ ] GitHub Actions workflows validated (`python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` etc.)
 
 ## Screenshots / notes
 

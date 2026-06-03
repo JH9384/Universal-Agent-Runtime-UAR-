@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
   schedule:
     - cron: '0 4 * * *'  # Daily at 04:00 UTC
 
@@ -24,18 +26,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e '.[dev]'
+          make install PYTHON=python
 
       - name: Run hardening tests
         run: |
-          pytest tests/hardening -q --tb=short
+          .venv/bin/pytest tests/hardening -q --tb=short
 
       - name: Run ordering stress test (5 random seeds)
         run: |
           for seed in 1 2 3 7 42; do
             echo "=== Randomly seed=$seed ==="
-            pytest tests/ --ignore=tests/conformance/test_invariants.py \
+            .venv/bin/pytest tests/ --ignore=tests/conformance/test_invariants.py \
               -q --tb=line --timeout=60 --randomly-seed=$seed || exit 1
           done
 
@@ -43,11 +44,15 @@ jobs:
         run: |
           make gate PYTHON=python
 
+      - name: Ensure artifact directory exists
+        run: mkdir -p artifacts/hardening
+
       - name: Run burn-in probe
         run: |
-          python scripts/hardening/burnin_probe.py
+          .venv/bin/python scripts/hardening/burnin_probe.py
 
       - name: Upload burn-in artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: burnin-artifacts

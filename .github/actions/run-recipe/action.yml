@@ -50,6 +50,7 @@ runs:
         set -euo pipefail
 
         SERVER="${{ inputs.server }}"
+        SERVER="${SERVER%/}"  # strip trailing slash to prevent double slashes
         API_KEY="${{ inputs.api-key }}"
         RECIPE="${{ inputs.recipe }}"
         GOAL="${{ inputs.goal }}"
@@ -57,11 +58,13 @@ runs:
         TIMEOUT="${{ inputs.timeout }}"
         WAIT="${{ inputs.wait }}"
 
-        # Build payload
+        # Build payload using modern execution_order format
+        RECIPE_ID="gha-recipe-$(date +%s)"
         PAYLOAD=$(jq -n \
           --arg goal "$GOAL" \
           --arg recipe "$RECIPE" \
-          '{goal: $goal, recipe_id: $recipe, skills: []}')
+          --arg rid "$RECIPE_ID" \
+          '{goal: $goal, execution_order: [{type: "recipe", content: $recipe, id: $rid}]}')
 
         if [[ -n "$INPUT_PATH" && -e "$INPUT_PATH" ]]; then
           # Upload file and include path in metadata
@@ -70,7 +73,11 @@ runs:
             -H "Authorization: Bearer $API_KEY" \
             -F "file=@$INPUT_PATH" \
             "$SERVER/api/uar/upload" || true)
-          echo "upload=$UPLOAD" >> "$GITHUB_OUTPUT"
+          {
+            echo "upload<<EOF"
+            echo "$UPLOAD"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
         fi
 
         # Submit run
@@ -109,7 +116,11 @@ runs:
             if [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]]; then
               echo "status=$STATUS" >> "$GITHUB_OUTPUT"
               echo "$STATUS_RESP" | jq '.' > "$RUNNER_TEMP/uar_result.json"
-              echo "result-json=$(cat $RUNNER_TEMP/uar_result.json)" >> "$GITHUB_OUTPUT"
+              {
+                echo "result-json<<EOF"
+                cat "$RUNNER_TEMP/uar_result.json"
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
               if [[ "$STATUS" == "failed" ]]; then
                 echo "::error::Run $RUN_ID failed"
                 cat "$RUNNER_TEMP/uar_result.json" | jq -r '.error // .errors[]? // "Unknown error"'
@@ -123,5 +134,9 @@ runs:
           done
         else
           echo "status=submitted" >> "$GITHUB_OUTPUT"
-          echo "result-json=$RESPONSE" >> "$GITHUB_OUTPUT"
+          {
+            echo "result-json<<EOF"
+            echo "$RESPONSE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
         fi
