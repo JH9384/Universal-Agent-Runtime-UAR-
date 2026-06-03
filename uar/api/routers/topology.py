@@ -4,6 +4,7 @@ Cross-run correlation, historical trends, and topology intelligence.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,6 +15,8 @@ from uar.api.middleware import auth_middleware
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
+
+logger = logging.getLogger(__name__)
 
 
 @router.get("/api/uar/topology/correlation")
@@ -182,8 +185,8 @@ async def topology_trends(
                 skills = json.loads(r.get("skills", "[]"))
                 if isinstance(skills, list):
                     b["unique_skills"].update(skills)
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("Topology: skill JSON parse failed: %s", _exc)
 
         trend_list = []
         for bucket_ts in sorted(buckets):
