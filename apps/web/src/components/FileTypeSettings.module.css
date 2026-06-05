@@ -1,0 +1,70 @@
+.panel {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 12px 1rem;
+  color: var(--text-primary, #1a1a2e);
+  font-family: system-ui, -apple-system, sans-serif;
+  margin-bottom: 0.75rem;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.section {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #666);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #e8f8f0;
+  color: #27ae60;
+  font-size: 0.75rem;
+  font-family: ui-monospace, monospace;
+  border: 1px solid #d4edda;
+}
+
+.tag.blocked {
+  background: #fdf2f2;
+  color: #c0392b;
+  border: 1px solid #f5c6cb;
+}
+
+.note {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #999);
+  font-style: italic;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #999);
+  margin: 8px 0 0 0;
+}
+
+.loading {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-secondary, #666);
+  font-size: 0.85rem;
+}
