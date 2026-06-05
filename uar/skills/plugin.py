@@ -15,6 +15,8 @@ import importlib.metadata as imd
 import importlib.util
 import logging
 import sys
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -119,24 +121,35 @@ def load_plugins(
     skill_dir = user_dir or _USER_SKILL_DIR
     for path in _discover_user_skills():
         module_name = f"uar.user_skill.{path.stem}"
+        name = str(path.relative_to(skill_dir))
+        manifest = PluginManifest(name=name, source="user")
         try:
             mod = _load_module_from_path(module_name, path)
             count = _register_skills_from_module(mod)
             if count:
-                results[str(path.relative_to(skill_dir))] = count
-        except Exception:
+                results[name] = count
+            manifest.skill_count = count
+        except Exception as exc:
             logger.exception("Failed to load user skill %s", path)
+            manifest.healthy = False
+            manifest.error = str(exc)
+        _plugin_manifests[name] = manifest
 
     # 2. PyPI packages
     if pypi:
         for mod in _discover_pypi_plugins():
+            name = getattr(mod, "__name__", str(mod))
+            manifest = PluginManifest(name=name, source="pypi")
             try:
                 count = _register_skills_from_module(mod)
                 if count:
-                    name = getattr(mod, "__name__", str(mod))
                     results[name] = count
-            except Exception:
+                manifest.skill_count = count
+            except Exception as exc:
                 logger.exception("Failed to load PyPI plugin %s", mod)
+                manifest.healthy = False
+                manifest.error = str(exc)
+            _plugin_manifests[name] = manifest
 
     total = sum(results.values())
     if total:
@@ -146,6 +159,48 @@ def load_plugins(
             len(results),
         )
     return results
+
+
+@dataclass
+class PluginManifest:
+    """Health and metadata for a loaded plugin source."""
+
+    name: str
+    source: str  # 'user' | 'pypi'
+    skill_count: int = 0
+    loaded_at: float = field(default_factory=time.time)
+    healthy: bool = True
+    error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "source": self.source,
+            "skill_count": self.skill_count,
+            "loaded_at": self.loaded_at,
+            "healthy": self.healthy,
+            "error": self.error,
+        }
+
+
+# In-memory registry of loaded plugin manifests
+_plugin_manifests: Dict[str, PluginManifest] = {}
+
+
+def get_plugin_manifests() -> List[PluginManifest]:
+    """Return all tracked plugin manifests."""
+    return list(_plugin_manifests.values())
+
+
+def reload_plugins(
+    *,
+    user_dir: Optional[Path] = None,
+    pypi: bool = True,
+) -> Dict[str, int]:
+    """Reload all plugins, clearing existing manifests first."""
+    global _plugin_manifests
+    _plugin_manifests = {}
+    return load_plugins(user_dir=user_dir, pypi=pypi)
 
 
 def init_user_skill_dir() -> Path:

@@ -14,6 +14,8 @@ from typing import Any, Dict
 
 from uar.memory.json_store import JsonRunStore
 from uar.services import AuthService, EventService, GoalExecutionService
+from uar.core.sync_monitor import get_sync_monitor
+from uar.core.data_source_registry import get_data_source_registry
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +171,26 @@ elif _UAR_STORE_BACKEND == "sqlite" or (
     store = SqliteRunStore()  # type: ignore[assignment]
 else:
     store = JsonRunStore()  # type: ignore[assignment]
+
+# ------------------------------------------------------------------
+# Sync monitor — register the default store
+# ------------------------------------------------------------------
+_store_type = (
+    "postgres"
+    if _UAR_STORE_BACKEND == "postgres" or os.getenv("UAR_DATABASE_URL")
+    else "sqlite"
+    if _UAR_STORE_BACKEND == "sqlite" or os.getenv("UAR_SQLITE_PATH")
+    else "json"
+)
+get_sync_monitor().register_store("default", store, _store_type)
+
+# ------------------------------------------------------------------
+# Data source registry — auto-register the default store
+# ------------------------------------------------------------------
+try:
+    get_data_source_registry(store).auto_register_stores()
+except Exception:
+    pass  # Non-fatal: registry is optional
 
 # ------------------------------------------------------------------
 # Service instances (stateless, safe to share across requests)

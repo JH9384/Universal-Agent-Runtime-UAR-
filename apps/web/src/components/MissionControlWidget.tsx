@@ -14,6 +14,14 @@ import { TrustTrendPanel } from './TrustTrendPanel'
 import { DivergenceDashboard } from './DivergenceDashboard'
 import { BurnInTimeline } from './BurnInTimeline'
 import { BurnInObservations } from './BurnInObservations'
+import SyncStatusPanel from './SyncStatusPanel'
+import PluginManager from './PluginManager'
+import CredentialVaultPanel from './CredentialVaultPanel'
+import MaintenanceWindowPanel from './MaintenanceWindowPanel'
+import ActivityLogPanel from './ActivityLogPanel'
+import FileTypeSettings from './FileTypeSettings'
+import DataSourceRegistryPanel from './DataSourceRegistryPanel'
+import SelfUpdatePanel from './SelfUpdatePanel'
 import styles from './MissionControlWidget.module.css'
 
 interface ComponentHealth {
@@ -244,6 +252,20 @@ export function MissionControlWidget({ onOpenReplay }: MissionControlWidgetProps
             </div>
           </div>
         )}
+        </CollapsibleSection>
+      </div>
+
+      {/* Operations — sync, stores, credentials */}
+      <div className={styles.sectionWrap}>
+        <CollapsibleSection id="mc-operations" title="Operations" defaultOpen={true}>
+        <SyncStatusPanel />
+        <PluginManager />
+        <CredentialVaultPanel />
+        <MaintenanceWindowPanel />
+        <ActivityLogPanel />
+        <FileTypeSettings />
+        <DataSourceRegistryPanel />
+        <SelfUpdatePanel />
         </CollapsibleSection>
       </div>
 

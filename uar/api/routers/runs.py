@@ -112,6 +112,9 @@ async def run_goal(
                 _idempotency_set(req.idempotency_key, result)
 
             store.append(result)
+            from uar.core.sync_monitor import get_sync_monitor
+
+            get_sync_monitor().record_write("default")
             _analytics_cache().invalidate()
             logger.info(
                 "[%s] Run completed successfully: %s",

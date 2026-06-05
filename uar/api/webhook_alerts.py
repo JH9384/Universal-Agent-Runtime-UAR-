@@ -48,16 +48,11 @@ class WebhookAlerter:
         message: str,
         data: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Send alert to a single webhook endpoint."""
-        payload = {
-            "alert_type": alert_type,
-            "severity": severity,
-            "message": message,
-            "timestamp": time.time() if hasattr(time, "time") else None,
-            "source": "uar",
-            "data": data or {},
-        }
+        """Send alert to a single webhook endpoint.
 
+        Detects Slack / Discord hostnames and formats the payload
+        appropriately so generic UAR alerts render correctly.
+        """
         # Track alert accuracy
         try:
             from uar.api.alert_tracker import get_alert_tracker
@@ -65,6 +60,29 @@ class WebhookAlerter:
             tracker.record_fired(alert_type, severity, message, data)
         except Exception as _exc:
             logger.debug("Webhook alert tracking failed: %s", _exc)
+
+        # Detect platform and format payload
+        platform = "generic"
+        if "hooks.slack.com" in endpoint:
+            platform = "slack"
+        elif "discord.com/api/webhooks" in endpoint:
+            platform = "discord"
+
+        if platform != "generic":
+            from uar.api.notifications import format_notification
+
+            payload = format_notification(
+                platform, alert_type, severity, message, data
+            )
+        else:
+            payload = {
+                "alert_type": alert_type,
+                "severity": severity,
+                "message": message,
+                "timestamp": time.time(),
+                "source": "uar",
+                "data": data or {},
+            }
 
         try:
             req = Request(
@@ -270,6 +288,37 @@ class WebhookAlerter:
                 endpoint,
                 "burnin_failure",
                 "error",
+                message,
+                data,
+            )
+
+    def alert_admin_action(
+        self,
+        actor: str,
+        action: str,
+        resource: str,
+        outcome: str,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Send alert when a critical admin action occurs."""
+        if not self._enabled:
+            return
+        message = (
+            f"Admin action by {actor}: {action} on {resource} "
+            f"→ outcome={outcome}"
+        )
+        data = {
+            "actor": actor,
+            "action": action,
+            "resource": resource,
+            "outcome": outcome,
+            "details": details or {},
+        }
+        for endpoint in self._endpoints:
+            self._send_alert(
+                endpoint,
+                "admin_action",
+                "error" if outcome in ("failure", "denied") else "warning",
                 message,
                 data,
             )

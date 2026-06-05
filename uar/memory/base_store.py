@@ -124,6 +124,13 @@ class RunStoreProtocol(Protocol):
         limit: int = 1000,
     ) -> List[Dict[str, Any]]: ...
 
+    # Metadata key-value store (Phase A–C operational admin)
+    def put_metadata(self, key: str, value: Any) -> None: ...
+
+    def get_metadata(self, key: str) -> Optional[Any]: ...
+
+    def list_meta_keys(self) -> List[str]: ...
+
 
 def get_store() -> RunStoreProtocol:
     """Return a concrete store matching the current environment.

@@ -871,3 +871,65 @@ class PostgresRunStore:
             conn.commit()
         finally:
             self._release_conn(conn)
+
+    def _ensure_kv_metadata_table(self) -> None:
+        """Create generic key-value metadata table if it does not exist."""
+        ddl = """
+        CREATE TABLE IF NOT EXISTS uar_metadata (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        );
+        """
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(ddl)
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+
+    def put_metadata(self, key: str, value: Any) -> None:
+        """Persist a JSON-serialisable value under key."""
+        self._ensure_kv_metadata_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO uar_metadata (key, value) VALUES (%s, %s)"
+                    " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                    (key, json.dumps(value)),
+                )
+            conn.commit()
+        finally:
+            self._release_conn(conn)
+
+    def get_metadata(self, key: str) -> Optional[Any]:
+        """Read a previously stored metadata value, or None."""
+        self._ensure_kv_metadata_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT value FROM uar_metadata WHERE key = %s",
+                    (key,),
+                )
+                row = cur.fetchone()
+        finally:
+            self._release_conn(conn)
+        if row is None or row[0] is None:
+            return None
+        try:
+            return json.loads(row[0])
+        except json.JSONDecodeError:
+            return None
+
+    def list_meta_keys(self) -> List[str]:
+        """Return all keys currently stored in metadata."""
+        self._ensure_kv_metadata_table()
+        conn = self._connect_sync()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT key FROM uar_metadata")
+                return [r[0] for r in cur.fetchall()]
+        finally:
+            self._release_conn(conn)

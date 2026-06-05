@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from uar.core.contracts import RunRecord
 from uar.core.json_utils import maybe_rotate_jsonl
@@ -460,6 +460,52 @@ class JsonRunStore:
                 f.write(entry)
                 f.flush()
                 os.fsync(f.fileno())
+
+    def _meta_path(self) -> Path:
+        return self.path.parent / "uar_key_metadata.json"
+
+    def put_metadata(self, key: str, value: Any) -> None:
+        """Persist a JSON-serialisable value under key."""
+        path = self._meta_path()
+        data: Dict[str, Any] = {}
+        if path.exists():
+            try:
+                with path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                data = {}
+        data[key] = value
+        with self._acquire_lock():
+            with path.open("w", encoding="utf-8") as f:
+                json.dump(data, f)
+                f.flush()
+                os.fsync(f.fileno())
+
+    def get_metadata(self, key: str) -> Optional[Any]:
+        """Read a previously stored metadata value, or None."""
+        path = self._meta_path()
+        if not path.exists():
+            return None
+        try:
+            with self._acquire_lock(shared=True):
+                with path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+            return data.get(key)
+        except (json.JSONDecodeError, OSError, KeyError):
+            return None
+
+    def list_meta_keys(self) -> List[str]:
+        """Return all keys currently stored in metadata."""
+        path = self._meta_path()
+        if not path.exists():
+            return []
+        try:
+            with self._acquire_lock(shared=True):
+                with path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+            return list(data.keys())
+        except (json.JSONDecodeError, OSError):
+            return []
 
     def get_recommendation_metadata(
         self,

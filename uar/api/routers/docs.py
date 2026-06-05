@@ -14,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from uar.api.middleware import security, _is_dev_mode
 from uar.api.responses import error_response
+from uar.api.file_type_guard import check_file_type
 from uar.core.exceptions import ValidationError, PathSecurityError
 from uar.services import AuthService
 
@@ -81,12 +82,6 @@ MAX_UPLOAD_BYTES = max(
         or str(DEFAULT_MAX_UPLOAD_BYTES)
     ),
 )
-ALLOWED_UPLOAD_EXTS = {
-    ".pdf", ".docx", ".xlsx", ".xlsm", ".ipynb", ".parquet", ".feather",
-    ".txt", ".md", ".rst", ".tex", ".bib", ".csv", ".tsv", ".json",
-    ".jsonl", ".yaml", ".yml", ".toml", ".html", ".htm", ".xml",
-    ".py", ".js", ".ts", ".tsx", ".r", ".jl", ".rmd", ".qmd",
-}
 
 
 def _docs_root():
@@ -201,10 +196,9 @@ async def docs_upload(
             rejected.append({"name": safe_name, "reason": "Invalid filename"})
             continue
         ext = Path(safe_name).suffix.lower()
-        if not ext or ext not in ALLOWED_UPLOAD_EXTS:
-            rejected.append(
-                {"name": safe_name, "reason": "Extension not allowed"}
-            )
+        allowed, reason = check_file_type(safe_name, upload.content_type)
+        if not allowed:
+            rejected.append({"name": safe_name, "reason": reason})
             continue
 
         dest = library / safe_name

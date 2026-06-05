@@ -456,6 +456,9 @@ class GoalExecutionService(BaseService):
                 events, strategy.ordered_skills, user_id
             )
             self._store.append(record)
+            from uar.core.sync_monitor import get_sync_monitor
+
+            get_sync_monitor().record_write("default")
             self._log(
                 "info",
                 f"Stream persisted: {record.run_id}",

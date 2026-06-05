@@ -834,6 +834,26 @@ class Executor:
         # Validate inputs
         timeout_seconds = validate_timeout(timeout_seconds)
 
+        # Maintenance window check
+        try:
+            from uar.core.maintenance import get_maintenance_manager
+
+            blocked = get_maintenance_manager().check_blocked()
+            if blocked:
+                yield {
+                    "type": "error",
+                    "run_id": _run_id or "",
+                    "goal_id": getattr(goal, "goal_id", "") if goal else "",
+                    "timestamp": time.time(),
+                    "payload": {
+                        "error": "maintenance_window",
+                        "message": blocked["message"],
+                    },
+                }
+                return
+        except Exception:
+            pass  # Don't block execution if maintenance check fails
+
         # Check for execution_order in goal metadata
         goal_metadata = getattr(goal, "metadata", {}) or {}
         execution_order = goal_metadata.get("execution_order")
