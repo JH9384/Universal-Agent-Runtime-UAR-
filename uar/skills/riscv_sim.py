@@ -264,7 +264,7 @@ class RiscvEmulator:
 
         self.registers[0] = 0  # x0 always zero
 
-        self.trace.append({
+        entry = {
             "pc": old_pc,
             "instr": f"0x{instr:08x}",
             "opcode": f"0x{opcode:02x}",
@@ -272,7 +272,13 @@ class RiscvEmulator:
             "rs1": rs1,
             "rs2": rs2,
             "registers": list(self.registers),
-        })
+        }
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+            entry["uor_digest"] = compute_uor_digest(entry)
+        except Exception:
+            pass
+        self.trace.append(entry)
 
         return True
 

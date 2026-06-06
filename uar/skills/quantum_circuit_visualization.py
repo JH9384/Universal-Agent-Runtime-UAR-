@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Tuple
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 
 _GATE_SHAPES: Dict[str, str] = {
@@ -154,6 +155,7 @@ def _default_circuit(
     return seq
 
 
+@skill_guard("Quantum circuit visualization")
 def quantum_circuit_visualization(
     ctx: PipelineContext,
 ) -> Dict[str, Any]:

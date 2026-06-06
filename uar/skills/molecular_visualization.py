@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Tuple
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 
 # Common molecule structures (simplified coordinates in Angstroms)
@@ -222,6 +223,7 @@ def _rdkit_generate(smiles: str) -> List[Dict[str, Any]] | None:
     return atoms
 
 
+@skill_guard("Molecular visualization")
 def molecular_visualization(
     ctx: PipelineContext,
 ) -> Dict[str, Any]:

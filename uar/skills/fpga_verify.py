@@ -113,6 +113,14 @@ def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
         "data": results,
     }
 
+    def _digest_item(item: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+            item["uor_digest"] = compute_uor_digest(item)
+        except Exception:
+            pass
+        return item
+
     # Simple assertions
     assertions = []
     passed = 0
@@ -129,15 +137,19 @@ def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
                     passed += 1
                 else:
                     failed += 1
-                    assertions.append({
+                    assertions.append(_digest_item({
                         "cycle": r["cycle"],
                         "signal": out_name,
                         "expected": f"<= {max_val}",
                         "actual": out_val,
                         "status": "fail",
-                    })
+                    }))
                 if failed == 0:
                     passed += 1
+
+    # Digest each waveform data point
+    for r in results:
+        _digest_item(r)
 
     return {
         "status": "completed",

@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 
 class PipelineStage:
@@ -53,7 +54,7 @@ def _simulate_pipeline(
             pipeline[0].instr = None
             pipeline[0].bubble = True
 
-        trace.append({
+        entry = {
             "cycle": cycle,
             "stages": [
                 {
@@ -65,11 +66,18 @@ def _simulate_pipeline(
                 for s in pipeline
             ],
             "pc": pc,
-        })
+        }
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+            entry["uor_digest"] = compute_uor_digest(entry)
+        except Exception:
+            pass
+        trace.append(entry)
 
     return trace
 
 
+@skill_guard("Riscv cycle", status="failed")
 def riscv_cycle(ctx: PipelineContext) -> Dict[str, Any]:
     """Cycle-accurate RISC-V pipeline simulation.
 
