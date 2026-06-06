@@ -175,6 +175,23 @@ class UORIntegrator:
                 self.object_cache.pop(next(iter(self.object_cache)), None)
             self.object_cache[uor_obj.digest] = uor_obj
 
+        # Optional SHACL envelope validation
+        try:
+            from uar.uor.shacl_validation import validate_uor_object_envelope
+
+            shacl_result = validate_uor_object_envelope(
+                uor_obj.digest,
+                uor_obj.media_type,
+                uor_obj.mode.value,
+            )
+            if shacl_result and not shacl_result.get("conforms"):
+                logger.warning(
+                    "UOR object SHACL envelope violations: %s",
+                    shacl_result.get("violation_count", 0),
+                )
+        except Exception:
+            pass
+
         # Track digest history
         self.digest_history.append(
             {
@@ -284,3 +301,34 @@ def verify_output_integrity(
     if expected_digest:
         return output_obj.verify_integrity(expected_digest)
     return output_obj.compute_digest() is not None
+
+
+def wrap_skill_result(
+    result: Dict[str, Any],
+    skill_name: str,
+    input_digest: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Wrap a skill result dict with UOR content digest and provenance.
+
+    Injects ``uor_digest`` and ``uor_provenance`` keys into *result*
+    without changing its shape so downstream consumers remain
+    compatible.
+
+    Args:
+        result: Skill result dict.
+        skill_name: Name of the skill that produced the result.
+        input_digest: Optional UOR digest of the input that produced
+            this result, for provenance chaining.
+
+    Returns:
+        The same dict with ``uor_digest`` and ``uor_provenance`` added.
+    """
+    integrator = get_uor_integrator()
+    uor_obj = integrator.wrap_object(
+        result, source=skill_name, operation="execute"
+    )
+    result["uor_digest"] = uor_obj.digest
+    result["uor_provenance"] = uor_obj.provenance
+    if input_digest:
+        result["uor_input_digest"] = input_digest
+    return result

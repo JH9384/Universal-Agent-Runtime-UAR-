@@ -283,7 +283,7 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
     orchestrator.assign_task_to_agent(task.id, agent.agent_id)
     executed = run_sync_safe(orchestrator.execute_task(task.id))
 
-    return {
+    result = {
         "status": "completed" if executed.status == "completed" else "failed",
         "agent_id": agent.agent_id,
         "role": role_str,
@@ -292,6 +292,9 @@ def crewai_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "mode": "uar_native",
         "result": executed.result if executed.result else {},
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result, skill_name="crewai_task")
 
 
 @register_skill("crewai_workflow")
@@ -400,7 +403,7 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
     status = (
         "completed" if result.get("status") == "completed" else "partial"
     )
-    return {
+    result_dict = {
         "status": status,
         "workflow_id": result.get("task_ids", []),
         "workflow_type": workflow_type,
@@ -409,6 +412,9 @@ def crewai_workflow(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "results": result.get("results", []),
         "mode": "uar_native",
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result_dict, skill_name="crewai_workflow")
 
 
 @register_skill("llamaindex_rag")
@@ -489,7 +495,7 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
     query = _goal(ctx)
     result = rag.query(query)
 
-    return {
+    result_dict = {
         "status": "completed",
         "query": query,
         "response": result.response,
@@ -498,6 +504,9 @@ def llamaindex_rag(ctx: Dict[str, Any]) -> Dict[str, Any]:
         ],
         "metadata": result.metadata,
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result_dict, skill_name="llamaindex_rag")
 
 
 @register_skill("llamaindex_query")
@@ -529,7 +538,7 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
     query = _goal(ctx)
     result = rag.query(query, top_k=top_k)
 
-    return {
+    result_dict = {
         "status": "completed",
         "query": query,
         "response": result.response,
@@ -538,6 +547,9 @@ def llamaindex_query(ctx: Dict[str, Any]) -> Dict[str, Any]:
         ],
         "metadata": result.metadata,
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result_dict, skill_name="llamaindex_query")
 
 
 @register_skill("dagster_pipeline")

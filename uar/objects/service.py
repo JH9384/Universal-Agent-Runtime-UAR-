@@ -24,11 +24,20 @@ logger = logging.getLogger(__name__)
 # Digest helpers
 # ----------------------------------------------------------------------
 def canonical_digest(payload: Any) -> str:
-    """SHA-256 of canonical-JSON of ``payload``."""
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
-        "utf-8"
-    )
-    return "sha256:" + hashlib.sha256(raw).hexdigest()
+    """UOR-ADDR-1 canonical digest of ``payload``.
+
+    Uses RFC8785 (JCS) canonicalization so digests are portable
+    across language boundaries.
+    """
+    try:
+        from uar.uor.bounded_json import compute_uor_digest
+
+        return compute_uor_digest(payload)
+    except Exception:
+        raw = json.dumps(
+            payload, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
 def _timestamp() -> float:

@@ -335,6 +335,20 @@ class GoalExecutionService(BaseService):
             except Exception:
                 logger.exception("Temp file cleanup failed")
 
+    @staticmethod
+    def _event_dedup_key(event: dict) -> str:
+        """UOR-ADDR-1 canonical key for event deduplication.
+
+        Falls back to legacy ``json.dumps(sort_keys=True)`` if
+        bounded_json is unavailable.
+        """
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(event)
+        except Exception:
+            return json.dumps(event, sort_keys=True, default=str)
+
     def _persist_from_file(
         self,
         file_path: str,
@@ -375,9 +389,7 @@ class GoalExecutionService(BaseService):
                             if event.get("type") not in _filter_types:
                                 continue
                         if _dedup:
-                            ev_hash = json.dumps(
-                                event, sort_keys=True, default=str
-                            )
+                            ev_hash = self._event_dedup_key(event)
                             if ev_hash in seen:
                                 continue
                             seen.add(ev_hash)
@@ -413,10 +425,7 @@ class GoalExecutionService(BaseService):
                                     if et not in _filter_types:
                                         continue
                                 if _dedup:
-                                    ev_hash = json.dumps(
-                                        event, sort_keys=True,
-                                        default=str,
-                                    )
+                                    ev_hash = self._event_dedup_key(event)
                                     if ev_hash in seen:
                                         continue
                                     seen.add(ev_hash)
@@ -435,9 +444,7 @@ class GoalExecutionService(BaseService):
                                 if event.get("type") not in _filter_types:
                                     continue
                             if _dedup:
-                                ev_hash = json.dumps(
-                                    event, sort_keys=True, default=str
-                                )
+                                ev_hash = self._event_dedup_key(event)
                                 if ev_hash in seen:
                                     continue
                                 seen.add(ev_hash)

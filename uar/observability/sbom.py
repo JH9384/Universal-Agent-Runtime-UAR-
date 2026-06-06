@@ -70,13 +70,23 @@ def generate_sbom(
             comp["hashes"] = hashes
         components.append(comp)
 
+    # UOR-ADDR-1 canonical seed for deterministic UUID
+    try:
+        from uar.uor.bounded_json import compute_uor_digest
+
+        uuid_seed = compute_uor_digest(
+            {"tool": tool_name, "version": tool_version, "ts": _now_iso()}
+        )
+        uuid_hex = uuid_seed.replace("sha256:", "")[:32]
+    except Exception:
+        uuid_hex = hashlib.sha256(
+            (tool_name + tool_version + _now_iso()).encode()
+        ).hexdigest()[:32]
+
     sbom = {
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
-        "serialNumber": "urn:uuid:"
-        + hashlib.sha256(
-            (tool_name + tool_version + _now_iso()).encode()
-        ).hexdigest()[:32],
+        "serialNumber": "urn:uuid:" + uuid_hex,
         "version": 1,
         "metadata": {
             "timestamp": _now_iso(),

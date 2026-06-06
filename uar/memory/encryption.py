@@ -98,7 +98,11 @@ class EncryptedRunStore:
         return RunRecord(**data)
 
     def _decrypt_dict(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        """Return a copy with decrypted JSON fields."""
+        """Return a copy with decrypted JSON fields.
+
+        Verifies that decrypted ``uor_witness`` matches the stored
+        ``uor_address`` for tamper detection.
+        """
         if self._fernet is None:
             return row
 
@@ -112,6 +116,27 @@ class EncryptedRunStore:
                     # If decryption fails, assume plaintext (backwards
                     # compatible migration path)
                     pass
+
+        # Integrity check: decrypted witness must match uor_address
+        address = result.get("uor_address")
+        witness = result.get("uor_witness")
+        if address and witness is not None:
+            try:
+                from uar.uor.bounded_json import compute_uor_digest
+
+                computed = compute_uor_digest(witness)
+                if computed != address:
+                    logger.warning(
+                        "UOR witness integrity mismatch for run %s: "
+                        "expected %s, got %s",
+                        result.get("run_id", "?"),
+                        address,
+                        computed,
+                    )
+                    # Intentionally do NOT mutate the returned data — the
+                    # warning log is the only side effect.
+            except Exception:
+                pass
         return result
 
     # ------------------------------------------------------------------

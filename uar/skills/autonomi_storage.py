@@ -193,14 +193,43 @@ def autonomi_upload(ctx):
     result = _autonomi_cb.call(
         lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
     )
-    return {
+
+    # Compute local content digest of uploaded file for verification.
+    # For binary files use raw SHA-256; for text files also compute
+    # UOR-ADDR-1 canonical digest for cross-system portability.
+    file_digest_sha256 = None
+    file_digest_uor = None
+    try:
+        import hashlib
+
+        file_bytes = src.read_bytes() if src.is_file() else None
+        if file_bytes is not None:
+            file_digest_sha256 = "sha256:" + hashlib.sha256(
+                file_bytes
+            ).hexdigest()
+            try:
+                text = file_bytes.decode("utf-8")
+                from uar.uor.bounded_json import compute_uor_digest
+
+                file_digest_uor = compute_uor_digest(text)
+            except UnicodeDecodeError:
+                pass  # binary file — UOR canonical digest not applicable
+    except Exception:
+        pass
+
+    result_dict = {
         "status": "completed",
         "address": str(result) if result is not None else None,
         "public": public,
         "file_path": str(src),
         "network": network_name,
         "has_wallet": bool(private_key),
+        "file_digest_sha256": file_digest_sha256,
+        "file_digest_uor": file_digest_uor,
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result_dict, skill_name="autonomi_upload")
 
 
 # ---------------------------------------------------------------------------
@@ -284,13 +313,16 @@ def autonomi_download(ctx):
     _autonomi_cb.call(
         lambda: run_sync_safe(asyncio.wait_for(_do(), timeout=timeout))
     )
-    return {
+    result_dict = {
         "status": "completed",
         "dest_path": str(dest),
         "address": address,
         "public": public,
         "network": network_name,
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result_dict, skill_name="autonomi_download")
 
 
 # ---------------------------------------------------------------------------
@@ -348,4 +380,6 @@ def autonomi_status(ctx):
     else:
         result["has_wallet"] = False
 
-    return result
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result, skill_name="autonomi_status")

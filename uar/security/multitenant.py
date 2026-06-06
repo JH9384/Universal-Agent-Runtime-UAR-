@@ -49,11 +49,25 @@ class SecuritySandbox:
         self.workspace: Optional[Path] = None
         self._original_limits: Optional[tuple] = None
 
+    @staticmethod
+    def _workspace_hash(tenant_id: str, run_id: str) -> str:
+        """UOR-ADDR-1 canonical hash for workspace directory naming."""
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(
+                {"tenant_id": tenant_id, "run_id": run_id}
+            )[:16]
+        except Exception:
+            return hashlib.sha256(
+                f"{tenant_id}:{run_id}".encode()
+            ).hexdigest()[:16]
+
     def _create_workspace(self) -> Path:
         """Create isolated workspace for tenant."""
-        workspace_hash = hashlib.sha256(
-            f"{self.tenant_id}:{self.run_id}".encode()
-        ).hexdigest()[:16]
+        workspace_hash = self._workspace_hash(
+            self.tenant_id, self.run_id
+        )
 
         workspace = Path(
             tempfile.gettempdir()
@@ -237,12 +251,16 @@ class TenantIsolation:
     ) -> Path:
         """Create isolated workspace for tenant run."""
         with self._get_tenant_lock(tenant_id):
-            # Use tenant-specific directory
-            tenant_hash = hashlib.sha256(tenant_id.encode()).hexdigest()[:16]
+            # Use tenant-specific directory (UOR-ADDR-1 canonical)
+            tenant_hash = SecuritySandbox._workspace_hash(
+                tenant_id, ""
+            )[:16]
             base = Path(tempfile.gettempdir()) / "uar_tenants" / tenant_hash
 
             # Run-specific subdirectory
-            run_hash = hashlib.sha256(run_id.encode()).hexdigest()[:8]
+            run_hash = SecuritySandbox._workspace_hash(
+                "", run_id
+            )[:8]
             workspace = base / run_hash
             workspace.mkdir(parents=True, exist_ok=True)
 
@@ -253,7 +271,9 @@ class TenantIsolation:
     def cleanup_tenant(self, tenant_id: str) -> None:
         """Cleanup all workspaces for a tenant."""
         with self._get_tenant_lock(tenant_id):
-            tenant_hash = hashlib.sha256(tenant_id.encode()).hexdigest()[:16]
+            tenant_hash = SecuritySandbox._workspace_hash(
+                tenant_id, ""
+            )[:16]
             tenant_dir = Path(
                 tempfile.gettempdir()
             ) / "uar_tenants" / tenant_hash

@@ -210,10 +210,12 @@ class SyncMonitor:
             }
 
         copied = 0
+        failed_integrity = 0
         try:
             records = source.list_records(limit=limit)
             for rec in records:
                 try:
+                    source_address = rec.get("uor_address")
                     # Re-append via the target store's append if available;
                     # fallback to put_metadata for metadata-only stores.
                     if hasattr(target, "append"):
@@ -223,20 +225,46 @@ class SyncMonitor:
                             target.append(RunRecord(**rec))
                         else:
                             target.append(rec)
+
+                    # Integrity check: verify the record round-tripped
+                    # with the same UOR address. Retry a few times for
+                    # eventually-consistent stores (e.g. read replicas).
+                    if source_address:
+                        run_id = rec.get("run_id", "")
+                        verified = None
+                        for _attempt in range(3):
+                            verified = target.get_by_run_id(run_id)
+                            if verified:
+                                break
+                            time.sleep(0.05)
+                        if verified:
+                            target_address = verified.get("uor_address")
+                            if target_address != source_address:
+                                logger.error(
+                                    "Resync integrity mismatch for %s: "
+                                    "source=%s target=%s",
+                                    run_id,
+                                    source_address,
+                                    target_address,
+                                )
+                                failed_integrity += 1
+                                continue
                     copied += 1
                 except Exception as exc:
                     logger.warning("Resync copy failed for record: %s", exc)
 
             self.record_write(target_id)
             logger.info(
-                "Resynced %s records from %s to %s",
+                "Resynced %s records from %s to %s (%s integrity fails)",
                 copied,
                 source_id,
                 target_id,
+                failed_integrity,
             )
             return {
-                "success": True,
+                "success": failed_integrity == 0,
                 "copied": copied,
+                "failed_integrity": failed_integrity,
                 "source": source_id,
                 "target": target_id,
             }
