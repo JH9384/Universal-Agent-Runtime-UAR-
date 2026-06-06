@@ -32,7 +32,7 @@ class TestResolveDefaultDbPath:
 class TestLoadDbCorrupted:
     def test_corrupted_object_json(self, tmp_path):
         store = ObjectStore(db_path=str(tmp_path / "test.db"))
-        with store._connect() as conn:
+        with store._db() as conn:
             conn.execute(
                 "INSERT INTO objects (digest, record_json) VALUES (?, ?)",
                 ("bad", "not json"),
@@ -43,7 +43,7 @@ class TestLoadDbCorrupted:
 
     def test_corrupted_lineage_json(self, tmp_path):
         store = ObjectStore(db_path=str(tmp_path / "test.db"))
-        with store._connect() as conn:
+        with store._db() as conn:
             conn.execute(
                 "INSERT INTO lineage (digest, event_json) VALUES (?, ?)",
                 ("bad", "not json"),

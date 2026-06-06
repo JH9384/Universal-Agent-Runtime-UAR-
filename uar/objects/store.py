@@ -12,6 +12,7 @@ with an explicit ``db_path`` pointing to a tmp directory.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -66,19 +67,23 @@ class ObjectStore:
     # ------------------------------------------------------------------
     # Connection helpers
     # ------------------------------------------------------------------
-    def _connect(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _db(self):
+        """Yield a SQLite connection and ensure it is closed."""
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        # WAL gives us better read concurrency; safe for our workload.
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
         except sqlite3.DatabaseError:  # pragma: no cover - exotic FS
             pass
-        return conn
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def init_db(self) -> None:
-        with self._connect() as conn:
+        with self._db() as conn:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS objects ("
                 "digest TEXT PRIMARY KEY, "
@@ -109,7 +114,7 @@ class ObjectStore:
 
     def load_db(self) -> None:
         """Refresh in-memory mirrors from the SQLite store."""
-        with self._lock, self._connect() as conn:
+        with self._lock, self._db() as conn:
             self._objects.clear()
             self._lineage.clear()
             self._runtime_registry.clear()
@@ -157,7 +162,7 @@ class ObjectStore:
         from datetime import datetime, timezone
 
         created_at = datetime.now(timezone.utc).isoformat()
-        with self._lock, self._connect() as conn:
+        with self._lock, self._db() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO object_content "
                 "(digest, media_type, content_bytes, created_at) "
@@ -172,7 +177,7 @@ class ObjectStore:
         Returns a dict with ``media_type``, ``content_bytes``, and
         ``created_at`` keys, or ``None`` if no content exists.
         """
-        with self._connect() as conn:
+        with self._db() as conn:
             row = conn.execute(
                 "SELECT media_type, content_bytes, created_at "
                 "FROM object_content WHERE digest = ?",
@@ -189,7 +194,7 @@ class ObjectStore:
     def put_object(self, record: Dict[str, Any]) -> None:
         digest = record["digest"]
         payload = json.dumps(record, sort_keys=True)
-        with self._lock, self._connect() as conn:
+        with self._lock, self._db() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO objects (digest, record_json) "
                 "VALUES (?, ?)",
@@ -209,7 +214,7 @@ class ObjectStore:
     # ------------------------------------------------------------------
     def append_lineage(self, digest: str, event: Dict[str, Any]) -> None:
         payload = json.dumps(event, sort_keys=True)
-        with self._lock, self._connect() as conn:
+        with self._lock, self._db() as conn:
             conn.execute(
                 "INSERT INTO lineage (digest, event_json) VALUES (?, ?)",
                 (digest, payload),
@@ -225,7 +230,7 @@ class ObjectStore:
     # Runtime registry operations
     # ------------------------------------------------------------------
     def register_runtime(self, name: str, digest: str) -> None:
-        with self._lock, self._connect() as conn:
+        with self._lock, self._db() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO runtime_registry "
                 "(name, digest) VALUES (?, ?)",

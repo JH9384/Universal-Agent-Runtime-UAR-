@@ -143,7 +143,7 @@ class JsonRunStore:
 
         Scans from newest to oldest so the most recent record wins.
         """
-        records = self.list_records()
+        records = self.list_records(limit=999999)
         for record in reversed(records):
             if record.get("run_id") == run_id:
                 return record

@@ -167,11 +167,12 @@ class DataSourceRegistry:
             import psycopg2
 
             conn = psycopg2.connect(url, connect_timeout=5)
-            cur = conn.cursor()
-            cur.execute("SELECT 1")
-            cur.close()
-            conn.close()
-            return True, "Connected"
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                return True, "Connected"
+            finally:
+                conn.close()
         except Exception as exc:
             return False, str(exc)
 
@@ -253,8 +254,8 @@ def get_data_source_registry(
     global _registry
     if _registry is None:
         if store is None:
-            from uar.api.state import store as _store
+            from uar.container import get_container
 
-            store = _store
+            store = get_container().get_store()
         _registry = DataSourceRegistry(store)
     return _registry

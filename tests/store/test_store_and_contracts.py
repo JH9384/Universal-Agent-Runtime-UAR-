@@ -159,16 +159,16 @@ def test_pipeline_context_close_exception_swallowed(monkeypatch):
     goal = GoalSpec(id="g", user_intent="t", objective="t")
     ctx = PipelineContext(goal=goal)
     assert ctx._overflow_file is not None
+    overflow_file = ctx._overflow_file
     # Patch close to raise an exception
-    original_close = ctx._overflow_file.close
-    ctx._overflow_file.close = lambda: (_ for _ in ()).throw(
+    original_close = overflow_file.close
+    overflow_file.close = lambda: (_ for _ in ()).throw(
         RuntimeError("boom")
     )
     ctx.close()  # must not raise
-    # Restore for clean teardown
-    if ctx._overflow_file is not None:
-        ctx._overflow_file.close = original_close
-        ctx._overflow_file.close()
+    # Restore and close the actual file for clean teardown
+    overflow_file.close = original_close
+    overflow_file.close()
 
 
 def test_pipeline_context_del_closes_overflow_file(tmp_path, monkeypatch):

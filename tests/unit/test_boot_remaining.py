@@ -174,6 +174,7 @@ class TestServiceSupervisorStart:
             )
             assert pid == 789
             assert "stdout" in popen.call_args[1]
+        supervisor.stop_all()  # close log file
 
     def test_start_failure_closes_log(self, tmp_path):
         from uar.boot import ServiceSupervisor

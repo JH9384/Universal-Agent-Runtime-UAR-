@@ -274,6 +274,8 @@ def snowflake_etl(ctx: PipelineContext) -> Dict[str, Any]:
             ),
         }
 
+    conn = None
+    cursor = None
     try:
         conn = snowflake.connector.connect(
             account=account,
@@ -297,9 +299,6 @@ def snowflake_etl(ctx: PipelineContext) -> Dict[str, Any]:
             results = []
             row_count = cursor.rowcount
 
-        cursor.close()
-        conn.close()
-
         return {
             "status": "completed",
             "row_count": row_count,
@@ -310,3 +309,14 @@ def snowflake_etl(ctx: PipelineContext) -> Dict[str, Any]:
         }
     except Exception as exc:
         return {"status": "error", "error": str(exc)}
+    finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass

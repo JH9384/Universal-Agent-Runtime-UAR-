@@ -380,7 +380,8 @@ def test_gzip_minimum_size_honors_env_var():
     # The middleware is registered by uar.boot.create_app() with
     # minimum_size=max(0, int(os.getenv(...)))
     # We verify the env var is read by checking the constant source.
-    src = open(boot_mod.__file__).read()
+    with open(boot_mod.__file__) as f:
+        src = f.read()
     assert "UAR_GZIP_MIN_SIZE" in src
     assert 'int(os.getenv("UAR_GZIP_MIN_SIZE", "1024")' in src
 
