@@ -1,22 +1,28 @@
 # UAR Freeze and Lock Registry
 
 > Canonical record of all engineering freezes, directional locks, and expansion halts.  
-> Last updated: 2026-06-01
+> Last updated: 2026-06-05
 
 ---
 
 ## Active Freezes
+
+*None. Lifted 2026-06-05 to proceed with D4C — Fleet Operations.*
+
+---
+
+## Historical Freezes (Completed or Lifted)
 
 ### 1. Feature Freeze — Ω-7B.1 Operational Validation
 
 | | |
 |---|---|
 | **Declared** | 2026-06-01 |
-| **Status** | ACTIVE |
+| **Lifted** | 2026-06-05 |
+| **Status** | **LIFTED** — D4A and D4B complete; freeze no longer necessary. |
 | **Scope** | No new runtime capabilities, autonomy layers, or infrastructure expansions |
 | **Rationale** | The Trust Spine (T1–T6) is complete. The architecture is rich enough that the next improvements should come from observed behavior rather than design intuition. |
-| **Exit criteria** | Trust stability < 0.10 WoW, calibration stability < 0.05 WoW, ranking stability < 20% band changes weekly, resolution correlation ≥ 0.3 |
-| **Minimum volume** | 50+ recommendations shown, 20+ outcomes recorded, 10+ per type |
+| **Exit criteria** | D4A success gate met (all 6 work packages complete). D4B automation layer operational. |
 
 **Permitted during freeze:**
 - Bug fixes and correctness patches
@@ -25,13 +31,8 @@
 - Dashboard visualizations
 - Operational validation tooling
 
-**Deferred:**
-- New trust spine phases (none planned — spine is complete)
-- New learning logic (architecture frozen separately)
-- New operational intelligence layers (all 12 layers complete)
-- Marketplace systems
-- Agent economy systems
-- Workflow studio expansion
+**Deferred (now unblocked):**
+- D4C — Fleet Operations
 
 ---
 
@@ -40,10 +41,8 @@
 | | |
 |---|---|
 | **Declared** | 2026-06-01 |
-| **Status** | ACTIVE |
-| **Scope** | No new learning logic in Ω-5.1 through Ω-7b |
-| **Rationale** | "Let reality vote." The learning subsystem is rich enough. The next improvements should come from observed behavior rather than design intuition. |
-| **Exit criteria** | Same as Feature Freeze — Ω-7B.1 Operational Validation exit |
+| **Lifted** | 2026-06-05 |
+| **Status** | **LIFTED** — Feature freeze lifted; learning layers remain stable but not frozen against fleet-context additions. |
 
 **Frozen layers:**
 
