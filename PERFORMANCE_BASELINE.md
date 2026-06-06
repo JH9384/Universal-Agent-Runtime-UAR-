@@ -22,11 +22,11 @@
 
 Endpoint | 10 runs | 100 runs | 1,000 runs | 10,000 runs
 |---|---|---|---|---|
-| Mission Control Snapshot | 0.19 ms | 2.06 ms | 25.73 ms | 279.68 ms |
+| Mission Control Snapshot | 0.24 ms | 2.24 ms | 26.51 ms | 266.96 ms |
 | Replay Explorer | 0.0 ms | 0.0 ms | 0.0 ms | 0.0 ms |
-| Failure Clusters | 0.18 ms | 2.26 ms | 24.99 ms | 282.77 ms |
-| Topology Analytics | 0.22 ms | 2.33 ms | 28.14 ms | 306.15 ms |
-| Recipe Intelligence | 0.2 ms | 2.12 ms | 25.57 ms | 284.63 ms |
+| Failure Clusters | 0.23 ms | 2.18 ms | 26.62 ms | 278.13 ms |
+| Topology Analytics | 0.28 ms | 2.46 ms | 27.69 ms | 323.12 ms |
+| Recipe Intelligence | 0.23 ms | 2.18 ms | 26.8 ms | 281.93 ms |
 
 ---
 
