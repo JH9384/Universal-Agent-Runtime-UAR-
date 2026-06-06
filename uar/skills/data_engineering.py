@@ -104,8 +104,6 @@ def airflow_dag(ctx: PipelineContext) -> Dict[str, Any]:
             "syntax_valid": False,
             "error": str(exc),
         }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
 
 
 @register_skill("dbt_transform")
@@ -130,38 +128,35 @@ def dbt_transform(ctx: PipelineContext) -> Dict[str, Any]:
     target = meta.get("dbt_target", "dev")
     models = meta.get("dbt_models", [])
 
-    try:
-        cmd = ["dbt", "compile", "--project-dir", project_path]
-        if target:
-            cmd.extend(["--target", target])
-        if models:
-            for m in models:
-                cmd.extend(["--select", m])
+    cmd = ["dbt", "compile", "--project-dir", project_path]
+    if target:
+        cmd.extend(["--target", target])
+    if models:
+        for m in models:
+            cmd.extend(["--select", m])
 
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=300,
-        )
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=300,
+    )
 
-        # Parse manifest.json for compiled models
-        manifest_path = Path(project_path) / "target" / "manifest.json"
-        models_list: List[str] = []
-        if manifest_path.exists():
-            manifest = json.loads(manifest_path.read_text())
-            nodes = manifest.get("nodes", {})
-            for key, node in nodes.items():
-                if node.get("resource_type") == "model":
-                    models_list.append(node.get("name", key))
+    # Parse manifest.json for compiled models
+    manifest_path = Path(project_path) / "target" / "manifest.json"
+    models_list: List[str] = []
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        nodes = manifest.get("nodes", {})
+        for key, node in nodes.items():
+            if node.get("resource_type") == "model":
+                models_list.append(node.get("name", key))
 
-        return {
-            "status": "completed",
-            "returncode": proc.returncode,
-            "models": models_list,
-            "model_count": len(models_list),
-            "stdout_preview": proc.stdout[:2000] if proc.stdout else "",
-            "stderr_preview": proc.stderr[:2000] if proc.stderr else "",
-        }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+    return {
+        "status": "completed",
+        "returncode": proc.returncode,
+        "models": models_list,
+        "model_count": len(models_list),
+        "stdout_preview": proc.stdout[:2000] if proc.stdout else "",
+        "stderr_preview": proc.stderr[:2000] if proc.stderr else "",
+    }
 
 
 @register_skill("spark_process")
@@ -192,44 +187,41 @@ def spark_process(ctx: PipelineContext) -> Dict[str, Any]:
     options = meta.get("spark_options", {})
     sample_n = int(meta.get("spark_sample_n", 5))
 
-    try:
-        spark = SparkSession.builder.appName(
-            "UAR_Spark"
-        ).getOrCreate()
+    spark = SparkSession.builder.appName(
+        "UAR_Spark"
+    ).getOrCreate()
 
-        reader = spark.read
-        if fmt == "csv":
-            reader = reader.option("header", "true")
-            reader = reader.option("inferSchema", "true")
-        for k, v in options.items():
-            reader = reader.option(k, v)
-        df = reader.format(fmt).load(data_path)
+    reader = spark.read
+    if fmt == "csv":
+        reader = reader.option("header", "true")
+        reader = reader.option("inferSchema", "true")
+    for k, v in options.items():
+        reader = reader.option(k, v)
+    df = reader.format(fmt).load(data_path)
 
-        schema = [
-            {"name": f.name, "type": str(f.dataType)}
-            for f in df.schema.fields
-        ]
-        row_count = df.count()
+    schema = [
+        {"name": f.name, "type": str(f.dataType)}
+        for f in df.schema.fields
+    ]
+    row_count = df.count()
 
-        result_df = df
-        if sql:
-            df.createOrReplaceTempView("data")
-            result_df = spark.sql(sql)
+    result_df = df
+    if sql:
+        df.createOrReplaceTempView("data")
+        result_df = spark.sql(sql)
 
-        sample = [
-            row.asDict() for row in result_df.limit(sample_n).collect()
-        ]
+    sample = [
+        row.asDict() for row in result_df.limit(sample_n).collect()
+    ]
 
-        return {
-            "status": "completed",
-            "format": fmt,
-            "schema": schema,
-            "row_count": row_count,
-            "sample": sample,
-            "sql_applied": bool(sql),
-        }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+    return {
+        "status": "completed",
+        "format": fmt,
+        "schema": schema,
+        "row_count": row_count,
+        "sample": sample,
+        "sql_applied": bool(sql),
+    }
 
 
 @register_skill("snowflake_etl")

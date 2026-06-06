@@ -119,38 +119,35 @@ def pentest_scan(ctx: PipelineContext) -> Dict[str, Any]:
     ports = meta.get("scan_ports", "1-1024")
     args = meta.get("scan_args", "-sV")
 
-    try:
-        scanner = nmap.PortScanner()
-        scanner.scan(target, ports, arguments=args)
+    scanner = nmap.PortScanner()
+    scanner.scan(target, ports, arguments=args)
 
-        hosts: List[Dict[str, Any]] = []
-        for host in scanner.all_hosts():
-            host_info = {
-                "host": host,
-                "state": scanner[host].state(),
-                "protocols": {},
-            }
-            for proto in scanner[host].all_protocols():
-                ports_info = {}
-                for port in scanner[host][proto].keys():
-                    p = scanner[host][proto][port]
-                    ports_info[port] = {
-                        "state": p.get("state"),
-                        "name": p.get("name"),
-                        "product": p.get("product"),
-                        "version": p.get("version"),
-                    }
-                host_info["protocols"][proto] = ports_info
-            hosts.append(host_info)
-
-        return {
-            "status": "completed",
-            "target": target,
-            "hosts_scanned": len(hosts),
-            "hosts": hosts,
+    hosts: List[Dict[str, Any]] = []
+    for host in scanner.all_hosts():
+        host_info = {
+            "host": host,
+            "state": scanner[host].state(),
+            "protocols": {},
         }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+        for proto in scanner[host].all_protocols():
+            ports_info = {}
+            for port in scanner[host][proto].keys():
+                p = scanner[host][proto][port]
+                ports_info[port] = {
+                    "state": p.get("state"),
+                    "name": p.get("name"),
+                    "product": p.get("product"),
+                    "version": p.get("version"),
+                }
+            host_info["protocols"][proto] = ports_info
+        hosts.append(host_info)
+
+    return {
+        "status": "completed",
+        "target": target,
+        "hosts_scanned": len(hosts),
+        "hosts": hosts,
+    }
 
 
 @register_skill("osint_recon")
@@ -275,25 +272,22 @@ def mlflow_track(ctx: PipelineContext) -> Dict[str, Any]:
     metrics = meta.get("mlflow_metrics", {})
     artifact = meta.get("mlflow_artifact")
 
-    try:
-        mlflow.set_experiment(experiment)
-        with mlflow.start_run(run_name=run_name):
-            if params:
-                mlflow.log_params(params)
-            if metrics:
-                mlflow.log_metrics(metrics)
-            if artifact and Path(artifact).exists():
-                mlflow.log_artifact(artifact)
-            run_id = mlflow.active_run().info.run_id
-        return {
-            "status": "completed",
-            "experiment": experiment,
-            "run_id": run_id,
-            "params_logged": list(params.keys()),
-            "metrics_logged": list(metrics.keys()),
-        }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+    mlflow.set_experiment(experiment)
+    with mlflow.start_run(run_name=run_name):
+        if params:
+            mlflow.log_params(params)
+        if metrics:
+            mlflow.log_metrics(metrics)
+        if artifact and Path(artifact).exists():
+            mlflow.log_artifact(artifact)
+        run_id = mlflow.active_run().info.run_id
+    return {
+        "status": "completed",
+        "experiment": experiment,
+        "run_id": run_id,
+        "params_logged": list(params.keys()),
+        "metrics_logged": list(metrics.keys()),
+    }
 
 
 @register_skill("mlflow_deploy")
@@ -321,28 +315,25 @@ def mlflow_deploy(ctx: PipelineContext) -> Dict[str, Any]:
     version = meta.get("mlflow_model_version", "latest")
     stage = meta.get("mlflow_stage")
 
-    try:
-        if version == "latest":
-            client = mlflow.tracking.MlflowClient()
-            mv = client.get_latest_versions(
-                model_name, stages=[stage] if stage else None,
-            )[0]
-            model_uri = f"models:/{model_name}/{mv.version}"
-            version = mv.version
-        else:
-            model_uri = f"models:/{model_name}/{version}"
+    if version == "latest":
+        client = mlflow.tracking.MlflowClient()
+        mv = client.get_latest_versions(
+            model_name, stages=[stage] if stage else None,
+        )[0]
+        model_uri = f"models:/{model_name}/{mv.version}"
+        version = mv.version
+    else:
+        model_uri = f"models:/{model_name}/{version}"
 
-        model = mlflow.pyfunc.load_model(model_uri)
-        return {
-            "status": "completed",
-            "model_name": model_name,
-            "version": version,
-            "stage": stage,
-            "model_uri": model_uri,
-            "model_type": str(type(model)),
-        }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+    model = mlflow.pyfunc.load_model(model_uri)
+    return {
+        "status": "completed",
+        "model_name": model_name,
+        "version": version,
+        "stage": stage,
+        "model_uri": model_uri,
+        "model_type": str(type(model)),
+    }
 
 
 @register_skill("model_reg")
@@ -376,28 +367,25 @@ def model_reg(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "mlflow_model_name and mlflow_run_id required",
         }
 
-    try:
-        model_uri = f"runs:/{run_id}/{artifact_path}"
-        result = mlflow.register_model(model_uri, model_name)
-        version = result.version
+    model_uri = f"runs:/{run_id}/{artifact_path}"
+    result = mlflow.register_model(model_uri, model_name)
+    version = result.version
 
-        if stage:
-            client = mlflow.tracking.MlflowClient()
-            client.transition_model_version_stage(
-                name=model_name,
-                version=version,
-                stage=stage,
-            )
+    if stage:
+        client = mlflow.tracking.MlflowClient()
+        client.transition_model_version_stage(
+            name=model_name,
+            version=version,
+            stage=stage,
+        )
 
-        return {
-            "status": "completed",
-            "model_name": model_name,
-            "version": version,
-            "stage": stage,
-            "model_uri": model_uri,
-        }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+    return {
+        "status": "completed",
+        "model_name": model_name,
+        "version": version,
+        "stage": stage,
+        "model_uri": model_uri,
+    }
 
 
 @register_skill("kubeflow_pipe")
@@ -422,23 +410,20 @@ def kubeflow_pipe(ctx: PipelineContext) -> Dict[str, Any]:
     output_path = meta.get("kfp_output_path", "pipeline.yaml")
     steps = meta.get("kfp_steps", [{"name": "step1", "image": "python:3.9"}])
 
-    try:
-        # Dynamically build a pipeline function
-        @dsl.pipeline(name=func_name)
-        def dynamic_pipeline():
-            for step in steps:
-                dsl.ContainerOp(
-                    name=step["name"],
-                    image=step.get("image", "python:3.9"),
-                    command=step.get("command", ["echo", "done"]),
-                )
+    # Dynamically build a pipeline function
+    @dsl.pipeline(name=func_name)
+    def dynamic_pipeline():
+        for step in steps:
+            dsl.ContainerOp(
+                name=step["name"],
+                image=step.get("image", "python:3.9"),
+                command=step.get("command", ["echo", "done"]),
+            )
 
-        Compiler().compile(dynamic_pipeline, output_path)
-        return {
-            "status": "completed",
-            "pipeline_name": func_name,
-            "output_path": output_path,
-            "steps": [s["name"] for s in steps],
-        }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+    Compiler().compile(dynamic_pipeline, output_path)
+    return {
+        "status": "completed",
+        "pipeline_name": func_name,
+        "output_path": output_path,
+        "steps": [s["name"] for s in steps],
+    }
