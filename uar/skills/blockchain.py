@@ -9,7 +9,7 @@ from typing import Any, Dict
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.contracts import PipelineContext
 from uar.core.registry import register_skill
-from uar.core.skill_utils import require_package, skill_guard
+from uar.core.skill_utils import require_field, require_package, skill_guard
 
 
 @register_skill("solana_tx")
@@ -64,12 +64,10 @@ def solana_tx(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     elif operation == "balance":
-        address = meta.get("solana_address", "")
-        if not address:
-            return {
-                "status": "failed",
-                "error": "solana_address required",
-            }
+        err = require_field(meta, "solana_address")
+        if err:
+            return err
+        address = meta["solana_address"]
         resp = client.get_balance(address)
         value = resp.value if hasattr(resp, "value") else 0
         return {
@@ -81,13 +79,11 @@ def solana_tx(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     elif operation == "send":
-        recipient = meta.get("solana_recipient", "")
+        err = require_field(meta, "solana_recipient")
+        if err:
+            return err
+        recipient = meta["solana_recipient"]
         amount = int(meta.get("solana_amount_lamports", 1000))
-        if not recipient:
-            return {
-                "status": "failed",
-                "error": "solana_recipient required",
-            }
         return {
             "status": "completed",
             "operation": operation,
@@ -224,15 +220,12 @@ def nft_mint(ctx: PipelineContext) -> Dict[str, Any]:
 
     meta = ctx.goal.metadata or {}
     rpc_url = meta.get("nft_rpc_url", "http://localhost:8545")
-    recipient = meta.get("nft_recipient", "")
+    err = require_field(meta, "nft_recipient")
+    if err:
+        return err
+    recipient = meta["nft_recipient"]
     token_id = int(meta.get("nft_token_id", 1))
     uri = meta.get("nft_uri", "")
-
-    if not recipient:
-        return {
-            "status": "failed",
-            "error": "nft_recipient required",
-        }
 
     w3 = Web3(Web3.HTTPProvider(rpc_url))
     if not w3.is_connected():

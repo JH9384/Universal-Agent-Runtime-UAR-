@@ -161,11 +161,11 @@ def osint_recon(ctx: PipelineContext) -> Dict[str, Any]:
         recon_tools:    ['whois', 'shodan', 'dns'] (default all)
     """
     meta = ctx.goal.metadata or {}
-    target = meta.get("recon_target", "")
+    err = require_field(meta, "recon_target")
+    if err:
+        return err
+    target = meta["recon_target"]
     tools = meta.get("recon_tools", ["whois", "dns"])
-
-    if not target:
-        return {"status": "failed", "error": "No recon target provided"}
 
     results: Dict[str, Any] = {}
 
