@@ -18,6 +18,46 @@ until Ω-7B.1 exit criteria are met.
 
 See [docs/FREEZES_AND_LOCKS.md](docs/FREEZES_AND_LOCKS.md) for the canonical registry of all freezes, locks, and directional decisions.
 
+### Added
+
+- **D4A — Operational Optimization**
+  - D4A-0: Raised analytics endpoint default limit from 1,000 to 50,000 runs; no silent truncation.
+  - D4A-1: Materialized `AnalyticsCache` with 60s TTL and cache invalidation on new runs; median latency < 10ms at 10,000 runs (cache warm).
+  - D4A-2: Consolidated `/api/uar/topology/hot-paths` and `/api/uar/topology/failure-hotspots` into `/api/uar/topology/analytics?mode=success|failure`; removed recipe table from topology, linked to Recipe Intelligence.
+  - D4A-3: Alert Banner in `UARPanel` surfaces critical/warning alerts from `/api/uar/alerts/summary`; dismissible with 24h TTL.
+  - D4A-4: Deep Linking — failure cluster and hotspot responses include `latest_run_id`; rendered as clickable links that open `ReplayExplorer`.
+  - D4A-5: Progressive Disclosure Tabs — `MissionControlWidget` reorganized into 5 tabs (Health, Trends, Failures, Topology, Intelligence) with localStorage persistence.
+
+- **D4B — Automation**
+  - Alert-to-tab routing: each alert in `/api/uar/alerts/summary` carries a `tab` field; clicking the Alert Banner opens Mission Control directly on the relevant tab.
+  - Alert dismiss TTL: dismissed alerts auto-expire after 24 hours so new issues resurface.
+
+- **Hardening Backlog (completed)**
+  - #85 Runtime Health Query Consolidation — `RuntimeSnapshot` single-pass store read shared across `score_runtime_health` and `build_snapshot`.
+  - #86 Burn-In Persistence Layer — `BurnInProxy.from_latest()` recovers from `uar_metadata` table after restart; `_set_latest_report()` persists via `SqliteRunStore.put_metadata()`.
+  - #87 Certification Engine Refactor — removed `contract_compliance`; aligned weights to Trust Spine model (Replay 40%, Burn-In 35%, Runtime Health 25%).
+
+- **D4C — Fleet Operations**
+  - D4C-0: Fleet Heartbeat & Registry — `POST /api/uar/fleet/heartbeat`, `GET /api/uar/fleet/nodes`, `GET /api/uar/fleet/health`. In-memory registry with 5-minute TTL, persisted to `uar_metadata`.
+  - D4C-1: Cross-Node Health Dashboard — `FleetHealthWidget` component in `UARPanel` showing node grid, fleet health score, critical nodes, and certification distribution. Toolbar button opens fleet view.
+  - D4C-2: Fleet-Wide Failure Correlation — `GET /api/uar/fleet/failures` correlates failure clusters by skill across nodes. Surfaces fleet-wide hotspots when same skill fails on >= 3 nodes. Heartbeat accepts optional `failure_clusters` payload.
+  - D4C-3: Skill Routing Hints — `GET /api/uar/fleet/routing?skill=<skill>` ranks nodes by health (40%), skill availability (30%), and recent failure history (30%). Penalises nodes with open circuit breakers or known skill failures.
+
+- **Infrastructure Hardening (T1–T12)**
+  - T1: DI Container — `uar.core` modules no longer import from `uar.api.state`. `_uar_start_time` canonicalised in `uar.config`. Go/No-Go Gate G1 enforced by regression test.
+  - T2: Encryption at Rest — `EncryptedRunStore` wrapper transparently encrypts JSON blob columns (skills, events, outputs, metadata, uor_witness) and metadata values using Fernet (AES-128-CBC + HMAC). Enabled via `UAR_ENCRYPTION_KEY`. Backwards-compatible with plaintext data.
+  - T3: Immutable Audit Logs — `AuditLogger` enhanced with SHA-256 hash chain (`prev_hash` per record). Optional S3 (`UAR_AUDIT_S3_BUCKET`) and CloudWatch (`UAR_AUDIT_CLOUDWATCH_GROUP`) shipping via soft boto3 dependency. `GET /api/uar/admin/audit/verify` endpoint detects tampering.
+  - T4: Separate Testing — `uar burn-in run` CLI command added to `uar/cli/main.py`. Runs the same `BurnInRunner` as `POST /api/uar/burnin/run` but without the API server. Supports `--mode=direct` (in-process) and `--mode=http` (remote). `--json` for CI/CD pipelines. Exit code 1 on failure.
+  - T5: Protocol Boundaries — `ExecutionGateway` formalises the API-to-Executor contract in `uar/api/gateway.py`. The router (`runs.py`) no longer imports `SimplePlanner`, `Executor`, or `_build_goal` directly. All execution flows through `gateway.execute(RunRequest) → RunRecord`. Side effects (idempotency, store persistence, analytics cache invalidation, sync monitor) are encapsulated in the gateway.
+  - T6: Distributed Executor — `WorkerPool` abstraction added in `uar/core/worker_pool.py`. Supports `thread` (default), `process`, and `local` modes. Configurable via `UAR_POOL_MODE` and `UAR_POOL_MAX_WORKERS`. `Executor` accepts optional `pool` argument; `ExecutionGateway` passes it through. Replaces ad-hoc `ThreadPoolExecutor` creation per parallel group with a persistent, injectable pool.
+  - T7: External Metrics — `uar_uptime_seconds` gauge added to Prometheus exposition format. New Grafana operational dashboard (`deploy/grafana/dashboards/uar-operational.json`) with panels for uptime, request rate, error rate, request duration p50/p99, skill execution count, and skill errors. Dashboard provisioning updated to generic "UAR Dashboards". Prometheus scrapes `/metrics` at 30s; Grafana auto-configures Prometheus datasource.
+  - T8: Synthetic Probing — `SyntheticProbe` in `uar/observability/synthetic_probe.py` probes health, metrics, and OpenAPI endpoints. Consecutive-failure gating (`UAR_PROBE_CONSECUTIVE`, default 2) before alerting. `PagerDutyNotifier` in `uar/observability/pagerduty.py` sends trigger/resolve events via PagerDuty Events API v2 with deterministic dedup keys. CLI: `uar probe run --once --url=<url>` for one-shot checks; `--pagerduty` to enable alerting. Exit code 1 if any probe fails.
+  - T9: API Normalization — Standardized response envelopes in `uar/api/responses.py`: `success_response` wraps payloads in `{data: ...}`, `list_response` adds pagination metadata, `error_response` and `error_detail_response` normalize errors to `{error, message, code, request_id, field}`. `ErrorResponse` model updated to match. `APIVersionMiddleware` injects `X-API-Version` header on every response. Exception handlers refactored to use the normalized helpers. Health router (`uar/api/routers/health.py`) migrated as the reference implementation.
+  - T10: K8s Deployment — `deploy/k8s/` contains production-ready manifests: Namespace, ServiceAccount (`automountServiceAccountToken: false`), ConfigMap, Secret, Deployment (rolling updates, liveness/readiness probes on `/api/health/{live,ready}`, topology spread constraints), ClusterIP Service, Ingress (TLS via cert-manager), HPA (CPU+memory autoscaling 2–10 replicas), and NetworkPolicy (default-deny with explicit allow rules). Kustomize overlay at `kustomization.yaml` with image substitution. Security defaults: non-root user (UID 999), dropped capabilities, `runAsNonRoot: true`. Offline validation tests in `tests/api/test_k8s_manifests.py`.
+  - T11: SBOM + Supply Chain — `uar/observability/sbom.py` generates CycloneDX 1.5 SBOMs from installed packages via `importlib.metadata`. Includes pURL, optional SHA-256 hash from `RECORD`, and validation (`validate_sbom`). CLI: `uar sbom generate --output=sbom.json`. Feed the output into Grype, Trivy, or Snyk for vulnerability scanning.
+  - T12: GDPR Compliance — `uar/core/gdpr.py` provides `GDPRController` with `export_data()` (portability), `erase_data()` (right to erasure), and `policy_metadata()`. Privacy API endpoints: `GET /api/uar/privacy/policy` (open), `GET /api/uar/privacy/export` (auth-required), `DELETE /api/uar/privacy/erase` (auth-required). Integrates with existing `RunStoreProtocol.delete()` and retention purge loop.
+  - E7: Cursor-based Pagination — `uar/api/pagination.py` adds `encode_cursor` / `decode_cursor` / `paginate_cursor` helpers using opaque `last_id` cursors (base64 JSON). `list_response` extended with `next_cursor`. `GET /api/uar/runs` migrated to cursor pagination with `?cursor=&limit=` query params (default limit=20, max=100). Handles missing cursors gracefully. Tests in `tests/api/test_api_pagination.py`.
+
 ### Ω-7B.1 Validation Targets
 
 - Trust Distribution — natural spread across Highly Trusted / Trusted / Watch / Weak bands
@@ -28,11 +68,11 @@ See [docs/FREEZES_AND_LOCKS.md](docs/FREEZES_AND_LOCKS.md) for the canonical reg
 Exit criteria: trust stability < 0.10 WoW, calibration stability < 0.05 WoW,
 ranking stability < 20% band changes weekly, resolution correlation ≥ 0.3.
 
-### Hardening Backlog (deferred, post-validation)
+### Hardening Backlog (all resolved 2026-06-05)
 
-- #85 Runtime Health Query Consolidation
-- #86 Burn-In Persistence Layer
-- #87 Certification Engine Refactor
+- [x] #85 Runtime Health Query Consolidation — `RuntimeSnapshot` single-pass pattern
+- [x] #86 Burn-In Persistence Layer — `put_metadata`/`get_metadata` on `SqliteRunStore`
+- [x] #87 Certification Engine Refactor — Trust Spine weights, no `contract_compliance`
 
 ---
 

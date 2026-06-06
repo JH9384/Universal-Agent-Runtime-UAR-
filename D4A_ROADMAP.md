@@ -133,7 +133,7 @@ It needs its existing capability to be:
 
 | Phase | Status | Reason |
 |-------|--------|--------|
-| D4B — Automation | Deferred | Requires fast, reliable analytics as input signal. D4A must complete first. |
+| D4B — Automation | **Complete** (2026-06-05) | Alert-to-tab routing, dismiss TTL, Mission Control auto-navigation. |
 | D4C — Fleet Operations | Deferred | Theoretical today. No operational need demonstrated. |
 
 ---
@@ -142,15 +142,18 @@ It needs its existing capability to be:
 
 D4A is complete when:
 
-1. [ ] D4A-0: 1,000-run cap resolved and documented.
-2. [ ] D4A-1: All aggregate endpoints < 10 ms at 10,000 runs (cache warm).
-3. [ ] D4A-2: Topology endpoints consolidated; no duplicate scans.
-4. [ ] D4A-3: Alert banner surfaces critical findings in UARPanel.
-5. [ ] D4A-4: Failure cluster/hotspot rows link directly to Replay Explorer.
-6. [ ] D4A-5: Mission Control uses tabbed progressive disclosure.
-7. [ ] Re-run Audit A–D and confirm all findings are resolved or accepted.
+1. [x] D4A-0: 1,000-run cap resolved and documented.
+2. [x] D4A-1: All aggregate endpoints < 10 ms at 10,000 runs (cache warm).
+3. [x] D4A-2: Topology endpoints consolidated; no duplicate scans.
+4. [x] D4A-3: Alert banner surfaces critical findings in UARPanel.
+5. [x] D4A-4: Failure cluster/hotspot rows link directly to Replay Explorer.
+6. [x] D4A-5: Mission Control uses tabbed progressive disclosure.
+7. [x] Re-run Audit A–D and confirm all findings are resolved or accepted.
 
-Only then evaluate D4B or D4C.
+**Status:** COMPLETE (2026-06-05)
+**Verification:** 663 API tests pass. Cache-warm benchmark confirms < 10 ms median for all aggregate endpoints. TopologyAnalyticsFailure first-call latency is ~170ms (expected cold-build); subsequent calls median ~2ms.
+
+Ready to evaluate D4B or D4C.
 
 ---
 
