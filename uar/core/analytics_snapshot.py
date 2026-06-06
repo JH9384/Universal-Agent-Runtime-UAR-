@@ -29,6 +29,7 @@ class SkillFailureCluster:
     runs: Set[str] = field(default_factory=set)
     latest: float = 0.0
     latest_error: str = ""
+    latest_run_id: str = ""
 
 
 @dataclass
@@ -62,6 +63,7 @@ class HotspotNode:
     invocations: int = 0
     failures: int = 0
     affected_runs: Set[str] = field(default_factory=set)
+    latest_run_id: str = ""
 
 
 @dataclass
@@ -71,6 +73,7 @@ class HotspotEdge:
     transitions: int = 0
     failures: int = 0
     affected_runs: Set[str] = field(default_factory=set)
+    latest_run_id: str = ""
 
 
 @dataclass
@@ -223,6 +226,7 @@ def build_analytics_snapshot(
             if ev_ts > sc.latest:
                 sc.latest = ev_ts
                 sc.latest_error = err_msg[:120]
+                sc.latest_run_id = run_id
 
             # Error cluster
             ec = snapshot.error_clusters.setdefault(
@@ -300,6 +304,7 @@ def build_analytics_snapshot(
             if skill in failed_skills:
                 hn.failures += 1
                 hn.affected_runs.add(run_id)
+                hn.latest_run_id = run_id
 
         for i in range(len(skills) - 1):
             src = skills[i]
@@ -312,6 +317,7 @@ def build_analytics_snapshot(
             if src in failed_skills or dst in failed_skills:
                 he.failures += 1
                 he.affected_runs.add(run_id)
+                he.latest_run_id = run_id
 
     # Alias recipe_stats to topology_recipes (same data)
     snapshot.recipe_stats = snapshot.topology_recipes
@@ -346,6 +352,7 @@ def extract_failure_clusters(
                 "run_ids": list(sc.runs),
                 "latest": sc.latest,
                 "latest_error": sc.latest_error,
+                "latest_run_id": sc.latest_run_id,
             }
             for sc in skill_list
         ],
@@ -446,6 +453,7 @@ def extract_failure_hotspots(
             "severity": _severity(fr),
             "affected_runs": len(n.affected_runs),
             "run_ids": list(n.affected_runs),
+            "latest_run_id": n.latest_run_id,
         })
 
     edge_list = []
@@ -461,6 +469,7 @@ def extract_failure_hotspots(
             "severity": _severity(fr),
             "affected_runs": len(e.affected_runs),
             "run_ids": list(e.affected_runs),
+            "latest_run_id": e.latest_run_id,
         })
 
     node_list = sorted(

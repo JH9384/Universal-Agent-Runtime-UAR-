@@ -18,7 +18,16 @@ import logging
 from typing import Any, Dict, List, Optional
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _utcnow() -> datetime:
+    """Return a naive UTC datetime (no tzinfo).
+
+    Replaces deprecated ``datetime.utcnow()``.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 try:
     from llama_index import (
@@ -426,7 +435,7 @@ class LlamaIndexRAG:
                 confidence=0.0,
             )
 
-        start_time = datetime.utcnow()
+        start_time = _utcnow()
 
         try:
             # Execute query
@@ -449,7 +458,7 @@ class LlamaIndexRAG:
                     )
 
             # Calculate latency
-            end_time = datetime.utcnow()
+            end_time = _utcnow()
             latency_ms = (end_time - start_time).total_seconds() * 1000
 
             return RAGResult(

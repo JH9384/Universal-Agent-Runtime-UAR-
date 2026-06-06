@@ -398,6 +398,7 @@ def create_app(ctx: Optional[BootContext] = None) -> Any:
         apply_middleware,
         require_auth,
         register_metrics_middleware,
+        APIVersionMiddleware,
     )
     from uar.api.exception_handlers import register_exception_handlers
     from uar.version import get_uar_version
@@ -405,14 +406,18 @@ def create_app(ctx: Optional[BootContext] = None) -> Any:
     if ctx is None:
         ctx = boot()
 
+    _version = get_uar_version()
     app = FastAPI(
         title="UAR API",
         description=(
             "Universal Agent Runtime API with production security features"
         ),
-        version=get_uar_version(),
+        version=_version,
         lifespan=create_lifespan(ctx),
     )
+
+    # T9: API version header on every response
+    app.add_middleware(APIVersionMiddleware, version=_version)
 
     # CORS
     CORS_ALLOW_CREDENTIALS = (
@@ -463,6 +468,7 @@ def create_app(ctx: Optional[BootContext] = None) -> Any:
     from uar.api.routers.docs import router as docs_router
     from uar.api.routers.runs import router as runs_router
     from uar.api.routers.streaming import router as streaming_router
+    from uar.api.routers.privacy import router as privacy_router
     from uar.api.routers import uor_router
 
     app.include_router(advanced_router, dependencies=[Depends(require_auth)])
@@ -475,6 +481,7 @@ def create_app(ctx: Optional[BootContext] = None) -> Any:
     app.include_router(docs_router)
     app.include_router(runs_router)
     app.include_router(streaming_router)
+    app.include_router(privacy_router)
     app.include_router(uor_router, dependencies=[Depends(require_auth)])
 
     register_exception_handlers(app)

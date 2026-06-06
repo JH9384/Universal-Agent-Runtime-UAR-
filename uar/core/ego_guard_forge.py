@@ -17,9 +17,18 @@ and bridges to the UOR security framework.
 import logging
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .uor_integration import UORObject, ObjectMode
+
+
+def _utcnow() -> datetime:
+    """Return a naive UTC datetime (no tzinfo).
+
+    Replaces deprecated ``datetime.utcnow()``.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +126,7 @@ class EgoGuardForgeIntegrator:
                     {
                         "policy_id": policy_id,
                         "result": result,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": _utcnow().isoformat(),
                         "context": context,
                     }
                 )

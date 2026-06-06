@@ -3,10 +3,14 @@
 import os
 import secrets
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 import logging
 import logging.config
+
+# Process start time for uptime calculation (canonical source of truth)
+_uar_start_time = time.time()
 
 # Constants
 DEFAULT_API_PORT = 8000

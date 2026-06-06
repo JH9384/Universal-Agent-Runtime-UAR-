@@ -17,9 +17,18 @@ Key features:
 import logging
 from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import uuid
+
+
+def _utcnow() -> datetime:
+    """Return a naive UTC datetime (no tzinfo).
+
+    Replaces deprecated ``datetime.utcnow()``.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 try:
     from dagster import MaterializeResult, asset, job, repository
@@ -64,7 +73,7 @@ class AssetDefinition:
     description: str = ""
     dependencies: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utcnow)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -168,7 +177,7 @@ class UARPipelineOrchestrator:
                 execution_id=execution_id,
                 pipeline_name=name,
                 status=PipelineStatus.RUNNING,
-                start_time=datetime.utcnow(),
+                start_time=_utcnow(),
             )
             self.executions[execution_id] = execution
 
@@ -191,12 +200,12 @@ class UARPipelineOrchestrator:
                     executed.append(asset_key)
 
                 execution.status = PipelineStatus.SUCCESS
-                execution.end_time = datetime.utcnow()
+                execution.end_time = _utcnow()
 
             except Exception:
                 execution.status = PipelineStatus.FAILED
                 execution.error = "Pipeline failed"
-                execution.end_time = datetime.utcnow()
+                execution.end_time = _utcnow()
                 logger.exception("Pipeline %s failed", name)
 
             return execution.to_dict()

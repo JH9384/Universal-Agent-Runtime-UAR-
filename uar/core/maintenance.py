@@ -156,8 +156,8 @@ def get_maintenance_manager(
     global _manager
     if _manager is None:
         if store is None:
-            from uar.api.state import store as _store
+            from uar.container import get_container
 
-            store = _store
+            store = get_container().get_store()
         _manager = MaintenanceManager(store)
     return _manager

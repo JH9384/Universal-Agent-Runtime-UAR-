@@ -251,8 +251,8 @@ def get_credential_vault(
     global _vault
     if _vault is None:
         if store is None:
-            from uar.api.state import store as _store
+            from uar.container import get_container
 
-            store = _store
+            store = get_container().get_store()
         _vault = CredentialVault(store)
     return _vault

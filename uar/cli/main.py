@@ -828,6 +828,208 @@ def run_bulk_delete(
     )
 
 
+# ── burn-in commands ────────────────────────────────────────────────────────
+
+burnin_app = typer.Typer(help="Run burn-in tests against UAR")
+app.add_typer(burnin_app, name="burn-in")
+
+
+@burnin_app.command("run")
+def burnin_run(
+    mode: str = typer.Option(
+        "direct", "--mode", "-m",
+        help="Execution mode: direct (in-process) or http (remote)",
+    ),
+    suite: str = typer.Option(
+        "smoke", "--suite", "-s",
+        help="Test suite to run (currently only 'smoke')",
+    ),
+    server: str = typer.Option(
+        "http://localhost:8000", "--server", "-S",
+        help="UAR API server URL (http mode only)",
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", "-j",
+        help="Output raw JSON report",
+    ),
+) -> None:
+    """Execute burn-in tests without requiring the API server.
+
+    T4 — Separate Testing: runs the same BurnInRunner used by
+    POST /api/uar/burnin/run, but from the CLI for CI/CD,
+    k8s init-containers, or cron jobs.
+    """
+    from uar.testing.burnin.runner import BurnInRunner
+
+    if mode == "direct":
+        from uar.core.registry import registry
+        from uar.memory.base_store import get_store
+
+        runner = BurnInRunner(
+            mode="direct",
+            store=get_store(),
+            registry=registry,
+        )
+    elif mode == "http":
+        runner = BurnInRunner(
+            mode="http",
+            base_url=server,
+        )
+    else:
+        console.print(f"[red]Invalid mode: {mode}[/red]")
+        raise typer.Exit(1)
+
+    if suite != "smoke":
+        console.print(f"[red]Unknown suite: {suite}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Running burn-in ({mode} / {suite})…[/dim]")
+    report = runner.run_smoke()
+
+    if json_output:
+        console.print_json(data=report.to_dict())
+        if not report.passed:
+            raise typer.Exit(1)
+        return
+
+    status = "green" if report.passed else "red"
+    console.print(
+        f"\nScore: [bold {status}]{report.score}[/bold {status}] "
+        f"({'PASS' if report.passed else 'FAIL'})"
+    )
+    console.print(f"Level: {report.level}")
+    console.print(f"Timestamp: {report.timestamp}")
+
+    if report.errors:
+        console.print("\n[red]Errors:[/red]")
+        for err in report.errors:
+            console.print(f"  • {err}")
+
+    if report.evidence:
+        table = Table(
+            title="Evidence",
+            box=box.ROUNDED,
+            show_header=True,
+            header_style="bold magenta",
+        )
+        table.add_column("Scenario", style="cyan")
+        table.add_column("Passed", justify="center")
+        table.add_column("Score", justify="right")
+        table.add_column("Detail", style="dim")
+
+        for ev in report.evidence:
+            p = "[green]✓[/green]" if ev.passed else "[red]✗[/red]"
+            table.add_row(
+                ev.scenario,
+                p,
+                str(ev.score),
+                ev.detail or "—",
+            )
+        console.print(table)
+
+    if not report.passed:
+        raise typer.Exit(1)
+
+
+# ── probe commands ──────────────────────────────────────────────────────────
+
+probe_app = typer.Typer(help="Synthetic probing for UAR endpoints")
+app.add_typer(probe_app, name="probe")
+
+
+@probe_app.command("run")
+def probe_run(
+    base_url: str = typer.Option(
+        "http://localhost:8000", "--url", "-u",
+        help="UAR API base URL to probe",
+    ),
+    once: bool = typer.Option(
+        False, "--once", "-o",
+        help="Run probes once and exit (no loop)",
+    ),
+    interval: int = typer.Option(
+        60, "--interval", "-i",
+        help="Poll interval in seconds (loop mode)",
+    ),
+    pagerduty: bool = typer.Option(
+        False, "--pagerduty", "-p",
+        help="Enable PagerDuty alerts on failure",
+    ),
+) -> None:
+    """Run synthetic probes against UAR endpoints.
+
+    T8 — Synthetic Probing: checks health, metrics, and OpenAPI
+    endpoints. Alerts PagerDuty after consecutive failures.
+    """
+    from uar.observability.pagerduty import PagerDutyNotifier
+    from uar.observability.synthetic_probe import SyntheticProbe
+
+    notifier = PagerDutyNotifier() if pagerduty else None
+    probe = SyntheticProbe(base_url=base_url, notifier=notifier)
+
+    if once:
+        results = probe.run_all()
+        _print_probe_results(results)
+        if not all(r.passed for r in results):
+            raise typer.Exit(1)
+        return
+
+    probe.run_loop(interval=interval)
+
+
+def _print_probe_results(results):
+    from rich.table import Table
+    from rich import box
+
+    table = Table(
+        title="Synthetic Probe Results",
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Scenario", style="cyan")
+    table.add_column("Status", justify="center")
+    table.add_column("Latency (ms)", justify="right")
+    table.add_column("Detail", style="dim")
+
+    for r in results:
+        status = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
+        detail = r.detail or "—"
+        table.add_row(r.scenario, status, f"{r.latency_ms:.1f}", detail)
+    console.print(table)
+
+
+# ── sbom commands ─────────────────────────────────────────────────────────
+
+sbom_app = typer.Typer(help="SBOM and supply chain tooling")
+app.add_typer(sbom_app, name="sbom")
+
+
+@sbom_app.command("generate")
+def sbom_generate(
+    output: str = typer.Option(
+        "sbom.json", "--output", "-o",
+        help="Output path for the SBOM JSON file",
+    ),
+) -> None:
+    """Generate a CycloneDX SBOM from installed packages.
+
+    T11 — Supply Chain: reflects actual installed versions via
+    importlib.metadata.  Feed the result into Grype, Trivy, or Snyk.
+    """
+    from uar.observability.sbom import generate_sbom, validate_sbom
+
+    sbom = generate_sbom(output_path=output)
+    warnings = validate_sbom(sbom)
+    if warnings:
+        for w in warnings:
+            console.print(f"[yellow]warning:[/yellow] {w}")
+    console.print(f"SBOM written to [cyan]{output}[/cyan]")
+    console.print(
+        f"Components: {len(sbom.get('components', []))}"
+    )
+
+
 # ── entry point ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

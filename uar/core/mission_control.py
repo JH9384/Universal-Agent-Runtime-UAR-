@@ -21,9 +21,9 @@ from uar.core.runtime_health import (
     build_runtime_snapshot,
     score_runtime_health,
 )
+from uar.config import _uar_start_time
 from uar.memory.base_store import run_record_from_dict
 from uar.version import get_uar_version
-from uar.api.state import _uar_start_time
 
 
 @dataclass(slots=True)

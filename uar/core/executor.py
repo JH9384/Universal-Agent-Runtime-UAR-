@@ -809,15 +809,21 @@ class Executor:
     Supports recipe-level caching via the ``_recipe_cache`` instance
     attribute. Each executor instance maintains its own cache; create
     a new instance if you need a fresh cache.
+
+    Args:
+        pool: Optional WorkerPool for parallel skill execution.
+            If None, the executor creates a temporary ThreadPoolExecutor
+            for each parallel group (legacy behaviour).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, pool: Any | None = None) -> None:
         # Simple in-memory cache keyed by (recipe_id, params_hash).
         # Value stores the context mutations produced by the recipe.
         self._recipe_cache: Dict[str, Dict[str, Any]] = {}
         self._recipe_cache_hits = 0
         self._recipe_cache_misses = 0
         self._recipe_cache_lock = threading.Lock()
+        self._pool = pool
 
     def iter_events(
         self,
@@ -1573,11 +1579,15 @@ class Executor:
                         _metrics_cache_misses += 1
 
                 # Execute non-cached skills in parallel
-                # Limit max workers to prevent resource exhaustion
-                max_workers = min(8, len(skills_to_execute))
-                with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=max_workers
-                ) as pool:
+                # T6: use injected WorkerPool if available
+                _pool_ctx = (
+                    self._pool
+                    if self._pool is not None
+                    else concurrent.futures.ThreadPoolExecutor(
+                        max_workers=min(8, len(skills_to_execute))
+                    )
+                )
+                with _pool_ctx as pool:
                     future_to_skill = {}
                     future_to_start_time: Dict[
                         concurrent.futures.Future, float

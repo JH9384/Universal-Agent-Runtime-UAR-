@@ -161,8 +161,8 @@ def get_activity_log_aggregator(
     global _aggregator
     if _aggregator is None:
         if store is None:
-            from uar.api.state import store as _store
+            from uar.container import get_container
 
-            store = _store
+            store = get_container().get_store()
         _aggregator = ActivityLogAggregator(store)
     return _aggregator
