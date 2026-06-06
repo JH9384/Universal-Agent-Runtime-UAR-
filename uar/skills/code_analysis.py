@@ -21,6 +21,7 @@ from typing import Any, Dict, List
 
 from uar.core.contracts import PipelineContext
 from uar.core.registry import register_skill
+from uar.core.skill_utils import skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -300,6 +301,7 @@ def _find_issues(source: str, lang: str) -> List[Dict[str, Any]]:
 
 
 @register_skill("code_analysis")
+@skill_guard("Code analysis", status="failed")
 def code_analysis(ctx: PipelineContext) -> Dict[str, Any]:
     """Analyze source code for metrics and potential issues.
 

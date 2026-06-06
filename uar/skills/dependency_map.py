@@ -1,9 +1,11 @@
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 from typing import Dict, Any, List
 
 
 @register_skill("dependency_map")
+@skill_guard("Dependency map")
 def dependency_map(ctx: PipelineContext) -> Dict[str, Any]:
     """Build a dependency graph from ingested Python documents.
 

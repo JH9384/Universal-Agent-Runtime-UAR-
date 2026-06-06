@@ -10,12 +10,14 @@ from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 
 def _check_platformio() -> bool:
     return shutil.which("pio") is not None
 
 
+@skill_guard("Platformio", status="failed")
 def platformio(ctx: PipelineContext) -> Dict[str, Any]:
     """Check PlatformIO availability and generate project metadata.
 

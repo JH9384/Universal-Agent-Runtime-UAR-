@@ -1,9 +1,11 @@
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 from typing import Dict, Any
 
 
 @register_skill("sum_review")
+@skill_guard("Sum review")
 def sum_review(ctx: PipelineContext) -> Dict[str, Any]:
     """Provide a final review and summary of the pipeline execution.
 

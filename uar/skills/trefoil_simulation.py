@@ -16,6 +16,7 @@ import numpy as np
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 
 
 def _trefoil_parametric(t: float) -> Tuple[float, float, float]:
@@ -347,6 +348,7 @@ def compute_trefoil_simulation(
 
 
 @register_skill("trefoil_simulation")
+@skill_guard("Trefoil simulation", status="failed")
 def trefoil_simulation(ctx: PipelineContext) -> Dict[str, Any]:
     """Skill entrypoint: run trefoil simulation.
 

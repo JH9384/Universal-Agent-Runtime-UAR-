@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-from uar.core.skill_utils import require_package
+from uar.core.skill_utils import require_package, skill_guard
 
 
 def _simulate_execution(code: str) -> Dict[str, Any]:
@@ -57,6 +57,7 @@ def _simulate_execution(code: str) -> Dict[str, Any]:
     }
 
 
+@skill_guard("Micropython", status="failed")
 def micropython(ctx: PipelineContext) -> Dict[str, Any]:
     """Execute MicroPython code for embedded simulation.
 

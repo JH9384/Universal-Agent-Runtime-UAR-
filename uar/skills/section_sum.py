@@ -1,9 +1,11 @@
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 from typing import Dict, Any
 
 
 @register_skill("section_sum")
+@skill_guard("Section sum")
 def section_sum(ctx: PipelineContext) -> Dict[str, Any]:
     """Generate a summary of the processed goal.
 

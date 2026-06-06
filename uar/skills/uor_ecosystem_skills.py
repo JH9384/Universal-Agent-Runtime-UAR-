@@ -27,6 +27,7 @@ from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
+from uar.core.skill_utils import skill_guard
 from uar.core.uor_ecosystem import get_uor_ecosystem
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_skill("uor_addr_canonicalize")
+@skill_guard("UOR addr canonicalize")
 def uor_addr_canonicalize(ctx: PipelineContext) -> Dict[str, Any]:
     """Canonicalize data per UOR-ADDR-1 and return digest envelope.
 
@@ -61,6 +63,7 @@ def uor_addr_canonicalize(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("uor_addr_resolve")
+@skill_guard("UOR addr resolve")
 def uor_addr_resolve(ctx: PipelineContext) -> Dict[str, Any]:
     """Resolve a UOR digest from the integrator cache.
 
@@ -92,6 +95,7 @@ def uor_addr_resolve(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("hologram_query")
+@skill_guard("Hologram query")
 def hologram_query(ctx: PipelineContext) -> Dict[str, Any]:
     """Submit a geometric inference query to gethologram.ai.
 
@@ -109,6 +113,7 @@ def hologram_query(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("hologram_status")
+@skill_guard("Hologram status")
 def hologram_status(ctx: PipelineContext) -> Dict[str, Any]:
     """Check Hologram service health."""
     eco = get_uor_ecosystem()
@@ -122,6 +127,7 @@ def hologram_status(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("moltbook_list")
+@skill_guard("Moltbook list")
 def moltbook_list(ctx: PipelineContext) -> Dict[str, Any]:
     """List recent topics from moltbook.com/m/uor.
 
@@ -139,6 +145,7 @@ def moltbook_list(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("moltbook_search")
+@skill_guard("Moltbook search")
 def moltbook_search(ctx: PipelineContext) -> Dict[str, Any]:
     """Search moltbook forum posts.
 
@@ -158,6 +165,7 @@ def moltbook_search(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("moltbook_post")
+@skill_guard("Moltbook post")
 def moltbook_post(ctx: PipelineContext) -> Dict[str, Any]:
     """Post a new topic to the moltbook forum.
 
@@ -189,6 +197,7 @@ def moltbook_post(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("prism_btc_anchor")
+@skill_guard("Prism BTC anchor")
 def prism_btc_anchor(ctx: PipelineContext) -> Dict[str, Any]:
     """Anchor a UOR digest on the Bitcoin blockchain.
 
@@ -206,6 +215,7 @@ def prism_btc_anchor(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("prism_btc_verify")
+@skill_guard("Prism BTC verify")
 def prism_btc_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """Verify an on-chain Bitcoin anchor.
 
@@ -228,6 +238,7 @@ def prism_btc_verify(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("severance_infer")
+@skill_guard("Severance infer")
 def severance_infer(ctx: PipelineContext) -> Dict[str, Any]:
     """Run inference via Severance AI.
 
@@ -247,6 +258,7 @@ def severance_infer(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("severance_verify")
+@skill_guard("Severance verify")
 def severance_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """Verify a Severance AI output against criteria.
 
@@ -271,6 +283,7 @@ def severance_verify(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("anunix_health")
+@skill_guard("Anunix health")
 def anunix_health(ctx: PipelineContext) -> Dict[str, Any]:
     """Check health of an Anunix-managed host.
 
@@ -288,6 +301,7 @@ def anunix_health(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("anunix_run")
+@skill_guard("Anunix run")
 def anunix_run(ctx: PipelineContext) -> Dict[str, Any]:
     """Run a command on an Anunix host.
 
@@ -315,6 +329,7 @@ def anunix_run(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("uor_foundation_verify")
+@skill_guard("UOR foundation verify")
 def uor_foundation_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """Call the live UOR Foundation API verify endpoint.
 
@@ -335,6 +350,7 @@ def uor_foundation_verify(ctx: PipelineContext) -> Dict[str, Any]:
 
 
 @register_skill("uor_ecosystem_status")
+@skill_guard("UOR ecosystem status")
 def uor_ecosystem_status(ctx: PipelineContext) -> Dict[str, Any]:
     """Return overall status of all UOR ecosystem integrations."""
     eco = get_uor_ecosystem()
