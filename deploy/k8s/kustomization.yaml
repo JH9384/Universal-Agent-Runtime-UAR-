@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: uar
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - networkpolicy.yaml
+
+images:
+  - name: uar
+    newName: ghcr.io/your-org/uar
+    newTag: latest
+
+commonLabels:
+  app.kubernetes.io/name: uar
+  app.kubernetes.io/managed-by: kustomize

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uar
+  labels:
+    app.kubernetes.io/name: uar
+    app.kubernetes.io/component: runtime

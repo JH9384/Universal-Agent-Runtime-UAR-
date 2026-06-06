@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uar-config
+  namespace: uar
+  labels:
+    app.kubernetes.io/name: uar
+data:
+  # Core
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  ENVIRONMENT: "production"
+  CORS_ORIGINS: ""
+  CORS_ALLOW_CREDENTIALS: "true"
+  UAR_GZIP_MIN_SIZE: "1024"
+  # Pool
+  UAR_POOL_MODE: "thread"
+  UAR_POOL_MAX_WORKERS: "4"
+  # Metrics
+  UAR_METRICS_FLUSH_SEC: "30"
+  UAR_METRICS_WINDOW: "300"
+  # Audit
+  UAR_AUDIT_MAX_SIZE_MB: "10"
+  UAR_AUDIT_MAX_BACKUPS: "5"
+  # Probing
+  UAR_PROBE_BASE_URL: "http://localhost:8000"
+  UAR_PROBE_CONSECUTIVE: "2"
+  UAR_PROBE_TIMEOUT_SEC: "5"
+  # Security
+  SECURITY_HEADERS: "strict"
+  # Retention
+  UAR_RUN_RETENTION_DAYS: "30"

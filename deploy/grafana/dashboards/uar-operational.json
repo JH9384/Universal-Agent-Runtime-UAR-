@@ -1,0 +1,151 @@
+{
+  "dashboard": {
+    "title": "UAR Operational Metrics",
+    "tags": ["uar", "operational", "prometheus"],
+    "timezone": "UTC",
+    "schemaVersion": 36,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Uptime",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uar_uptime_seconds",
+            "legendFormat": "Uptime"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Total Requests",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uar_requests_total",
+            "legendFormat": "Requests"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Total Errors",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uar_errors_total",
+            "legendFormat": "Errors"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "red", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Active WS Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "uar_websocket_connections",
+            "legendFormat": "Connections"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(uar_requests_total[1m])",
+            "legendFormat": "req/s"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+      },
+      {
+        "id": 6,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(uar_errors_total[1m])",
+            "legendFormat": "err/s"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+      },
+      {
+        "id": 7,
+        "title": "Request Duration p50",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(uar_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+            "legendFormat": "{{endpoint}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+      },
+      {
+        "id": 8,
+        "title": "Request Duration p99",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(uar_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+            "legendFormat": "{{endpoint}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+      },
+      {
+        "id": 9,
+        "title": "Skill Execution Count",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(uar_skill_duration_seconds_count[1m])",
+            "legendFormat": "{{skill}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
+      },
+      {
+        "id": 10,
+        "title": "Skill Errors",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "uar_skill_errors",
+            "legendFormat": "{{skill}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20}
+      }
+    ]
+  }
+}

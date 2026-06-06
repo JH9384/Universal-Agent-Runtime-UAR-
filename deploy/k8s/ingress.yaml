@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: uar-api
+  namespace: uar
+  labels:
+    app.kubernetes.io/name: uar
+    app.kubernetes.io/component: api
+  annotations:
+    # Replace with your ingress-class (nginx, traefik, etc.)
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - uar.example.com
+      secretName: uar-tls
+  rules:
+    - host: uar.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: uar-api
+                port:
+                  number: 80
