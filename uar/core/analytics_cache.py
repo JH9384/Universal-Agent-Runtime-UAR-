@@ -40,6 +40,7 @@ class _CacheEntry:
     payload: dict
     generated_at: float
     ttl_seconds: float = 60.0
+    payload_digest: Optional[str] = None
 
 
 class AnalyticsCache:
@@ -70,6 +71,16 @@ class AnalyticsCache:
     ) -> str:
         return f"{endpoint}:{user}:{is_admin}:{hours}:{limit}"
 
+    @staticmethod
+    def _compute_digest(payload: dict) -> Optional[str]:
+        """UOR-ADDR-1 digest of payload for integrity verification."""
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(payload)
+        except Exception:
+            return None
+
     def get(
         self,
         endpoint: str,
@@ -78,7 +89,7 @@ class AnalyticsCache:
         hours: int,
         limit: int,
     ) -> Optional[dict]:
-        """Return cached payload if present and not expired."""
+        """Return cached payload if present, not expired, and intact."""
         key = self._key(endpoint, user, is_admin, hours, limit)
         with self._lock:
             entry = self._store.get(key)
@@ -87,6 +98,19 @@ class AnalyticsCache:
             if time.time() - entry.generated_at > entry.ttl_seconds:
                 del self._store[key]
                 return None
+            # Integrity check: if digest is stored, verify it matches
+            if entry.payload_digest is not None:
+                current = self._compute_digest(entry.payload)
+                if current != entry.payload_digest:
+                    logger.warning(
+                        "Analytics cache integrity failure for %s "
+                        "(expected %s, got %s). Treating as miss.",
+                        key,
+                        entry.payload_digest,
+                        current,
+                    )
+                    del self._store[key]
+                    return None
             return entry.payload
 
     def set(
@@ -98,8 +122,9 @@ class AnalyticsCache:
         limit: int,
         payload: dict,
     ) -> None:
-        """Store payload in cache."""
+        """Store payload in cache with integrity digest."""
         key = self._key(endpoint, user, is_admin, hours, limit)
+        digest = self._compute_digest(payload)
         with self._lock:
             # Evict oldest entries if at capacity
             while len(self._store) >= self._max_size:
@@ -109,6 +134,7 @@ class AnalyticsCache:
                 payload=payload,
                 generated_at=time.time(),
                 ttl_seconds=self._ttl,
+                payload_digest=digest,
             )
 
     def invalidate(self, endpoint: Optional[str] = None) -> None:

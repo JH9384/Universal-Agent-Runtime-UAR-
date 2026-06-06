@@ -13,10 +13,25 @@ from starlette.concurrency import run_in_threadpool
 from uar.api.middleware import auth_middleware
 from uar.api.routers.operator.common import _load_all_snapshots
 from uar.api.state import store
+from uar.core.analytics_cache import AnalyticsCache
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 router = APIRouter()
+
+
+def _report_digest(payload: dict) -> Optional[str]:
+    """UOR-ADDR-1 digest of a report payload for integrity verification.
+
+    Computes the digest on a copy that excludes any existing
+    ``report_digest`` key so the digest is stable across
+    re-serialization.
+    """
+    try:
+        clean = {k: v for k, v in payload.items() if k != "report_digest"}
+        return AnalyticsCache._compute_digest(clean)
+    except Exception:
+        return None
 
 
 @router.get("/api/uar/reports/trust-validation")
@@ -96,7 +111,7 @@ async def get_trust_validation_report(
         else:
             narrative_parts.append("Insufficient data for correlation.")
 
-        return {
+        report = {
             "report_type": "trust_validation",
             "generated_at": int(time.time()),
             "narrative": " ".join(narrative_parts),
@@ -111,6 +126,8 @@ async def get_trust_validation_report(
                 "system_calibration_error"
             ),
         }
+        report["report_digest"] = _report_digest(report)
+        return report
     except Exception as exc:
         logger.warning("trust report generation failed: %s", exc)
         raise HTTPException(
@@ -176,7 +193,7 @@ async def get_burnin_24h_report(
         else:
             narrative_parts.append("Trust type count changed significantly.")
 
-        return {
+        report = {
             "report_type": "burnin_24h",
             "generated_at": now,
             "narrative": " ".join(narrative_parts),
@@ -186,6 +203,8 @@ async def get_burnin_24h_report(
             "latest_recommendation_count": last_score,
             "earliest_recommendation_count": first_score,
         }
+        report["report_digest"] = _report_digest(report)
+        return report
     except Exception as exc:
         logger.warning("burnin report generation failed: %s", exc)
         raise HTTPException(

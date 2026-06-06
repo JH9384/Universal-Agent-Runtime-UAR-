@@ -126,6 +126,7 @@ class UARPipelineOrchestrator:
         self.pipelines: Dict[str, Callable] = {}
         self.executions: Dict[str, PipelineExecution] = {}
         self.active_jobs: Dict[str, Any] = {}
+        self._skill_mapping: Dict[str, str] = {}
 
     def register_asset(
         self,
@@ -158,6 +159,13 @@ class UARPipelineOrchestrator:
         asset = self.get_asset(key)
         return asset.dependencies if asset else []
 
+    def register_skill_for_asset(
+        self, asset_key: str, skill_name: str
+    ) -> None:
+        """Map an asset key to a registered skill name for execution."""
+        self._skill_mapping[asset_key] = skill_name
+        logger.info("Mapped asset %s → skill %s", asset_key, skill_name)
+
     def create_pipeline(
         self,
         name: str,
@@ -166,8 +174,9 @@ class UARPipelineOrchestrator:
     ) -> Callable:
         """Create a pipeline from asset dependencies.
 
-        This is a simplified version - in production with Dagster,
-        you'd use @job decorator and asset dependencies.
+        If a skill is registered for an asset via
+        :meth:`register_skill_for_asset`, the pipeline will dispatch to
+        the UAR skill registry and execute it for real.
         """
 
         def pipeline_fn(ctx: Dict[str, Any]):
@@ -183,7 +192,7 @@ class UARPipelineOrchestrator:
 
             try:
                 # Execute assets in dependency order
-                executed = []
+                executed: Dict[str, Any] = {}
                 for asset_key in asset_keys:
                     # Check if dependencies are satisfied
                     deps = self.get_asset_dependencies(asset_key)
@@ -192,12 +201,34 @@ class UARPipelineOrchestrator:
                             f"Dependencies not satisfied for {asset_key}"
                         )
 
-                    # Execute the asset (in production, this would call the actual op)  # noqa: E501
-                    logger.info(
-                        "Executing asset: %s", asset_key
-                    )
+                    # Dispatch to a registered skill if mapped,
+                    # otherwise log a placeholder.
+                    skill_name = self._skill_mapping.get(asset_key)
+                    if skill_name:
+                        from uar.core.registry import registry
+
+                        skill_fn = registry.get(skill_name)
+                        if skill_fn:
+                            from uar.core.contracts import PipelineContext
+
+                            skill_ctx = PipelineContext(goal=ctx)
+                            asset_result = skill_fn(skill_ctx)
+                            executed[asset_key] = asset_result
+                            logger.info(
+                                "Executed skill %s for asset %s",
+                                skill_name,
+                                asset_key,
+                            )
+                        else:
+                            logger.warning(
+                                "Skill %s not found in registry", skill_name
+                            )
+                            executed[asset_key] = None
+                    else:
+                        logger.info("Executing asset: %s", asset_key)
+                        executed[asset_key] = None
+
                     execution.assets_produced.append(asset_key)
-                    executed.append(asset_key)
 
                 execution.status = PipelineStatus.SUCCESS
                 execution.end_time = _utcnow()

@@ -67,6 +67,20 @@ class AuditLogger:
         payload = json.dumps(record, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _compute_uor_digest(record: Dict[str, Any]) -> Optional[str]:
+        """Return UOR-ADDR-1 canonical digest of *record*.
+
+        Provides a portable, cross-system content address aligned with
+        UOR Foundation standards (RFC8785 JCS canonicalization).
+        """
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(record)
+        except Exception:
+            return None
+
     def _get_last_hash(self) -> str:
         """Return the hash of the last record in the file, or '' if empty."""
         if not self.path.exists():
@@ -202,6 +216,11 @@ class AuditLogger:
         # Compute own hash after all fields are set
         record["hash"] = self._compute_hash(record)
 
+        # UOR canonical digest (portable content address)
+        uor_digest = self._compute_uor_digest(record)
+        if uor_digest:
+            record["uor_digest"] = uor_digest
+
         line = json.dumps(record, sort_keys=True) + "\n"
 
         with self._thread_lock:
@@ -290,6 +309,9 @@ class AuditLogger:
 
                 # Check own hash
                 stored_hash = rec.pop("hash", "")
+                # uor_digest is added after hash computation; exclude it
+                # from verification so existing records remain valid.
+                rec.pop("uor_digest", None)
                 computed = self._compute_hash(rec)
                 rec["hash"] = stored_hash  # restore
                 if stored_hash != computed:

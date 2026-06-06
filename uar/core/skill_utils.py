@@ -17,6 +17,26 @@ from .exceptions import UARError
 logger = logging.getLogger(__name__)
 
 
+def _wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Add a UOR content-addressed digest to a result dict.
+
+    Best-effort: silently skip if compute_uor_digest is unavailable,
+    raises, or if the result already carries a ``uor_digest`` key
+    (e.g. skills that compute their own content address).
+    """
+    if not isinstance(result, dict):
+        return result
+    if "uor_digest" in result:
+        return result
+    try:
+        from uar.uor.bounded_json import compute_uor_digest
+
+        result["uor_digest"] = compute_uor_digest(result)
+    except Exception:
+        pass
+    return result
+
+
 def skill_guard(
     operation_name: str,
     *,
@@ -52,32 +72,34 @@ def skill_guard(
             @wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 try:
-                    return await fn(*args, **kwargs)
+                    result = await fn(*args, **kwargs)
+                    return _wrap_with_digest(result)
                 except UARError:
                     raise
                 except Exception as exc:
                     mod_logger.exception("%s failed", operation_name)
-                    return {
+                    return _wrap_with_digest({
                         "status": status,
                         "error": f"{type(exc).__name__}: {exc}",
                         "message": f"{operation_name} failed",
-                    }
+                    })
 
             return async_wrapper
 
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
-                return fn(*args, **kwargs)
+                result = fn(*args, **kwargs)
+                return _wrap_with_digest(result)
             except UARError:
                 raise
             except Exception as exc:
                 mod_logger.exception("%s failed", operation_name)
-                return {
+                return _wrap_with_digest({
                     "status": status,
                     "error": f"{type(exc).__name__}: {exc}",
                     "message": f"{operation_name} failed",
-                }
+                })
 
         return wrapper
 

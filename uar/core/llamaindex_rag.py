@@ -112,13 +112,26 @@ class RAGConfig:
 
 @dataclass
 class RetrievedNode:
-    """Represents a retrieved document node."""
+    """Represents a retrieved document node with UOR content digest."""
 
     node_id: str
     text: str
     metadata: Dict[str, Any] = field(default_factory=dict)
     score: float = 0.0
     source: str = ""
+    uor_digest: Optional[str] = None
+
+    def __post_init__(self):
+        """Compute UOR content digest from node text + metadata."""
+        if self.uor_digest is None:
+            try:
+                from uar.uor.bounded_json import compute_uor_digest
+
+                self.uor_digest = compute_uor_digest(
+                    {"text": self.text, "metadata": self.metadata}
+                )
+            except Exception:
+                pass
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -128,6 +141,7 @@ class RetrievedNode:
             "metadata": self.metadata,
             "score": self.score,
             "source": self.source,
+            "uor_digest": self.uor_digest,
         }
 
 
@@ -143,8 +157,8 @@ class RAGResult:
     latency_ms: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary."""
-        return {
+        """Convert to dictionary with UOR content digest."""
+        payload = {
             "query": self.query,
             "response": self.response,
             "retrieved_nodes": [
@@ -154,6 +168,13 @@ class RAGResult:
             "confidence": self.confidence,
             "latency_ms": self.latency_ms,
         }
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            payload["uor_digest"] = compute_uor_digest(payload)
+        except Exception:
+            payload["uor_digest"] = None
+        return payload
 
 
 class LlamaIndexRAG:
@@ -461,6 +482,15 @@ class LlamaIndexRAG:
             end_time = _utcnow()
             latency_ms = (end_time - start_time).total_seconds() * 1000
 
+            # Compute confidence from retrieved node scores
+            if retrieved_nodes:
+                scores = [
+                    n.score for n in retrieved_nodes if n.score is not None
+                ]
+                confidence = sum(scores) / len(scores) if scores else 0.0
+            else:
+                confidence = 0.0
+
             return RAGResult(
                 query=query_text,
                 response=str(response),
@@ -470,7 +500,7 @@ class LlamaIndexRAG:
                     "retrieval_strategy": self.config.retrieval_strategy.value,
                     "top_k": top_k or self.config.top_k,
                 },
-                confidence=0.8,  # Placeholder - would need actual calculation
+                confidence=confidence,
                 latency_ms=latency_ms,
             )
 

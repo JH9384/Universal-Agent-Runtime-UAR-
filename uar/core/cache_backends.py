@@ -33,8 +33,12 @@ _RELEVANT_KEYS = [
 
 
 def _make_cache_key(skill_name: str, ctx: Dict[str, Any], goal: str) -> str:
-    # Try full context first for correctness; fall back to relevant
-    # keys if the full context contains non-serializable values.
+    """UOR-ADDR-1 canonical cache key from skill + context + goal.
+
+    Falls back to relevant-key subset then a plain string fallback if
+    bounded_json is unavailable or the payload is non-serializable.
+    """
+    # Primary: full context with UOR canonicalization
     key_data = {
         "skill": skill_name,
         "goal": goal,
@@ -42,26 +46,31 @@ def _make_cache_key(skill_name: str, ctx: Dict[str, Any], goal: str) -> str:
         "execution_order": ctx.get("execution_order"),
     }
     try:
-        key_str = json.dumps(key_data, sort_keys=True, default=str)
-        return hashlib.sha256(key_str.encode()).hexdigest()
-    except (TypeError, ValueError):
+        from uar.uor.bounded_json import compute_uor_digest
+
+        return compute_uor_digest(key_data)
+    except Exception:
         pass
+
+    # Fallback 1: relevant-key subset with legacy JSON+SHA-256
     ctx_snapshot = {k: ctx.get(k) for k in _RELEVANT_KEYS}
     ctx_snapshot["execution_order"] = ctx.get("execution_order")
     key_data = {"skill": skill_name, "goal": goal}
     key_data.update({k: v for k, v in ctx_snapshot.items() if v is not None})
     try:
-        key_str = json.dumps(key_data, sort_keys=True)
-        return hashlib.sha256(key_str.encode()).hexdigest()
+        key_str = json.dumps(key_data, sort_keys=True, default=str)
+        return "sha256:" + hashlib.sha256(key_str.encode()).hexdigest()
     except (TypeError, ValueError):
-        # Final fallback: deterministic hash of sorted stringified items.
-        fallback = ":".join([skill_name, goal])
-        try:
-            item_hash = hash(frozenset((k, str(v)) for k, v in ctx.items()))
-            fallback += ":" + str(item_hash)
-        except Exception:
-            logger.exception("Hash fallback failed")
-        return hashlib.sha256(fallback.encode()).hexdigest()
+        pass
+
+    # Final fallback: deterministic hash of sorted stringified items.
+    fallback = ":".join([skill_name, goal])
+    try:
+        item_hash = hash(frozenset((k, str(v)) for k, v in ctx.items()))
+        fallback += ":" + str(item_hash)
+    except Exception:
+        logger.exception("Hash fallback failed")
+    return "sha256:" + hashlib.sha256(fallback.encode()).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +134,9 @@ class FileCacheBackend(CacheBackend):
         os.makedirs(self.cache_dir, exist_ok=True)
 
     def _cache_path(self, key: str) -> str:
-        return os.path.join(self.cache_dir, f"{key}.cache")
+        # Sanitize key for filesystem (Windows prohibits ':')
+        safe_key = key.replace(":", "_")
+        return os.path.join(self.cache_dir, f"{safe_key}.cache")
 
     def get(
         self, skill_name: str, ctx: Dict[str, Any], goal: str

@@ -89,7 +89,7 @@ class GraphEntity:
 
 @dataclass
 class GraphRelation:
-    """Represents a relation between entities."""
+    """Represents a relation between entities with UOR content digest."""
 
     relation_id: str
     source_id: str
@@ -98,6 +98,25 @@ class GraphRelation:
     properties: Dict[str, Any] = field(default_factory=dict)
     weight: float = 1.0
     created_at: datetime = field(default_factory=_utcnow)
+    relation_digest: Optional[str] = None
+
+    def __post_init__(self):
+        """Compute UOR content digest of the relation."""
+        if self.relation_digest is None:
+            try:
+                from uar.uor.bounded_json import compute_uor_digest
+
+                self.relation_digest = compute_uor_digest(
+                    {
+                        "source_id": self.source_id,
+                        "target_id": self.target_id,
+                        "relation_type": self.relation_type,
+                        "properties": self.properties,
+                        "weight": self.weight,
+                    }
+                )
+            except Exception:
+                pass
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -109,6 +128,7 @@ class GraphRelation:
             "properties": self.properties,
             "weight": self.weight,
             "created_at": self.created_at.isoformat(),
+            "relation_digest": self.relation_digest,
         }
 
 
@@ -198,8 +218,20 @@ class FlexibleGraphRAG:
         properties: Optional[Dict[str, Any]] = None,
         embeddings: Optional[List[float]] = None,
     ) -> GraphEntity:
-        """Add an entity to the graph."""
-        entity_id = str(uuid.uuid4())
+        """Add an entity to the graph with content-addressed ID."""
+        # Content-addressed entity ID via UOR-ADDR-1
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            entity_id = compute_uor_digest(
+                {
+                    "name": name,
+                    "entity_type": entity_type,
+                    "properties": properties or {},
+                }
+            )
+        except Exception:
+            entity_id = str(uuid.uuid4())
         entity = GraphEntity(
             entity_id=entity_id,
             entity_type=entity_type,
@@ -507,12 +539,19 @@ class FlexibleGraphRAG:
         else:  # HYBRID
             results = self.search_hybrid(query, top_k=top_k)
 
-        return {
+        result = {
             "query": query,
             "strategy": strategy.value,
             "results": [entity.to_dict() for entity in results],
             "result_count": len(results),
         }
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            result["uor_digest"] = compute_uor_digest(result)
+        except Exception:
+            result["uor_digest"] = None
+        return result
 
     def get_graph_stats(self) -> Dict[str, Any]:
         """Get statistics about the graph."""

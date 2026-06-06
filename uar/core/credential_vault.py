@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CredentialEntry:
-    """A single stored credential."""
+    """A single stored credential with UOR integrity digest."""
 
     id: str
     name: str
@@ -32,12 +32,33 @@ class CredentialEntry:
     last_tested_at: Optional[float] = None
     last_test_status: Optional[str] = None  # 'ok' | 'error'
     metadata: Dict[str, Any] = field(default_factory=dict)
+    uor_digest: Optional[str] = None
 
     def to_dict(self, mask: bool = True) -> Dict[str, Any]:
         d = asdict(self)
         if mask:
             d["encrypted_value"] = "***"
         return d
+
+    def _compute_digest(self) -> Optional[str]:
+        """Compute UOR-ADDR-1 digest over immutable credential fields."""
+        try:
+            payload = {
+                "id": self.id,
+                "name": self.name,
+                "service_type": self.service_type,
+                "encrypted_value": self.encrypted_value,
+                "created_at": self.created_at,
+                "updated_at": self.updated_at,
+                "last_tested_at": self.last_tested_at,
+                "last_test_status": self.last_test_status,
+                "metadata": self.metadata,
+            }
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(payload)
+        except Exception:
+            return None
 
 
 class _StoreAdapter(Protocol):
@@ -111,13 +132,22 @@ class CredentialVault:
         return sorted(creds, key=lambda c: c.name)
 
     def get_credential(self, cred_id: str) -> Optional[CredentialEntry]:
-        """Fetch a single credential by ID."""
+        """Fetch a single credential by ID and verify integrity digest."""
         try:
             raw = self._store.get_metadata(self._key(cred_id))
             if not raw:
                 return None
             data = json.loads(raw) if isinstance(raw, str) else raw
-            return CredentialEntry(**data)
+            cred = CredentialEntry(**data)
+            stored_digest = data.get("uor_digest")
+            if stored_digest:
+                computed = cred._compute_digest()
+                if computed != stored_digest:
+                    logger.error(
+                        "Credential integrity check failed for %s", cred_id
+                    )
+                    return None
+            return cred
         except Exception as exc:
             logger.warning("Failed to get credential %s: %s", cred_id, exc)
             return None
@@ -155,6 +185,7 @@ class CredentialVault:
             last_test_status=existing.last_test_status if existing else None,
             metadata=metadata or existing.metadata if existing else {},
         )
+        entry.uor_digest = entry._compute_digest()
         self._store.put_metadata(self._key(cred_id), json.dumps(asdict(entry)))
         logger.info("Stored credential %s (%s)", cred_id, service_type)
         return entry
@@ -195,10 +226,11 @@ class CredentialVault:
         elif cred.service_type == "generic":
             ok, message = True, "Generic credential — manual test required"
 
-        # Update test timestamp/status
+        # Update test timestamp/status and recompute integrity digest
         try:
             cred.last_tested_at = time.time()
             cred.last_test_status = "ok" if ok else "error"
+            cred.uor_digest = cred._compute_digest()
             self._store.put_metadata(
                 self._key(cred_id), json.dumps(asdict(cred))
             )
@@ -220,10 +252,19 @@ class CredentialVault:
             return False, f"Ollama unreachable: {exc}"
 
     def _test_autonomi(self, private_key: str) -> tuple[bool, str]:
-        return (
-            len(private_key) >= 32,
-            "Key length OK (connectivity test not implemented)",
-        )
+        """Validate Autonomi private key by deriving wallet address."""
+        try:
+            import eth_account
+
+            acct = eth_account.Account.from_key(private_key)
+            return True, f"Wallet {acct.address[:10]}... OK"
+        except ImportError:
+            return (
+                len(private_key) >= 32,
+                "eth-account not installed; key length OK",
+            )
+        except Exception as exc:
+            return False, f"Invalid key: {exc}"
 
     def _test_openai(self, api_key: str) -> tuple[bool, str]:
         import urllib.request

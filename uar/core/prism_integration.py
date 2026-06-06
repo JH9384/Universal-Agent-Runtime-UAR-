@@ -37,14 +37,44 @@ class PrismFacet:
             self.metadata = {}
 
     def transform(self, transformation: str) -> Any:
-        """Apply a transformation to the facet data."""
-        # Placeholder for transformation logic
+        """Apply a transformation to the facet data.
+
+        Computes a UOR content digest of the result and stores it in
+        :attr:`metadata` under the key ``transform_digest`` so that
+        every refraction is content-addressed and tamper-evident.
+        """
         if transformation == "uppercase" and isinstance(self.data, str):
-            return self.data.upper()
+            result = self.data.upper()
         elif transformation == "lowercase" and isinstance(self.data, str):
-            return self.data.lower()
+            result = self.data.lower()
+        elif transformation == "reverse" and isinstance(self.data, str):
+            result = self.data[::-1]
+        elif transformation == "sort" and isinstance(self.data, list):
+            result = sorted(self.data)
+        elif transformation == "json":
+            import json
+
+            result = json.dumps(self.data, sort_keys=True)
         else:
-            return self.data
+            result = self.data
+
+        # Compute UOR digest of the transformed result
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            digest = compute_uor_digest(
+                {
+                    "facet_id": self.facet_id,
+                    "transformation": transformation,
+                    "result": result,
+                }
+            )
+            self.metadata["transform_digest"] = digest
+            self.metadata["last_transformation"] = transformation
+        except Exception:
+            logger.debug("Could not compute transform digest")
+
+        return result
 
     def wrap_with_uor(self, source: str = "prism") -> UORObject:
         """Wrap the facet in a UOR object."""

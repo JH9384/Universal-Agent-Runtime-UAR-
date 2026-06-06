@@ -181,13 +181,16 @@ def execute_single_task(
 
     raw = crew.kickoff()
 
-    return {
+    result = {
         "status": "completed",
         "agent_role": role.value,
         "task_description": task_description,
         "raw_output": str(raw),
         "mode": "crewai_real",
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result, skill_name="crewai_task")
 
 
 def execute_crew_workflow(
@@ -254,9 +257,12 @@ def execute_crew_workflow(
 
     raw = crew.kickoff()
 
-    return {
+    result = {
         "status": "completed",
         "mode": "crewai_real",
         "raw_output": str(raw),
         "task_count": len(tasks),
     }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(result, skill_name="crewai_workflow")
