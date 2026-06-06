@@ -27,7 +27,7 @@ from uar.core.cache_backends import (
 def test_make_cache_key_basic():
     key = _make_cache_key("sum", {"input_path": "/tmp/a"}, "add numbers")
     assert isinstance(key, str)
-    assert len(key) == 64  # sha256 hex
+    assert key.startswith("sha256:")  # UOR-ADDR-1 digest
 
 
 def test_make_cache_key_non_serializable_fallback():
@@ -35,7 +35,7 @@ def test_make_cache_key_non_serializable_fallback():
     ctx = {"input_path": "/tmp/a", "object": object()}
     key = _make_cache_key("sum", ctx, "add")
     assert isinstance(key, str)
-    assert len(key) == 64
+    assert key.startswith("sha256:")
 
 
 def test_make_cache_key_fallback_frozenset_fails():
@@ -43,7 +43,7 @@ def test_make_cache_key_fallback_frozenset_fails():
     ctx = {"unhashable": []}  # lists are unhashable
     key = _make_cache_key("sum", ctx, "add")
     assert isinstance(key, str)
-    assert len(key) == 64
+    assert key.startswith("sha256:")
 
 
 def test_make_cache_key_hash_fallback_fails():
@@ -51,7 +51,7 @@ def test_make_cache_key_hash_fallback_fails():
     ctx = {"nested": {"a": object()}}
     key = _make_cache_key("sum", ctx, "add")
     assert isinstance(key, str)
-    assert len(key) == 64
+    assert key.startswith("sha256:")
 
 
 # ---------------------------------------------------------------------------
@@ -470,7 +470,7 @@ class TestMakeCacheKeyFinalFallback:
         ctx = {"bad": BadObj()}
         key = _make_cache_key("sum", ctx, "add")
         assert isinstance(key, str)
-        assert len(key) == 64
+        assert key.startswith("sha256:")
 
 
 class TestFileCacheBackendRemaining:

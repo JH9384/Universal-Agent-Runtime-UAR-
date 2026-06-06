@@ -53,3 +53,31 @@ class TestAnalyticsCache:
         assert cache.stats() == {"entries": 0, "ttl_seconds": 42.0}
         cache.set("ep", "u", False, 24, 1000, {})
         assert cache.stats() == {"entries": 1, "ttl_seconds": 42.0}
+
+    def test_integrity_verification_passes_intact_entry(self):
+        cache = AnalyticsCache(ttl_seconds=60.0)
+        cache.set("ep", "u", False, 24, 1000, {"data": 42})
+        assert cache.get("ep", "u", False, 24, 1000) == {"data": 42}
+
+    def test_integrity_verification_treats_corrupt_as_miss(self):
+        cache = AnalyticsCache(ttl_seconds=60.0)
+        cache.set("ep", "u", False, 24, 1000, {"data": 42})
+        # Manually corrupt the stored payload
+        with cache._lock:
+            key = cache._key("ep", "u", False, 24, 1000)
+            entry = cache._store[key]
+            entry.payload = {"data": 999}  # corrupt
+        # Should be treated as a miss and removed
+        assert cache.get("ep", "u", False, 24, 1000) is None
+        # Entry should have been evicted
+        with cache._lock:
+            assert key not in cache._store
+
+    def test_payload_digest_computed_on_set(self):
+        cache = AnalyticsCache(ttl_seconds=60.0)
+        cache.set("ep", "u", False, 24, 1000, {"data": 42})
+        with cache._lock:
+            key = cache._key("ep", "u", False, 24, 1000)
+            entry = cache._store[key]
+            assert entry.payload_digest is not None
+            assert entry.payload_digest.startswith("sha256:")

@@ -176,6 +176,39 @@ class TestAuditLoggerList:
             assert len(records) == 2
 
 
+class TestAuditUORDigest:
+    """UOR canonical digest on audit records."""
+
+    def test_uor_digest_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            logger = AuditLogger(path=path)
+            logger.write(
+                event_type="api_access",
+                actor="user_1",
+                action="GET",
+                resource="/api/v1/runs",
+                outcome="success",
+            )
+            with open(path) as f:
+                record = json.loads(f.readline())
+            assert "uor_digest" in record
+            assert record["uor_digest"].startswith("sha256:")
+
+    def test_verify_chain_ignores_uor_digest(self):
+        """Hash verification must succeed even with uor_digest present."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            logger = AuditLogger(path=path)
+            logger.write(
+                event_type="test", actor="a", action="GET",
+                resource="/", outcome="success",
+            )
+            ok, failures = logger.verify_chain()
+            assert ok is True
+            assert failures == []
+
+
 class TestGetAuditLogger:
     """Singleton accessor."""
 

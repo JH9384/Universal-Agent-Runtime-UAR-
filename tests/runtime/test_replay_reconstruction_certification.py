@@ -169,7 +169,7 @@ class TestDeterministicReplay:
         h1 = hash_event_stream(evs)
         h2 = hash_event_stream(evs)
         assert h1 == h2
-        assert len(h1) == 64  # SHA-256 hex
+        assert h1.startswith("sha256:")  # UOR-ADDR-1 digest format
 
     def test_replay_summary_is_stable(self):
         evs = _make_success_events()

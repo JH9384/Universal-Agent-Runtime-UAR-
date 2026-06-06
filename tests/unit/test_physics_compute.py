@@ -304,7 +304,7 @@ class TestPhysicsCompute:
                 })
             )
         assert result["status"] == "completed"
-        assert result["message"] == "Query functionality - extend as needed"
+        assert "Unknown constant" in result["message"]
 
     def test_unknown_operation(self):
         with patch(

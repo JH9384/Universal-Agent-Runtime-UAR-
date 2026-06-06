@@ -8,6 +8,7 @@ import pytest
 
 from uar.core.skill_cache import (
     SkillCache,
+    RedisSkillCache,
     CompiledSkillCache,
     _BloomFilter,
     _get_redis,
@@ -404,3 +405,31 @@ class TestWarmSkillCache:
                 ttl_seconds=60,
             )
         assert count >= 0
+
+
+class TestUORCacheKeys:
+    """UOR-ADDR-1 canonicalization in cache keys."""
+
+    def test_skill_cache_key_is_uor_digest(self):
+        cache = SkillCache()
+        key = cache._make_key("my_skill", {"x": 1})
+        assert key.startswith("sha256:")
+
+    def test_redis_skill_cache_key_is_uor_digest(self):
+        with patch("uar.core.skill_cache._get_redis") as mock_redis:
+            mock_redis.return_value = MagicMock()
+            cache = RedisSkillCache()
+            key = cache._make_key("my_skill", {"x": 1})
+            assert key.startswith("sha256:")
+
+    def test_uor_key_deterministic(self):
+        cache = SkillCache()
+        k1 = cache._make_key("s", {"a": 1})
+        k2 = cache._make_key("s", {"a": 1})
+        assert k1 == k2
+
+    def test_uor_key_cross_instance(self):
+        """Different cache instances produce identical UOR keys."""
+        c1 = SkillCache()
+        c2 = SkillCache()
+        assert c1._make_key("s", {"a": 1}) == c2._make_key("s", {"a": 1})

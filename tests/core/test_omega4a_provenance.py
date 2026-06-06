@@ -62,7 +62,7 @@ class TestOmega4AProvenanceGeneration:
 
         assert isinstance(prov, ProvenanceRecord)
         assert prov.run_id == record.run_id
-        assert len(prov.origin_hash) == 64  # SHA-256 hex = 64 chars
+        assert prov.origin_hash.startswith("sha256:")  # UOR-ADDR-1 digest
         assert prov.timestamp > 0
         assert prov.certifier == "uar.provenance.v1"
         assert prov.schema_version == "provenance.v1"

@@ -47,7 +47,18 @@ class TestUORIdentityVerifier:
 
     def test_verify_object_identity(self):
         v = UORIdentityVerifier(n=8)
-        assert v.verify_object_identity("sha256:abc", 42) is True
+        # Last 8 hex digits 0000002a -> seed=42, which matches expected=42
+        assert v.verify_object_identity("sha256:0000002a", 42) is True
+
+    def test_verify_object_identity_mismatch(self):
+        v = UORIdentityVerifier(n=8)
+        # Last 8 hex digits 000000ab -> seed=171,
+        # which does not match expected=42
+        assert v.verify_object_identity("sha256:000000ab", 42) is False
+
+    def test_verify_object_identity_empty_digest(self):
+        v = UORIdentityVerifier(n=8)
+        assert v.verify_object_identity("", 42) is False
 
     def test_compute_ring_value(self):
         v = UORIdentityVerifier(n=8)

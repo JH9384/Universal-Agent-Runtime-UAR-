@@ -281,13 +281,41 @@ class TestUORDNSResolverResolveService:
 
 
 class TestUORDNSResolverRegister:
-    """register_object placeholder."""
+    """register_object writes to a local JSON registry."""
 
-    def test_returns_false(self):
+    def test_returns_true_and_persists(self):
+        import os
+
         resolver = UORDNSResolver()
-        loc = ObjectLocation(hostname="example.com")
-        result = resolver.register_object("abc", loc)
-        assert result is False
+        # Use a temporary registry so we don't pollute ~/.uar
+        resolver._registry_path = "/tmp/test_uar_dns_registry.json"
+        try:
+            loc = ObjectLocation(hostname="example.com")
+            result = resolver.register_object("abc", loc)
+            assert result is True
+            # Verify it was written
+            registry = resolver._load_local_registry()
+            assert "abc.uor.local" in registry
+            assert registry["abc.uor.local"]["hostname"] == "example.com"
+        finally:
+            if os.path.exists(resolver._registry_path):
+                os.remove(resolver._registry_path)
+
+    def test_resolve_from_local_registry_when_no_dns(self):
+        import os
+
+        with patch("uar.uor.dns_resolution.DNS_AVAILABLE", False):
+            resolver = UORDNSResolver()
+            resolver._registry_path = "/tmp/test_uar_dns_registry.json"
+            try:
+                loc = ObjectLocation(hostname="registry.example.com")
+                resolver.register_object("def", loc)
+                result = resolver.resolve_object("def")
+                assert result is not None
+                assert result.hostname == "registry.example.com"
+            finally:
+                if os.path.exists(resolver._registry_path):
+                    os.remove(resolver._registry_path)
 
 
 class TestDistributedObjectGraph:
