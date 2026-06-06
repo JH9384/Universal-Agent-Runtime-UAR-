@@ -20,6 +20,7 @@ Last counted (2026-06-06):
 | `if self.client is None:` mock fallback | 6 files | `_mock_result()` helper | `uar/core/uor_ecosystem.py` |
 | Inline `compute_uor_digest` try/except | 20 files | `wrap_with_digest()` | `uar/core/skill_utils.py` |
 | Matplotlib config + encode + parse | 2 files | `uar.core.plot_utils` | `uar/skills/math_plot*.py` |
+| `if not path or not Path(path).exists()` | 6 skills | `require_path()` helper | `uar/skills/` |
 | `@register_skill` + `@skill_guard` pair | 105 skills | Decorator ordering rule | `uar/skills/` |
 
 ---
@@ -225,7 +226,35 @@ Applied to:
 
 ---
 
-## 9. Decorator Ordering
+## 9. File Path Validation (`if not path or not Path(path).exists()`)
+
+**Problem:** CV and data skills repeatedly check file existence before reading.
+
+**Fix:** Use `require_path()` from `uar.core.skill_utils`.
+
+```python
+# BAD
+from pathlib import Path
+img_path = meta.get("cv_image_path", "")
+if not img_path or not Path(img_path).exists():
+    return {"status": "failed", "error": "Image not found"}
+
+# GOOD
+from uar.core.skill_utils import require_path
+err = require_path(meta, "cv_image_path", error_msg="Image not found")
+if err:
+    return err
+img_path = meta["cv_image_path"]
+```
+
+Applied to:
+
+- `uar/skills/cv_skills.py` (opencv_process, yolo_detect, video_analyze,
+  face_recognize)
+
+---
+
+## 10. Decorator Ordering
 
 **Rule:** `@register_skill` must always be the outermost decorator,
 `@skill_guard` the innermost (directly above the function).

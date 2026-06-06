@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-from uar.core.skill_utils import require_package, skill_guard
+from uar.core.skill_utils import require_package, require_path, skill_guard
 
 
 @register_skill("opencv_process")
@@ -22,15 +22,14 @@ def opencv_process(ctx: PipelineContext) -> Dict[str, Any]:
         return err
 
     import cv2
-    from pathlib import Path
 
     meta = ctx.goal.metadata or {}
-    img_path = meta.get("cv_image_path", "")
+    err = require_path(meta, "cv_image_path", error_msg="Image not found")
+    if err:
+        return err
+    img_path = meta["cv_image_path"]
     operation = meta.get("cv_operation", "grayscale")
     params = meta.get("cv_params", {})
-
-    if not img_path or not Path(img_path).exists():
-        return {"status": "failed", "error": "Image not found"}
 
     img = cv2.imread(img_path)
     if img is None:
@@ -87,15 +86,14 @@ def yolo_detect(ctx: PipelineContext) -> Dict[str, Any]:
         return err
 
     from ultralytics import YOLO
-    from pathlib import Path
 
     meta = ctx.goal.metadata or {}
-    img_path = meta.get("cv_image_path", "")
+    err = require_path(meta, "cv_image_path", error_msg="Image not found")
+    if err:
+        return err
+    img_path = meta["cv_image_path"]
     conf = float(meta.get("cv_conf", 0.25))
     model_name = meta.get("cv_model", "yolov8n.pt")
-
-    if not img_path or not Path(img_path).exists():
-        return {"status": "failed", "error": "Image not found"}
 
     model = YOLO(model_name)
     results = model(img_path, conf=conf)
@@ -136,15 +134,14 @@ def video_analyze(ctx: PipelineContext) -> Dict[str, Any]:
         return cv_err
 
     import cv2
-    from pathlib import Path
 
     meta = ctx.goal.metadata or {}
-    video_path = meta.get("cv_video_path", "")
+    err = require_path(meta, "cv_video_path", error_msg="Video not found")
+    if err:
+        return err
+    video_path = meta["cv_video_path"]
     operation = meta.get("cv_operation", "extract_frames")
     params = meta.get("cv_params", {})
-
-    if not video_path or not Path(video_path).exists():
-        return {"status": "failed", "error": "Video not found"}
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -157,6 +154,7 @@ def video_analyze(ctx: PipelineContext) -> Dict[str, Any]:
     duration = frame_count / fps if fps > 0 else 0
 
     if operation == "extract_frames":
+        from pathlib import Path
         interval = int(params.get("interval", 1))
         max_frames = int(params.get("max_frames", 10))
         frames_dir = params.get("output_dir", ".")
@@ -263,15 +261,14 @@ def face_recognize(ctx: PipelineContext) -> Dict[str, Any]:
         return err
 
     import face_recognition
-    from pathlib import Path
 
     meta = ctx.goal.metadata or {}
-    img_path = meta.get("cv_image_path", "")
+    err = require_path(meta, "cv_image_path", error_msg="Image not found")
+    if err:
+        return err
+    img_path = meta["cv_image_path"]
     operation = meta.get("cv_operation", "detect")
     tolerance = float(meta.get("cv_tolerance", 0.6))
-
-    if not img_path or not Path(img_path).exists():
-        return {"status": "failed", "error": "Image not found"}
 
     image = face_recognition.load_image_file(img_path)
 
@@ -298,9 +295,12 @@ def face_recognize(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     elif operation == "compare":
-        compare_path = meta.get("cv_compare_path", "")
-        if not compare_path or not Path(compare_path).exists():
-            return {"status": "failed", "error": "Compare image not found"}
+        err = require_path(
+            meta, "cv_compare_path", error_msg="Compare image not found"
+        )
+        if err:
+            return err
+        compare_path = meta["cv_compare_path"]
 
         compare_image = face_recognition.load_image_file(compare_path)
         img_encodings = face_recognition.face_encodings(image)

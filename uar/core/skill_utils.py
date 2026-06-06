@@ -187,3 +187,33 @@ def require_field(
         return None
     msg = error_msg or f"metadata '{key}' required"
     return {"status": "failed", "error": msg}
+
+
+def require_path(
+    meta: Dict[str, Any],
+    key: str,
+    error_msg: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Return error dict if *key* path is missing or does not exist.
+
+    Eliminates the duplicated file-existence guard in CV and data skills.
+
+    Args:
+        meta: The skill's metadata dict.
+        key: Metadata key holding the file path.
+        error_msg: Optional custom error message.  Defaults to
+            ``"<key> not found"``.
+
+    Usage::
+
+        err = require_path(meta, "cv_image_path")
+        if err:
+            return err
+    """
+    from pathlib import Path
+
+    value = meta.get(key, "")
+    if value and Path(value).exists():
+        return None
+    msg = error_msg or f"{key} not found"
+    return {"status": "failed", "error": msg}
