@@ -10,6 +10,8 @@ import { generateUniqueId } from '../utils/idGenerator'
 import { authHeaders, getLocalStorage } from '../utils/auth'
 import RecipeTimeline from './RecipeTimeline'
 import { MissionControlWidget } from './MissionControlWidget'
+import { FleetHealthWidget } from './FleetHealthWidget'
+import { AlertBanner } from './AlertBanner'
 import { ReplayExplorer } from './ReplayExplorer'
 import { CompareRuns } from './CompareRuns'
 import { MorningBriefing } from './MorningBriefing'
@@ -617,6 +619,7 @@ export function UARPanel({ onToggleMode, modeLabel, onGoDashboard }: UARPanelPro
   const [runsHistory, setRunsHistory] = useState<any[]>([])
   const [showRunsPanel, setShowRunsPanel] = useState(false)
   const [showMissionControl, setShowMissionControl] = useState(false)
+  const [missionControlTab, setMissionControlTab] = useState<string | undefined>(undefined)
   const [showReplayExplorer, setShowReplayExplorer] = useState(false)
   const [explorerRunId, setExplorerRunId] = useState<string>('')
   const [showCompareRuns, setShowCompareRuns] = useState(false)
@@ -633,6 +636,7 @@ export function UARPanel({ onToggleMode, modeLabel, onGoDashboard }: UARPanelPro
   const [showInvestigationReplay, setShowInvestigationReplay] = useState(false)
   const [showGraphAnalytics, setShowGraphAnalytics] = useState(false)
   const [showInsights, setShowInsights] = useState(false)
+  const [showFleetDashboard, setShowFleetDashboard] = useState(false)
   const [compareRunA, setCompareRunA] = useState('')
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [skillSearch, setSkillSearch] = useState<string>('')
@@ -2637,6 +2641,13 @@ export function UARPanel({ onToggleMode, modeLabel, onGoDashboard }: UARPanelPro
                   Mission Control
                 </button>
                 <button
+                  onClick={() => { setShowFleetDashboard(v => !v) }}
+                  className={`${styles.navBtn} ${showFleetDashboard ? styles.navBtnActive : ''}`}
+                  title="Fleet Dashboard"
+                >
+                  Fleet
+                </button>
+                <button
                   onClick={() => { setShowBriefing(v => !v) }}
                   className={`${styles.navBtn} ${showBriefing ? styles.navBtnActive : ''}`}
                   title="Morning Briefing"
@@ -2761,6 +2772,12 @@ export function UARPanel({ onToggleMode, modeLabel, onGoDashboard }: UARPanelPro
             </div>
           </div>
         </div>
+        <AlertBanner
+          onOpenMissionControl={(tab) => {
+            setMissionControlTab(tab)
+            setShowMissionControl(true)
+          }}
+        />
         {metrics && !isRunning && (
           <div className={styles.metricsPanel} title="Execution metrics from last run">
             <MetricsDashboard metrics={metrics} darkMode={darkMode} />
@@ -2768,12 +2785,14 @@ export function UARPanel({ onToggleMode, modeLabel, onGoDashboard }: UARPanelPro
         )}
         {showMissionControl && (
           <MissionControlWidget
+            initialTab={missionControlTab}
             onOpenReplay={(runId) => {
               setExplorerRunId(runId)
               setShowReplayExplorer(true)
             }}
           />
         )}
+        {showFleetDashboard && <FleetHealthWidget />}
         {showBriefing && <MorningBriefing />}
         {showTrustExplorer && <TrustExplorer />}
         {showIncidentWorkbench && (

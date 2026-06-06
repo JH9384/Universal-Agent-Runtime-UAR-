@@ -10,6 +10,7 @@ interface SkillCluster {
   run_ids: string[]
   latest: number
   latest_error?: string
+  latest_run_id?: string
 }
 
 interface ErrorCluster {
@@ -101,6 +102,15 @@ export function FailureClusterPanel({ onOpenReplay }: FailureClusterPanelProps) 
                 <MiniBar value={sc.count} max={maxSkillCount} />
                 {sc.latest_error && (
                   <span className={styles.clusterLatest}>{sc.latest_error}</span>
+                )}
+                {sc.latest_run_id && onOpenReplay && (
+                  <button
+                    className={styles.latestRunLink}
+                    onClick={() => onOpenReplay(sc.latest_run_id!)}
+                    title={`Open latest run: ${sc.latest_run_id}`}
+                  >
+                    Latest: {sc.latest_run_id.slice(0, 12)}…
+                  </button>
                 )}
               </div>
             ))}

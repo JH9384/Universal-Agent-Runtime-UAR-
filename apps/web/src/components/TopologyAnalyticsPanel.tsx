@@ -25,7 +25,7 @@ interface HotPathsResponse {
   total_runs: number
   nodes: HotNode[]
   edges: HotEdge[]
-  recipes: RecipeUtil[]
+  recipe_intelligence_link?: string
 }
 
 function SuccessPill({ rate }: { rate: number }) {
@@ -37,7 +37,7 @@ function SuccessPill({ rate }: { rate: number }) {
 
 export function TopologyAnalyticsPanel() {
   const { data, loading, error } = useApiFetch<HotPathsResponse>(
-    '/api/uar/topology/hot-paths?hours=168&top=10',
+    '/api/uar/topology/analytics?mode=success&hours=168&top=10',
     { interval: 30_000 }
   )
 
@@ -94,31 +94,21 @@ export function TopologyAnalyticsPanel() {
         </div>
       )}
 
-      {/* Recipe Utilization */}
-      {data && data.recipes.length > 0 && (
+      {/* Link to Recipe Intelligence */}
+      {data && data.recipe_intelligence_link && (
         <div className={styles.section}>
-          <h5 className={styles.sectionTitle}>Recipe Utilization</h5>
-          <div className={styles.table}>
-            <div className={styles.tableHeader}>
-              <span>Recipe</span>
-              <span>Runs</span>
-              <span>Success</span>
-            </div>
-            {data.recipes.map((r) => (
-              <div key={r.recipe} className={styles.tableRow}>
-                <span className={styles.cellName}>{r.recipe}</span>
-                <span className={styles.cellCount}>{r.executions}</span>
-                <SuccessPill rate={r.success_rate} />
-              </div>
-            ))}
-          </div>
+          <a
+            href={data.recipe_intelligence_link}
+            className={styles.recipeLink}
+          >
+            View Recipe Intelligence →
+          </a>
         </div>
       )}
 
       {data &&
         data.nodes.length === 0 &&
-        data.edges.length === 0 &&
-        data.recipes.length === 0 && (
+        data.edges.length === 0 && (
           <div className={styles.emptyState}>
             No execution data in the last {data.hours}h. Run some goals to
             build topology analytics.

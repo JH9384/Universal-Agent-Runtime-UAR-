@@ -10,6 +10,7 @@ interface HotspotNode {
   severity: string
   affected_runs: number
   run_ids: string[]
+  latest_run_id?: string
 }
 
 interface HotspotEdge {
@@ -21,6 +22,7 @@ interface HotspotEdge {
   severity: string
   affected_runs: number
   run_ids: string[]
+  latest_run_id?: string
 }
 
 interface HotspotResponse {
@@ -76,7 +78,7 @@ function ReplayButton({ runIds, onOpen, panel }: { runIds: string[]; onOpen?: (r
 
 export function FailureHotspotPanel({ onOpenReplay }: FailureHotspotPanelProps) {
   const { data, loading, error } = useApiFetch<HotspotResponse>(
-    '/api/uar/topology/failure-hotspots?hours=168&top=10',
+    '/api/uar/topology/analytics?mode=failure&hours=168&top=10',
     { interval: 30_000 }
   )
 
@@ -114,6 +116,15 @@ export function FailureHotspotPanel({ onOpenReplay }: FailureHotspotPanelProps) 
                   {severityLabel(n.severity)}
                 </span>
                 <ReplayButton runIds={n.run_ids || []} onOpen={onOpenReplay} panel="failure_hotspot" />
+                {n.latest_run_id && onOpenReplay && (
+                  <button
+                    className={styles.latestRunLink}
+                    onClick={() => onOpenReplay(n.latest_run_id!)}
+                    title={`Open latest run: ${n.latest_run_id}`}
+                  >
+                    Latest: {n.latest_run_id.slice(0, 12)}…
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -143,6 +154,15 @@ export function FailureHotspotPanel({ onOpenReplay }: FailureHotspotPanelProps) 
                   {severityLabel(e.severity)}
                 </span>
                 <ReplayButton runIds={e.run_ids || []} onOpen={onOpenReplay} panel="failure_hotspot" />
+                {e.latest_run_id && onOpenReplay && (
+                  <button
+                    className={styles.latestRunLink}
+                    onClick={() => onOpenReplay(e.latest_run_id!)}
+                    title={`Open latest run: ${e.latest_run_id}`}
+                  >
+                    Latest: {e.latest_run_id.slice(0, 12)}…
+                  </button>
+                )}
               </div>
             ))}
           </div>

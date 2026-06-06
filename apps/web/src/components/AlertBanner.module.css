@@ -52,3 +52,28 @@
   background: #eff6ff;
   border-color: #bfdbfe;
 }
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  filter: brightness(0.97);
+}
+
+.dismissBtn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 4px;
+  color: inherit;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.dismissBtn:hover {
+  opacity: 1;
+}
