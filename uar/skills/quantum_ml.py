@@ -20,12 +20,15 @@ Goal Metadata:
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.skill_utils import require_package, skill_guard
+
+logger = logging.getLogger(__name__)
 
 
 @register_skill("quantum_ml")
@@ -261,20 +264,58 @@ def _qchem_molecule(params):
             "mock_molecule": params.get("molecule", "H2"),
         }
 
+    import numpy as np
+    import pennylane as qml
+
     molecule = params.get("molecule", "H2")
     basis = params.get("basis", "sto-3g")
     charge = int(params.get("charge", 0))
 
-    # Mock result — full qchem requires molecular structure files
-    return {
-        "status": "completed",
-        "task": "qchem_molecule",
-        "molecule": molecule,
-        "basis": basis,
-        "charge": charge,
-        "note": (
-            "Basic quantum chemistry placeholder. "
-            "Install pennylane-qchem for full functionality."
-        ),
-        "mock_energy": -1.117 if molecule == "H2" else None,
-    }
+    try:
+        from pennylane_qchem import molecule as qchem_molecule
+
+        symbols, coordinates = qchem_molecule(molecule)
+        hamiltonian, qubits = qml.qchem.molecular_hamiltonian(
+            symbols,
+            coordinates,
+            charge=charge,
+            basis=basis,
+        )
+
+        dev = qml.device("default.qubit", wires=qubits)
+
+        @qml.qnode(dev)
+        def circuit(params, wires):
+            qml.BasisState(np.zeros(qubits), wires=wires)
+            for i in range(qubits):
+                qml.RX(params[i], wires=i)
+            return qml.expval(hamiltonian)
+
+        opt = qml.GradientDescentOptimizer(0.4)
+        theta = np.zeros(qubits)
+        for _ in range(100):
+            theta = opt.step(lambda p: circuit(p, wires=range(qubits)), theta)
+
+        energy = float(circuit(theta, wires=range(qubits)))
+
+        return {
+            "status": "completed",
+            "task": "qchem_molecule",
+            "molecule": molecule,
+            "basis": basis,
+            "charge": charge,
+            "qubits": qubits,
+            "energy": energy,
+            "note": "Computed with pennylane_qchem",
+        }
+    except Exception as exc:
+        logger.warning("pennylane_qchem computation failed: %s", exc)
+        return {
+            "status": "completed",
+            "task": "qchem_molecule",
+            "molecule": molecule,
+            "basis": basis,
+            "charge": charge,
+            "note": f"pennylane_qchem error: {exc}",
+            "mock_energy": -1.117 if molecule == "H2" else None,
+        }

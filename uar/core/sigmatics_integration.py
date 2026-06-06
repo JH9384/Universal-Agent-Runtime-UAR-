@@ -58,27 +58,54 @@ class SigilExpression:
     uor_object: Optional[UORObject] = None
 
     def evaluate(self) -> Any:
-        """Evaluate the sigil expression."""
-        # This is a placeholder for actual sigil algebra evaluation
-        # In a full implementation, this would use the Sigmatics library
+        """Evaluate the sigil expression.
+
+        Computes a UOR content digest of the result and stores it in
+        :attr:`metadata` so every evaluation is content-addressed.
+        """
+        values = [
+            s.value for s in self.sigils if isinstance(s.value, (int, float))
+        ]
+        str_values = [
+            s.value for s in self.sigils if isinstance(s.value, str)
+        ]
+
         if self.operation == "sum":
-            values = [
-                s.value
-                for s in self.sigils
-                if isinstance(s.value, (int, float))
-            ]
             self.result = sum(values)
         elif self.operation == "product":
-            values = [
-                s.value
-                for s in self.sigils
-                if isinstance(s.value, (int, float))
-            ]
             self.result = 1
             for v in values:
                 self.result *= v
+        elif self.operation == "difference" and len(values) >= 2:
+            self.result = values[0] - sum(values[1:])
+        elif self.operation == "mean" and values:
+            self.result = sum(values) / len(values)
+        elif self.operation == "max" and values:
+            self.result = max(values)
+        elif self.operation == "min" and values:
+            self.result = min(values)
+        elif self.operation == "concatenate":
+            self.result = "".join(str_values)
+        elif self.operation == "count":
+            self.result = len(self.sigils)
         else:
             self.result = None
+
+        # Compute UOR digest of the evaluated expression
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            digest = compute_uor_digest(
+                {
+                    "operation": self.operation,
+                    "result": self.result,
+                    "sigil_count": len(self.sigils),
+                }
+            )
+            for s in self.sigils:
+                s.metadata["eval_digest"] = digest
+        except Exception:
+            logger.debug("Could not compute sigil expression digest")
 
         return self.result
 

@@ -260,14 +260,92 @@ def _calculate_physics(physics_type: str, value: str) -> Dict[str, Any]:
 
 
 def _query_physics(physics_type: str, value: str) -> Dict[str, Any]:
-    """Query physics information."""
-    # Placeholder for more complex queries
-    return {
-        "success": True,
-        "query_type": physics_type,
-        "value": value,
-        "message": "Query functionality - extend as needed",
+    """Query physics information via astropy constants."""
+    from astropy import constants as const
+
+    # Map common query names to astropy constant attributes
+    _CONSTANT_MAP: Dict[str, Any] = {}
+    for _name in (
+        "c",
+        "G",
+        "h",
+        "hbar",
+        "k_B",
+        "N_A",
+        "m_e",
+        "m_p",
+        "m_n",
+        "M_sun",
+        "M_earth",
+        "R_sun",
+        "R_earth",
+        "au",
+        "pc",
+        "eV",
+    ):
+        if hasattr(const, _name):
+            _CONSTANT_MAP[_name] = getattr(const, _name)
+
+    # Friendly aliases
+    _ALIASES = {
+        "speed_of_light": "c",
+        "gravitational_constant": "G",
+        "planck_constant": "h",
+        "reduced_planck_constant": "hbar",
+        "boltzmann_constant": "k_B",
+        "avogadro_constant": "N_A",
+        "electron_mass": "m_e",
+        "proton_mass": "m_p",
+        "neutron_mass": "m_n",
+        "solar_mass": "M_sun",
+        "earth_mass": "M_earth",
+        "solar_radius": "R_sun",
+        "earth_radius": "R_earth",
+        "astronomical_unit": "au",
+        "parsec": "pc",
+        "joule": "eV",
     }
+
+    key = value.lower().replace(" ", "_")
+    constant = _CONSTANT_MAP.get(key)
+    if constant is None:
+        alias_key = _ALIASES.get(key)
+        if alias_key:
+            constant = _CONSTANT_MAP.get(alias_key)
+
+    if constant is not None:
+        return {
+            "success": True,
+            "query_type": physics_type,
+            "value": value,
+            "name": constant.name,
+            "symbol": getattr(constant, "abbrev", "") or key,
+            "numerical_value": float(constant.value),
+            "unit": str(constant.unit),
+        }
+
+    # Fallback: try to access by attribute name directly
+    try:
+        constant = getattr(const, key)
+        return {
+            "success": True,
+            "query_type": physics_type,
+            "value": value,
+            "name": constant.name,
+            "symbol": getattr(constant, "abbrev", "") or key,
+            "numerical_value": float(constant.value),
+            "unit": str(constant.unit),
+        }
+    except AttributeError:
+        return {
+            "success": True,
+            "query_type": physics_type,
+            "value": value,
+            "message": (
+                f"Unknown constant: {value}. "
+                f"Known constants: {list(_CONSTANT_MAP.keys())}"
+            ),
+        }
 
 
 def _calculate_distance_from_value(value: str) -> Dict[str, Any]:

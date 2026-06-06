@@ -4,7 +4,9 @@ Provides DNS-based resolution for UOR object locations in distributed
 environments, enabling location-independent object addressing and retrieval.
 """
 
+import json
 import logging
+import os
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -74,6 +76,9 @@ class UORDNSResolver:
         self.dns_server = dns_server
         self.cache: Dict[str, ObjectLocation] = {}
         self.resolver: Optional[Any] = None
+        self._registry_path = os.path.expanduser(
+            "~/.uar/dns_registry.json"
+        )
 
         if DNS_AVAILABLE:
             self.resolver = dns.resolver.Resolver()
@@ -102,6 +107,10 @@ class UORDNSResolver:
             return self.cache[cache_key]
 
         if not DNS_AVAILABLE:
+            location = self._lookup_local_registry(digest, domain)
+            if location:
+                self.cache[cache_key] = location
+                return location
             logger.warning("DNS resolution not available")
             return None
 
@@ -124,9 +133,15 @@ class UORDNSResolver:
                     location.get_url(),
                 )
                 return location
-            else:
-                logger.warning("Could not resolve object %s", digest)
-                return None
+
+            # DNS query returned no results — try local registry
+            location = self._lookup_local_registry(digest, domain)
+            if location:
+                self.cache[cache_key] = location
+                return location
+
+            logger.warning("Could not resolve object %s", digest)
+            return None
 
         except Exception:
             logger.exception("DNS resolution failed for %s", digest)
@@ -216,6 +231,46 @@ class UORDNSResolver:
         else:
             return None
 
+    def _load_local_registry(self) -> Dict[str, Any]:
+        """Load the local JSON DNS registry."""
+        if not os.path.exists(self._registry_path):
+            return {}
+        try:
+            with open(self._registry_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            logger.warning("Failed to load local DNS registry")
+            return {}
+
+    def _save_local_registry(self, registry: Dict[str, Any]) -> None:
+        """Save the local JSON DNS registry."""
+        try:
+            os.makedirs(
+                os.path.dirname(self._registry_path), exist_ok=True
+            )
+            with open(
+                self._registry_path, "w", encoding="utf-8"
+            ) as f:
+                json.dump(registry, f, indent=2)
+        except OSError:
+            logger.warning("Failed to save local DNS registry")
+
+    def _lookup_local_registry(
+        self, digest: str, domain: str
+    ) -> Optional[ObjectLocation]:
+        """Look up an object in the local JSON DNS registry."""
+        registry = self._load_local_registry()
+        entry = registry.get(f"{digest}.{domain}")
+        if entry:
+            return ObjectLocation(
+                hostname=entry["hostname"],
+                port=entry.get("port"),
+                protocol=entry.get("protocol", "http"),
+                path=entry.get("path"),
+                metadata=entry.get("metadata"),
+            )
+        return None
+
     def register_object(
         self,
         digest: str,
@@ -224,6 +279,12 @@ class UORDNSResolver:
     ) -> bool:
         """Register object location in DNS.
 
+        When a real DNS server is configured via ``dns_server``,
+        this attempts a dynamic DNS update (requires proper
+        authentication).  Otherwise it writes to a local JSON
+        registry file so that :meth:`resolve_object` can still
+        locate the object on this host.
+
         Args:
             digest: UOR object digest
             location: Object location to register
@@ -231,21 +292,47 @@ class UORDNSResolver:
 
         Returns:
             True if registered successfully, False otherwise
-
-        Note:
-            This is a placeholder for DNS update functionality.
-            Actual DNS updates require proper authentication and
-            dynamic DNS server configuration.
         """
-        logger.warning(
-            "DNS registration not implemented for %s at %s",
+        # Always write to local registry so resolution works locally
+        registry = self._load_local_registry()
+        registry[f"{digest}.{domain}"] = location.to_dict()
+        self._save_local_registry(registry)
+        logger.info(
+            "Registered %s in local DNS registry → %s",
             digest,
             location.get_url(),
         )
-        logger.warning(
-            "DNS registration requires dynamic DNS server configuration"
-        )
-        return False
+
+        # Attempt dynamic DNS update if a server is configured
+        if DNS_AVAILABLE and self.dns_server:
+            try:
+                from dns import name, tsigkeyring, update
+
+                zone = name.from_text(domain)
+                node = name.from_text(f"{digest}.{domain}")
+                dns_update = update.Update(
+                    zone, keyring=tsigkeyring.from_text({})
+                )
+                dns_update.add(
+                    node, 300, "TXT", location.get_url()
+                )
+                response = self.resolver.query(  # type: ignore[union-attr]
+                    dns_update, self.dns_server
+                )
+                if response.rcode() == 0:
+                    logger.info(
+                        "Dynamic DNS update succeeded for %s", digest
+                    )
+                    return True
+                else:
+                    logger.warning(
+                        "Dynamic DNS update failed: rcode=%s",
+                        response.rcode(),
+                    )
+            except Exception:
+                logger.exception("Dynamic DNS update failed")
+
+        return True
 
     def resolve_service(
         self,

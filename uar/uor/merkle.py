@@ -35,13 +35,21 @@ class MerkleProof:
 class UORMerkleTree:
     """Merkle tree for UOR object collections."""
 
-    def __init__(self, hash_algorithm: str = "sha256"):
+    def __init__(
+        self,
+        hash_algorithm: str = "sha256",
+        uor_canonicalize: bool = False,
+    ):
         """Initialize Merkle tree with hash algorithm.
 
         Args:
             hash_algorithm: Hash algorithm to use (default sha256)
+            uor_canonicalize: Whether to canonicalize leaf data via
+                UOR-ADDR-1 before hashing (default False since
+                ``build_tree`` expects already-canonicalized digests).
         """
         self.hash_algorithm = hash_algorithm
+        self.uor_canonicalize = uor_canonicalize
         self.root: Optional[MerkleNode] = None
         self.leaves: Dict[str, MerkleNode] = {}
 
@@ -76,6 +84,21 @@ class UORMerkleTree:
         combined = left + right
         return self._hash(combined.encode("utf-8"))
 
+    def _leaf_digest(self, data: Any) -> str:
+        """Canonical digest for leaf data.
+
+        When ``uor_canonicalize`` is enabled, raw objects are
+        canonicalized via UOR-ADDR-1 before hashing.
+        """
+        if not self.uor_canonicalize:
+            return str(data)
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(data)
+        except Exception:
+            return str(data)
+
     def build_tree(self, digests: List[str]) -> MerkleNode:
         """Build Merkle tree from list of digests.
 
@@ -93,15 +116,16 @@ class UORMerkleTree:
         self.leaves = {}
 
         for digest in digests:
+            canonical = self._leaf_digest(digest)
             node = MerkleNode(
-                digest=digest,
+                digest=canonical,
                 left=None,
                 right=None,
                 data=digest,
                 is_leaf=True,
             )
             nodes.append(node)
-            self.leaves[digest] = node
+            self.leaves[canonical] = node
 
         # Build tree bottom-up
         while len(nodes) > 1:

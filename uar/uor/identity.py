@@ -146,21 +146,72 @@ class UORIdentityVerifier:
     ) -> bool:
         """Verify object identity using digest-based operations.
 
+        Derives a ring value from the trailing hex digits of *digest*,
+        then verifies the UOR critical identity
+        ``neg(bnot(x)) == succ(x)`` in :math:`R_{self.n}`.
+
         Args:
             digest: UOR digest string (e.g., "sha256:<hex>")
             expected: Expected identity value (int or hex string)
 
         Returns:
             True if identity verification passes
-
-        Note:
-            This is a placeholder for future digest-based identity
-            verification. The actual implementation will use digest-derived
-            values in the ring.
         """
-        # Placeholder: Future implementation will extract value from digest
-        # and apply ring operations to verify identity
-        logger.debug("Identity verification for digest: %s", digest)
+        # Extract a stable ring value from the digest
+        hex_part = digest.split(":")[-1] if ":" in digest else digest
+        if not hex_part:
+            logger.warning("Empty digest provided for identity verification")
+            return False
+
+        # Use the last 8 hex digits as a 32-bit seed, then map into R_n
+        try:
+            seed = int(hex_part[-8:], 16)
+        except ValueError:
+            logger.warning("Digest contains non-hex characters: %s", digest)
+            return False
+
+        x = seed % self.mod
+
+        # Verify the critical identity: neg(bnot(x)) == succ(x)
+        lhs = neg(bnot(x, self.n), self.n)
+        rhs = succ(x, self.n)
+        valid = lhs == rhs
+
+        if not valid:
+            logger.error(
+                "Critical identity failed for digest %s: "
+                "neg(bnot(%s))=%s != succ(%s)=%s",
+                digest,
+                x,
+                lhs,
+                x,
+                rhs,
+            )
+            return False
+
+        # Compare against expected value if provided
+        if expected is not None:
+            expected_int = (
+                int(expected, 16)
+                if isinstance(expected, str)
+                else int(expected)
+            )
+            if x != expected_int % self.mod:
+                logger.warning(
+                    "Digest-derived value %s does not match expected %s",
+                    x,
+                    expected_int % self.mod,
+                )
+                return False
+
+        logger.debug(
+            "Identity verified for digest %s: x=%s, neg(bnot(x))=%s, "
+            "succ(x)=%s",
+            digest,
+            x,
+            lhs,
+            rhs,
+        )
         return True
 
     def compute_ring_value(self, value: int) -> int:

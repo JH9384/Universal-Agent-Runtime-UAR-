@@ -475,3 +475,33 @@ uor:ExecutionRecordShape
         sh:maxCount 1
     ] .
 """
+
+
+def validate_uor_object_envelope(
+    digest: Optional[str],
+    media_type: Optional[str],
+    mode: str,
+) -> Optional[Dict[str, Any]]:
+    """Validate UOR object envelope attributes against the SHACL schema.
+
+    Returns ``None`` when pyshacl is unavailable or validation cannot
+    be performed, so callers can degrade gracefully.
+    """
+    try:
+        validator = SHACLValidator()
+        if not validator.load_shacl_shapes(
+            UORSHACLSchema.get_object_envelope_schema()
+        ):
+            return None
+        obj_data = {
+            "digest": digest,
+            "mediaType": media_type,
+            "mode": mode,
+            "schema": media_type or "application/json",
+        }
+        result = validator.validate_object(
+            obj_data, "http://uor.foundation/schema#ObjectEnvelope"
+        )
+        return result.to_dict()
+    except Exception:
+        return None
