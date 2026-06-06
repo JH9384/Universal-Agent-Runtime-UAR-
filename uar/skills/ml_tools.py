@@ -188,30 +188,27 @@ def flaml_auto(ctx: PipelineContext) -> Dict[str, Any]:
         )
         df = None
 
-    try:
-        automl = AutoML()
-        fit_kwargs = {
-            "X_train": X_train if df is None else df.drop(columns=["target"]),
-            "y_train": y_train if df is None else df["target"],
-            "task": task,
-            "time_budget": time_budget,
-            "metric": metric,
-            "verbose": 0,
-        }
-        # Remove None values
-        fit_kwargs = {k: v for k, v in fit_kwargs.items() if v is not None}
-        automl.fit(**fit_kwargs)
+    automl = AutoML()
+    fit_kwargs = {
+        "X_train": X_train if df is None else df.drop(columns=["target"]),
+        "y_train": y_train if df is None else df["target"],
+        "task": task,
+        "time_budget": time_budget,
+        "metric": metric,
+        "verbose": 0,
+    }
+    # Remove None values
+    fit_kwargs = {k: v for k, v in fit_kwargs.items() if v is not None}
+    automl.fit(**fit_kwargs)
 
-        return {
-            "status": "completed",
-            "best_estimator": str(automl.best_estimator),
-            "best_config": automl.best_config,
-            "best_loss": float(automl.best_loss),
-            "task": task,
-            "time_budget": time_budget,
-        }
-    except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+    return {
+        "status": "completed",
+        "best_estimator": str(automl.best_estimator),
+        "best_config": automl.best_config,
+        "best_loss": float(automl.best_loss),
+        "task": task,
+        "time_budget": time_budget,
+    }
 
 
 @register_skill("pycaret_ml")
@@ -250,34 +247,31 @@ def pycaret_ml(ctx: PipelineContext) -> Dict[str, Any]:
         df = pd.DataFrame(X, columns=[f"f{i}" for i in range(X.shape[1])])
         df[target] = y
 
-    try:
-        if task == "classification":
-            from pycaret.classification import (
-                setup, compare_models, create_model,
-            )
-        else:
-            from pycaret.regression import (
-                setup, compare_models, create_model,
-            )
+    if task == "classification":
+        from pycaret.classification import (
+            setup, compare_models, create_model,
+        )
+    else:
+        from pycaret.regression import (
+            setup, compare_models, create_model,
+        )
 
-        setup(data=df, target=target, verbose=False, session_id=42)
+    setup(data=df, target=target, verbose=False, session_id=42)
 
-        if compare:
-            best = compare_models(verbose=False)
-            model_info = str(best)
-        else:
-            model = create_model(model_id, verbose=False)
-            model_info = str(model)
+    if compare:
+        best = compare_models(verbose=False)
+        model_info = str(best)
+    else:
+        model = create_model(model_id, verbose=False)
+        model_info = str(model)
 
-        return {
-            "status": "completed",
-            "task": task,
-            "target": target,
-            "best_model": model_info,
-            "compare": compare,
-        }
-    except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+    return {
+        "status": "completed",
+        "task": task,
+        "target": target,
+        "best_model": model_info,
+        "compare": compare,
+    }
 
 
 @register_skill("autogluon_ml")
@@ -319,31 +313,28 @@ def autogluon_ml(ctx: PipelineContext) -> Dict[str, Any]:
 
     train_df, test_df = train_test_split(df, test_size=0.2)
 
-    try:
-        from autogluon.tabular import TabularPredictor
+    from autogluon.tabular import TabularPredictor
 
-        predictor = TabularPredictor(
-            label=target,
-            problem_type=task,
-        ).fit(
-            train_data=train_df,
-            time_limit=time_limit,
-            presets=preset,
-        )
+    predictor = TabularPredictor(
+        label=target,
+        problem_type=task,
+    ).fit(
+        train_data=train_df,
+        time_limit=time_limit,
+        presets=preset,
+    )
 
-        leaderboard = predictor.leaderboard(test_df, silent=True)
-        best_model = predictor.model_best
-        score = predictor.evaluate(test_df)
+    leaderboard = predictor.leaderboard(test_df, silent=True)
+    best_model = predictor.model_best
+    score = predictor.evaluate(test_df)
 
-        return {
-            "status": "completed",
-            "task": task,
-            "target": target,
-            "best_model": best_model,
-            "leaderboard": leaderboard.to_dict()
-            if hasattr(leaderboard, "to_dict")
-            else str(leaderboard),
-            "test_score": score,
-        }
-    except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+    return {
+        "status": "completed",
+        "task": task,
+        "target": target,
+        "best_model": best_model,
+        "leaderboard": leaderboard.to_dict()
+        if hasattr(leaderboard, "to_dict")
+        else str(leaderboard),
+        "test_score": score,
+    }

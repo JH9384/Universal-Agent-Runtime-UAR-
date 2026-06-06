@@ -11,7 +11,7 @@ from uar.core.skill_utils import require_field, require_package, skill_guard
 
 
 @register_skill("cern_root")
-@skill_guard("Cern Root")
+@skill_guard("Cern Root", status="failed")
 def cern_root(ctx: PipelineContext) -> Dict[str, Any]:
     """Read CERN ROOT files with uproot.
 
@@ -33,45 +33,42 @@ def cern_root(ctx: PipelineContext) -> Dict[str, Any]:
         return err
     file_path = meta["root_file_path"]
 
-    try:
-        with uproot.open(file_path) as file:
-            tree_name = meta.get("root_tree_name")
-            if tree_name is None:
-                trees = [
-                    k for k, v in file.items()
-                    if isinstance(v, uproot.behaviors.TTree.TTree)
-                ]
-                if not trees:
-                    return {
-                        "status": "failed",
-                        "error": "no TTree found in file",
-                    }
-                tree_name = trees[0]
+    with uproot.open(file_path) as file:
+        tree_name = meta.get("root_tree_name")
+        if tree_name is None:
+            trees = [
+                k for k, v in file.items()
+                if isinstance(v, uproot.behaviors.TTree.TTree)
+            ]
+            if not trees:
+                return {
+                    "status": "failed",
+                    "error": "no TTree found in file",
+                }
+            tree_name = trees[0]
 
-            tree = file[tree_name]
-            branches = meta.get("root_branches")
-            entry_stop = meta.get("root_entry_stop")
+        tree = file[tree_name]
+        branches = meta.get("root_branches")
+        entry_stop = meta.get("root_entry_stop")
 
-            arrays = tree.arrays(
-                branches,
-                entry_stop=entry_stop,
-                library="np",
-            )
+        arrays = tree.arrays(
+            branches,
+            entry_stop=entry_stop,
+            library="np",
+        )
 
-            data = {}
-            for key, arr in arrays.items():
-                if hasattr(arr, "tolist"):
-                    data[key] = arr.tolist()
-                else:
-                    data[key] = arr
+        data = {}
+        for key, arr in arrays.items():
+            if hasattr(arr, "tolist"):
+                data[key] = arr.tolist()
+            else:
+                data[key] = arr
 
-            return {
-                "status": "completed",
-                "file": file_path,
-                "tree": tree_name,
-                "num_entries": int(tree.num_entries),
-                "branches": list(data.keys()),
-                "data": data,
-            }
-    except Exception as exc:
-        return {"status": "failed", "error": str(exc)}
+        return {
+            "status": "completed",
+            "file": file_path,
+            "tree": tree_name,
+            "num_entries": int(tree.num_entries),
+            "branches": list(data.keys()),
+            "data": data,
+        }
