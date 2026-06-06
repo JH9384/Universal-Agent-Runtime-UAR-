@@ -25,46 +25,20 @@ Goal Metadata:
 
 from __future__ import annotations
 
-import base64
-import io
 import logging
-import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.safe_eval import safe_eval
 from uar.core.skill_utils import require_package, skill_guard
+from uar.core.plot_utils import (
+    DEFAULT_FIGSIZE,
+    encode_figure,
+    parse_range,
+)
 
 logger = logging.getLogger(__name__)
-
-# Configuration
-DEFAULT_DPI = max(
-    1,
-    min(600, int(os.getenv("MATH_PLOT_DPI", "150").strip() or "150")),
-)
-_figsize_raw = os.getenv("MATH_PLOT_FIGSIZE", "8,6").strip() or "8,6"
-_figsize_parts = [p.strip() for p in _figsize_raw.split(",") if p.strip()]
-try:
-    DEFAULT_FIGSIZE = tuple(float(x) for x in _figsize_parts[:2])
-except (ValueError, TypeError):
-    DEFAULT_FIGSIZE = (8.0, 6.0)
-
-
-def _encode_figure(fig) -> str:
-    """Encode matplotlib figure to base64 PNG string."""
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=DEFAULT_DPI, bbox_inches="tight")
-    buf.seek(0)
-    img_b64 = base64.b64encode(buf.read()).decode("utf-8")
-    return img_b64
-
-
-def _parse_range(range_val) -> Tuple[float, float]:
-    """Parse a range value into (min, max) tuple."""
-    if isinstance(range_val, (list, tuple)) and len(range_val) >= 2:
-        return float(range_val[0]), float(range_val[1])
-    return -10.0, 10.0
 
 
 def _plot_function(
@@ -133,7 +107,7 @@ def _plot_function(
     if y_range:
         ax.set_ylim(y_range)
 
-    img_b64 = _encode_figure(fig)
+    img_b64 = encode_figure(fig)
     plt.close(fig)
 
     return {
@@ -191,7 +165,7 @@ def _plot_parametric(
     ax.set_xlabel("x(t)")
     ax.set_ylabel("y(t)")
 
-    img_b64 = _encode_figure(fig)
+    img_b64 = encode_figure(fig)
     plt.close(fig)
 
     return {
@@ -244,7 +218,7 @@ def _plot_polar(
     if title:
         ax.set_title(title, pad=20)
 
-    img_b64 = _encode_figure(fig)
+    img_b64 = encode_figure(fig)
     plt.close(fig)
 
     return {
@@ -298,7 +272,7 @@ def _plot_scatter(
     if y_label:
         ax.set_ylabel(y_label)
 
-    img_b64 = _encode_figure(fig)
+    img_b64 = encode_figure(fig)
     plt.close(fig)
 
     return {
@@ -357,14 +331,14 @@ def math_plot(ctx: PipelineContext) -> Dict[str, Any]:
         param = params.get("plot_parametric", {})
         x_expr = str(param.get("x", "sin(t)"))
         y_expr = str(param.get("y", "cos(t)"))
-        t_range = _parse_range(param.get("t_range", [0, 2 * 3.14159]))
+        t_range = parse_range(param.get("t_range", [0, 2 * 3.14159]))
         result = _plot_parametric(
             x_expr, y_expr, t_range, title=title, style=style, grid=grid
         )
     elif plot_type == "polar":
         polar = params.get("plot_polar", {})
         r_expr = str(polar.get("r", "1 + cos(theta)"))
-        theta_range = _parse_range(
+        theta_range = parse_range(
             polar.get("theta_range", [0, 2 * 3.14159])
         )
         result = _plot_polar(
@@ -383,10 +357,10 @@ def math_plot(ctx: PipelineContext) -> Dict[str, Any]:
             expressions = [expressions]
         if not expressions:
             expressions = ["sin(x)", "cos(x)"]
-        x_range = _parse_range(params.get("plot_x_range", [-10, 10]))
+        x_range = parse_range(params.get("plot_x_range", [-10, 10]))
         y_range = None
         if params.get("plot_y_range"):
-            y_range = _parse_range(params["plot_y_range"])
+            y_range = parse_range(params["plot_y_range"])
         result = _plot_function(
             expressions, x_range, y_range=y_range,
             title=title, x_label=x_label, y_label=y_label,

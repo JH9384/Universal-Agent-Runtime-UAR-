@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.contracts import PipelineContext
 from uar.core.registry import register_skill
-from uar.core.skill_utils import require_package, skill_guard
+from uar.core.skill_utils import require_field, require_package, skill_guard
 
 
 @register_skill("security_audit")
@@ -314,12 +314,12 @@ def mlflow_deploy(ctx: PipelineContext) -> Dict[str, Any]:
     import mlflow
 
     meta = ctx.goal.metadata or {}
-    model_name = meta.get("mlflow_model_name", "")
+    err = require_field(meta, "mlflow_model_name")
+    if err:
+        return err
+    model_name = meta["mlflow_model_name"]
     version = meta.get("mlflow_model_version", "latest")
     stage = meta.get("mlflow_stage")
-
-    if not model_name:
-        return {"status": "failed", "error": "mlflow_model_name required"}
 
     try:
         if version == "latest":

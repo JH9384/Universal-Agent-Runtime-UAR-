@@ -26,42 +26,20 @@ Goal Metadata:
 
 from __future__ import annotations
 
-import base64
-import io
 import logging
-import os
 from typing import Any, Dict, Optional, Tuple
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.safe_eval import safe_eval
 from uar.core.skill_utils import require_package, skill_guard
+from uar.core.plot_utils import (
+    DEFAULT_FIGSIZE,
+    encode_figure,
+    parse_range,
+)
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_DPI = max(
-    1,
-    min(600, int(os.getenv("MATH_PLOT_DPI", "150").strip() or "150")),
-)
-_figsize_raw = os.getenv("MATH_PLOT_FIGSIZE", "8,6").strip() or "8,6"
-_figsize_parts = [p.strip() for p in _figsize_raw.split(",") if p.strip()]
-try:
-    DEFAULT_FIGSIZE = tuple(float(x) for x in _figsize_parts[:2])
-except (ValueError, TypeError):  # pragma: no cover
-    DEFAULT_FIGSIZE = (8.0, 6.0)
-
-
-def _encode_figure(fig) -> str:
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=DEFAULT_DPI, bbox_inches="tight")
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode("utf-8")
-
-
-def _parse_range(range_val) -> Tuple[float, float]:
-    if isinstance(range_val, (list, tuple)) and len(range_val) >= 2:
-        return float(range_val[0]), float(range_val[1])
-    return -5.0, 5.0
 
 
 def _plot_surface(
@@ -112,7 +90,7 @@ def _plot_surface(
     if title:
         ax.set_title(title)
 
-    img_b64 = _encode_figure(fig)
+    img_b64 = encode_figure(fig)
     plt.close(fig)
 
     return {
@@ -177,7 +155,7 @@ def _plot_wireframe(
     if title:
         ax.set_title(title)
 
-    img_b64 = _encode_figure(fig)
+    img_b64 = encode_figure(fig)
     plt.close(fig)
 
     return {
@@ -239,7 +217,7 @@ def _plot_parametric_3d(
     if title:
         ax.set_title(title)
 
-    img_b64 = _encode_figure(fig)
+    img_b64 = encode_figure(fig)
     plt.close(fig)
 
     return {
@@ -279,8 +257,8 @@ def math_plot_3d(ctx: PipelineContext) -> Dict[str, Any]:
         expr = str(
             params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
         )
-        x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
-        y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
+        x_range = parse_range(params.get("plot_3d_x_range", [-5, 5]))
+        y_range = parse_range(params.get("plot_3d_y_range", [-5, 5]))
         result = _plot_wireframe(
             expr, x_range, y_range,
             title=title, style=style,
@@ -291,7 +269,7 @@ def math_plot_3d(ctx: PipelineContext) -> Dict[str, Any]:
         x_expr = str(param.get("x", "cos(t)"))
         y_expr = str(param.get("y", "sin(t)"))
         z_expr = str(param.get("z", "t"))
-        t_range = _parse_range(param.get("t_range", [0, 6.28318]))
+        t_range = parse_range(param.get("t_range", [0, 6.28318]))
         result = _plot_parametric_3d(
             x_expr, y_expr, z_expr, t_range,
             title=title, style=style,
@@ -302,8 +280,8 @@ def math_plot_3d(ctx: PipelineContext) -> Dict[str, Any]:
         expr = str(
             params.get("plot_3d_expression", "sin(sqrt(x**2 + y**2))")
         )
-        x_range = _parse_range(params.get("plot_3d_x_range", [-5, 5]))
-        y_range = _parse_range(params.get("plot_3d_y_range", [-5, 5]))
+        x_range = parse_range(params.get("plot_3d_x_range", [-5, 5]))
+        y_range = parse_range(params.get("plot_3d_y_range", [-5, 5]))
         result = _plot_surface(
             expr, x_range, y_range, title=title, style=style,
             elev=elev, azim=azim,

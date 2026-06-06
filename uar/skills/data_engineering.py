@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
 from uar.core.contracts import PipelineContext
 from uar.core.registry import register_skill
-from uar.core.skill_utils import require_package, skill_guard
+from uar.core.skill_utils import require_field, require_package, skill_guard
 
 
 @register_skill("airflow_dag")
@@ -32,11 +32,11 @@ def airflow_dag(ctx: PipelineContext) -> Dict[str, Any]:
             return err
 
     meta = ctx.goal.metadata or {}
-    dag_path = meta.get("dag_file_path", "")
+    err = require_field(meta, "dag_file_path")
+    if err:
+        return err
+    dag_path = meta["dag_file_path"]
     operation = meta.get("dag_operation", "validate")
-
-    if not dag_path:
-        return {"status": "failed", "error": "dag_file_path required"}
 
     try:
         if operation == "validate":
@@ -183,14 +183,14 @@ def spark_process(ctx: PipelineContext) -> Dict[str, Any]:
     from pyspark.sql import SparkSession
 
     meta = ctx.goal.metadata or {}
-    data_path = meta.get("spark_data_path", "")
+    err = require_field(meta, "spark_data_path")
+    if err:
+        return err
+    data_path = meta["spark_data_path"]
     fmt = meta.get("spark_format", "csv")
     sql = meta.get("spark_sql", "")
     options = meta.get("spark_options", {})
     sample_n = int(meta.get("spark_sample_n", 5))
-
-    if not data_path:
-        return {"status": "failed", "error": "spark_data_path required"}
 
     try:
         spark = SparkSession.builder.appName(

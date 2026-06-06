@@ -179,19 +179,20 @@ class TestMathPlot3DEdgeCases:
         assert result["plot_type"] == "parametric_curve"
 
     def test_range_parsing(self):
-        """_parse_range handles various input types."""
-        assert mp3d._parse_range([0, 5]) == (0.0, 5.0)
-        assert mp3d._parse_range((-1, 1)) == (-1.0, 1.0)
-        assert mp3d._parse_range(None) == (-5.0, 5.0)
+        """parse_range handles various input types."""
+        from uar.core.plot_utils import parse_range
+        assert parse_range([0, 5]) == (0.0, 5.0)
+        assert parse_range((-1, 1)) == (-1.0, 1.0)
+        assert parse_range(None, default=(-5.0, 5.0)) == (-5.0, 5.0)
         # Single-element list falls through to default
-        assert mp3d._parse_range([1]) == (-5.0, 5.0)
+        assert parse_range([1], default=(-5.0, 5.0)) == (-5.0, 5.0)
 
     def test_invalid_figsize_env(self):
         import subprocess
         import sys
         code = (
             "import os; os.environ['MATH_PLOT_FIGSIZE'] = 'bad'; "
-            "import uar.skills.math_plot_3d as m; "
+            "import uar.core.plot_utils as m; "
             "print(m.DEFAULT_FIGSIZE)"
         )
         result = subprocess.run(

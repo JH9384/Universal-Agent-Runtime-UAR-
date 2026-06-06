@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-from uar.core.skill_utils import require_package, skill_guard
+from uar.core.skill_utils import require_field, require_package, skill_guard
 
 
 @register_skill("cern_root")
@@ -28,9 +28,10 @@ def cern_root(ctx: PipelineContext) -> Dict[str, Any]:
     import uproot
 
     meta = ctx.goal.metadata or {}
-    file_path = meta.get("root_file_path", "")
-    if not file_path:
-        return {"status": "failed", "error": "root_file_path required"}
+    err = require_field(meta, "root_file_path")
+    if err:
+        return err
+    file_path = meta["root_file_path"]
 
     try:
         with uproot.open(file_path) as file:

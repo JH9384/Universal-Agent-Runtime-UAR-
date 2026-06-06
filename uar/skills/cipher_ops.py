@@ -22,7 +22,7 @@ from typing import Dict, Any
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-from uar.core.skill_utils import require_package, skill_guard
+from uar.core.skill_utils import require_field, require_package, skill_guard
 
 logger = logging.getLogger(__name__)
 
@@ -335,11 +335,11 @@ def crypto_analyze(ctx: PipelineContext) -> Dict[str, Any]:
     from collections import Counter
 
     meta = ctx.goal.metadata or {}
-    data_b64 = meta.get("analyze_data", "")
+    err = require_field(meta, "analyze_data")
+    if err:
+        return err
+    data_b64 = meta["analyze_data"]
     analyze_type = meta.get("analyze_type", "all")
-
-    if not data_b64:
-        return {"status": "failed", "error": "analyze_data required"}
 
     try:
         data = _decode_base64(data_b64)

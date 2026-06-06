@@ -19,6 +19,7 @@ Last counted (2026-06-06):
 | `except httpx.HTTPError` handler | 6 files | Class-based client | `uar/objects/alm_client.py` |
 | `if self.client is None:` mock fallback | 6 files | `_mock_result()` helper | `uar/core/uor_ecosystem.py` |
 | Inline `compute_uor_digest` try/except | 20 files | `wrap_with_digest()` | `uar/core/skill_utils.py` |
+| Matplotlib config + encode + parse | 2 files | `uar.core.plot_utils` | `uar/skills/math_plot*.py` |
 | `@register_skill` + `@skill_guard` pair | 105 skills | Decorator ordering rule | `uar/skills/` |
 
 ---
@@ -194,7 +195,37 @@ Applied to:
 
 ---
 
-## 8. Decorator Ordering
+## 8. Matplotlib Plotting Utilities
+
+**Problem:** `math_plot.py` and `math_plot_3d.py` duplicated config parsing
+(`DEFAULT_DPI`, `DEFAULT_FIGSIZE`), figure encoding, and range parsing.
+
+**Fix:** Extract shared helpers to `uar.core.plot_utils`.
+
+```python
+# BAD — duplicated in both files
+DEFAULT_DPI = max(1, min(600, int(os.getenv("MATH_PLOT_DPI", "150").strip() or "150")))
+_figsize_raw = os.getenv("MATH_PLOT_FIGSIZE", "8,6").strip() or "8,6"
+...
+
+def _encode_figure(fig) -> str:
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=DEFAULT_DPI, bbox_inches="tight")
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode("utf-8")
+
+# GOOD — single source of truth
+from uar.core.plot_utils import DEFAULT_FIGSIZE, encode_figure, parse_range
+```
+
+Applied to:
+
+- `uar/skills/math_plot.py`
+- `uar/skills/math_plot_3d.py`
+
+---
+
+## 9. Decorator Ordering
 
 **Rule:** `@register_skill` must always be the outermost decorator,
 `@skill_guard` the innermost (directly above the function).
@@ -214,7 +245,8 @@ def my_skill(ctx: PipelineContext) -> Dict[str, Any]:
 
 1. [ ] Create `uar.core.skill_bootstrap` re-export module (evaluate cost/benefit)
 2. [ ] Add `PipelineContext.get_metadata()` convenience method
-3. [ ] Apply `require_field()` to all skills with single-field validation
-4. [ ] Apply `require_package()` to all soft-dependency skills
-5. [ ] Migrate remaining `compute_uor_digest` inline blocks to `wrap_with_digest()`
-6. [ ] Audit new skills in review for these patterns
+3. [x] Apply `require_field()` to all skills with single-field validation
+4. [x] Apply `require_package()` to all soft-dependency skills
+5. [x] Migrate remaining `compute_uor_digest` inline blocks to `wrap_with_digest()`
+6. [x] Extract duplicated plotting utilities to `uar.core.plot_utils`
+7. [ ] Audit new skills in review for these patterns
