@@ -127,82 +127,79 @@ def smart_contract(ctx: PipelineContext) -> Dict[str, Any]:
     meta = ctx.goal.metadata or {}
     rpc_url = meta.get("sc_rpc_url", "http://localhost:8545")
 
-    try:
-        w3 = Web3(Web3.HTTPProvider(rpc_url))
-        if not w3.is_connected():
-            return {
-                "status": "failed",
-                "error": f"Could not connect to {rpc_url}",
-            }
-
-        # Minimal storage contract if none provided
-        bytecode = meta.get(
-            "sc_bytecode",
-            (
-                "608060405234801561001057600080fd5b506004361061003657"
-                "60003560e01c80632e64cec11461003b5780636057361d146100"
-                "59575b600080fd5b610043610075565b60405161005091906100"
-                "d0565b60405180910390f35b610073600480360381019061006e"
-                "9190610119565b61007e565b005b60008054905090565b806000"
-                "8190555050565b6000819050919050565b61009c81610089565b"
-                "82525050565b7f4e487b71000000000000000000000000000000"
-                "00000000000000000000000000600052602060045260246000fd"
-                "5b7f4e487b71000000000000000000000000000000000000000"
-                "0000000000000000600052601160045260246000fd5b60006100"
-                "ff826100c1565b9050919050565b61010f816100f1565b811461"
-                "011a57600080fd5b50565b60008135905061012c81610106565b"
-                "9291505056"
-            ),
-        )
-        abi = meta.get("sc_abi")
-        if abi and isinstance(abi, str):
-            import json
-
-            abi = json.loads(abi)
-        if not abi:
-            abi = [
-                {
-                    "inputs": [],
-                    "name": "retrieve",
-                    "outputs": [
-                        {
-                            "internalType": "uint256",
-                            "name": "",
-                            "type": "uint256",
-                        }
-                    ],
-                    "stateMutability": "view",
-                    "type": "function",
-                },
-                {
-                    "inputs": [
-                        {
-                            "internalType": "uint256",
-                            "name": "num",
-                            "type": "uint256",
-                        }
-                    ],
-                    "name": "store",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function",
-                },
-            ]
-
-        Contract = w3.eth.contract(abi=abi, bytecode=bytecode)
-        ctor_args = meta.get("sc_constructor", [])
-        tx_hash = Contract.constructor(*ctor_args).transact()
-        tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-
+    w3 = Web3(Web3.HTTPProvider(rpc_url))
+    if not w3.is_connected():
         return {
-            "status": "completed",
-            "contract_address": tx_receipt.contractAddress,
-            "block_number": tx_receipt.blockNumber,
-            "gas_used": tx_receipt.gasUsed,
-            "rpc_url": rpc_url,
+            "status": "failed",
+            "error": f"Could not connect to {rpc_url}",
         }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+
+    # Minimal storage contract if none provided
+    bytecode = meta.get(
+        "sc_bytecode",
+        (
+            "608060405234801561001057600080fd5b506004361061003657"
+            "60003560e01c80632e64cec11461003b5780636057361d146100"
+            "59575b600080fd5b610043610075565b60405161005091906100"
+            "d0565b60405180910390f35b610073600480360381019061006e"
+            "9190610119565b61007e565b005b60008054905090565b806000"
+            "8190555050565b6000819050919050565b61009c81610089565b"
+            "82525050565b7f4e487b71000000000000000000000000000000"
+            "00000000000000000000000000600052602060045260246000fd"
+            "5b7f4e487b71000000000000000000000000000000000000000"
+            "0000000000000000600052601160045260246000fd5b60006100"
+            "ff826100c1565b9050919050565b61010f816100f1565b811461"
+            "011a57600080fd5b50565b60008135905061012c81610106565b"
+            "9291505056"
+        ),
+    )
+    abi = meta.get("sc_abi")
+    if abi and isinstance(abi, str):
+        import json
+
+        abi = json.loads(abi)
+    if not abi:
+        abi = [
+            {
+                "inputs": [],
+                "name": "retrieve",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256",
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function",
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "num",
+                        "type": "uint256",
+                    }
+                ],
+                "name": "store",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+        ]
+
+    Contract = w3.eth.contract(abi=abi, bytecode=bytecode)
+    ctor_args = meta.get("sc_constructor", [])
+    tx_hash = Contract.constructor(*ctor_args).transact()
+    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+    return {
+        "status": "completed",
+        "contract_address": tx_receipt.contractAddress,
+        "block_number": tx_receipt.blockNumber,
+        "gas_used": tx_receipt.gasUsed,
+        "rpc_url": rpc_url,
+    }
 
 
 @register_skill("nft_mint")
@@ -237,85 +234,82 @@ def nft_mint(ctx: PipelineContext) -> Dict[str, Any]:
             "error": "nft_recipient required",
         }
 
-    try:
-        w3 = Web3(Web3.HTTPProvider(rpc_url))
-        if not w3.is_connected():
-            return {
-                "status": "failed",
-                "error": f"Could not connect to {rpc_url}",
-            }
-
-        # Minimal ERC721 contract
-        bytecode = (
-            "608060405234801561001057600080fd5b5061001d6100226000"
-            "3961001d6100226000f3fe6080604052348015600f57600080fd"
-            "5b506004361060325760003560e01c8063a9059cbb1460375780"
-            "6342966c6814604f575b600080fd5b604d60426064565b005b60"
-            "52600080fd5b604d6060565b60008054905090565b60008190"
-            "5091905056fea2646970667358221220deadbeef"
-        )
-        abi = [
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "to",
-                        "type": "address",
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "tokenId",
-                        "type": "uint256",
-                    },
-                ],
-                "name": "mint",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function",
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "tokenId",
-                        "type": "uint256",
-                    }
-                ],
-                "name": "ownerOf",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address",
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function",
-            },
-        ]
-
-        Contract = w3.eth.contract(abi=abi, bytecode=bytecode)
-        tx_hash = Contract.constructor().transact()
-        tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        contract = w3.eth.contract(
-            address=tx_receipt.contractAddress, abi=abi
-        )
-
-        mint_tx = contract.functions.mint(recipient, token_id).transact()
-        mint_receipt = w3.eth.wait_for_transaction_receipt(mint_tx)
-        owner = contract.functions.ownerOf(token_id).call()
-
-        result: Dict[str, Any] = {
-            "status": "completed",
-            "contract_address": tx_receipt.contractAddress,
-            "token_id": token_id,
-            "recipient": recipient,
-            "owner": owner,
-            "rpc_url": rpc_url,
-            "mint_gas_used": mint_receipt.gasUsed,
+    w3 = Web3(Web3.HTTPProvider(rpc_url))
+    if not w3.is_connected():
+        return {
+            "status": "failed",
+            "error": f"Could not connect to {rpc_url}",
         }
-        if uri:
-            result["uri"] = uri
-        return result
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+
+    # Minimal ERC721 contract
+    bytecode = (
+        "608060405234801561001057600080fd5b5061001d6100226000"
+        "3961001d6100226000f3fe6080604052348015600f57600080fd"
+        "5b506004361060325760003560e01c8063a9059cbb1460375780"
+        "6342966c6814604f575b600080fd5b604d60426064565b005b60"
+        "52600080fd5b604d6060565b60008054905090565b60008190"
+        "5091905056fea2646970667358221220deadbeef"
+    )
+    abi = [
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "to",
+                    "type": "address",
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "tokenId",
+                    "type": "uint256",
+                },
+            ],
+            "name": "mint",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function",
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "tokenId",
+                    "type": "uint256",
+                }
+            ],
+            "name": "ownerOf",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address",
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function",
+        },
+    ]
+
+    Contract = w3.eth.contract(abi=abi, bytecode=bytecode)
+    tx_hash = Contract.constructor().transact()
+    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+    contract = w3.eth.contract(
+        address=tx_receipt.contractAddress, abi=abi
+    )
+
+    mint_tx = contract.functions.mint(recipient, token_id).transact()
+    mint_receipt = w3.eth.wait_for_transaction_receipt(mint_tx)
+    owner = contract.functions.ownerOf(token_id).call()
+
+    result: Dict[str, Any] = {
+        "status": "completed",
+        "contract_address": tx_receipt.contractAddress,
+        "token_id": token_id,
+        "recipient": recipient,
+        "owner": owner,
+        "rpc_url": rpc_url,
+        "mint_gas_used": mint_receipt.gasUsed,
+    }
+    if uri:
+        result["uri"] = uri
+    return result

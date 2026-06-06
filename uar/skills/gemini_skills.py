@@ -30,7 +30,7 @@ except ImportError:
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
 from uar.core.circuit_breaker_decorator import with_circuit_breaker
-from uar.core.skill_utils import require_package, skill_guard
+from uar.core.skill_utils import require_env, require_package, skill_guard
 from uar.skills.llm_base import (
     make_model_getter,
     make_temperature_getter,
@@ -93,8 +93,9 @@ def gemini_chat(ctx: PipelineContext) -> Dict[str, Any]:
     if err:
         return err
 
-    if not os.getenv("GEMINI_API_KEY"):
-        return {"status": "failed", "error": "GEMINI_API_KEY not set"}
+    err = require_env("GEMINI_API_KEY")
+    if err:
+        return err
 
     meta = ctx.goal.metadata or {}
     messages = meta.get("messages", [])
@@ -188,8 +189,9 @@ def gemini_completion(ctx: PipelineContext) -> Dict[str, Any]:
     if err:
         return err
 
-    if not os.getenv("GEMINI_API_KEY"):
-        return {"status": "failed", "error": "GEMINI_API_KEY not set"}
+    err = require_env("GEMINI_API_KEY")
+    if err:
+        return err
 
     meta = ctx.goal.metadata or {}
     prompt = meta.get("prompt", ctx.goal.objective)
@@ -254,8 +256,9 @@ def gemini_embedding(ctx: PipelineContext) -> Dict[str, Any]:
     if err:
         return err
 
-    if not os.getenv("GEMINI_API_KEY"):
-        return {"status": "failed", "error": "GEMINI_API_KEY not set"}
+    err = require_env("GEMINI_API_KEY")
+    if err:
+        return err
 
     meta = ctx.goal.metadata or {}
     text = meta.get("text", ctx.goal.objective)

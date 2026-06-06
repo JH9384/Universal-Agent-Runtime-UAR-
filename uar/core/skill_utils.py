@@ -217,3 +217,30 @@ def require_path(
         return None
     msg = error_msg or f"{key} not found"
     return {"status": "failed", "error": msg}
+
+
+def require_env(
+    var: str,
+    error_msg: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Return error dict if environment variable *var* is missing or empty.
+
+    Eliminates repeated ``os.getenv`` checks in LLM integration skills.
+
+    Args:
+        var: Environment variable name.
+        error_msg: Optional custom error message. Defaults to
+            ``"<var> not set"``.
+
+    Usage::
+
+        err = require_env("GEMINI_API_KEY")
+        if err:
+            return err
+    """
+    import os
+
+    if os.getenv(var):
+        return None
+    msg = error_msg or f"{var} not set"
+    return {"status": "failed", "error": msg}
