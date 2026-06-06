@@ -140,21 +140,27 @@ def get_store() -> RunStoreProtocol:
       2. ``UAR_SQLITE_PATH`` set  → ``SqliteRunStore``
       3. Otherwise                → ``JsonRunStore``
 
+    When ``UAR_ENCRYPTION_KEY`` is set the store is wrapped with
+    :class:`~uar.memory.encryption.EncryptedRunStore` for transparent
+    encryption at rest.
+
     All three satisfy :class:`RunStoreProtocol` so callers work
     transparently across backends.
     """
+    from uar.memory.encryption import maybe_encrypt_store
+
     db_url = os.getenv("UAR_DATABASE_URL", "").strip()
     if db_url:
         from uar.memory.postgres_store import PostgresRunStore
 
-        return PostgresRunStore(db_url)
+        return maybe_encrypt_store(PostgresRunStore(db_url))
 
     sqlite_path = os.getenv("UAR_SQLITE_PATH", "").strip()
     if sqlite_path:
         from uar.memory.sqlite_store import SqliteRunStore
 
-        return SqliteRunStore(path=sqlite_path)
+        return maybe_encrypt_store(SqliteRunStore(path=sqlite_path))
 
     from uar.memory.json_store import JsonRunStore
 
-    return JsonRunStore()
+    return maybe_encrypt_store(JsonRunStore())
