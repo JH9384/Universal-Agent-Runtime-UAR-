@@ -44,7 +44,32 @@ def _extract_modules(source: str) -> List[Dict[str, Any]]:
 def _parse_ports(ports_str: str) -> List[Dict[str, str]]:
     """Parse port list string into direction/name pairs."""
     ports: List[Dict[str, str]] = []
-    # Handle ANSI-style port declarations within module body
+    if not ports_str.strip():
+        return ports
+
+    # ANSI-style:  input [7:0] foo, output bar
+    # Simple:      foo, bar, baz
+    ansi_pat = re.compile(
+        r'(input|output|inout)'
+        r'\s*(?:reg|wire|logic)?\s*(?:\[\d+:\d+\])?\s*(\w+)'
+    )
+
+    for m in ansi_pat.finditer(ports_str):
+        ports.append({
+            "direction": m.group(1),
+            "name": m.group(2),
+        })
+
+    # Simple port list (names only, no direction keywords)
+    if not ports:
+        for name in re.split(r'[\s,]+', ports_str.strip()):
+            name = name.strip()
+            if name and name not in ('wire', 'reg', 'logic'):
+                ports.append({
+                    "direction": "unknown",
+                    "name": name,
+                })
+
     return ports
 
 

@@ -31,6 +31,8 @@ _PLUGIN_ENTRY_GROUP = "uar.skills"
 
 def _load_module_from_path(module_name: str, file_path: Path) -> Any:
     """Load a Python module from an arbitrary file path."""
+    if not file_path.exists():
+        raise ImportError(f"File not found: {file_path}")
     spec = importlib.util.spec_from_file_location(
         module_name, file_path
     )

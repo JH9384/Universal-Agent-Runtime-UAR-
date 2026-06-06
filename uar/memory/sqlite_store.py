@@ -941,6 +941,13 @@ class SqliteRunStore:
                 self._conn.close()
                 self._conn = None
 
+    def __del__(self):
+        """Best-effort cleanup to prevent unclosed connection warnings."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
 
 def _decode_row(row: Dict[str, Any]) -> Dict[str, Any]:
     for key in ("skills", "events", "outputs", "metadata", "uor_witness"):
