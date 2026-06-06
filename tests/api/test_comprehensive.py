@@ -307,7 +307,7 @@ class TestHealthEndpoints:
         """Test basic health endpoint"""
         response = client.get("/api/health")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "status" in data
 
     def test_health_live_endpoint(self):

@@ -40,7 +40,7 @@ class TestHealthCheck:
     def test_health_returns_version(self):
         response = client.get("/api/health")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["status"] == "healthy"
         assert "version" in data
         assert "uor_upstream_version" in data
@@ -50,14 +50,14 @@ class TestLivenessProbe:
     def test_live(self):
         response = client.get("/api/health/live")
         assert response.status_code == 200
-        assert response.json()["status"] == "alive"
+        assert response.json()["data"]["status"] == "alive"
 
 
 class TestReadinessProbe:
     def test_ready(self):
         response = client.get("/api/health/ready")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["status"] == "ready"
         assert data["checks"]["disk_writable"] is True
 
@@ -70,7 +70,7 @@ class TestCircuitBreakers:
             headers={"Authorization": "Bearer dev-key-12345"},
         )
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "circuits" in data
         assert "status" in data
 
@@ -95,7 +95,7 @@ class TestCircuitBreakers:
             headers={"Authorization": "Bearer dev-key-12345"},
         )
         assert response.status_code == 503
-        data = response.json()
+        data = response.json()["data"]
         assert data["status"] == "degraded"
 
     def test_reset_circuit_breaker(self):
@@ -123,7 +123,7 @@ class TestCircuitBreakers:
             headers={"Authorization": "Bearer dev-key-12345"},
         )
         assert response.status_code == 200
-        assert response.json()["status"] == "reset"
+        assert response.json()["data"]["status"] == "reset"
         states = asyncio.run(get_circuit_breaker_states())
         assert states["test_reset_svc"] == "closed"
 
@@ -153,7 +153,7 @@ class TestCircuitBreakers:
             headers={"Authorization": "Bearer dev-key-12345"},
         )
         assert response.status_code == 503
-        data = response.json()
+        data = response.json()["data"]
         circuit = data["circuits"]["rich_detail_svc"]
         assert circuit["state"] == "open"
         assert circuit["failures"] == 1
@@ -169,7 +169,7 @@ class TestHealthDashboard:
             headers={"Authorization": "Bearer dev-key-12345"},
         )
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "skills" in data
         assert "circuit_breakers" in data
         assert "server_version" in data
@@ -199,7 +199,7 @@ class TestHealthDashboard:
             headers={"Authorization": "Bearer dev-key-12345"},
         )
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         circuit = next(
             (
                 c
@@ -224,7 +224,7 @@ class TestReadinessProbeEdgeCases:
         ):
             response = client.get("/api/health/ready")
         assert response.status_code == 503
-        assert response.json()["checks"]["disk_writable"] is False
+        assert response.json()["data"]["checks"]["disk_writable"] is False
 
 
 class TestCircuitBreakerAuth:
@@ -266,6 +266,6 @@ class TestHealthDashboardEdgeCases:
                 headers={"Authorization": "Bearer dev-key-12345"},
             )
         assert response.status_code == 200
-        skills = response.json()["skills"]
+        skills = response.json()["data"]["skills"]
         bad = [s for s in skills if s["name"] == "bad_skill"]
         assert bad[0]["available"] is False

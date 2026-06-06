@@ -192,11 +192,12 @@ class TestAPIErrorHandling:
         response = client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "healthy"
-        assert "version" in data
-        assert data["version"]
-        assert data["uor_upstream_version"].startswith("v") or (
-            data["uor_upstream_version"] == "unknown"
+        payload = data["data"]
+        assert payload["status"] == "healthy"
+        assert "version" in payload
+        assert payload["version"]
+        assert payload["uor_upstream_version"].startswith("v") or (
+            payload["uor_upstream_version"] == "unknown"
         )
 
     def test_status_endpoint(self):
@@ -204,9 +205,10 @@ class TestAPIErrorHandling:
         response = client.get("/api/status")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "operational"
-        assert "available_skills" in data
-        assert "user" in data
+        payload = data["data"]
+        assert payload["status"] == "operational"
+        assert "available_skills" in payload
+        assert "user" in payload
 
 
 class TestRateLimiting:

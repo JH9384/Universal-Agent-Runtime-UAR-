@@ -158,7 +158,7 @@ def test_ws_heartbeat_interval():
     We patch the heartbeat interval to a very short value so the
     test completes quickly.
     """
-    with patch("uar.api.server.WS_HEARTBEAT_INTERVAL", 0):
+    with patch("uar.api.routers.streaming.WS_HEARTBEAT_INTERVAL", 0):
         with client.websocket_connect("/ws/run") as ws:
             ws.send_json({"goal": "test heartbeat"})
             messages = []
@@ -184,9 +184,9 @@ def test_ws_event_limit_enforced():
 
     We patch the limit to a tiny value so the test triggers it.
     """
-    import uar.api.server as server_mod
+    import uar.api.routers.streaming as _streaming_mod
 
-    with patch.object(server_mod._exec_svc, "max_stream_events", 3):
+    with patch.object(_streaming_mod._exec_svc, "max_stream_events", 3):
         with client.websocket_connect("/ws/run") as ws:
             ws.send_json({"goal": "test limit"})
             messages = []
@@ -213,8 +213,8 @@ def test_ws_batching_accumulates_and_flushes():
     We patch batch size to 2 and timeout to 0.01s to force frequent
     flushes so the test does not hang.
     """
-    with patch("uar.api.server.WS_BATCH_SIZE", 2):
-        with patch("uar.api.server.WS_BATCH_TIMEOUT", 0.01):
+    with patch("uar.api.routers.streaming.WS_BATCH_SIZE", 2):
+        with patch("uar.api.routers.streaming.WS_BATCH_TIMEOUT", 0.01):
             with client.websocket_connect("/ws/run") as ws:
                 ws.send_json({"goal": "test batching"})
                 messages = []

@@ -35,7 +35,7 @@ def client():
 
     reset_rate_limiter()
     with patch.dict(os.environ, {"ENVIRONMENT": "development"}):
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             app.include_router(router)
             yield TestClient(app)
 
@@ -69,7 +69,7 @@ class TestProvenance:
     def test_provenance_not_found(self, client):
         mock_store = MagicMock()
         mock_store.get_by_run_id.return_value = None
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             response = client.get("/api/provenance/nope")
         assert response.status_code == 404
 
@@ -103,7 +103,7 @@ class TestCompareRuns:
     def test_compare_not_found(self, client):
         mock_store = MagicMock()
         mock_store.get_by_run_id.return_value = None
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             response = client.get("/api/uar/runs/r1/compare/r2")
         assert response.status_code == 404
 
@@ -151,9 +151,9 @@ class TestRunGoal:
             "events": [],
             "final_context": {},
         }
-        with patch("uar.api.server._idempotency_get") as mget:
+        with patch("uar.api.routers.runs._idempotency_get") as mget:
             mget.return_value = cached
-            with patch("uar.api.server._idempotency_set"):
+            with patch("uar.api.routers.runs._idempotency_set"):
                 response = client.post(
                     "/api/uar/run",
                     json={
@@ -166,9 +166,9 @@ class TestRunGoal:
         assert data["status"] == "cached"
 
     def test_idempotency_set(self, client):
-        with patch("uar.api.server._idempotency_get") as mget:
+        with patch("uar.api.routers.runs._idempotency_get") as mget:
             mget.return_value = None
-            with patch("uar.api.server._idempotency_set") as mset:
+            with patch("uar.api.routers.runs._idempotency_set") as mset:
                 with patch("uar.core.executor.Executor") as MockExec:
                     mock_result = MagicMock()
                     mock_result.run_id = "r1"
@@ -219,7 +219,7 @@ class TestGetRunTimeline:
             "run_id": "r1",
             "user_id": "other_user",
         }
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             with patch(
                 "uar.api.routers.runs.auth_middleware",
                 return_value={"user": "me", "tier": "user"},
@@ -232,7 +232,7 @@ class TestListRunsError:
     def test_exception(self, client):
         mock_store = MagicMock()
         mock_store.list_records.side_effect = RuntimeError("db fail")
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             response = client.get("/api/uar/runs")
         assert response.status_code == 500
 
@@ -244,7 +244,7 @@ class TestProvenanceAuth:
             "run_id": "r1",
             "user_id": "other_user",
         }
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             with patch(
                 "uar.api.routers.runs.auth_middleware",
                 return_value={"user": "me", "tier": "user"},
@@ -262,7 +262,7 @@ class TestCompareRunsMissing:
 
         mock_store = MagicMock()
         mock_store.get_by_run_id.side_effect = side_effect
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             response = client.get("/api/uar/runs/r1/compare/r2")
         assert response.status_code == 404
 
@@ -279,7 +279,7 @@ class TestBulkDeleteOwnership:
         mock_store = MagicMock()
         mock_store.get_by_run_id.side_effect = side_effect
         mock_store.delete.return_value = None
-        with patch("uar.api.server.store", mock_store):
+        with patch("uar.api.routers.runs.store", mock_store):
             with patch(
                 "uar.api.routers.runs.auth_middleware",
                 return_value={"user": "me", "tier": "user"},

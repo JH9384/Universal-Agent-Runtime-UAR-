@@ -29,7 +29,9 @@ def test_run_endpoint():
 def test_list_runs():
     response = client.get("/api/uar/runs")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    payload = response.json()["data"]
+    assert "items" in payload
+    assert "total" in payload
 
 
 def test_get_recipes():
@@ -433,3 +435,170 @@ class TestEcosystemAPI:
         assert "skill_start" in types
         assert "skill_complete" in types
         assert "metrics" in types
+
+
+def test_alerts_summary_has_tab_field():
+    """GET /api/uar/alerts/summary returns alerts with tab routing field."""
+    response = client.get(
+        "/api/uar/alerts/summary?hours=24",
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "top_alert" in data
+    assert "alerts" in data
+    assert "tab" in data["top_alert"]
+    # Tab must be one of the known Mission Control tabs
+    assert data["top_alert"]["tab"] in {
+        "health", "trends", "failures", "topology", "intelligence"
+    }
+
+
+def test_fleet_heartbeat_and_nodes():
+    """Fleet heartbeat registers a node; nodes endpoint lists it."""
+    # Register a node
+    hb = client.post(
+        "/api/uar/fleet/heartbeat",
+        json={
+            "node_id": "test-node-1",
+            "node_name": "Test Node",
+            "version": "1.0.0",
+            "health_score": 85,
+            "cert_level": "Silver",
+            "active_runs": 2,
+            "skills_total": 10,
+            "skills_available": 9,
+            "circuit_breakers_open": 0,
+        },
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert hb.status_code == 200
+    assert hb.json()["node_id"] == "test-node-1"
+
+    # List nodes
+    nodes = client.get(
+        "/api/uar/fleet/nodes",
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert nodes.status_code == 200
+    data = nodes.json()
+    assert data["online_count"] >= 1
+    ids = [n["node_id"] for n in data["nodes"]]
+    assert "test-node-1" in ids
+
+    # Fleet health aggregate
+    health = client.get(
+        "/api/uar/fleet/health",
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert health.status_code == 200
+    hdata = health.json()
+    assert hdata["nodes_online"] >= 1
+    assert isinstance(hdata["fleet_health_score"], int)
+
+
+def test_fleet_failures_correlation():
+    """Fleet failures endpoint correlates clusters across nodes."""
+    # Node A reports failures for skill "riscv"
+    client.post(
+        "/api/uar/fleet/heartbeat",
+        json={
+            "node_id": "node-a",
+            "node_name": "Node A",
+            "version": "1.0.0",
+            "health_score": 70,
+            "cert_level": "Silver",
+            "failure_clusters": [
+                {"skill": "riscv", "count": 5, "error": "segfault"},
+                {"skill": "parse", "count": 2, "error": "timeout"},
+            ],
+        },
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    # Node B reports failures for same skill "riscv"
+    client.post(
+        "/api/uar/fleet/heartbeat",
+        json={
+            "node_id": "node-b",
+            "node_name": "Node B",
+            "version": "1.0.0",
+            "health_score": 60,
+            "cert_level": "Silver",
+            "failure_clusters": [
+                {"skill": "riscv", "count": 3, "error": "segfault"},
+            ],
+        },
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    # Node C reports failures for same skill "riscv"
+    client.post(
+        "/api/uar/fleet/heartbeat",
+        json={
+            "node_id": "node-c",
+            "node_name": "Node C",
+            "version": "1.0.0",
+            "health_score": 55,
+            "cert_level": "Experimental",
+            "failure_clusters": [
+                {"skill": "riscv", "count": 8, "error": "segfault"},
+            ],
+        },
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+
+    resp = client.get(
+        "/api/uar/fleet/failures",
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "hotspots" in data
+    # riscv failing on 3 nodes should be a fleet-wide hotspot
+    riscv_hotspot = next(
+        (h for h in data["hotspots"] if h["skill"] == "riscv"), None
+    )
+    assert riscv_hotspot is not None
+    assert riscv_hotspot["affected_nodes"] == 3
+
+
+def test_fleet_routing():
+    """Fleet routing endpoint ranks nodes for a skill."""
+    # Register nodes with distinct health scores
+    client.post(
+        "/api/uar/fleet/heartbeat",
+        json={
+            "node_id": "routing-node-1",
+            "node_name": "Routing Node 1",
+            "version": "1.0.0",
+            "health_score": 95,
+            "cert_level": "Silver",
+            "skills_available": 10,
+            "circuit_breakers_open": 0,
+        },
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    client.post(
+        "/api/uar/fleet/heartbeat",
+        json={
+            "node_id": "routing-node-2",
+            "node_name": "Routing Node 2",
+            "version": "1.0.0",
+            "health_score": 30,
+            "cert_level": "Silver",
+            "skills_available": 5,
+            "circuit_breakers_open": 1,
+        },
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+
+    resp = client.get(
+        "/api/uar/fleet/routing?skill=echo",
+        headers={"Authorization": "Bearer dev-key-12345"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    recs = data["recommendations"]
+    # Healthier node should rank first
+    top = recs[0]
+    assert top["node_id"] == "routing-node-1"
+    assert top["score"] > 70

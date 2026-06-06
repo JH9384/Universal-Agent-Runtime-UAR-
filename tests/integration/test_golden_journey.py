@@ -103,7 +103,8 @@ class TestGoldenJourney:
 
         resp = journey_client.get("/api/uar/runs", headers=AUTH_HEADERS)
         assert resp.status_code == 200, resp.text
-        run_ids = [r.get("run_id", r.get("id", "")) for r in resp.json()]
+        items = resp.json()["data"]["items"]
+        run_ids = [r.get("run_id", r.get("id", "")) for r in items]
         assert run_id in run_ids, (
             f"run_id {run_id!r} not found in /api/uar/runs"
         )
@@ -268,7 +269,8 @@ class TestGoldenJourney:
     def test_step8_system_integrity_after_journey(self, journey_client):
         resp = journey_client.get("/api/uar/runs", headers=AUTH_HEADERS)
         assert resp.status_code == 200, resp.text
-        assert isinstance(resp.json(), list)
+        payload = resp.json()["data"]
+        assert "items" in payload
 
         resp2 = journey_client.get(
             "/api/uar/incidents", headers=AUTH_HEADERS

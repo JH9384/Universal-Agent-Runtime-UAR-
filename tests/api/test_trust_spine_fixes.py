@@ -54,10 +54,13 @@ def client():
 
 @pytest.fixture()
 def isolated_store(tmp_path, monkeypatch):
-    import uar.api.server as _server_mod
+    from uar.api.state import set_service_container
+    from uar.container import ServiceContainer
 
     store = SqliteRunStore(path=str(tmp_path / "fix_tests.db"))
-    monkeypatch.setattr(_server_mod, "store", store)
+    container = ServiceContainer()
+    container._store = store
+    set_service_container(container)
     return store
 
 
@@ -4643,3 +4646,29 @@ def test_websocket_accept_uses_baseexception_not_exception():
             "Found `except Exception:` after websocket.accept() — "
             "this leaks the connection counter on BaseException"
         )
+
+
+def test_t1_no_core_module_imports_from_api_state():
+    """T1: DI Container — uar.core modules must not import from uar.api.state.
+
+    Go/No-Go Gate G1 for Omega-7B.1 Operational Validation.
+    """
+    import os
+    import subprocess
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    result = subprocess.run(
+        [
+            "grep", "-r", "from uar.api.state",
+            os.path.join(repo_root, "uar", "core"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1, (
+        f"uar/core modules still import from uar.api.state:\n{result.stdout}"
+    )
+    assert result.stdout == "", (
+        f"uar/core should have zero imports from uar.api.state; found:\n"
+        f"{result.stdout}"
+    )

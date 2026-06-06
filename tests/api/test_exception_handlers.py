@@ -65,7 +65,7 @@ class TestHandlerBodies:
         import asyncio
         response = asyncio.run(handler(None, exc))
         assert response.status_code == 400
-        assert b"Path security violation" in response.body
+        assert b"path_security_violation" in response.body
 
     def test_uar_error_handler_body(self):
         app = FastAPI()
@@ -75,7 +75,7 @@ class TestHandlerBodies:
         import asyncio
         response = asyncio.run(handler(None, exc))
         assert response.status_code == 500
-        assert b"Internal error" in response.body
+        assert b"internal_error" in response.body
 
     def test_external_service_error(self):
         exc = ExternalServiceError("ollama", "conn refused")

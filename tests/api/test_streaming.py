@@ -1,4 +1,5 @@
 import json
+import tempfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -93,19 +94,31 @@ def test_stream_persists_without_duplicate_execution():
     if os.environ.get("PYTEST_XDIST_WORKER"):
         pytest.skip("Store-mutation test not safe under xdist")
 
-    # Clear store to avoid limit masking the new record
-    from uar.api.server import store
+    # Reset container to a fresh JsonRunStore for this test
+    from uar.api.state import set_service_container
+    from uar.container import ServiceContainer
+    from uar.memory.json_store import JsonRunStore
 
-    store.path.write_text("")
-    before = client.get("/api/uar/runs").json()
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False
+    ) as f:
+        tmp_path = f.name
+    try:
+        container = ServiceContainer()
+        container._store = JsonRunStore(path=tmp_path)
+        set_service_container(container)
 
-    with client.stream(
-        "POST",
-        "/api/uar/stream",
-        json={"goal": "single execution", "skills": ["section_sum"]},
-    ) as response:
-        assert response.status_code == 200
-        _read_sse_events(response)
+        before = client.get("/api/uar/runs").json()["data"]["items"]
 
-    after = client.get("/api/uar/runs").json()
-    assert len(after) == len(before) + 1
+        with client.stream(
+            "POST",
+            "/api/uar/stream",
+            json={"goal": "single execution", "skills": ["section_sum"]},
+        ) as response:
+            assert response.status_code == 200
+            _read_sse_events(response)
+
+        after = client.get("/api/uar/runs").json()["data"]["items"]
+        assert len(after) == len(before) + 1
+    finally:
+        os.unlink(tmp_path)

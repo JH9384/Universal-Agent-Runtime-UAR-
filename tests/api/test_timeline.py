@@ -27,4 +27,6 @@ class TestTimelineEndpoint:
         """The list-runs endpoint should be reachable (may return empty)."""
         r = client.get("/api/uar/runs")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        payload = r.json()["data"]
+        assert "items" in payload
+        assert "total" in payload

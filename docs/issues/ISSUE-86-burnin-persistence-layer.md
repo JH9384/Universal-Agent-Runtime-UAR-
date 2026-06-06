@@ -1,6 +1,6 @@
 # Issue #86 — Burn-In Persistence Layer
 
-Status: Open
+Status: **Resolved** (2026-06-05)
 Priority: P2
 Phase: Trust Spine Hardening
 Depends on: T3 (Burn-In Framework)
@@ -74,13 +74,25 @@ CREATE TABLE IF NOT EXISTS uar_metadata (
 );
 ```
 
+## Resolution
+
+Implemented in `uar/api/routers/burn_in.py`:
+- `BURNIN_REPORT_KEY = "__burnin_latest__"`
+- `_set_latest_report(report_dict, store)` writes to in-process slot then persists via `store.put_metadata()`
+- `BurnInProxy.from_latest(store)` and `snapshot_latest(store)` recover from store on cache miss with TOCTOU-safe compare-and-set
+
+Implemented in `uar/memory/sqlite_store.py`:
+- `put_metadata(key, value)` — JSON-serializable upsert via writer thread
+- `get_metadata(key)` — reads from `uar_metadata` table via reader pool
+- `uar_metadata` table created in `_ensure_table()` DDL
+
 ## Acceptance Criteria
 
-- `POST /api/uar/burnin/run` persists report to store
-- After in-process restart (simulated by setting `_latest_report = None`),
+- [x] `POST /api/uar/burnin/run` persists report to store
+- [x] After in-process restart (simulated by setting `_latest_report = None`),
   `BurnInProxy.from_latest(store)` recovers from the store
-- New tests cover: persist, recover-on-restart, concurrent write safety
-- All existing burn-in and certification tests continue to pass
+- [x] New tests cover: persist, recover-on-restart, concurrent write safety
+- [x] All existing burn-in and certification tests continue to pass
 
 ## Out of Scope
 

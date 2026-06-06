@@ -276,7 +276,7 @@ def test_reset_circuit_breaker_admin_succeeds():
         headers={"Authorization": "Bearer admin-key-67890"},
     )
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert data["status"] == "reset"
     assert data["service"] == "admin_reset_svc"
 

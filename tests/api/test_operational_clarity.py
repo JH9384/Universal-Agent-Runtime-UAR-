@@ -24,7 +24,6 @@ from fastapi.testclient import TestClient  # noqa: E402
 from uar.api.server import app  # noqa: E402
 from uar.core.circuit_breaker_decorator import (  # noqa: E402
     get_circuit_breaker,
-    reset_circuit_breaker,
 )
 from uar.core.circuit_breaker import State  # noqa: E402
 
@@ -95,11 +94,14 @@ def test_reset_circuit_breaker():
 
     response = client.post("/api/health/circuit-breakers/test_svc/reset")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert data["status"] == "reset"
     assert data["service"] == "test_svc"
 
-    reset_circuit_breaker("test_svc")
+    # Verify the circuit breaker is actually reset (closed, zero failures)
+    cb = get_circuit_breaker("test_svc")
+    assert cb._state == State.CLOSED
+    assert cb._failures == 0
 
 
 # ── Run comparison endpoint ─────────────────────────────────────────────────

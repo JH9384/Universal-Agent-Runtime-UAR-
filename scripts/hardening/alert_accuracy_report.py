@@ -24,7 +24,7 @@ def _get_tracker():
     """Get alert tracker bound to the default store."""
     from uar.api.alert_tracker import get_alert_tracker
     try:
-        from uar.api.server import store
+        from uar.api.state import store
         return get_alert_tracker(store)
     except Exception:
         return get_alert_tracker()

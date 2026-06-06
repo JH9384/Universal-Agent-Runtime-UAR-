@@ -171,7 +171,7 @@ class TestHealthCircuitBreakers:
         response = client.get("/api/health/circuit-breakers")
         # 200 = healthy, 503 = degraded (open circuits); both != 401
         assert response.status_code in (200, 503)
-        data = response.json()
+        data = response.json()["data"]
         assert "circuits" in data
 
     @pytest.mark.usefixtures("prod_env", "api_keys")
@@ -200,7 +200,7 @@ class TestHealthOpenEndpoints:
         """GET /api/health is always open."""
         response = client.get("/api/health")
         assert response.status_code == 200
-        assert response.json()["status"] == "healthy"
+        assert response.json()["data"]["status"] == "healthy"
 
     def test_liveness_no_auth(self):
         """GET /api/health/live is always open."""
@@ -217,14 +217,14 @@ class TestHealthOpenEndpoints:
         """GET /api/status allows anonymous (labels user as 'anonymous')."""
         response = client.get("/api/status")
         assert response.status_code == 200
-        assert response.json()["user"] == "anonymous"
+        assert response.json()["data"]["user"] == "anonymous"
 
     @pytest.mark.usefixtures("api_keys")
     def test_dashboard_no_auth(self):
         """GET /api/health/dashboard is always open."""
         response = client.get("/api/health/dashboard")
         assert response.status_code == 200
-        assert "skills" in response.json()
+        assert "skills" in response.json()["data"]
 
 
 class TestAuthMiddlewareSpecificity:

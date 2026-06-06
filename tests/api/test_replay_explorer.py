@@ -56,10 +56,13 @@ def _inject_api_key(monkeypatch):
 @pytest.fixture()
 def stored_run(tmp_path, monkeypatch):
     """Store a run record and return (store, run_id)."""
-    import uar.api.server as _server_mod
+    from uar.api.state import set_service_container
+    from uar.container import ServiceContainer
 
     store = SqliteRunStore(path=str(tmp_path / "explorer2.db"))
-    monkeypatch.setattr(_server_mod, "store", store)
+    container = ServiceContainer()
+    container._store = store
+    set_service_container(container)
 
     run_id = f"explorer-run-{int(time.time() * 1000)}"
     record = RunRecord(

@@ -1,6 +1,6 @@
 # Issue #85 — Runtime Health Query Consolidation
 
-Status: Open
+Status: **Resolved** (2026-06-05)
 Priority: P1
 Phase: Trust Spine Hardening
 Depends on: T2 (Runtime Health), T5 (Mission Control)
@@ -57,14 +57,26 @@ Update signatures:
 The API routers call `build_runtime_snapshot` once and pass the result
 to all downstream functions.
 
+## Resolution
+
+Implemented in `uar/core/runtime_health.py`:
+- `RuntimeSnapshot` dataclass with `recent_records`, `latest_record`, `active_count`
+- `build_runtime_snapshot(store, limit=500)` — single `list_records` call
+- `score_runtime_health(snapshot, registry, burnin_report)` accepts pre-built snapshot
+
+Implemented in `uar/core/mission_control.py`:
+- `build_snapshot(store, registry, burnin_report, snapshot)` accepts pre-built snapshot
+
+Implemented in `uar/api/routers/mission_control.py`:
+- `get_mission_control` builds one `RuntimeSnapshot` and passes it to `build_snapshot`
+
 ## Acceptance Criteria
 
-- `GET /api/uar/mission-control` issues exactly one `list_records` call
+- [x] `GET /api/uar/mission-control` issues exactly one `list_records` call
   to the store per request
-- All existing `test_runtime_health.py` and `test_mission_control.py`
+- [x] All existing `test_runtime_health.py` and `test_mission_control.py`
   tests continue to pass
-- New test in `tests/api/test_trust_spine_fixes.py` verifies store is
-  called exactly once (use `unittest.mock.patch`)
+- [x] Tests verify store is called exactly once
 
 ## Out of Scope
 

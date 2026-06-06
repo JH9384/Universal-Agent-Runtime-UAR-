@@ -1,6 +1,6 @@
 # Issue #87 — Certification Engine Refactor
 
-Status: Open
+Status: **Resolved** (2026-06-05)
 Priority: P3
 Phase: Trust Spine Hardening
 Depends on: T1, T2, T3 (all inputs must be Implemented before refactor)
@@ -24,17 +24,22 @@ corresponding implementations. Specifically:
 ## Goal
 
 Refactor `certify_runtime()` and `certification_level()` so that inputs
-are exactly the three Trust Spine evidence sources:
+are exactly the three Trust Spine evidence sources.
 
-| Input | Source | Weight |
-|-------|--------|--------|
-| replay_confidence_score | T1 ReplayConfidenceReport | 40% |
-| burnin_score | T3 BurnInReport | 35% |
-| runtime_health_score | T2 RuntimeHealthReport | 25% |
+## Resolution
 
-Remove `contract_compliance` entirely.
-Remove `has_violations` from the scoring path (may remain as
-an advisory field in the report but must not affect the numeric score).
+Refactored in `uar/core/certification.py`:
+- `certify_runtime()` now accepts only `replay_confidence_score`, `burnin_report`, `runtime_health_score`
+- `contract_compliance` completely removed from scoring and evidence
+- Weights aligned to Trust Spine model:
+  | Input | Source | Weight |
+  |-------|--------|--------|
+  | replay_confidence_score | T1 ReplayConfidenceReport | 40% |
+  | burnin_score | T3 BurnInReport | 35% |
+  | runtime_health_score | T2 RuntimeHealthReport | 25% |
+- `has_violations` remains as advisory only (does not affect numeric score)
+- Weight redistribution when `burnin_report` is absent:
+  `replay_confidence` → 61.5%, `runtime_health` → 38.5%
 
 ## Proposed Signature
 
@@ -55,12 +60,12 @@ Level thresholds (unchanged from current):
 
 ## Acceptance Criteria
 
-- `certification_level()` no longer accepts `has_violations` as a scoring
+- [x] `certification_level()` no longer accepts `has_violations` as a scoring
   input
-- `contract_compliance` removed from `CertificationReport.evidence`
-- Weights sum to 100%: replay 40, burnin 35, runtime_health 25
-- All existing `test_certification.py` tests updated to match new weights
-- New tests verify: weight correctness, no-burnin degrades to Silver max,
+- [x] `contract_compliance` removed from `CertificationReport.evidence`
+- [x] Weights sum to 100%: replay 40, burnin 35, runtime_health 25
+- [x] All existing `test_certification.py` tests updated to match new weights
+- [x] New tests verify: weight correctness, no-burnin degrades to Silver max,
   runtime_health=0 cannot reach Gold
 
 ## Migration

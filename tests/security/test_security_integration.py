@@ -231,10 +231,11 @@ class TestAPIProductionFeatures:
         assert response.status_code == 200
 
         data = response.json()
-        assert "status" in data
-        assert "version" in data
-        assert data["status"] == "healthy"
-        assert "uor_upstream_version" in data
+        payload = data["data"]
+        assert "status" in payload
+        assert "version" in payload
+        assert payload["status"] == "healthy"
+        assert "uor_upstream_version" in payload
 
 
 class TestRateLimitingProduction:
