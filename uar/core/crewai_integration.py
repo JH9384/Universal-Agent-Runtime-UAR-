@@ -214,13 +214,20 @@ class RoleBasedAgent(Agent):
         else:
             result = {"output": f"Processed: {desc}"}
 
-        return {
+        payload = {
             "task_id": task.id,
             "agent_id": self.agent_id,
             "role": self.role.value,
             "mode": "uar_native",
             "result": result,
         }
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            payload["uor_digest"] = compute_uor_digest(payload)
+        except Exception:
+            logger.debug("Could not compute crewai task digest")
+        return payload
 
     def get_status(self) -> Dict[str, Any]:
         """Get the agent's current status."""

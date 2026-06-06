@@ -87,6 +87,18 @@ def _close_http_client() -> None:
 atexit.register(_close_http_client)
 
 
+def _wrap_ecosystem_result(
+    result: Dict[str, Any], skill_name: str
+) -> Dict[str, Any]:
+    """Wrap an ecosystem client result with UOR provenance."""
+    try:
+        from uar.core.uor_integration import wrap_skill_result
+
+        return wrap_skill_result(result, skill_name=skill_name)
+    except Exception:
+        return result
+
+
 def _is_url_safe(url: str) -> bool:
     """Validate URL for SSRF prevention."""
     try:
@@ -113,7 +125,13 @@ def _http_post(
         return {"status": "error", "error": "Unsafe URL blocked", "url": url}
     client = _get_http_client()
     if client is None:
-        return {"status": "mock", "note": "httpx not installed"}
+        result = {"status": "mock", "note": "httpx not installed"}
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+            result["uor_digest"] = compute_uor_digest(result)
+        except Exception:
+            pass
+        return result
     try:
         resp = client.post(url, json=payload, timeout=timeout)
         resp.raise_for_status()
@@ -130,7 +148,13 @@ def _http_get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
         return {"status": "error", "error": "Unsafe URL blocked", "url": url}
     client = _get_http_client()
     if client is None:
-        return {"status": "mock", "note": "httpx not installed"}
+        result = {"status": "mock", "note": "httpx not installed"}
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+            result["uor_digest"] = compute_uor_digest(result)
+        except Exception:
+            pass
+        return result
     try:
         resp = client.get(url, timeout=timeout)
         resp.raise_for_status()
@@ -245,15 +269,17 @@ class HologramClient:
 
         client = _get_http_client()
         if client is None:
-            return self._mock_query(model_id, inputs)
+            result = self._mock_query(model_id, inputs)
+            return _wrap_ecosystem_result(result, "hologram_query")
 
         try:
             resp = client.post(url, json=payload, headers=self._headers())
             resp.raise_for_status()
-            return resp.json()
+            result = resp.json()
         except Exception as exc:
             logger.warning("Hologram query failed: %s", exc)
-            return self._mock_query(model_id, inputs)
+            result = self._mock_query(model_id, inputs)
+        return _wrap_ecosystem_result(result, "hologram_query")
 
     def _mock_query(
         self, model_id: str, inputs: Dict[str, Any]
@@ -272,21 +298,23 @@ class HologramClient:
         url = f"{self.base_url}/health"
         client = _get_http_client()
         if client is None:
-            return {"status": "mock", "reachable": False}
-        try:
-            resp = client.get(url, headers=self._headers())
-            return {
-                "status": "ok" if resp.status_code == 200 else "degraded",
-                "reachable": True,
-                "status_code": resp.status_code,
-            }
-        except Exception:
-            logger.exception("Health check failed")
-            return {
-                "status": "error",
-                "reachable": False,
-                "error": "Health check failed",
-            }
+            result = {"status": "mock", "reachable": False}
+        else:
+            try:
+                resp = client.get(url, headers=self._headers())
+                result = {
+                    "status": "ok" if resp.status_code == 200 else "degraded",
+                    "reachable": True,
+                    "status_code": resp.status_code,
+                }
+            except Exception:
+                logger.exception("Health check failed")
+                result = {
+                    "status": "error",
+                    "reachable": False,
+                    "error": "Health check failed",
+                }
+        return _wrap_ecosystem_result(result, "hologram_status")
 
 
 # ---------------------------------------------------------------------------
@@ -313,30 +341,34 @@ class MoltbookClient:
     ) -> Dict[str, Any]:
         """List recent forum topics."""
         url = f"{self.base_url}/topics?category={category}&limit={limit}"
-        return _http_get(url)
+        result = _http_get(url)
+        return _wrap_ecosystem_result(result, "moltbook_list")
 
     def search(self, query: str, limit: int = 10) -> Dict[str, Any]:
         """Search forum posts."""
         url = f"{self.base_url}/search?q={query}&limit={limit}"
-        return _http_get(url)
+        result = _http_get(url)
+        return _wrap_ecosystem_result(result, "moltbook_search")
 
     def post_topic(
         self, title: str, body: str, category: str = "uor"
     ) -> Dict[str, Any]:
         """Post a new topic (requires API key)."""
         if not self.api_key:
-            return {
+            result = {
                 "status": "error",
                 "error": "MOLTBOOK_API_KEY not set",
             }
+            return _wrap_ecosystem_result(result, "moltbook_post")
         url = f"{self.base_url}/topics"
-        return _http_post(
+        result = _http_post(
             url, {"title": title, "body": body, "category": category}
         )
+        return _wrap_ecosystem_result(result, "moltbook_post")
 
 
 # ---------------------------------------------------------------------------
-# Prism-BTC Integration (placeholder)
+# Prism-BTC Integration
 # ---------------------------------------------------------------------------
 
 
@@ -367,11 +399,12 @@ class PrismBTCClient:
     def anchor_digest(self, digest: str) -> Dict[str, Any]:
         """Anchor a UOR digest on Bitcoin."""
         if self.api_url:
-            return _http_post(
+            result = _http_post(
                 f"{self.api_url}/anchor",
                 {"digest": digest},
                 timeout=30.0,
             )
+            return _wrap_ecosystem_result(result, "prism_btc_anchor")
 
         # Real local computation: derive a Bitcoin address and a
         # mock OP_RETURN transaction from the digest.
@@ -423,7 +456,7 @@ class PrismBTCClient:
             + op_return_script.hex()
             + "00000000"  # locktime
         )
-        return {
+        result = {
             "status": "completed",
             "mode": "local_computed",
             "digest": digest,
@@ -437,14 +470,16 @@ class PrismBTCClient:
                 "remote anchoring."
             ),
         }
+        return _wrap_ecosystem_result(result, "prism_btc_anchor")
 
     def verify_anchor(self, digest: str) -> Dict[str, Any]:
         """Verify an on-chain anchor."""
         if self.api_url:
-            return _http_get(
+            result = _http_get(
                 f"{self.api_url}/verify?digest={digest}",
                 timeout=10.0,
             )
+            return _wrap_ecosystem_result(result, "prism_btc_verify")
 
         # Local verification: re-derive the address and tx hash
         digest_bytes = digest.encode("utf-8")
@@ -457,7 +492,7 @@ class PrismBTCClient:
         addr_b58 = self._b58encode(addr_hash + checksum)
         txid = hashlib.sha256(digest_bytes).hexdigest()[:64]
 
-        return {
+        result = {
             "status": "completed",
             "mode": "local_computed",
             "digest": digest,
@@ -469,6 +504,7 @@ class PrismBTCClient:
                 "a block explorer for on-chain confirmation."
             ),
         }
+        return _wrap_ecosystem_result(result, "prism_btc_verify")
 
     @staticmethod
     def _b58encode(data: bytes) -> str:
@@ -493,7 +529,7 @@ class PrismBTCClient:
 
 
 # ---------------------------------------------------------------------------
-# Severance AI Integration (placeholder)
+# Severance AI Integration
 # ---------------------------------------------------------------------------
 
 
@@ -599,23 +635,26 @@ class SeveranceAIClient:
     def infer(self, prompt: str, model: str = "default") -> Dict[str, Any]:
         """Run inference via Severance AI or local LLM fallback."""
         if self.service_url:
-            return _http_post(
+            result = _http_post(
                 f"{self.service_url}/infer",
                 {"prompt": prompt, "model": model},
                 timeout=30.0,
             )
-        return self._local_llm(prompt, model)
+        else:
+            result = self._local_llm(prompt, model)
+        return _wrap_ecosystem_result(result, "severance_infer")
 
     def verify_output(
         self, output: str, criteria: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Verify an inference output against formal criteria."""
         if self.service_url:
-            return _http_post(
+            result = _http_post(
                 f"{self.service_url}/verify",
                 {"output": output, "criteria": criteria},
                 timeout=10.0,
             )
+            return _wrap_ecosystem_result(result, "severance_verify")
 
         # Local verification: simple keyword / heuristic checks
         checks: Dict[str, Any] = {}
@@ -644,7 +683,7 @@ class SeveranceAIClient:
             else:
                 checks[key] = {"expected": expected, "passed": True}
 
-        return {
+        result = {
             "status": "completed",
             "mode": "local_verified",
             "output": output[:500],
@@ -656,6 +695,7 @@ class SeveranceAIClient:
                 "Set SEVERANCE_AI_URL for remote verification."
             ),
         }
+        return _wrap_ecosystem_result(result, "severance_verify")
 
 
 # ---------------------------------------------------------------------------
@@ -688,19 +728,20 @@ class UORFoundationClient:
             x: integer parameter for the verify op (default 42)
         """
         url = f"{self.base_url}/kernel/op/verify?x={x}"
-        return _http_get(url, timeout=10.0)
+        result = _http_get(url, timeout=10.0)
+        return _wrap_ecosystem_result(result, "uor_foundation_verify")
 
     def status(self) -> Dict[str, Any]:
         """Check UOR Foundation API health."""
         url = f"{self.base_url}/health"
         result = _http_get(url, timeout=10.0)
         if result.get("status") == "mock":
-            return {
+            result = {
                 "status": "unconfigured",
                 "reachable": False,
                 "note": "httpx not installed or network unreachable",
             }
-        return result
+        return _wrap_ecosystem_result(result, "uor_foundation_status")
 
 
 # ---------------------------------------------------------------------------
@@ -807,10 +848,11 @@ class AnunixClient:
     def health_check(self, host_id: str) -> Dict[str, Any]:
         """Check health of a host."""
         if self.api_url:
-            return _http_get(
+            result = _http_get(
                 f"{self.api_url}/hosts/{quote(host_id, safe='')}/health",
                 timeout=10.0,
             )
+            return _wrap_ecosystem_result(result, "anunix_health")
 
         # Local health check
         import platform
@@ -820,7 +862,7 @@ class AnunixClient:
         except (AttributeError, OSError):
             load = (0.0, 0.0, 0.0)
 
-        return {
+        result = {
             "status": "completed",
             "mode": "local",
             "host_id": host_id,
@@ -830,20 +872,22 @@ class AnunixClient:
             "load_average": list(load),
             "healthy": True,
         }
+        return _wrap_ecosystem_result(result, "anunix_health")
 
     def run_command(self, host_id: str, command: str) -> Dict[str, Any]:
         """Execute a command on a host."""
         if self.api_url:
-            return _http_post(
+            result = _http_post(
                 f"{self.api_url}/hosts/{quote(host_id, safe='')}/exec",
                 {"command": command},
                 timeout=30.0,
             )
+            return _wrap_ecosystem_result(result, "anunix_run")
 
         # Local sandboxed execution
         safe, reason = self._safe_command(command)
         if not safe:
-            return {
+            result = {
                 "status": "failed",
                 "mode": "local_sandbox",
                 "host_id": host_id,
@@ -852,6 +896,7 @@ class AnunixClient:
                 "stderr": reason,
                 "returncode": -1,
             }
+            return _wrap_ecosystem_result(result, "anunix_run")
 
         import subprocess
 
@@ -864,7 +909,7 @@ class AnunixClient:
                 timeout=30.0,
                 cwd=os.getcwd(),
             )
-            return {
+            result = {
                 "status": "completed",
                 "mode": "local_sandbox",
                 "host_id": host_id,
@@ -874,7 +919,7 @@ class AnunixClient:
                 "returncode": proc.returncode,
             }
         except subprocess.TimeoutExpired:
-            return {
+            result = {
                 "status": "failed",
                 "mode": "local_sandbox",
                 "host_id": host_id,
@@ -884,7 +929,7 @@ class AnunixClient:
                 "returncode": -1,
             }
         except Exception as exc:
-            return {
+            result = {
                 "status": "failed",
                 "mode": "local_sandbox",
                 "host_id": host_id,
@@ -893,6 +938,7 @@ class AnunixClient:
                 "stderr": str(exc),
                 "returncode": -1,
             }
+        return _wrap_ecosystem_result(result, "anunix_run")
 
 
 # ---------------------------------------------------------------------------

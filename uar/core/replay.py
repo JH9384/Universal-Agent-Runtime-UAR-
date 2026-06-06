@@ -128,24 +128,37 @@ def _hash_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _uor_digest_or_fallback(obj: Any) -> str:
+    """UOR-ADDR-1 canonical digest with fallback to legacy JSON+SHA-256.
+
+    Returns ``sha256:<hex>`` when UOR canonicalization succeeds,
+    otherwise falls back to ``sort_keys=True`` JSON for resilience.
+    """
+    try:
+        from uar.uor.bounded_json import compute_uor_digest
+
+        return compute_uor_digest(obj)
+    except Exception:
+        canonical = _canonical_json(obj)
+        return "sha256:" + _hash_bytes(canonical.encode("utf-8"))
+
+
 def hash_event_stream(events: Iterable[dict]) -> str:
     """Return a canonical hash of the event stream.
 
-    This hash is stable across replays of the same event sequence.
+    Uses UOR-ADDR-1 canonicalization so the hash is portable across
+    implementations.
     """
-    event_list = list(events)
-    canonical = _canonical_json(event_list)
-    return _hash_bytes(canonical.encode("utf-8"))
+    return _uor_digest_or_fallback(list(events))
 
 
 def hash_record(record: RunRecord) -> str:
     """Return a canonical hash of a reconstructed RunRecord.
 
-    This hash verifies that replay reconstruction produces identical
-    state for identical event inputs.
+    Verifies that replay reconstruction produces identical state for
+    identical event inputs.  UOR-ADDR-1 aligned for portability.
     """
-    canonical = _canonical_json(asdict(record))
-    return _hash_bytes(canonical.encode("utf-8"))
+    return _uor_digest_or_fallback(asdict(record))
 
 
 def reconstruct_with_checkpoints(
@@ -202,10 +215,8 @@ def reconstruct_with_checkpoints(
             "final_context": final_context,
             "event_count": idx + 1,
         }
-        state_hash = _hash_bytes(
-            _canonical_json(partial_state).encode("utf-8")
-        )
-        event_hash = _hash_bytes(_canonical_json(ev).encode("utf-8"))
+        state_hash = _uor_digest_or_fallback(partial_state)
+        event_hash = _uor_digest_or_fallback(ev)
 
         checkpoints.append({
             "index": idx,
@@ -262,11 +273,24 @@ def certify_replay(record: RunRecord) -> Dict[str, Any]:
         for i in range(len(checkpoints))
     )
 
+    # Level 3: Provenance verification (UOR address / witness)
+    provenance_valid = True
+    if record.uor_address and record.uor_witness is not None:
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            computed = compute_uor_digest(record.uor_witness)
+            provenance_valid = computed == record.uor_address
+        except Exception:
+            provenance_valid = False
+
     duration_ms = round((time.time() - start_ts) * 1000, 2)
 
-    # Fidelity score: 100% if all hashes match, 0 otherwise
+    # Fidelity score: 100% only if all levels pass
     fidelity_score = (
-        100.0 if (state_hash_matches and checkpoint_matches) else 0.0
+        100.0
+        if (state_hash_matches and checkpoint_matches and provenance_valid)
+        else 0.0
     )
 
     return {
@@ -281,5 +305,7 @@ def certify_replay(record: RunRecord) -> Dict[str, Any]:
         "replayed_hash": replayed_hash,
         "checkpoint_count": len(checkpoints),
         "checkpoint_matches": checkpoint_matches,
+        "provenance_valid": provenance_valid,
+        "uor_address_present": record.uor_address is not None,
         "fidelity_score": fidelity_score,
     }

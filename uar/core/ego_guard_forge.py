@@ -50,11 +50,10 @@ class SecurityPolicy:
 
     def evaluate(self, context: Dict[str, Any]) -> bool:
         """Evaluate the policy against a given context."""
-        # Placeholder for policy evaluation logic
         if not self.enabled:
             return True
 
-        # Basic rule evaluation
+        # Strict equality rule evaluation
         for rule_name, rule_value in self.rules.items():
             if rule_name in context:
                 if context[rule_name] != rule_value:
@@ -121,15 +120,22 @@ class EgoGuardForgeIntegrator:
                 result = policy.evaluate(context)
                 results[policy_id] = result
 
-                # Audit trail
-                self.audit_trail.append(
-                    {
-                        "policy_id": policy_id,
-                        "result": result,
-                        "timestamp": _utcnow().isoformat(),
-                        "context": context,
-                    }
-                )
+                # Audit trail with content-addressed digest
+                entry = {
+                    "policy_id": policy_id,
+                    "result": result,
+                    "timestamp": _utcnow().isoformat(),
+                    "context": context,
+                }
+                try:
+                    from uar.uor.bounded_json import compute_uor_digest
+
+                    entry["audit_digest"] = compute_uor_digest(entry)
+                except Exception:
+                    logger.debug(
+                        "Could not compute audit digest for %s", policy_id
+                    )
+                self.audit_trail.append(entry)
 
         return results
 

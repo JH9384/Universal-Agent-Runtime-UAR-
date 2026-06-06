@@ -37,7 +37,7 @@ class FailurePattern:
     recovery_rate: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        data = {
             "pattern_id": self.pattern_id,
             "signature": self.signature,
             "occurrences": self.occurrences,
@@ -46,6 +46,12 @@ class FailurePattern:
             "last_seen": self.last_seen,
             "recovery_rate": self.recovery_rate,
         }
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+            data["uor_digest"] = compute_uor_digest(data)
+        except Exception:
+            pass
+        return data
 
 
 @dataclass
@@ -59,13 +65,19 @@ class RecoveryPath:
     success_rate: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        data = {
             "failure_signature": self.failure_signature,
             "operator_action": self.operator_action,
             "outcome": self.outcome,
             "count": self.count,
             "success_rate": self.success_rate,
         }
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+            data["uor_digest"] = compute_uor_digest(data)
+        except Exception:
+            pass
+        return data
 
 
 @dataclass
@@ -175,13 +187,21 @@ def build_recovery_atlas(
         total = sum(outcomes.values())
         if total == 0:
             continue
+        # Infer operator action from runs sharing this signature
+        action = "auto"
+        for run in run_dicts:
+            if _extract_failure_signature(run) == sig:
+                action = run.get("action_taken") or run.get(
+                    "operator_action"
+                ) or action
+                if action != "auto":
+                    break
         # For each distinct outcome, create a path
         for outcome, count in outcomes.most_common():
             paths.append(
                 RecoveryPath(
                     failure_signature=sig,
-                    operator_action="auto",
-                    # Placeholder for future action tracking
+                    operator_action=action,
                     outcome=outcome,
                     count=count,
                     success_rate=(count / total) if total else 0.0,

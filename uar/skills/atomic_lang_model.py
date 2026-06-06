@@ -38,6 +38,20 @@ from uar.core.skill_utils import skill_guard
 
 logger = logging.getLogger(__name__)
 
+
+def _wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Add a UOR content-addressed digest to a result dict."""
+    if not isinstance(result, dict):
+        return result
+    try:
+        from uar.uor.bounded_json import compute_uor_digest
+
+        result["uor_digest"] = compute_uor_digest(result)
+    except Exception:
+        pass
+    return result
+
+
 # HTTP client with connection pooling (reused across calls)
 _http_client = None
 
@@ -154,32 +168,32 @@ def _call_alm(
                 req_body = payload
             response = client.post(url, json=req_body)
         response.raise_for_status()
-        return response.json()
+        return _wrap_with_digest(response.json())
     except httpx.HTTPStatusError as e:
         logger.error("ALM service returned error: %s", e.response.status_code)
         try:
             error_detail = e.response.json()
         except (ValueError, OSError):
             error_detail = {"error": "Failed to parse error response"}
-        return {
+        return _wrap_with_digest({
             "status": "error",
             "error": "ALM service request failed",
             "details": error_detail,
-        }
+        })
     except httpx.TimeoutException:
         logger.error("ALM service timeout")
-        return {
+        return _wrap_with_digest({
             "status": "error",
             "error": "Request timeout",
             "details": "Service did not respond in time",
-        }
+        })
     except httpx.ConnectError:
         logger.error("Failed to connect to ALM service")
-        return {
+        return _wrap_with_digest({
             "status": "error",
             "error": "Connection failed",
             "details": f"Could not connect to {base_url}",
-        }
+        })
 
 
 def _mock_alm_response(
@@ -197,41 +211,43 @@ def _mock_alm_response(
     if endpoint == "analyze":
         grammar_spec = payload.get("grammar_spec", "")
         if "recursive" in str(grammar_spec).lower():
-            return {
+            return _wrap_with_digest({
                 "status": "success",
                 "analysis": "Grammar supports provable recursion.",
                 "details": "Passed formal verification checks.",
-            }
-        return {
+            })
+        return _wrap_with_digest({
             "status": "success",
             "analysis": "Grammar analyzed successfully.",
             "details": "Basic syntax check passed.",
-        }
+        })
 
     elif endpoint == "generate":
         prefix = payload.get("prefix", "")
         count = payload.get("count", 5)
         if "student" in prefix:
-            return {
+            return _wrap_with_digest({
                 "tokens": ["student", "left", "the", "school", "yesterday"]
-            }
-        return {"tokens": [f"token_{i}" for i in range(count)]}
+            })
+        return _wrap_with_digest({
+            "tokens": [f"token_{i}" for i in range(count)]
+        })
 
     elif endpoint == "verify":
         text = payload.get("text", "")
         if "student left" in text:
-            return {
+            return _wrap_with_digest({
                 "valid": True,
                 "proof_id": "proof_123",
                 "notes": "Syntactically correct and semantically plausible.",
-            }
-        return {
+            })
+        return _wrap_with_digest({
             "valid": False,
             "error": "Syntax error or semantic violation detected.",
             "details": "Requires formal grammar check.",
-        }
+        })
 
-    return {"status": "error", "error": "Unknown endpoint"}
+    return _wrap_with_digest({"status": "error", "error": "Unknown endpoint"})
 
 
 @register_skill("alm_analyze")
@@ -259,7 +275,12 @@ def alm_analyze(ctx: PipelineContext) -> Dict[str, Any]:
         }
 
     result = _call_alm("analyze", {"grammar_spec": grammar_spec}, ctx)
-    return {"status": "completed", "grammar_spec": grammar_spec, **result}
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(
+        {"status": "completed", "grammar_spec": grammar_spec, **result},
+        skill_name="alm_analyze",
+    )
 
 
 @register_skill("alm_generate")
@@ -296,12 +317,17 @@ def alm_generate(ctx: PipelineContext) -> Dict[str, Any]:
             "error": result.get("error", "ALM generation failed"),
             "details": result.get("details"),
         }
-    return {
-        "status": "completed",
-        "prefix": prefix,
-        "count": count,
-        "tokens": result.get("tokens", []),
-    }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(
+        {
+            "status": "completed",
+            "prefix": prefix,
+            "count": count,
+            "tokens": result.get("tokens", []),
+        },
+        skill_name="alm_generate",
+    )
 
 
 @register_skill("alm_verify")
@@ -336,10 +362,15 @@ def alm_verify(ctx: PipelineContext) -> Dict[str, Any]:
             "error": result.get("error", "ALM verification failed"),
             "details": result.get("details"),
         }
-    return {
-        "status": "completed",
-        "text": text,
-        "valid": result.get("valid", False),
-        "proof_id": result.get("proof_id"),
-        "notes": result.get("notes"),
-    }
+    from uar.core.uor_integration import wrap_skill_result
+
+    return wrap_skill_result(
+        {
+            "status": "completed",
+            "text": text,
+            "valid": result.get("valid", False),
+            "proof_id": result.get("proof_id"),
+            "notes": result.get("notes"),
+        },
+        skill_name="alm_verify",
+    )

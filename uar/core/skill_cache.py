@@ -83,13 +83,28 @@ class SkillCache:
         self._order: Dict[str, None] = {}  # OrderedDict for O(1) LRU
 
     def _make_key(self, skill_name: str, metadata: Dict[str, Any]) -> str:
-        """Deterministic fast key from skill + metadata (blake2b)."""
-        payload = json.dumps(
-            {"skill": skill_name, "metadata": metadata},
-            sort_keys=True,
-            default=str,
-        )
-        return hashlib.blake2b(payload.encode(), digest_size=16).hexdigest()
+        """Deterministic UOR-ADDR-1 canonical key from skill + metadata.
+
+        Uses RFC8785 (JCS) canonicalization with SHA-256 so keys are
+        portable across language boundaries and aligned with UOR
+        content-addressing standards.
+        """
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(
+                {"skill": skill_name, "metadata": metadata}
+            )
+        except Exception:
+            # Fallback to legacy blake2b if bounded_json is unavailable
+            payload = json.dumps(
+                {"skill": skill_name, "metadata": metadata},
+                sort_keys=True,
+                default=str,
+            )
+            return hashlib.blake2b(
+                payload.encode(), digest_size=16
+            ).hexdigest()
 
     def get(
         self, skill_name: str, metadata: Dict[str, Any]
@@ -185,13 +200,24 @@ class RedisSkillCache:
             )
 
     def _make_key(self, skill_name: str, metadata: Dict[str, Any]) -> str:
-        """Deterministic SHA-256 key from skill + metadata."""
-        payload = json.dumps(
-            {"skill": skill_name, "metadata": metadata},
-            sort_keys=True,
-            default=str,
-        )
-        return hashlib.sha256(payload.encode()).hexdigest()
+        """Deterministic UOR-ADDR-1 canonical key from skill + metadata.
+
+        Uses the same canonicalization as :class:`SkillCache` so that
+        in-memory and Redis caches are mutually compatible.
+        """
+        try:
+            from uar.uor.bounded_json import compute_uor_digest
+
+            return compute_uor_digest(
+                {"skill": skill_name, "metadata": metadata}
+            )
+        except Exception:
+            payload = json.dumps(
+                {"skill": skill_name, "metadata": metadata},
+                sort_keys=True,
+                default=str,
+            )
+            return hashlib.sha256(payload.encode()).hexdigest()
 
     def _redis_key(self, key: str) -> str:
         return f"{self._REDIS_PREFIX}{key}"
