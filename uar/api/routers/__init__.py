@@ -11,6 +11,7 @@ from .replay_explorer import router as replay_explorer_router
 from .runtime_health import router as runtime_health_router
 from .topology import router as topology_router
 from .operator_workflows import router as operator_workflows_router
+from .fleet import router as fleet_router
 
 # Preserve the existing public export consumed by uar.boot while allowing
 # Trust Spine routes to be mounted without expanding boot wiring.
@@ -24,6 +25,7 @@ uor_router.include_router(mission_control_router)
 uor_router.include_router(replay_explorer_router)
 uor_router.include_router(topology_router)
 uor_router.include_router(operator_workflows_router)
+uor_router.include_router(fleet_router)
 
 __all__ = [
     "uor_router",

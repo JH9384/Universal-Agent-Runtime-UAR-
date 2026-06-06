@@ -12,6 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
+from uar.api.state import store
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -43,7 +44,6 @@ async def topology_correlation(
         )
 
     import time
-    from uar.api.server import store
 
     user = user_info.get("user")
     is_admin = user_info.get("tier") == "admin"
@@ -148,7 +148,6 @@ async def topology_trends(
 
     import time
     from collections import defaultdict
-    from uar.api.server import store
 
     user = user_info.get("user")
     is_admin = user_info.get("tier") == "admin"
@@ -213,3 +212,102 @@ async def topology_trends(
         "interval": interval,
         "trends": trend_list,
     }
+
+
+# Deferred import to avoid circular dependency at module load time.
+_ANALYTICS_CACHE = None
+
+
+def _analytics_cache():
+    global _ANALYTICS_CACHE
+    if _ANALYTICS_CACHE is None:
+        from uar.core.analytics_cache import ANALYTICS_CACHE
+        _ANALYTICS_CACHE = ANALYTICS_CACHE
+    return _ANALYTICS_CACHE
+
+
+@router.get("/api/uar/topology/analytics")
+async def get_topology_analytics(
+    mode: str = Query("success", pattern="^(success|failure)$"),
+    hours: int = Query(168, ge=1, le=720),
+    top: int = Query(15, ge=1, le=50),
+    limit: int = Query(50000, ge=1, le=50000),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        security
+    ),
+):
+    """Consolidated topology analytics.
+
+    D4A-2 — Endpoint Consolidation.
+    Replaces separate hot-paths and failure-hotspots endpoints
+    with a single mode-driven analytics endpoint.
+
+    Modes:
+      success → Skill nodes/edges ranked by invocation volume.
+      failure → Skill nodes/edges ranked by failure rate.
+
+    Recipe data removed from topology; link to Recipe Intelligence
+    is provided instead.
+    """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
+
+    import time
+
+    user = user_info.get("user") if user_info else None
+    is_admin = user_info.get("tier") == "admin" if user_info else False
+
+    cache_key = f"topology-analytics-{mode}"
+    cached = _analytics_cache().get(
+        cache_key, user, is_admin, hours, limit
+    )
+    if cached is not None:
+        return cached
+
+    cutoff = time.time() - (hours * 3600)
+
+    all_runs = store.list_records(
+        user_id=None if is_admin else user, limit=limit
+    )
+    recent_runs = [
+        r for r in all_runs
+        if r.get("created_at", 0) >= cutoff
+        or r.get("timestamp", 0) >= cutoff
+    ]
+
+    from uar.core.analytics_snapshot import (
+        build_analytics_snapshot,
+        extract_failure_hotspots,
+        extract_topology_hot_paths,
+    )
+
+    snapshot = build_analytics_snapshot(
+        recent_runs, user, is_admin, hours, limit
+    )
+
+    if mode == "success":
+        result = extract_topology_hot_paths(snapshot, top)
+        # Remove recipe table; link to Recipe Intelligence
+        result.pop("recipes", None)
+        result["recipe_intelligence_link"] = "/api/uar/recipes/intelligence"
+    else:
+        result = extract_failure_hotspots(snapshot, top)
+
+    result["meta"] = {
+        "mode": mode,
+        "runs_loaded": len(all_runs),
+        "runs_analyzed": snapshot.runs_analyzed,
+        "limit": limit,
+        "truncated": len(all_runs) >= limit,
+    }
+    _analytics_cache().set(
+        cache_key, user, is_admin, hours, limit, result
+    )
+    return result

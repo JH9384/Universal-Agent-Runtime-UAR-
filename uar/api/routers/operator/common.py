@@ -85,8 +85,8 @@ def audit_admin_action(
             details=details,
             request_id=request_id,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("audit_admin_action audit log failed: %s", exc)
 
     # Fire webhook for critical events
     try:
@@ -102,8 +102,8 @@ def audit_admin_action(
                 outcome=outcome,
                 details=details,
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("audit_admin_action webhook alert failed: %s", exc)
 
 
 # Namespaces

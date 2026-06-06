@@ -16,6 +16,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
+from uar.api.state import store
 
 security = HTTPBearer(auto_error=False)
 
@@ -242,9 +243,7 @@ async def get_latest_burnin(
     Bug fix: proxy and raw dict are captured in one atomic read via
     snapshot_latest() to prevent TOCTOU races with _set_latest_report.
     """
-    from uar.api.server import store as _store
-
-    proxy, raw = BurnInProxy.snapshot_latest(store=_store)
+    proxy, raw = BurnInProxy.snapshot_latest(store=store)
     if proxy is None:
         return JSONResponse(
             status_code=404,
@@ -289,7 +288,6 @@ async def run_burnin(
             },
         )
 
-    from uar.api.server import store
     from uar.core.registry import registry
     from uar.testing.burnin.runner import BurnInRunner
 

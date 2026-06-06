@@ -457,6 +457,11 @@ class MetricsCollector:
         """Export metrics in Prometheus exposition format."""
         with self._lock:
             lines = []
+            uptime = time.time() - self._start_time
+            lines.append("# HELP uar_uptime_seconds Process uptime")
+            lines.append("# TYPE uar_uptime_seconds gauge")
+            lines.append(f"uar_uptime_seconds {uptime:.2f}")
+
             lines.append("# HELP uar_requests_total Total requests")
             lines.append("# TYPE uar_requests_total counter")
             lines.append(f"uar_requests_total {self._total_requests}")

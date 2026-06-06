@@ -18,6 +18,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
+from uar.api.state import store
 from uar.core.replay_confidence import score_replay
 from uar.core.timeline import timeline_from_record
 from uar.memory.base_store import run_record_from_dict
@@ -47,7 +48,6 @@ async def get_replay_explorer(
 
     Access control: admins see any run; non-admins see only their own.
     """
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     if user_info is None:

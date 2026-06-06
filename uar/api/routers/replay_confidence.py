@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
+from uar.api.state import store
 from uar.core.replay_confidence import score_replay
 from uar.memory.base_store import run_record_from_dict
 
@@ -22,7 +23,6 @@ async def get_run_confidence(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return Replay Confidence report for a historical run."""
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     if user_info is None:

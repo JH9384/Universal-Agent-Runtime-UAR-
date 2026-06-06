@@ -24,6 +24,7 @@ from .alerts import router as alerts_router
 from .circuit_breakers import router as circuit_breakers_router
 from .metrics import router as admin_metrics_router
 from .updates import router as updates_router
+from .audit import router as audit_router
 
 router = APIRouter()
 router.include_router(briefing_router)
@@ -48,3 +49,4 @@ router.include_router(alerts_router)
 router.include_router(circuit_breakers_router)
 router.include_router(admin_metrics_router)
 router.include_router(updates_router)
+router.include_router(audit_router)

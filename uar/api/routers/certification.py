@@ -14,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
+from uar.api.state import store
 from uar.core.certification import certify_runtime
 from uar.core.runtime_health import build_runtime_snapshot
 
@@ -45,7 +46,6 @@ async def get_certification(
             },
         )
 
-    from uar.api.server import store
     from uar.core.registry import registry
     from uar.core.runtime_health import score_runtime_health
     from uar.core.replay_confidence import score_replay

@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
 from uar.api.rbac import has_permission
+from uar.api.state import store
 from uar.config import config
 from uar.core.mission_control import build_snapshot
 from uar.core.runtime_health import build_runtime_snapshot
@@ -71,7 +72,6 @@ async def get_mission_control(
             },
         )
 
-    from uar.api.server import store
     from uar.core.registry import registry
     from uar.api.routers.burn_in import BurnInProxy
 
@@ -124,7 +124,7 @@ async def get_mission_control_history(
 @router.get("/api/uar/confidence-drift")
 async def get_confidence_drift(
     hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(1000, ge=1, le=50000),
+    limit: int = Query(50000, ge=1, le=50000),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -147,7 +147,6 @@ async def get_confidence_drift(
         )
 
     import time
-    from uar.api.server import store
     from uar.api.routers.burn_in import _BURNIN_HISTORY
 
     user = user_info.get("user") if user_info else None
@@ -197,7 +196,7 @@ async def get_confidence_drift(
 @router.get("/api/uar/alerts/summary")
 async def get_alerts_summary(
     hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(1000, ge=1, le=50000),
+    limit: int = Query(50000, ge=1, le=50000),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -219,7 +218,6 @@ async def get_alerts_summary(
         )
 
     import time
-    from uar.api.server import store
     from uar.core.registry import registry
     from uar.api.routers.burn_in import BurnInProxy, _BURNIN_HISTORY
     from uar.core.mission_control import build_snapshot
@@ -296,6 +294,7 @@ async def get_alerts_summary(
             "source": "certification",
             "message": f"Certification {'; '.join(cert_issues)}",
             "detail": cert.get("violations", []),
+            "tab": "health",
         })
     confidence_issues = []
     if cd.get("state") == "degrading":
@@ -317,6 +316,7 @@ async def get_alerts_summary(
             "level": level,
             "source": "confidence",
             "message": f"Confidence {'; '.join(confidence_issues)}",
+            "tab": "trends",
         })
     for node in hs.get("nodes", []):
         if node.get("severity") == "critical":
@@ -327,6 +327,7 @@ async def get_alerts_summary(
                     f"Critical hotspot: {node['skill']}"
                     f" ({node['failure_rate'] * 100:.0f}% failure)"
                 ),
+                "tab": "failures",
             })
 
     # ---- Warning alerts ----
@@ -335,6 +336,7 @@ async def get_alerts_summary(
             "level": "warning",
             "source": "burnin",
             "message": "Burn-In not passed",
+            "tab": "health",
         })
     for node in hs.get("nodes", []):
         if node.get("severity") == "warning":
@@ -345,12 +347,14 @@ async def get_alerts_summary(
                     f"Warning hotspot: {node['skill']}"
                     f" ({node['failure_rate'] * 100:.0f}% failure)"
                 ),
+                "tab": "failures",
             })
     if recent_warnings:
         alerts.append({
             "level": "warning",
             "source": "mission_control",
             "message": recent_warnings[0],
+            "tab": "health",
         })
 
     # ---- Informational alerts ----
@@ -362,6 +366,7 @@ async def get_alerts_summary(
                 f"Confidence improving: {cd.get('current_score')}"
                 f" (Δ +{cd.get('delta')})"
             ),
+            "tab": "trends",
         })
     recommended = [r for r in ri.get("recipes", [])
                    if r.get("classification") == "recommended"]
@@ -372,12 +377,14 @@ async def get_alerts_summary(
             "message": (
                 f"New recommended recipe: {recommended[0]['recipe']}"
             ),
+            "tab": "intelligence",
         })
     if burnin_passed is not None and burnin_passed:
         alerts.append({
             "level": "info",
             "source": "burnin",
             "message": "Burn-In passed",
+            "tab": "health",
         })
 
     # No alerts → healthy state
@@ -386,6 +393,7 @@ async def get_alerts_summary(
             "level": "info",
             "source": "system",
             "message": "All systems nominal",
+            "tab": "health",
         })
 
     priority = {"critical": 0, "warning": 1, "info": 2}
@@ -396,6 +404,9 @@ async def get_alerts_summary(
         "count": len(alerts),
         "top_alert": alerts[0],
         "alerts": alerts[:5],
+        "runs_analyzed": len(recent_runs),
+        "total_runs": len(all_runs),
+        "limit": limit,
     }
     _analytics_cache().set(
         "alerts-summary", user, is_admin, hours, limit, result
@@ -406,7 +417,7 @@ async def get_alerts_summary(
 @router.get("/api/uar/recommendations")
 async def get_recommendations(
     hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(1000, ge=1, le=50000),
+    limit: int = Query(50000, ge=1, le=50000),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -435,7 +446,6 @@ async def get_recommendations(
         )
 
     import time
-    from uar.api.server import store
 
     user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False
@@ -711,7 +721,6 @@ async def get_recommendation_quality(
     user = user_info.get("user") if user_info else None
 
     import time
-    from uar.api.server import store
 
     shown = store.get_shown_recommendations(user_id=user, limit=50000)
     feedback = store.get_feedback(user_id=user, limit=50000)
@@ -845,7 +854,6 @@ async def get_recommendation_effectiveness(
             },
         )
 
-    from uar.api.server import store
     from uar.core.effectiveness_ranking import compute_effectiveness
 
     outcomes = store.get_outcomes(limit=50000)
@@ -875,7 +883,6 @@ async def get_recommendation_calibration(
             },
         )
 
-    from uar.api.server import store
     from uar.core.calibration import compute_calibration
 
     outcomes = store.get_outcomes(limit=50000)
@@ -907,7 +914,6 @@ async def get_recommendation_evidence(
             },
         )
 
-    from uar.api.server import store
     from uar.core.evidence import aggregate_evidence, get_evidence
 
     outcomes = store.get_outcomes(limit=50000)
@@ -953,7 +959,6 @@ async def get_recommendation_trust(
             },
         )
 
-    from uar.api.server import store
     from uar.core.trust_engine import compute_trust
 
     outcomes = store.get_outcomes(limit=50000)
@@ -985,7 +990,6 @@ async def post_recommendation_feedback(
         )
 
     import time
-    from uar.api.server import store
 
     rec_id = body.get("recommendation_id")
     action = body.get("action")
@@ -1062,7 +1066,6 @@ async def post_recommendation_outcome(
         )
 
     import time
-    from uar.api.server import store
 
     store.record_outcome(rec_id, outcome_type)
     _analytics_cache().invalidate("recommendations-v2")
@@ -1114,7 +1117,6 @@ async def bulk_record_outcome(
     errors = []
 
     import time
-    from uar.api.server import store
 
     for i, item in enumerate(items):
         rec_id = item.get("recommendation_id")
@@ -1175,7 +1177,6 @@ async def export_trust_csv(
             },
         )
 
-    from uar.api.server import store
     from uar.core.trust_engine import compute_trust
 
     outcomes = store.get_outcomes(limit=50000)
@@ -1254,8 +1255,6 @@ async def get_recommendation_audit(
                 "message": "Admin tier required for audit log",
             },
         )
-
-    from uar.api.server import store
 
     shown = store.get_shown_recommendations(
         recommendation_id=recommendation_id, limit=100
@@ -1337,7 +1336,6 @@ async def get_alert_accuracy(
         )
 
     from uar.api.alert_tracker import get_alert_tracker
-    from uar.api.server import store
 
     tracker = get_alert_tracker(store)
     return tracker.get_accuracy_metrics(hours=hours)
@@ -1376,7 +1374,6 @@ async def record_alert_action(
         )
 
     from uar.api.alert_tracker import get_alert_tracker
-    from uar.api.server import store
 
     tracker = get_alert_tracker(store)
     ok = tracker.record_action(alert_id, status_value)

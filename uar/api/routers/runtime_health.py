@@ -13,6 +13,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
+from uar.api.state import store
 from uar.core.runtime_health import (
     build_runtime_snapshot,
     score_runtime_health,
@@ -40,7 +41,6 @@ async def get_runtime_health(
             },
         )
 
-    from uar.api.server import store
     from uar.core.registry import registry
     from uar.api.routers.burn_in import BurnInProxy
 

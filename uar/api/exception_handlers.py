@@ -1,8 +1,12 @@
-"""FastAPI exception handlers for UAR domain exceptions."""
+"""FastAPI exception handlers for UAR domain exceptions.
+
+T9 — API Normalization: all domain exceptions produce the same
+``{detail: {error, message, code, ...}}`` shape.
+"""
 
 from fastapi import FastAPI, status
-from fastapi.responses import JSONResponse
 
+from uar.api.responses import error_detail_response
 from uar.core.exceptions import PathSecurityError, UARError, ValidationError
 
 
@@ -12,41 +16,29 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ValidationError)
     async def validation_error_handler(request, exc):
         field = getattr(exc, "field", None)
-        return JSONResponse(
+        return error_detail_response(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": {
-                    "error": "Validation error",
-                    "code": exc.code.value,
-                    "message": exc.user_message,
-                    "field": field,
-                }
-            },
+            error="validation_error",
+            message=exc.user_message,
+            code=exc.code.value,
+            field=field,
         )
 
     @app.exception_handler(PathSecurityError)
     async def path_security_error_handler(request, exc):
-        return JSONResponse(
+        return error_detail_response(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "detail": {
-                    "error": "Path security violation",
-                    "code": exc.code.value,
-                    "message": "Invalid path provided",
-                    "field": "input_path",
-                }
-            },
+            error="path_security_violation",
+            message="Invalid path provided",
+            code=exc.code.value,
+            field="input_path",
         )
 
     @app.exception_handler(UARError)
     async def uar_error_handler(request, exc):
-        return JSONResponse(
+        return error_detail_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "detail": {
-                    "error": "Internal error",
-                    "code": exc.code.value,
-                    "message": "An internal error occurred",
-                }
-            },
+            error="internal_error",
+            message="An internal error occurred",
+            code=exc.code.value,
         )

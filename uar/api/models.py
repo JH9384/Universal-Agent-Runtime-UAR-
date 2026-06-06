@@ -131,9 +131,21 @@ class RunResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
+    """Normalized error envelope (T9).
+
+    All API errors follow this shape::
+
+        {
+          "error": "short_code",
+          "message": "Human readable",
+          "code": "DOMAIN_001",   # optional
+          "request_id": "uuid",  # optional
+          "field": "field_name"  # optional
+        }
+    """
+
     error: str
-    error_code: Optional[str] = None
-    message: Optional[str] = None
-    detail: Optional[str] = None
-    field: Optional[str] = None
+    message: str
+    code: Optional[str] = None
     request_id: Optional[str] = None
+    field: Optional[str] = None

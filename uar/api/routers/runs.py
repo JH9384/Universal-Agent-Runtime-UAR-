@@ -13,7 +13,11 @@ from fastapi import (
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from uar.api.gateway import ExecutionGateway
+from uar.core.worker_pool import get_worker_pool
 from uar.api.models import ErrorResponse, RunRequest, RunResponse
+from uar.api.pagination import paginate_cursor
+from uar.api.responses import list_response
 from uar.api.middleware import (
     auth_middleware,
     error_handler_middleware,
@@ -21,11 +25,12 @@ from uar.api.middleware import (
     request_logging_middleware,
     _extract_skill_from_request_data,
 )
+from uar.api.state import _auth_svc, _idempotency_get, _idempotency_set, store
 from uar.api.tracing import trace_span
 from uar.core.exceptions import UARError, ValidationError
-from uar.core.planner import SimplePlanner
 from uar.core.replay import replay_summary
 from uar.core.replay_confidence import score_replay
+from uar.core.sync_monitor import get_sync_monitor
 from uar.core.timeline import timeline_from_record
 from uar.memory.base_store import run_record_from_dict
 
@@ -64,12 +69,6 @@ async def run_goal(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Execute a goal and return the complete result"""
-    from uar.api.server import (
-        _build_goal,
-        _idempotency_get,
-        _idempotency_set,
-        store,
-    )
 
     with trace_span("api.run_goal", {"goal": req.goal[:50]}):
         # Apply rate limiting (pass parsed skill to avoid ASGI stream reuse)
@@ -85,43 +84,19 @@ async def run_goal(
         request_id = request_logging_middleware(request, user_info)
 
         try:
-            # Idempotency: return cached result for duplicate keys
-            if req.idempotency_key:
-                cached = _idempotency_get(req.idempotency_key)
-                if cached is not None:
-                    logger.info(
-                        "[%s] Idempotency hit: %s",
-                        request_id,
-                        req.idempotency_key,
-                    )
-                    return cached
-
-            goal = _build_goal(req)
-            planner = SimplePlanner()
-            strategy = planner.plan(goal)
-
-            from uar.core.executor import Executor
-
-            executor = Executor()
-            timeout = req.timeout_seconds or 5.0
-            result = executor.run(strategy, goal, timeout_seconds=timeout)
-            result.user_id = user_info.get("user") if user_info else None
-
-            # Cache result for idempotency
-            if req.idempotency_key:
-                _idempotency_set(req.idempotency_key, result)
-
-            store.append(result)
-            from uar.core.sync_monitor import get_sync_monitor
-
-            get_sync_monitor().record_write("default")
-            _analytics_cache().invalidate()
-            logger.info(
-                "[%s] Run completed successfully: %s",
-                request_id,
-                result.run_id,
+            gateway = ExecutionGateway(
+                store=store,
+                idempotency_get=_idempotency_get,
+                idempotency_set=_idempotency_set,
+                analytics_cache=_analytics_cache(),
+                sync_monitor=get_sync_monitor(),
+                pool=get_worker_pool(),
             )
-
+            result = gateway.execute(
+                req,
+                user_id=user_info.get("user") if user_info else None,
+                request_id=request_id,
+            )
             return result
 
         except ValidationError as e:
@@ -243,7 +218,6 @@ async def get_run_timeline(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return timeline projection for a specific run."""
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     user = user_info.get("user") if user_info else None
@@ -278,9 +252,14 @@ async def get_run_timeline(
 async def list_runs(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    cursor: Optional[str] = Query(
+        None, description="Opaque cursor from previous page"
+    ),
+    limit: int = Query(
+        20, ge=1, le=100, description="Items per page"
+    ),
 ):
-    """List all stored runs"""
-    from uar.api.server import store
+    """List stored runs with cursor-based pagination."""
 
     # Apply rate limiting
     rate_limit_middleware(request, credentials)
@@ -293,14 +272,23 @@ async def list_runs(
 
     try:
         user_id = user_info.get("user") if user_info else None
-        runs = store.list_records(user_id=user_id)
-        logger.info(
-            "[%s] Listed %s runs for user %s",
-            request_id,
-            len(runs),
-            user_id or "anonymous",
+        runs = store.list_records(user_id=user_id, limit=1000)
+        page, next_cursor = paginate_cursor(
+            runs, cursor=cursor, limit=limit, sort_key="run_id"
         )
-        return runs
+        logger.info(
+            "[%s] Listed %s runs for user %s (page=%s)",
+            request_id,
+            len(page),
+            user_id or "anonymous",
+            cursor is not None,
+        )
+        return list_response(
+            items=page,
+            total=len(runs),
+            next_cursor=next_cursor,
+            meta={"request_id": request_id},
+        )
 
     except Exception as e:
         logger.error(
@@ -322,7 +310,6 @@ async def get_run(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Fetch a full run record by ID (includes events)."""
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     user = user_info.get("user") if user_info else None
@@ -351,7 +338,6 @@ async def get_run_events(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Fetch just the event stream for a run."""
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     user = user_info.get("user") if user_info else None
@@ -381,7 +367,6 @@ async def get_run_replay(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return a replay-friendly summary of a historical run."""
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     user = user_info.get("user") if user_info else None
@@ -415,7 +400,6 @@ async def get_provenance(
     Returns the UOR address, witness data, and verification status
     for cryptographic audit of the run.
     """
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     user = user_info.get("user") if user_info else "anonymous"
@@ -461,7 +445,6 @@ async def query_code(
     Requires ``GREPTILE_API_KEY`` env var. Falls back to a mock
     response when not configured so the endpoint is always callable.
     """
-    from uar.api.server import _auth_svc
 
     user = _auth_svc.require_user(credentials)
     question = body.get("question", "")
@@ -517,7 +500,6 @@ async def compare_runs(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Compare two runs and return a structured diff."""
-    from uar.api.server import store
 
     rate_limit_middleware(request, credentials)
     user_info = auth_middleware(credentials)
@@ -678,7 +660,6 @@ async def bulk_delete_runs(
       or
       { "older_than_days": 30 }
     """
-    from uar.api.server import store
 
     rate_limit_middleware(request, credentials)
     user_info = auth_middleware(credentials)
@@ -792,7 +773,6 @@ async def get_failure_clusters(
     Groups failures by skill and error message, returning the top
     clusters with counts and affected run counts.  No new storage.
     """
-    from uar.api.server import store
 
     rate_limit_middleware(request, credentials)
     user_info = auth_middleware(credentials)
@@ -843,7 +823,7 @@ async def get_failure_clusters(
 async def get_topology_hot_paths(
     hours: int = Query(168, ge=1, le=720),
     top: int = Query(15, ge=1, le=50),
-    limit: int = Query(1000, ge=1, le=50000),
+    limit: int = Query(50000, ge=1, le=50000),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -857,7 +837,6 @@ async def get_topology_hot_paths(
     - Recipe utilization (executions, success rate)
     Zero new storage layer.
     """
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     if user_info is None:
@@ -915,7 +894,7 @@ async def get_topology_hot_paths(
 async def get_failure_hotspots(
     hours: int = Query(168, ge=1, le=720),
     top: int = Query(10, ge=1, le=50),
-    limit: int = Query(1000, ge=1, le=50000),
+    limit: int = Query(50000, ge=1, le=50000),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         security
     ),
@@ -927,7 +906,6 @@ async def get_failure_hotspots(
     identify the most dangerous nodes and edges.
     Zero new storage layer.
     """
-    from uar.api.server import store
 
     user_info = auth_middleware(credentials)
     if user_info is None:

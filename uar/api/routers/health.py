@@ -9,10 +9,13 @@ import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
 from uar.api.middleware import auth_middleware, security, _is_dev_mode
+from uar.api.responses import (
+    error_detail_response,
+    success_response,
+)
 from uar.version import get_uar_version
 from uar.compat.uor_version import get_uor_version
 
@@ -24,11 +27,13 @@ router = APIRouter()
 @router.get("/api/health")
 async def health_check():
     """Health check endpoint (backwards-compatible alias for liveness)."""
-    return {
-        "status": "healthy",
-        "version": get_uar_version(),
-        "uor_upstream_version": get_uor_version(),
-    }
+    return success_response(
+        data={
+            "status": "healthy",
+            "version": get_uar_version(),
+            "uor_upstream_version": get_uor_version(),
+        }
+    )
 
 
 @router.get("/api/status")
@@ -40,17 +45,19 @@ async def status_endpoint(
     user = user_info.get("user") if user_info else "anonymous"
     from uar.core.registry import registry
 
-    return {
-        "status": "operational",
-        "available_skills": registry.list(),
-        "user": user,
-    }
+    return success_response(
+        data={
+            "status": "operational",
+            "available_skills": registry.list(),
+            "user": user,
+        }
+    )
 
 
 @router.get("/api/health/live")
 async def liveness_probe():
     """Kubernetes liveness probe — process is alive."""
-    return {"status": "alive"}
+    return success_response(data={"status": "alive"})
 
 
 @router.get("/api/health/ready")
@@ -78,12 +85,12 @@ async def readiness_probe():
 
     all_ready = all(v for k, v in checks.items() if isinstance(v, bool))
     status_code = 200 if all_ready else 503
-    return JSONResponse(
-        status_code=status_code,
-        content={
+    return success_response(
+        data={
             "status": "ready" if all_ready else "not_ready",
             "checks": checks,
         },
+        status_code=status_code,
     )
 
 
@@ -94,14 +101,10 @@ async def health_circuit_breakers(
     """Circuit breaker health with per-service state and failure counts."""
     user_info = auth_middleware(credentials)
     if not user_info and not _is_dev_mode():
-        return JSONResponse(
+        return error_detail_response(
             status_code=401,
-            content={
-                "detail": {
-                    "error": "unauthorized",
-                    "message": "Authentication required",
-                }
-            },
+            error="unauthorized",
+            message="Authentication required",
         )
 
     from uar.core.circuit_breaker_decorator import (
@@ -112,12 +115,12 @@ async def health_circuit_breakers(
     any_open = any(info["state"] == "open" for info in details.values())
 
     status_code = 200 if not any_open else 503
-    return JSONResponse(
-        status_code=status_code,
-        content={
+    return success_response(
+        data={
             "status": "healthy" if not any_open else "degraded",
             "circuits": details,
         },
+        status_code=status_code,
     )
 
 
@@ -129,25 +132,17 @@ async def reset_circuit_breaker(
     """Reset a circuit breaker to closed state."""
     user_info = auth_middleware(credentials)
     if not user_info and not _is_dev_mode():
-        return JSONResponse(
+        return error_detail_response(
             status_code=401,
-            content={
-                "detail": {
-                    "error": "unauthorized",
-                    "message": "Authentication required",
-                }
-            },
+            error="unauthorized",
+            message="Authentication required",
         )
     is_admin = user_info.get("tier") == "admin" if user_info else False
     if not is_admin and not _is_dev_mode():
-        return JSONResponse(
+        return error_detail_response(
             status_code=403,
-            content={
-                "detail": {
-                    "error": "forbidden",
-                    "message": "Admin access required",
-                }
-            },
+            error="forbidden",
+            message="Admin access required",
         )
 
     from uar.core.circuit_breaker_decorator import (
@@ -157,20 +152,15 @@ async def reset_circuit_breaker(
 
     details = await get_circuit_breaker_details()
     if service_name not in details:
-        return JSONResponse(
+        return error_detail_response(
             status_code=404,
-            content={
-                "detail": {
-                    "error": "not_found",
-                    "message": f"Circuit breaker '{service_name}' not found",
-                }
-            },
+            error="not_found",
+            message=f"Circuit breaker '{service_name}' not found",
         )
 
     await _reset_cb(service_name)
-    return JSONResponse(
-        status_code=200,
-        content={"status": "reset", "service": service_name},
+    return success_response(
+        data={"status": "reset", "service": service_name}
     )
 
 
@@ -184,14 +174,10 @@ async def health_dashboard(
     """
     user_info = auth_middleware(credentials)
     if not user_info and not _is_dev_mode():
-        return JSONResponse(
+        return error_detail_response(
             status_code=401,
-            content={
-                "detail": {
-                    "error": "unauthorized",
-                    "message": "Authentication required",
-                }
-            },
+            error="unauthorized",
+            message="Authentication required",
         )
     from uar.core.registry import registry
     from uar.core.circuit_breaker_decorator import (
@@ -216,10 +202,12 @@ async def health_dashboard(
         for name, info in cb_details.items()
     ]
 
-    return {
-        "skills": skill_health,
-        "circuit_breakers": circuit_breakers,
-        "recent_errors": [],
-        "server_version": get_uar_version(),
-        "uptime_seconds": int(time.time() - _uar_start_time),
-    }
+    return success_response(
+        data={
+            "skills": skill_health,
+            "circuit_breakers": circuit_breakers,
+            "recent_errors": [],
+            "server_version": get_uar_version(),
+            "uptime_seconds": int(time.time() - _uar_start_time),
+        }
+    )

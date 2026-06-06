@@ -1,8 +1,8 @@
 """Shared runtime state for the UAR API.
 
-This module centralises mutable server state, constants, and service
-instances so that routers and middleware can import them without
-relying on :mod:`uar.api.server` directly.
+This module centralises mutable server state, constants, and lazily
+resolved services so routers/middleware can import them without
+instantiating their own copies.
 """
 
 import asyncio
@@ -10,17 +10,18 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
-from uar.memory.json_store import JsonRunStore
-from uar.services import AuthService, EventService, GoalExecutionService
-from uar.core.sync_monitor import get_sync_monitor
-from uar.core.data_source_registry import get_data_source_registry
+from uar.config import _uar_start_time
+from uar.container import (
+    ServiceContainer,
+    WebSocketConnectionCounter,
+    get_container,
+    reset_container as _reset_service_container,
+    set_container as _set_service_container,
+)
 
 logger = logging.getLogger(__name__)
-
-# Process start time for uptime calculation (single source of truth)
-_uar_start_time = time.time()
 
 # ------------------------------------------------------------------
 # Constants
@@ -114,91 +115,101 @@ def _idempotency_set(key: str, result: Any) -> None:
 
 
 # ------------------------------------------------------------------
-# WebSocket connection cap
+# Service container + lazy proxies
 # ------------------------------------------------------------------
-class _WebSocketConnectionCounter:
-    """Global WebSocket connection cap with async-safe acquire/release.
 
-    Also updates the metrics collector so active connections are visible
-    in Prometheus / JSON metrics.
-    """
-
-    def __init__(self, max_connections: int = 0):
-        self.max_connections = max_connections
-        self.count = 0
-        self.lock = asyncio.Lock()
-
-    async def acquire(self) -> bool:
-        async with self.lock:
-            if (
-                self.max_connections > 0
-                and self.count >= self.max_connections
-            ):
-                return False
-            self.count += 1
-            from uar.api.metrics import get_metrics_collector
-            get_metrics_collector().record_connection(+1)
-            return True
-
-    async def release(self) -> None:
-        async with self.lock:
-            if self.count > 0:
-                self.count = max(0, self.count - 1)
-                from uar.api.metrics import get_metrics_collector
-                get_metrics_collector().record_connection(-1)
+_CONTAINER: ServiceContainer | None = None
 
 
-_ws_conn_counter = _WebSocketConnectionCounter(
-    max(0, int(os.getenv("WEBSOCKET_MAX_CONNECTIONS", "0").strip() or "0"))
-)
+def _get_container() -> ServiceContainer:
+    global _CONTAINER
+    if _CONTAINER is None:
+        _CONTAINER = get_container()
+    return _CONTAINER
 
-# ------------------------------------------------------------------
-# Run store backend (auto-selected via UAR_STORE_BACKEND)
-# ------------------------------------------------------------------
-_UAR_STORE_BACKEND = os.getenv("UAR_STORE_BACKEND", "auto").lower()
-if _UAR_STORE_BACKEND == "postgres" or (
-    _UAR_STORE_BACKEND == "auto" and os.getenv("UAR_DATABASE_URL")
-):
-    from uar.memory.postgres_store import PostgresRunStore
 
-    store = PostgresRunStore()  # type: ignore[assignment]
-elif _UAR_STORE_BACKEND == "sqlite" or (
-    _UAR_STORE_BACKEND == "auto"
-    and os.getenv("UAR_SQLITE_PATH")
-):
-    from uar.memory.sqlite_store import SqliteRunStore
+def set_service_container(container: ServiceContainer) -> None:
+    """Override the global service container (primarily for tests)."""
 
-    store = SqliteRunStore()  # type: ignore[assignment]
-else:
-    store = JsonRunStore()  # type: ignore[assignment]
+    global _CONTAINER
+    _set_service_container(container)
+    _CONTAINER = container
 
-# ------------------------------------------------------------------
-# Sync monitor — register the default store
-# ------------------------------------------------------------------
-_store_type = (
-    "postgres"
-    if _UAR_STORE_BACKEND == "postgres" or os.getenv("UAR_DATABASE_URL")
-    else "sqlite"
-    if _UAR_STORE_BACKEND == "sqlite" or os.getenv("UAR_SQLITE_PATH")
-    else "json"
-)
-get_sync_monitor().register_store("default", store, _store_type)
 
-# ------------------------------------------------------------------
-# Data source registry — auto-register the default store
-# ------------------------------------------------------------------
-try:
-    get_data_source_registry(store).auto_register_stores()
-except Exception:
-    pass  # Non-fatal: registry is optional
+def reset_service_container() -> None:
+    """Reset to the default container configuration."""
 
-# ------------------------------------------------------------------
-# Service instances (stateless, safe to share across requests)
-# ------------------------------------------------------------------
-_auth_svc = AuthService()
-_event_svc = EventService()
-_exec_svc = GoalExecutionService(
-    event_service=_event_svc,
-    store=store,  # type: ignore[arg-type]
-    max_stream_events=MAX_STREAM_EVENTS,
-)
+    global _CONTAINER
+    _reset_service_container()
+    _CONTAINER = None
+
+
+def get_service_container() -> ServiceContainer:
+    """Return the active service container."""
+
+    return _get_container()
+
+
+class _LazyProxy:
+    """Lazily resolves a service on every attribute access."""
+
+    def __init__(self, getter: Callable[[], Any]) -> None:
+        object.__setattr__(self, "_getter", getter)
+
+    def _target(self):
+        return object.__getattribute__(self, "_getter")()
+
+    def __getattribute__(self, name: str) -> Any:
+        if name in {"_getter", "_target", "__class__"}:
+            if name == "__class__":
+                return object.__getattribute__(self, "_target")().__class__
+            return object.__getattribute__(self, name)
+        return getattr(self._target(), name)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._target(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._target(), name, value)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._target()(*args, **kwargs)
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return repr(self._target())
+
+    def __bool__(self) -> bool:  # pragma: no cover - truthiness
+        return bool(self._target())
+
+
+def _store_getter():
+    return _get_container().get_store()
+
+
+def _auth_getter():
+    return _get_container().get_auth_service()
+
+
+def _event_getter():
+    return _get_container().get_event_service()
+
+
+def _exec_getter():
+    return _get_container().get_execution_service()
+
+
+def _ws_counter_getter():
+    return _get_container().get_ws_counter()
+
+
+# Re-export canonical source of truth for backwards compatibility
+_uar_start_time = _uar_start_time  # noqa: F811
+
+store = _LazyProxy(_store_getter)
+_auth_svc = _LazyProxy(_auth_getter)
+_event_svc = _LazyProxy(_event_getter)
+_exec_svc = _LazyProxy(_exec_getter)
+_ws_conn_counter = _LazyProxy(_ws_counter_getter)
+
+# Backwards-compatible alias for tests importing from uar.api.server
+_WebSocketConnectionCounter = WebSocketConnectionCounter

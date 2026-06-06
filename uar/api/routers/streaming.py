@@ -1,9 +1,7 @@
 """Streaming endpoints for the UAR API.
 
 Includes WebSocket (/api/uar/stream/ws, /ws/run) and SSE (/api/uar/stream)
-handlers. Shared state (connection counters, rate limiters, service
-instances) is imported lazily from uar.api.server to avoid circular
-dependencies and preserve test-patch compatibility.
+handlers. Shared state is resolved via the dependency injection container.
 """
 
 import asyncio
@@ -28,6 +26,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import ValidationError as PydanticValidationError
 from starlette.websockets import WebSocketState
 
+from uar.api.goal_builder import _build_goal
 from uar.api.models import ErrorResponse, RunRequest
 from uar.api.middleware import (
     auth_middleware,
@@ -38,6 +37,17 @@ from uar.api.middleware import (
     request_logging_middleware,
     RATE_LIMITS,
     _extract_skill_from_request_data,
+)
+from uar.api.state import (
+    WS_BATCH_SIZE,
+    WS_BATCH_TIMEOUT,
+    WS_HEARTBEAT_INTERVAL,
+    _MAX_CONCURRENT_SSE_PER_IP,
+    _event_svc,
+    _exec_svc,
+    _sse_connections,
+    _sse_connections_lock,
+    _ws_conn_counter,
 )
 from uar.api.tracing import trace_span
 from uar.core.binary_stream import (
@@ -92,13 +102,6 @@ async def _stream_binary_visualization(
 @router.websocket("/api/uar/stream/ws")
 async def stream_goal_ws(websocket: WebSocket):
     """Execute a goal and stream events via WebSocket for real-time updates"""
-    from uar.api.server import (
-        _build_goal,
-        _event_svc,
-        _exec_svc,
-        _ws_conn_counter,
-        WS_HEARTBEAT_INTERVAL,
-    )
 
     request_id = str(uuid.uuid4())
     correlation_id = str(uuid.uuid4())
@@ -475,15 +478,6 @@ async def stream_goal(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Execute a goal and stream events in real-time"""
-    from uar.api.server import (
-        _build_goal,
-        _event_svc,
-        _exec_svc,
-        _MAX_CONCURRENT_SSE_PER_IP,
-        _sse_connections,
-        _sse_connections_lock,
-        WS_HEARTBEAT_INTERVAL,
-    )
 
     with trace_span("api.stream_goal", {"goal": req.goal[:50]}):
         # Apply rate limiting (pass parsed skill to avoid ASGI stream reuse)
@@ -695,15 +689,6 @@ async def websocket_run(websocket: WebSocket):
     Includes heartbeat/ping-pong, batching, bounded buffers,
     and graceful error handling.
     """
-    from uar.api.server import (
-        _build_goal,
-        _event_svc,
-        _exec_svc,
-        _ws_conn_counter,
-        WS_HEARTBEAT_INTERVAL,
-        WS_BATCH_SIZE,
-        WS_BATCH_TIMEOUT,
-    )
 
     request_id = str(uuid.uuid4())
     correlation_id = str(uuid.uuid4())

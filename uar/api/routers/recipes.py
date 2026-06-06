@@ -10,6 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import security
+from uar.api.state import store
 from uar.services import AuthService, RecipeService
 
 router = APIRouter()
@@ -155,8 +156,6 @@ async def get_recipe_intelligence(
     recipe classifications: Recommended, Monitor, Retire Candidate.
     Zero new storage layer.
     """
-    from uar.api.server import store
-
     user_info = _auth_svc.authenticate(credentials)
     user = user_info.get("user") if user_info else None
     is_admin = user_info.get("tier") == "admin" if user_info else False

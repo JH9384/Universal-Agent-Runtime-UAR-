@@ -1073,3 +1073,32 @@ def api_error_handler(operation_name: str):
         return wrapper
 
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# API Version Header middleware (T9)
+# ---------------------------------------------------------------------------
+
+
+class APIVersionMiddleware:
+    """ASGI middleware that injects ``X-API-Version`` into every response."""
+
+    def __init__(self, app, version: str):
+        self.app = app
+        self.version = version
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send_with_header(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.append(
+                    (b"x-api-version", self.version.encode("utf-8"))
+                )
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, _send_with_header)
