@@ -27,7 +27,7 @@ from typing import Any, Dict
 
 from uar.core.registry import register_skill
 from uar.core.contracts import PipelineContext
-from uar.core.skill_utils import skill_guard
+from uar.core.skill_utils import require_field, skill_guard
 from uar.core.uor_ecosystem import get_uor_ecosystem
 
 logger = logging.getLogger(__name__)
@@ -47,9 +47,10 @@ def uor_addr_canonicalize(ctx: PipelineContext) -> Dict[str, Any]:
       data  — Python object to canonicalize (required)
     """
     meta = ctx.goal.metadata or {}
-    data = meta.get("data")
-    if data is None:
-        return {"status": "failed", "error": "metadata 'data' required"}
+    err = require_field(meta, "data")
+    if err:
+        return err
+    data = meta["data"]
 
     eco = get_uor_ecosystem()
     envelope = eco.uor_addr.canonicalize(data)
@@ -71,9 +72,10 @@ def uor_addr_resolve(ctx: PipelineContext) -> Dict[str, Any]:
       digest  — sha256:<hex> digest to look up (required)
     """
     meta = ctx.goal.metadata or {}
-    digest = meta.get("digest", "")
-    if not digest:
-        return {"status": "failed", "error": "metadata 'digest' required"}
+    err = require_field(meta, "digest")
+    if err:
+        return err
+    digest = meta["digest"]
 
     eco = get_uor_ecosystem()
     obj = eco.uor_addr.resolve(digest)
@@ -154,9 +156,10 @@ def moltbook_search(ctx: PipelineContext) -> Dict[str, Any]:
       limit  — max results (default 10)
     """
     meta = ctx.goal.metadata or {}
-    query = meta.get("query", "")
-    if not query:
-        return {"status": "failed", "error": "metadata 'query' required"}
+    err = require_field(meta, "query")
+    if err:
+        return err
+    query = meta["query"]
     limit = meta.get("limit", 10)
 
     eco = get_uor_ecosystem()
@@ -205,9 +208,10 @@ def prism_btc_anchor(ctx: PipelineContext) -> Dict[str, Any]:
       digest  — sha256:<hex> digest to anchor (required)
     """
     meta = ctx.goal.metadata or {}
-    digest = meta.get("digest", "")
-    if not digest:
-        return {"status": "failed", "error": "metadata 'digest' required"}
+    err = require_field(meta, "digest")
+    if err:
+        return err
+    digest = meta["digest"]
 
     eco = get_uor_ecosystem()
     result = eco.prism_btc.anchor_digest(digest)
@@ -223,9 +227,10 @@ def prism_btc_verify(ctx: PipelineContext) -> Dict[str, Any]:
       digest  — sha256:<hex> digest to verify (required)
     """
     meta = ctx.goal.metadata or {}
-    digest = meta.get("digest", "")
-    if not digest:
-        return {"status": "failed", "error": "metadata 'digest' required"}
+    err = require_field(meta, "digest")
+    if err:
+        return err
+    digest = meta["digest"]
 
     eco = get_uor_ecosystem()
     result = eco.prism_btc.verify_anchor(digest)
@@ -247,9 +252,10 @@ def severance_infer(ctx: PipelineContext) -> Dict[str, Any]:
       model   — model identifier (default "default")
     """
     meta = ctx.goal.metadata or {}
-    prompt = meta.get("prompt", "")
-    if not prompt:
-        return {"status": "failed", "error": "metadata 'prompt' required"}
+    err = require_field(meta, "prompt")
+    if err:
+        return err
+    prompt = meta["prompt"]
     model = meta.get("model", "default")
 
     eco = get_uor_ecosystem()
@@ -267,9 +273,10 @@ def severance_verify(ctx: PipelineContext) -> Dict[str, Any]:
       criteria  — dict of verification criteria (default {})
     """
     meta = ctx.goal.metadata or {}
-    output = meta.get("output", "")
-    if not output:
-        return {"status": "failed", "error": "metadata 'output' required"}
+    err = require_field(meta, "output")
+    if err:
+        return err
+    output = meta["output"]
     criteria = meta.get("criteria", {})
 
     eco = get_uor_ecosystem()
@@ -291,9 +298,10 @@ def anunix_health(ctx: PipelineContext) -> Dict[str, Any]:
       host_id  — host identifier (required)
     """
     meta = ctx.goal.metadata or {}
-    host_id = meta.get("host_id", "")
-    if not host_id:
-        return {"status": "failed", "error": "metadata 'host_id' required"}
+    err = require_field(meta, "host_id")
+    if err:
+        return err
+    host_id = meta["host_id"]
 
     eco = get_uor_ecosystem()
     result = eco.anunix.health_check(host_id)

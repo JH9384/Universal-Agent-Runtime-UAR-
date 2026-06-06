@@ -46,12 +46,8 @@ class FailurePattern:
             "last_seen": self.last_seen,
             "recovery_rate": self.recovery_rate,
         }
-        try:
-            from uar.uor.bounded_json import compute_uor_digest
-            data["uor_digest"] = compute_uor_digest(data)
-        except Exception:
-            pass
-        return data
+        from uar.core.skill_utils import wrap_with_digest
+        return wrap_with_digest(data)
 
 
 @dataclass
@@ -72,12 +68,8 @@ class RecoveryPath:
             "count": self.count,
             "success_rate": self.success_rate,
         }
-        try:
-            from uar.uor.bounded_json import compute_uor_digest
-            data["uor_digest"] = compute_uor_digest(data)
-        except Exception:
-            pass
-        return data
+        from uar.core.skill_utils import wrap_with_digest
+        return wrap_with_digest(data)
 
 
 @dataclass

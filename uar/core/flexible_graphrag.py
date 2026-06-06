@@ -545,13 +545,8 @@ class FlexibleGraphRAG:
             "results": [entity.to_dict() for entity in results],
             "result_count": len(results),
         }
-        try:
-            from uar.uor.bounded_json import compute_uor_digest
-
-            result["uor_digest"] = compute_uor_digest(result)
-        except Exception:
-            result["uor_digest"] = None
-        return result
+        from uar.core.skill_utils import wrap_with_digest
+        return wrap_with_digest(result)
 
     def get_graph_stats(self) -> Dict[str, Any]:
         """Get statistics about the graph."""

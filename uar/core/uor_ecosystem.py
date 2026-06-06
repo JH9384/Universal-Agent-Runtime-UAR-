@@ -30,6 +30,7 @@ import re
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
+from .skill_utils import wrap_with_digest
 from .uor_integration import UORObject, ObjectMode, get_uor_integrator
 
 # URL schemes allowed for external ecosystem calls
@@ -125,13 +126,7 @@ def _http_post(
         return {"status": "error", "error": "Unsafe URL blocked", "url": url}
     client = _get_http_client()
     if client is None:
-        result = {"status": "mock", "note": "httpx not installed"}
-        try:
-            from uar.uor.bounded_json import compute_uor_digest
-            result["uor_digest"] = compute_uor_digest(result)
-        except Exception:
-            pass
-        return result
+        return _mock_result("httpx not installed")
     try:
         resp = client.post(url, json=payload, timeout=timeout)
         resp.raise_for_status()
@@ -148,13 +143,7 @@ def _http_get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
         return {"status": "error", "error": "Unsafe URL blocked", "url": url}
     client = _get_http_client()
     if client is None:
-        result = {"status": "mock", "note": "httpx not installed"}
-        try:
-            from uar.uor.bounded_json import compute_uor_digest
-            result["uor_digest"] = compute_uor_digest(result)
-        except Exception:
-            pass
-        return result
+        return _mock_result("httpx not installed")
     try:
         resp = client.get(url, timeout=timeout)
         resp.raise_for_status()
@@ -162,6 +151,11 @@ def _http_get(url: str, timeout: float = 30.0) -> Dict[str, Any]:
     except Exception as exc:
         logger.warning("HTTP GET to %s failed: %s", url, exc)
         return {"status": "error", "error": "Request failed"}
+
+
+def _mock_result(note: str) -> Dict[str, Any]:
+    """Return a mock result with a UOR content-addressed digest."""
+    return wrap_with_digest({"status": "mock", "note": note})
 
 
 # ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ from .exceptions import UARError
 logger = logging.getLogger(__name__)
 
 
-def _wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
+def wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
     """Add a UOR content-addressed digest to a result dict.
 
     Best-effort: silently skip if compute_uor_digest is unavailable,
@@ -35,6 +35,10 @@ def _wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass
     return result
+
+
+# Backward-compatible alias used by existing callers
+_wrap_with_digest = wrap_with_digest
 
 
 def skill_guard(
@@ -73,12 +77,12 @@ def skill_guard(
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 try:
                     result = await fn(*args, **kwargs)
-                    return _wrap_with_digest(result)
+                    return wrap_with_digest(result)
                 except UARError:
                     raise
                 except Exception as exc:
                     mod_logger.exception("%s failed", operation_name)
-                    return _wrap_with_digest({
+                    return wrap_with_digest({
                         "status": status,
                         "error": f"{type(exc).__name__}: {exc}",
                         "message": f"{operation_name} failed",
@@ -90,12 +94,12 @@ def skill_guard(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 result = fn(*args, **kwargs)
-                return _wrap_with_digest(result)
+                return wrap_with_digest(result)
             except UARError:
                 raise
             except Exception as exc:
                 mod_logger.exception("%s failed", operation_name)
-                return _wrap_with_digest({
+                return wrap_with_digest({
                     "status": status,
                     "error": f"{type(exc).__name__}: {exc}",
                     "message": f"{operation_name} failed",
@@ -154,3 +158,32 @@ def require_package(
         "status": "failed",
         "error": f"{pkg_list} not installed. {hint}",
     }
+
+
+def require_field(
+    meta: Dict[str, Any],
+    key: str,
+    error_msg: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Return error dict if *key* is missing or falsy in *meta*, else ``None``.
+
+    Eliminates the duplicated early-validation guard that exists across
+    many ecosystem and utility skills.
+
+    Args:
+        meta: The skill's metadata dict (usually ``ctx.goal.metadata``).
+        key: Required metadata key.
+        error_msg: Optional custom error message.  Defaults to
+            ``"metadata '<key>' required"``.
+
+    Usage::
+
+        err = require_field(meta, "digest")
+        if err:
+            return err
+    """
+    value = meta.get(key)
+    if value:
+        return None
+    msg = error_msg or f"metadata '{key}' required"
+    return {"status": "failed", "error": msg}

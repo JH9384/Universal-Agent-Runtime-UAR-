@@ -67,11 +67,8 @@ def _simulate_pipeline(
             ],
             "pc": pc,
         }
-        try:
-            from uar.uor.bounded_json import compute_uor_digest
-            entry["uor_digest"] = compute_uor_digest(entry)
-        except Exception:
-            pass
+        from uar.core.skill_utils import wrap_with_digest
+        wrap_with_digest(entry)
         trace.append(entry)
 
     return trace

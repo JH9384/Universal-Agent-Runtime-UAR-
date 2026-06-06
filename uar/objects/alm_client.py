@@ -12,6 +12,8 @@ import logging
 import os
 from typing import Any, Dict, List
 
+from uar.core.skill_utils import wrap_with_digest
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -90,19 +92,6 @@ class AtomicLanguageModelSkill:
         else:
             self.client = None  # type: ignore
 
-    @staticmethod
-    def _wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
-        """Add a UOR content-addressed digest to a result dict."""
-        if not isinstance(result, dict):
-            return result
-        try:
-            from uar.uor.bounded_json import compute_uor_digest
-
-            result["uor_digest"] = compute_uor_digest(result)
-        except Exception:
-            pass
-        return result
-
     def close(self):
         """Close the httpx client to release resources."""
         if self.client is not None:
@@ -138,12 +127,12 @@ class AtomicLanguageModelSkill:
                 "Install httpx for real ALM service integration."
             )
             if "recursive" in grammar_spec.lower():
-                return self._wrap_with_digest({
+                return wrap_with_digest({
                     "status": "success",
                     "analysis": "Grammar supports provable recursion.",
                     "details": "Passed formal verification checks.",
                 })
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "status": "success",
                 "analysis": "Grammar analyzed successfully.",
                 "details": "Basic syntax check passed.",
@@ -163,17 +152,17 @@ class AtomicLanguageModelSkill:
                     json={"sentences": [grammar_spec]},
                 )
             response.raise_for_status()
-            return self._wrap_with_digest(response.json())
+            return wrap_with_digest(response.json())
         except httpx.HTTPError:
             logger.exception("HTTP error calling ALM service")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "status": "error",
                 "error": "ALM request failed",
                 "details": "Failed to connect to ALM service",
             })
         except Exception:
             logger.exception("Unexpected error calling ALM service")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "status": "error",
                 "error": "ALM request failed",
                 "details": "Unexpected error",
@@ -258,14 +247,14 @@ class AtomicLanguageModelSkill:
                 "Install httpx for real ALM service integration."
             )
             if "student left" in text:
-                return self._wrap_with_digest({
+                return wrap_with_digest({
                     "valid": True,
                     "proof_id": "proof_123",
                     "notes": (
                         "Syntactically correct and semantically plausible."
                     ),
                 })
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "valid": False,
                 "error": "Syntax error or semantic violation detected.",
                 "details": "Requires formal grammar check.",
@@ -287,32 +276,32 @@ class AtomicLanguageModelSkill:
             result = response.json()
             # Handle different response formats
             if "valid" in result:
-                return self._wrap_with_digest(result)
+                return wrap_with_digest(result)
             elif "is_valid" in result:
-                return self._wrap_with_digest({
+                return wrap_with_digest({
                     "valid": result["is_valid"], **result
                 })
             elif "results" in result and result["results"]:
                 first = result["results"][0]
-                return self._wrap_with_digest({
+                return wrap_with_digest({
                     "valid": first.get("valid", False),
                     **first,
                     "all_results": result["results"],
                 })
             else:
-                return self._wrap_with_digest({
+                return wrap_with_digest({
                     "valid": True, "result": result
                 })
         except httpx.HTTPError:
             logger.exception("HTTP error calling ALM service")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "valid": False,
                 "error": "ALM validation failed",
                 "details": "Failed to connect to ALM service",
             })
         except Exception:
             logger.exception("Unexpected error calling ALM service")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "valid": False,
                 "error": "ALM validation failed",
                 "details": "Unexpected error",
@@ -333,7 +322,7 @@ class AtomicLanguageModelSkill:
         )
         if self.client is None:
             logger.warning("httpx not available - using mock response")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "prediction": "token_mock", "probability": 0.5
             })
 
@@ -343,15 +332,15 @@ class AtomicLanguageModelSkill:
                 params={"prefix": prefix},
             )
             response.raise_for_status()
-            return self._wrap_with_digest(response.json())
+            return wrap_with_digest(response.json())
         except httpx.HTTPError:
             logger.exception("HTTP error calling ALM /predict")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "error": "ALM request failed", "prediction": None
             })
         except Exception:
             logger.exception("Unexpected error calling ALM /predict")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "error": "ALM request failed", "prediction": None
             })
 
@@ -369,7 +358,7 @@ class AtomicLanguageModelSkill:
         )
         if self.client is None:
             logger.warning("httpx not available - using mock response")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "results": [{"sentence": s, "valid": True} for s in sentences]
             })
 
@@ -379,15 +368,15 @@ class AtomicLanguageModelSkill:
                 json={"sentences": sentences},
             )
             response.raise_for_status()
-            return self._wrap_with_digest(response.json())
+            return wrap_with_digest(response.json())
         except httpx.HTTPError:
             logger.exception("HTTP error calling ALM /validate")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "error": "ALM request failed", "results": []
             })
         except Exception:
             logger.exception("Unexpected error calling ALM /validate")
-            return self._wrap_with_digest({
+            return wrap_with_digest({
                 "error": "ALM request failed", "results": []
             })
 
