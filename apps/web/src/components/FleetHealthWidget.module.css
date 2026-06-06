@@ -1,0 +1,169 @@
+.widget {
+  padding: 16px;
+  background: var(--panel-bg, #f6f8fa);
+  border: 1px solid var(--panel-border, #e1e4e8);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.score {
+  font-weight: 600;
+  color: var(--accent, #2563eb);
+}
+
+.count {
+  color: var(--text-secondary, #666);
+}
+
+.criticalBanner {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.hotspotBanner {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--card-border, #e1e4e8);
+  border-radius: 6px;
+  padding: 12px;
+  transition: box-shadow 0.15s ease;
+}
+
+.card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.statusOnline {
+  border-left: 3px solid #22c55e;
+}
+
+.statusStale {
+  border-left: 3px solid #f59e0b;
+}
+
+.statusOffline {
+  border-left: 3px solid #9ca3af;
+  opacity: 0.7;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.nodeName {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.certGold {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.certSilver {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.certExperimental {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.cardBody {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.metricLabel {
+  font-size: 10px;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.metricValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #1a1a2e);
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+  border-top: 1px solid var(--card-border, #e1e4e8);
+  padding-top: 6px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--text-secondary, #888);
+  padding: 24px;
+  font-size: 13px;
+}
