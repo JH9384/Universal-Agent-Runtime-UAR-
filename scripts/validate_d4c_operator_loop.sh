@@ -26,7 +26,9 @@ cd "$ROOT_DIR/apps/web"
 npm run test:run -- \
   src/components/AlertBanner.test.tsx \
   src/components/mission-control/OperatorBriefingPanel.test.tsx \
-  src/components/Dashboard.test.tsx
+  src/components/mission-control/ArtifactBrowser.test.tsx \
+  src/components/Dashboard.test.tsx \
+  src/utils/evidencePackPreview.test.ts
 
 echo "== Frontend production build =="
 npm run build
