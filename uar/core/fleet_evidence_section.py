@@ -119,12 +119,13 @@ def build_fleet_evidence_section(
         rec_ids = linkage.get("recommendations") or []
         incident_ids = linkage.get("incidents") or []
         evidence_refs = linkage.get("evidence_refs") or []
+        message = signal.get("message") or "No message provided"
         lines.extend([
             f"### {index}. {signal.get('title', 'Fleet signal')}",
             "",
             f"- Level: `{signal.get('level')}`",
             f"- Scope: `{signal.get('scope')}`",
-            f"- Message: {signal.get('message')}``".replace("``", ""),
+            f"- Message: {message}",
             f"- Latest replay run: `{replay.get('run_id') or 'none'}`",
             f"- Replay available: `{replay.get('available', False)}`",
             f"- Incidents: `{', '.join(incident_ids) if incident_ids else 'none'}`",
