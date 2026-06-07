@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ArtifactBrowser } from './ArtifactBrowser'
 
 const mockListRuns = vi.fn()
+const mockUseApiFetch = vi.fn()
 
 vi.mock('../../api/dashboard', () => ({
   dashboardApi: {
@@ -11,8 +12,19 @@ vi.mock('../../api/dashboard', () => ({
   },
 }))
 
+vi.mock('../../hooks/useApiFetch', () => ({
+  useApiFetch: (...args: unknown[]) => mockUseApiFetch(...args),
+}))
+
 beforeEach(() => {
   mockListRuns.mockReset()
+  mockUseApiFetch.mockReset()
+  mockUseApiFetch.mockReturnValue({
+    data: null,
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  })
   Object.assign(navigator, {
     clipboard: {
       writeText: vi.fn().mockResolvedValue(undefined),
@@ -34,6 +46,41 @@ describe('ArtifactBrowser evidence preview', () => {
     expect(screen.getByText('run-failed-1')).toBeInTheDocument()
     expect(screen.getByText(/Fleet status: \*\*warning\*\*/)).toBeInTheDocument()
     expect(screen.getByText(/run:run-failed-1/)).toBeInTheDocument()
+  })
+
+  it('renders recurrence context from Mission Control incident summary', async () => {
+    mockUseApiFetch.mockReturnValue({
+      data: {
+        incident_summary: {
+          status: 'active',
+          recurring_patterns: 1,
+          top_pattern: {
+            scope: 'service',
+            value: 'svc-artifact',
+            recurrence_count: 2,
+            affected_run_ids: ['run-rec-2', 'run-rec-1'],
+            latest_run_id: 'run-rec-2',
+            linked_incident_ids: ['inc-artifact'],
+            linked_recommendation_ids: ['rec-artifact'],
+            evidence_refs: ['run:run-rec-2', 'run:run-rec-1'],
+          },
+        },
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    mockListRuns.mockResolvedValue([
+      { run_id: 'run-complete-1', status: 'completed', skills: ['echo'] },
+    ])
+
+    render(<ArtifactBrowser />)
+
+    expect(await screen.findByText('Top recurrence')).toBeInTheDocument()
+    expect(screen.getByText('service:svc-artifact')).toBeInTheDocument()
+    expect(screen.getByText('run-rec-2')).toBeInTheDocument()
+    expect(screen.getByText(/Recurring patterns: \*\*1\*\*/)).toBeInTheDocument()
+    expect(screen.getByText(/Incident IDs: `inc-artifact`/)).toBeInTheDocument()
   })
 
   it('copies Evidence Pack markdown', async () => {
