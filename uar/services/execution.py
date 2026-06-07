@@ -256,11 +256,22 @@ class GoalExecutionService(BaseService):
 
             # Persist successful run from temp file
             if _bg_persist and yield_persisted:
-                asyncio.create_task(
+                _bg_task = asyncio.create_task(
                     self._persist_async(
                         tmp_path.name, strategy, user_id, request_id
                     )
                 )
+
+                def _log_persist_exc(t: asyncio.Task) -> None:
+                    exc = t.exception()
+                    if exc is not None:
+                        logger.error(
+                            "Background persist failed: %s",
+                            exc,
+                            exc_info=exc,
+                        )
+
+                _bg_task.add_done_callback(_log_persist_exc)
                 _bg_task_created = True
                 persisted = True
             else:

@@ -1,6 +1,7 @@
 import atexit
 import collections
 import concurrent.futures
+import contextlib
 import copy
 import functools
 import gc
@@ -1249,8 +1250,8 @@ class Executor:
                         ctx.data,
                         goal.objective,
                     )
+                use_cache = False
                 if cached_result is not None:
-                    _metrics_cache_hits += 1
                     # Validate cached result against output guardrails
                     output_violations = _validate_output_guardrails(
                         cached_result, skill_name
@@ -1265,10 +1266,9 @@ class Executor:
                             skill_name,
                             error_msg,
                         )
-                        # Treat cache miss and execute normally
-                        cached_result = None
-                        _metrics_cache_misses += 1
+                        # Fall through to normal execution
                     else:
+                        _metrics_cache_hits += 1
                         with ctx_lock:
                             ctx.data[skill_name] = cached_result
                         outputs.append({skill_name: cached_result})
@@ -1281,9 +1281,11 @@ class Executor:
                                 "attempt": 1,
                             },
                         )
-                else:
+                        use_cache = True
+
+                if not use_cache:
                     _metrics_cache_misses += 1
-                    # No cache hit, execute with retry logic
+                    # No cache hit or guardrails failed — execute with retry
                     max_retries = get_max_retries(skill_name)
                     last_error = None
                     _coalesce_lock_acquired = False  # precedes function def
@@ -1539,6 +1541,7 @@ class Executor:
                 # internally, no need for ctx_lock
                 for skill_name in skill_group:
                     cached_result = None
+                    cache_used = False
                     if enable_cache:
                         cached_result = cache.get(
                             skill_name,
@@ -1560,9 +1563,9 @@ class Executor:
                                 skill_name,
                                 error_msg,
                             )
-                            # Treat cache miss and execute normally
-                            cached_result = None
+                            # Fall through to normal execution
                         else:
+                            _metrics_cache_hits += 1
                             # Cache hit, add to results directly
                             parallel_results[skill_name] = cached_result
                             yield _ev(
@@ -1573,20 +1576,21 @@ class Executor:
                                     "cached": True,
                                 },
                             )
-                    else:
-                        # Cache miss, add to execution list
+                            cache_used = True
+
+                    if not cache_used:
+                        # Cache miss / guardrails failed → execution list
                         skills_to_execute.append(skill_name)
                         _metrics_cache_misses += 1
 
                 # Execute non-cached skills in parallel
                 # T6: use injected WorkerPool if available
-                _pool_ctx = (
-                    self._pool
-                    if self._pool is not None
-                    else concurrent.futures.ThreadPoolExecutor(
+                if self._pool is not None:
+                    _pool_ctx = contextlib.nullcontext(self._pool)
+                else:
+                    _pool_ctx = concurrent.futures.ThreadPoolExecutor(
                         max_workers=min(8, len(skills_to_execute))
                     )
-                )
                 with _pool_ctx as pool:
                     future_to_skill = {}
                     future_to_start_time: Dict[

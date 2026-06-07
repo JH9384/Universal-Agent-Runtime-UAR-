@@ -263,3 +263,121 @@ def test_timed_decorator_re_raises_cancelled_error():
     # The async_wrapper inside timed() should have CancelledError
     # before the broad except Exception
     assert "except asyncio.CancelledError:" in source
+
+
+# ------------------------------------------------------------------
+# FIX-9: Cache guardrails failure must fall through to execution
+# ------------------------------------------------------------------
+
+
+def test_sequential_cache_guardrails_falls_through_source():
+    """Source: sequential path uses use_cache flag, not else branch."""
+    import uar.core.executor as _exec_mod
+
+    source = inspect.getsource(_exec_mod)
+    seq = source.split("# Check cache first if enabled")[1]
+    assert "use_cache = False" in seq
+    assert "if not use_cache:" in seq
+    # _metrics_cache_hits must be inside the success (else) branch,
+    # not before the guardrails check
+    seq_guardrails = seq.split("_validate_output_guardrails")[1]
+    first_else = seq_guardrails.split("else:")[0]
+    assert "_metrics_cache_hits += 1" not in first_else
+
+
+def test_parallel_cache_guardrails_falls_through_source():
+    """Source: parallel loop uses cache_used flag, not else branch."""
+    import uar.core.executor as _exec_mod
+
+    source = inspect.getsource(_exec_mod)
+    par = source.split("# Check cache for each skill before parallel")[1]
+    assert "cache_used = False" in par
+    assert "if not cache_used:" in par
+    # _metrics_cache_hits must be inside the success (else) branch
+    par_guardrails = par.split("_validate_output_guardrails")[1]
+    first_else = par_guardrails.split("else:")[0]
+    assert "_metrics_cache_hits += 1" not in first_else
+
+
+def test_guardrails_failed_cache_hit_still_executes_skill():
+    """Functional: guardrails-failed cache hit falls through to execution."""
+    from uar.core.executor import Executor
+    from uar.core.contracts import StrategySpec, GoalSpec
+
+    goal = GoalSpec(
+        id="g1", user_intent="test", objective="test",
+        metadata={"enable_parallel": False},
+    )
+    strategy = StrategySpec(
+        goal_id="g1",
+        ordered_skills=["test_skill"],
+        waves=None,
+    )
+
+    executor = Executor()
+
+    class FakeCache:
+        def get(self, skill_name, ctx_data, objective):
+            return "cached_value"
+
+        def set(self, *args, **kwargs):
+            pass
+
+    def _fake_guardrails(result, skill_name):
+        if result == "cached_value":
+            return ["guardrail_violation"]
+        return []
+
+    def _fake_skill(ctx):
+        return "executed_value"
+
+    with patch("uar.core.executor.get_cache", return_value=FakeCache()):
+        with patch(
+            "uar.core.executor._validate_output_guardrails",
+            side_effect=_fake_guardrails,
+        ):
+            with patch(
+                "uar.core.executor._validate_input_guardrails",
+                return_value=[],
+            ):
+                with patch(
+                    "uar.core.executor.registry.is_registered",
+                    return_value=True,
+                ):
+                    with patch(
+                        "uar.core.executor.registry.get",
+                        return_value=_fake_skill,
+                    ):
+                        events = list(
+                            executor.iter_events(
+                                strategy,
+                                goal,
+                                timeout_seconds=5.0,
+                                correlation_id="c1",
+                            )
+                        )
+
+    skill_complete_events = [
+        e for e in events if e.get("type") == "skill_complete"
+    ]
+    assert len(skill_complete_events) == 1
+    assert skill_complete_events[0]["payload"]["result"] == "executed_value"
+
+    metrics_events = [e for e in events if e.get("type") == "metrics"]
+    assert len(metrics_events) == 1
+    assert metrics_events[0]["payload"]["cache_hits"] == 0
+    assert metrics_events[0]["payload"]["cache_misses"] == 1
+
+
+# ------------------------------------------------------------------
+# FIX-10: Injected WorkerPool must not be shut down by with block
+# ------------------------------------------------------------------
+
+
+def test_injected_pool_uses_nullcontext():
+    """Source: injected self._pool must use nullcontext, not bare with."""
+    import uar.core.executor as _exec_mod
+
+    source = inspect.getsource(_exec_mod)
+    # The parallel execution block should wrap injected pool in nullcontext
+    assert "contextlib.nullcontext(self._pool)" in source
