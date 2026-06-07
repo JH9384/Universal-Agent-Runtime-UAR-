@@ -25,7 +25,7 @@ describe('IncidentRecurrenceSummary', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('renders top recurrence context', () => {
+  it('renders top recurrence context and compact notes', () => {
     render(<IncidentRecurrenceSummary incidentSummary={summary} />)
 
     expect(screen.getByText('Top recurrence')).toBeInTheDocument()
@@ -34,6 +34,9 @@ describe('IncidentRecurrenceSummary', () => {
     expect(screen.getByText('Incident IDs: inc-1')).toBeInTheDocument()
     expect(screen.getByText('Recommendation IDs: rec-1')).toBeInTheDocument()
     expect(screen.getByText('Evidence refs: run:r3, run:r2, run:r1')).toBeInTheDocument()
+    expect(screen.getByText('Recurrence scope: service:svc-a.')).toBeInTheDocument()
+    expect(screen.getByText('Latest run: r3.')).toBeInTheDocument()
+    expect(screen.getByText('Evidence context: run:r3, run:r2, run:r1.')).toBeInTheDocument()
   })
 
   it('opens replay for latest recurrence run', async () => {
