@@ -200,3 +200,34 @@ def test_snapshot_includes_fleet_summary_from_existing_runs(tmp_path):
     assert snap.fleet_summary["active_signals"] == 1
     assert snap.fleet_summary["top_signal"]["latest_run_id"] == "fleet-r1"
     assert snap.fleet_summary["top_signal"]["scope"] == "service"
+
+
+def test_snapshot_fleet_summary_includes_replay_incident_and_recommendation_linkage(tmp_path):
+    store = _make_store(tmp_path)
+    store.append(
+        RunRecord(
+            run_id="fleet-r2",
+            goal_id="g1",
+            skills=["echo"],
+            status="failed",
+            errors=["boom"],
+            metadata={
+                "service": "svc-b",
+                "incident_id": "inc-1",
+                "recommendation_id": "rec-1",
+            },
+        )
+    )
+    store.flush()
+
+    snap = build_snapshot(
+        store=store,
+        registry=_make_registry(),
+    )
+
+    top = snap.fleet_summary["top_signal"]
+    linkage = top["linkage"]
+    assert linkage["replay"] == {"run_id": "fleet-r2", "available": True}
+    assert linkage["incidents"] == ["inc-1"]
+    assert linkage["recommendations"] == ["rec-1"]
+    assert linkage["evidence_refs"] == ["run:fleet-r2"]
