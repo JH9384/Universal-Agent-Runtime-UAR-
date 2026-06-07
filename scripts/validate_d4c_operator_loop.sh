@@ -19,6 +19,7 @@ pytest \
   tests/core/test_fleet_evidence_section.py \
   tests/core/test_evidence_pack_v2.py \
   tests/core/test_operator_daily_briefing.py \
+  tests/core/test_incident_intelligence.py \
   tests/api/test_mission_control.py
 
 echo "== D4C frontend operator loop tests =="
