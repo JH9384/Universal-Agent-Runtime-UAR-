@@ -160,16 +160,19 @@ def build_snapshot(
         _logging.getLogger(__name__).exception("Trust summary failed")
         warnings.append(f"trust_summary: {exc}")
 
-    # D4C-S1.2: Fleet summary for Mission Control using existing records.
+    # D4C-S1.2/S1.4: Fleet summary and linkage from existing records.
     # This intentionally creates no fleet store and no duplicate dashboard.
     fleet_summary = None
     try:
+        from uar.core.fleet_linkage import attach_linkage_to_fleet_summary
         from uar.core.fleet_signals import (
             build_fleet_signals,
             build_fleet_summary,
         )
         records = store.list_records(limit=50000)
-        fleet_summary = build_fleet_summary(build_fleet_signals(records))
+        fleet_summary = attach_linkage_to_fleet_summary(
+            build_fleet_summary(build_fleet_signals(records))
+        )
     except Exception as exc:
         import logging as _logging
 
