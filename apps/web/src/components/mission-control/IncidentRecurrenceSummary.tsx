@@ -1,3 +1,5 @@
+import { buildRecurrenceNotes } from "../../utils/recurrenceNotes";
+
 interface IncidentPattern {
   id: string;
   scope: string;
@@ -30,6 +32,7 @@ export function IncidentRecurrenceSummary({ incidentSummary, onOpenReplay, onSel
   const incidents = pattern.linked_incident_ids ?? [];
   const recommendations = pattern.linked_recommendation_ids ?? [];
   const evidenceRefs = pattern.evidence_refs ?? [];
+  const notes = buildRecurrenceNotes(pattern);
 
   return (
     <div className="mc-briefing-section">
@@ -53,6 +56,13 @@ export function IncidentRecurrenceSummary({ incidentSummary, onOpenReplay, onSel
       <p className="mc-meta--xs">Incident IDs: {incidents.length ? incidents.join(", ") : "none"}</p>
       <p className="mc-meta--xs">Recommendation IDs: {recommendations.length ? recommendations.join(", ") : "none"}</p>
       <p className="mc-meta--xs">Evidence refs: {evidenceRefs.length ? evidenceRefs.join(", ") : "none"}</p>
+      {notes.length > 0 && (
+        <ul className="mc-recurrence-notes">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
