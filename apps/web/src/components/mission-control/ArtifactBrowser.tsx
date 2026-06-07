@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { dashboardApi } from "../../api/dashboard";
 import type { RunRecord } from "../../api/dashboard";
+import { buildEvidencePackPreview } from "../../utils/evidencePackPreview";
 
 type StatusFilter = "all" | "completed" | "failed" | "running" | "pending";
 
@@ -14,9 +15,11 @@ const STATUS_COLOR: Record<string, string> = {
 export function ArtifactBrowser() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchData = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -55,12 +58,33 @@ export function ArtifactBrowser() {
     };
   }, [fetchData]);
 
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   const visible = filter === "all" ? runs : runs.filter((r) => r.status === filter);
 
   const counts = runs.reduce<Record<string, number>>((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
     return acc;
   }, {});
+
+  const evidencePreview = buildEvidencePackPreview(runs);
+
+  function copyEvidenceMarkdown() {
+    navigator.clipboard.writeText(evidencePreview.markdown).then(() => {
+      if (!mountedRef.current) return;
+      setCopied(true);
+      copyTimerRef.current = setTimeout(() => {
+        if (mountedRef.current) setCopied(false);
+        copyTimerRef.current = null;
+      }, 1500);
+    }).catch(() => {
+      if (mountedRef.current) setCopied(false);
+    });
+  }
 
   if (loading) {
     return (
@@ -88,6 +112,30 @@ export function ArtifactBrowser() {
         <h2>Artifacts</h2>
         <span aria-live="polite">{visible.length} / {runs.length} records</span>
       </header>
+
+      <div className="mc-briefing-section" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
+        <h3>Evidence Pack v2 Preview</h3>
+        <dl>
+          <dt>Status</dt>
+          <dd>{evidencePreview.status}</dd>
+          <dt>Total</dt>
+          <dd>{evidencePreview.total_records}</dd>
+          <dt>Failed</dt>
+          <dd>{evidencePreview.failed_records}</dd>
+          <dt>Running</dt>
+          <dd>{evidencePreview.running_records}</dd>
+          <dt>Completed</dt>
+          <dd>{evidencePreview.completed_records}</dd>
+          <dt>Top failed run</dt>
+          <dd>{evidencePreview.top_failed_run_id ?? "none"}</dd>
+        </dl>
+        <div className="mc-briefing-links">
+          <button type="button" className="mc-filter-btn" onClick={copyEvidenceMarkdown}>
+            {copied ? "Copied" : "Copy Evidence Markdown"}
+          </button>
+        </div>
+        <pre className="mc-evidence-preview">{evidencePreview.markdown}</pre>
+      </div>
 
       <div className="mc-filter-bar">
         {FILTERS.map((f) => {
