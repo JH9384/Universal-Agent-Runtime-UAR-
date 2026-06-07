@@ -122,11 +122,30 @@ export function AlertBanner({ onOpenMissionControl }: AlertBannerProps) {
 
   const [manuallyDismissed, setManuallyDismissed] = useState(false)
 
-  if (loading && !data) return null
-  if (error) return null
-
   const fleetTop = _fleetAlertFromMissionControl(missionControl)
   const top = _pickTopAlert(data?.top_alert, fleetTop)
+  const levelClass = top ? LEVEL_CLASS[top.level] || styles.warning : styles.warning
+  const alertCount = (data?.alerts.length ?? 0) + (fleetTop ? 1 : 0)
+
+  const handleClick = useCallback(() => {
+    if (onOpenMissionControl && top) {
+      onOpenMissionControl(top.tab)
+    }
+  }, [onOpenMissionControl, top])
+
+  const handleDismiss = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (top) {
+        _dismiss(top)
+      }
+      setManuallyDismissed(true)
+    },
+    [top]
+  )
+
+  if (loading && !data) return null
+  if (error) return null
   if (!top) return null
 
   // Threshold: only show critical or warning
@@ -137,24 +156,6 @@ export function AlertBanner({ onOpenMissionControl }: AlertBannerProps) {
 
   // Honor manual dismiss for this session
   if (manuallyDismissed) return null
-
-  const levelClass = LEVEL_CLASS[top.level] || styles.warning
-  const alertCount = (data?.alerts.length ?? 0) + (fleetTop ? 1 : 0)
-
-  const handleClick = useCallback(() => {
-    if (onOpenMissionControl) {
-      onOpenMissionControl(top.tab)
-    }
-  }, [onOpenMissionControl, top.tab])
-
-  const handleDismiss = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      _dismiss(top)
-      setManuallyDismissed(true)
-    },
-    [top]
-  )
 
   return (
     <div
