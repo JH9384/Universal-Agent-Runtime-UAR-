@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - 'uar/core/fleet_*.py'
+      - 'uar/core/incident_*.py'
       - 'uar/core/evidence_pack_v2.py'
       - 'uar/core/operator_daily_briefing.py'
       - 'uar/core/mission_control.py'
       - 'tests/core/test_fleet_*.py'
+      - 'tests/core/test_incident_*.py'
       - 'tests/core/test_evidence_pack_v2.py'
       - 'tests/core/test_operator_daily_briefing.py'
       - 'tests/api/test_mission_control.py'
@@ -26,10 +28,12 @@ on:
     branches: [ main ]
     paths:
       - 'uar/core/fleet_*.py'
+      - 'uar/core/incident_*.py'
       - 'uar/core/evidence_pack_v2.py'
       - 'uar/core/operator_daily_briefing.py'
       - 'uar/core/mission_control.py'
       - 'tests/core/test_fleet_*.py'
+      - 'tests/core/test_incident_*.py'
       - 'tests/core/test_evidence_pack_v2.py'
       - 'tests/core/test_operator_daily_briefing.py'
       - 'tests/api/test_mission_control.py'
