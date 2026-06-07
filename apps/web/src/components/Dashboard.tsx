@@ -5,11 +5,13 @@ import { RuntimeTimeline } from "./mission-control/RuntimeTimeline";
 import { ReplayExplorer } from "./mission-control/ReplayExplorer";
 import { ArtifactBrowser } from "./mission-control/ArtifactBrowser";
 import { TopologyGraph } from "./mission-control/TopologyGraph";
+import { OperatorBriefingPanel } from "./mission-control/OperatorBriefingPanel";
 import "./Dashboard.css";
 
-type Tab = "health" | "topology" | "replay" | "artifacts";
+type Tab = "briefing" | "health" | "topology" | "replay" | "artifacts";
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "briefing", label: "Briefing" },
   { id: "health", label: "Health" },
   { id: "topology", label: "Topology" },
   { id: "replay", label: "Replay" },
@@ -23,7 +25,13 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
-  const [tab, setTab] = useState<Tab>("health");
+  const [tab, setTab] = useState<Tab>("briefing");
+  const [replayRunId, setReplayRunId] = useState<string | null>(null);
+
+  const openReplay = (runId: string) => {
+    setReplayRunId(runId);
+    setTab("replay");
+  };
 
   return (
     <div className="dashboard-root">
@@ -44,6 +52,15 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
           ))}
         </nav>
         <span className="mc-version">v{pkg.version}</span>
+        {onToggleMode && (
+          <button
+            type="button"
+            onClick={onToggleMode}
+            className="mc-tab"
+          >
+            Toggle Mode
+          </button>
+        )}
         {onBack && (
           <button
             type="button"
@@ -57,6 +74,11 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
       </header>
 
       <main className="mc-tab-content" role="tabpanel">
+        {tab === "briefing" && (
+          <div className="mc-grid mc-grid--wide">
+            <OperatorBriefingPanel onOpenReplay={openReplay} onSelectTab={setTab} />
+          </div>
+        )}
         {tab === "health" && (
           <div className="mc-grid--health">
             <RuntimeHealthPanel />
@@ -72,7 +94,7 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
         )}
         {tab === "replay" && (
           <div className="mc-grid mc-grid--wide">
-            <ReplayExplorer />
+            <ReplayExplorer initialRunId={replayRunId ?? undefined} />
           </div>
         )}
         {tab === "artifacts" && (
