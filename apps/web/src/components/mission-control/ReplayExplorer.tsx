@@ -9,9 +9,13 @@ const STATUS_COLOR: Record<string, string> = {
   pending: "#f59e0b",
 };
 
-export function ReplayExplorer() {
+interface ReplayExplorerProps {
+  initialRunId?: string;
+}
+
+export function ReplayExplorer({ initialRunId }: ReplayExplorerProps) {
   const [runs, setRuns] = useState<RunRecord[]>([]);
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(initialRunId ?? "");
   const [copied, setCopied] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +33,10 @@ export function ReplayExplorer() {
       if (mountedRef.current) setError(String(err));
     }
   }, []);
+
+  useEffect(() => {
+    if (initialRunId) setFilter(initialRunId);
+  }, [initialRunId]);
 
   useEffect(() => {
     mountedRef.current = true;
