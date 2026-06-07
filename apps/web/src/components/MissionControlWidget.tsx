@@ -60,6 +60,33 @@ interface TrustSummaryData {
   highly_trusted_count: number
 }
 
+interface FleetSignalData {
+  id: string
+  level: string
+  scope: string
+  title: string
+  message: string
+  affected_run_ids: string[]
+  latest_run_id: string | null
+  linked_incident_ids: string[]
+  linked_recommendation_ids: string[]
+  trust_delta: number | null
+  replay_confidence: number | null
+  evidence_refs: string[]
+  count: number
+  failure_rate: number
+  updated_at: number
+}
+
+interface FleetSummaryData {
+  status: string
+  active_signals: number
+  critical_signals: number
+  warning_signals: number
+  top_signal: FleetSignalData | null
+  signals: FleetSignalData[]
+}
+
 interface MissionControlSnapshot {
   replay_confidence: ReplayConfidenceData | null
   runtime_health: RuntimeHealthData | null
@@ -68,6 +95,7 @@ interface MissionControlSnapshot {
   recent_warnings: string[]
   timestamp: number
   trust_summary: TrustSummaryData | null
+  fleet_summary: FleetSummaryData | null
   server_version: string
   uptime_seconds: number
   skills_available: number
@@ -79,7 +107,7 @@ function tierColor(tier: string): string {
   const t = tier.toLowerCase()
   if (t.includes('gold') || t.includes('verified') || t.includes('nominal')) return styles.tierGreen
   if (t.includes('silver') || t.includes('high') || t.includes('healthy')) return styles.tierBlue
-  if (t.includes('medium') || t.includes('degraded')) return styles.tierYellow
+  if (t.includes('medium') || t.includes('degraded') || t.includes('warning')) return styles.tierYellow
   if (t.includes('low') || t.includes('unstable')) return styles.tierOrange
   if (t.includes('experimental') || t.includes('failed') || t.includes('critical')) return styles.tierRed
   return styles.tierGray
@@ -171,6 +199,8 @@ export function MissionControlWidget({ onOpenReplay, initialTab }: MissionContro
   const rh = mc.runtime_health
   const rc = mc.replay_confidence
   const cert = mc.certification
+  const fleet = mc.fleet_summary
+  const topFleetSignal = fleet?.top_signal ?? null
 
   const availableCount = mc.skills_available
   const totalSkills = mc.skills_total
@@ -210,6 +240,45 @@ export function MissionControlWidget({ onOpenReplay, initialTab }: MissionContro
             <MiniCard title="Active Runs">
               <div className={styles.bigNumber}>{mc.active_runs}</div>
               <div className={styles.bigNumberLabel}>running / pending / queued</div>
+            </MiniCard>
+
+            <MiniCard title="Fleet Health">
+              {fleet ? (
+                <>
+                  <div className={styles.skillHealthRow}>
+                    <span className={`${styles.skillHealthOk} ${tierColor(fleet.status)}`}>
+                      {fleet.active_signals}
+                    </span>
+                    <span className={styles.skillHealthLabel}>active signal(s)</span>
+                  </div>
+                  <div className={styles.trustMeta}>
+                    <span>Status: {fleet.status}</span>
+                    {' · '}
+                    <span>{fleet.critical_signals} critical</span>
+                    {' · '}
+                    <span>{fleet.warning_signals} warning</span>
+                  </div>
+                  {topFleetSignal ? (
+                    <div className={styles.trustMeta}>
+                      <strong>{topFleetSignal.title}</strong>
+                      <div>{topFleetSignal.message}</div>
+                      {topFleetSignal.latest_run_id && onOpenReplay && (
+                        <button
+                          className={styles.inlineButton}
+                          onClick={() => onOpenReplay(topFleetSignal.latest_run_id!)}
+                          title={`Open replay ${topFleetSignal.latest_run_id}`}
+                        >
+                          ▶ Replay {topFleetSignal.latest_run_id.slice(0, 12)}…
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={styles.okBadge}>Fleet nominal</div>
+                  )}
+                </>
+              ) : (
+                <div className={styles.muted}>No fleet summary</div>
+              )}
             </MiniCard>
 
             <MiniCard title="System Health">
