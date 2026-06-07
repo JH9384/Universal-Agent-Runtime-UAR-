@@ -32,7 +32,7 @@ def _parse_python_hdl(source: str) -> Dict[str, Any]:
     # Match intbv types
     intbv_pattern = re.compile(
         r'(\w+)\s*=\s*Signal\s*\(\s*intbv\s*\((\d+)\)\s*'
-        r'\[\s*(\d+)\s*:\s*\]\s*\)',
+        r'\[\s*(\d+)\s*:\s*(?:\d+)?\s*\]\s*\)',
         re.IGNORECASE,
     )
     for match in intbv_pattern.finditer(source):
@@ -88,6 +88,9 @@ def myhdl_design(ctx: PipelineContext) -> Dict[str, Any]:
     parsed = _parse_python_hdl(source)
     verilog_stub = _generate_verilog_stub(module_name, parsed["signals"])
 
+    # Publish stub for downstream skills (verilog_parse, fpga_verify)
+    ctx.data["__verilog_source"] = verilog_stub
+
     result: Dict[str, Any] = {
         "status": "completed",
         "goal": ctx.goal.user_intent,
@@ -99,6 +102,7 @@ def myhdl_design(ctx: PipelineContext) -> Dict[str, Any]:
         },
         "metrics": {
             "signals": len(parsed["signals"]),
+            "stub_lines": len(verilog_stub.splitlines()),
         },
     }
 

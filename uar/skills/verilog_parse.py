@@ -47,23 +47,29 @@ def _parse_ports(ports_str: str) -> List[Dict[str, str]]:
     if not ports_str.strip():
         return ports
 
-    # ANSI-style:  input [7:0] foo, output bar
-    # Simple:      foo, bar, baz
-    ansi_pat = re.compile(
-        r'(input|output|inout)'
-        r'\s*(?:reg|wire|logic)?\s*(?:\[\d+:\d+\])?\s*(\w+)'
-    )
-
-    for m in ansi_pat.finditer(ports_str):
-        ports.append({
-            "direction": m.group(1),
-            "name": m.group(2),
-        })
-
-    # Simple port list (names only, no direction keywords)
-    if not ports:
+    # ANSI-style with direction keywords
+    if re.search(r'\b(input|output|inout)\b', ports_str):
+        # Tokenise and track current direction
+        tokens = re.findall(r'\S+', ports_str)
+        direction: str | None = None
+        for tok in tokens:
+            tok = tok.rstrip(',;')
+            if tok in ('input', 'output', 'inout'):
+                direction = tok
+                continue
+            if tok in ('reg', 'wire', 'logic'):
+                continue
+            if re.match(r'\[\d+:\d+\]', tok):
+                continue
+            if direction and tok:
+                ports.append({
+                    "direction": direction,
+                    "name": tok,
+                })
+    else:
+        # Simple port list (names only, no direction keywords)
         for name in re.split(r'[\s,]+', ports_str.strip()):
-            name = name.strip()
+            name = name.strip().rstrip(',;')
             if name and name not in ('wire', 'reg', 'logic'):
                 ports.append({
                     "direction": "unknown",
@@ -110,7 +116,7 @@ def _extract_instances(body: str) -> List[Dict[str, Any]]:
         inst_name = match.group(2)
         conn_str = match.group(3)
         # Skip if this is a primitive (wire/reg declaration)
-        if mod_name in ('wire', 'reg', 'logic', 'input', 'output'):
+        if mod_name in ('wire', 'reg', 'logic', 'input', 'output', 'assign'):
             continue
         connections = []
         for conn in re.split(r',\s*(?=\.)', conn_str):
@@ -152,10 +158,18 @@ def verilog_parse(ctx: PipelineContext) -> Dict[str, Any]:
     params = ctx.goal.metadata or {}
     source = str(params.get("source", ""))
 
+    # Fall back to upstream myhdl_design output when explicit source is
+    # not valid Verilog (e.g. MyHDL code passed through hw_design recipe)
+    if not source.strip():
+        source = str(ctx.data.get("__verilog_source", ""))
+    elif "module" not in source and "__verilog_source" in ctx.data:
+        source = str(ctx.data["__verilog_source"])
+
     if not source.strip():
         return {
             "status": "failed",
-            "error": "source is required in goal metadata",
+            "error": "source is required (provide in metadata or run "
+                     "myhdl_design first)",
         }
 
     modules = _extract_modules(source)
@@ -196,6 +210,9 @@ def verilog_parse(ctx: PipelineContext) -> Dict[str, Any]:
             "modules": len(modules),
             "instances": total_instances,
             "signals": total_signals,
+            "parse_confidence": (
+                1.0 if modules else 0.0
+            ),
         },
     }
 

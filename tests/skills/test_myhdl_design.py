@@ -90,3 +90,28 @@ class TestMyhdlDesignSkill:
             }))
         assert result["status"] == "completed"
         assert "MyHDL is available" in result["result"]["note"]
+
+
+class TestIntbvRegressions:
+    """Bug: intbv regex required [msb:] (no lower bound), missing [msb:lsb]."""
+
+    def test_intbv_with_lower_bound(self):
+        """MyHDL intbv [7:0] syntax must be parsed."""
+        source = "count = Signal(intbv(0)[8:0])"
+        result = _parse_python_hdl(source)
+        assert len(result["signals"]) == 1
+        sig = result["signals"][0]
+        assert sig["name"] == "count"
+        assert sig["type"] == "intbv"
+        assert sig["width"] == 8
+        assert sig["default"] == 0
+
+    def test_intbv_without_lower_bound(self):
+        """MyHDL intbv [8:] syntax must still be parsed."""
+        source = "count = Signal(intbv(0)[8:])"
+        result = _parse_python_hdl(source)
+        assert len(result["signals"]) == 1
+        sig = result["signals"][0]
+        assert sig["name"] == "count"
+        assert sig["type"] == "intbv"
+        assert sig["width"] == 8

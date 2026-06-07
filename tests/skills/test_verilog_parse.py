@@ -239,3 +239,26 @@ def test_verilog_parse_no_modules():
     assert result["status"] == "completed"
     assert result["result"]["module_count"] == 0
     assert result["result"]["total_signals"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Regression: multi-name ANSI ports & assign skip
+# ---------------------------------------------------------------------------
+
+
+def test_parse_ports_multi_names_same_direction():
+    """input [7:0] a, b must yield two ports, not one."""
+    ports = _parse_ports("input [7:0] a, b, output c")
+    assert len(ports) == 3
+    names = {p["name"] for p in ports}
+    assert names == {"a", "b", "c"}
+    assert next(p for p in ports if p["name"] == "a")["direction"] == "input"
+    assert next(p for p in ports if p["name"] == "b")["direction"] == "input"
+    assert next(p for p in ports if p["name"] == "c")["direction"] == "output"
+
+
+def test_extract_assign_not_instance():
+    """assign statements must not be treated as module instances."""
+    body = "assign foo = bar;"
+    instances = _extract_instances(body)
+    assert instances == []

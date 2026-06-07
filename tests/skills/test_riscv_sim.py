@@ -573,3 +573,59 @@ class TestMemoryBoundsRegressions:
             f"Expected 0xDEADBEEF, got {emu.registers[3]:#x}. "
             "Bounds check broke valid in-bounds access"
         )
+
+
+class TestLoadJalrRegressions:
+    """Bug: _enc_i used _p[2] for rs1.  For loads (op rd, imm(rs1))
+    _p[2] is the immediate, so rs1 was always x0.  jalr used
+    int(parts[3]) on the register name, always producing NOP."""
+
+    def test_lw_with_nonzero_base(self):
+        """lw x3, 32(x1) must use x1 as base, not x0."""
+        asm = (
+            "addi x1, x0, 100\n"
+            "sw x2, 32(x1)\n"
+            "lw x3, 32(x1)\n"
+            "ecall"
+        )
+        words = _parse_assembly(asm)
+        emu = RiscvEmulator(memory_size=256)
+        emu.load_program(words)
+        emu.registers[2] = 0xDEADBEEF
+        emu.run()
+        assert emu.registers[3] == 0xDEADBEEF, (
+            f"lw used wrong base register, got {emu.registers[3]:#x}"
+        )
+
+    def test_jalr_encoding(self):
+        """jalr x1, 0(x2) must not produce NOP."""
+        # Place ecall at address 16 so jalr has a halt target
+        asm = (
+            "addi x2, x0, 16\n"
+            "jalr x1, 0(x2)\n"
+            "ecall\n"
+            "nop\n"
+            "ecall"
+        )
+        words = _parse_assembly(asm)
+        assert len(words) == 5
+        assert words[1] != 0x00000013, "jalr produced NOP"
+        emu = RiscvEmulator(memory_size=256)
+        emu.load_program(words)
+        emu.run()
+        assert emu.registers[1] == 8  # return address = PC after jalr
+        assert emu.pc == 16
+        assert emu.instruction_count == 3  # addi, jalr, target ecall
+
+    def test_jalr_implicit_zero_offset(self):
+        """jalr x1, x2 (no offset) should encode with imm=0."""
+        asm = (
+            "addi x2, x0, 8\n"
+            "jalr x1, x2\n"
+            "ecall"
+        )
+        words = _parse_assembly(asm)
+        assert len(words) == 3
+        assert words[1] != 0x00000013, (
+            "jalr with implicit offset produced NOP"
+        )

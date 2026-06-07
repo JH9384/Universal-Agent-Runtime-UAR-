@@ -350,10 +350,13 @@ def _parse_assembly(asm: str) -> List[int]:
                 | opc
             )
 
-        def _enc_i(imm: int, f3: int, opc: int, _p: list = parts) -> int:
+        def _enc_i(
+            imm: int, f3: int, opc: int,
+            _p: list = parts, rs1_idx: int = 2,
+        ) -> int:
             return (
                 ((imm & 0xFFF) << 20)
-                | (reg_map.get(_p[2], 0) << 15)
+                | (reg_map.get(_p[rs1_idx], 0) << 15)
                 | (f3 << 12)
                 | (reg_map.get(_p[1], 0) << 7)
                 | opc
@@ -443,15 +446,15 @@ def _parse_assembly(asm: str) -> List[int]:
             elif op == "sltiu":
                 word = _enc_i(int(parts[3]), 0x3, 0x13)
             elif op == "lw":
-                word = _enc_i(int(parts[2]), 0x2, 0x03)
+                word = _enc_i(int(parts[2]), 0x2, 0x03, rs1_idx=3)
             elif op == "lh":
-                word = _enc_i(int(parts[2]), 0x1, 0x03)
+                word = _enc_i(int(parts[2]), 0x1, 0x03, rs1_idx=3)
             elif op == "lb":
-                word = _enc_i(int(parts[2]), 0x0, 0x03)
+                word = _enc_i(int(parts[2]), 0x0, 0x03, rs1_idx=3)
             elif op == "lhu":
-                word = _enc_i(int(parts[2]), 0x5, 0x03)
+                word = _enc_i(int(parts[2]), 0x5, 0x03, rs1_idx=3)
             elif op == "lbu":
-                word = _enc_i(int(parts[2]), 0x4, 0x03)
+                word = _enc_i(int(parts[2]), 0x4, 0x03, rs1_idx=3)
             elif op == "sw":
                 word = _enc_s(int(parts[2]), 0x2, 0x23)
             elif op == "sh":
@@ -479,7 +482,14 @@ def _parse_assembly(asm: str) -> List[int]:
             elif op == "jal":
                 word = _enc_j(parts[2], 0x6F)
             elif op == "jalr":
-                word = _enc_i(int(parts[3]), 0x0, 0x67)
+                try:
+                    imm = int(parts[2])
+                    rs1_idx = 3
+                except ValueError:
+                    # jalr rd, rs1  (implicit offset 0)
+                    imm = 0
+                    rs1_idx = 2
+                word = _enc_i(imm, 0x0, 0x67, rs1_idx=rs1_idx)
             elif op == "lui":
                 word = _enc_u(int(parts[2], 0), 0x37)
             elif op == "auipc":
@@ -560,6 +570,9 @@ def riscv_simulation(ctx: PipelineContext) -> Dict[str, Any]:
             "instructions_executed": emu.instruction_count,
             "trace_length": len(emu.trace),
             "memory_size": memory_size,
+            "completion_ratio": round(
+                emu.instruction_count / max_steps, 4
+            ) if max_steps > 0 else 0.0,
         },
     }
 

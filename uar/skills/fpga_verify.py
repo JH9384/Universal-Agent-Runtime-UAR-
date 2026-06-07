@@ -18,22 +18,51 @@ from uar.core.skill_utils import skill_guard, wrap_with_digest
 def _parse_dut_ports(source: str) -> List[Dict[str, Any]]:
     """Extract input/output ports from Verilog module."""
     ports = []
-    # Match input/output declarations
-    port_pattern = re.compile(
-        r'(input|output|inout)\s+(?:\[(\d+):(\d+)\]\s+)?([^;]+);'
-    )
-    for match in port_pattern.finditer(source):
-        direction = match.group(1)
-        msb = match.group(2)
-        names = match.group(4)
-        width = 1 if msb is None else (int(msb) + 1)
-        for name in re.split(r'[,\s]+', names.strip()):
-            if name:
+
+    # Try ANSI-style header first: module name ( port_list );
+    mod_match = re.search(r'module\s+\w+\s*\((.*?)\);', source, re.DOTALL)
+    if mod_match:
+        header = mod_match.group(1)
+        tokens = re.findall(r'\S+', header)
+        direction: str | None = None
+        width = 1
+        for tok in tokens:
+            tok = tok.rstrip(',;')
+            if tok in ('input', 'output', 'inout'):
+                direction = tok
+                width = 1
+                continue
+            if tok in ('reg', 'wire', 'logic'):
+                continue
+            m = re.match(r'\[(\d+):(\d+)\]', tok)
+            if m:
+                width = int(m.group(1)) + 1
+                continue
+            if direction and tok:
                 ports.append({
-                    "name": name,
+                    "name": tok,
                     "direction": direction,
                     "width": width,
                 })
+
+    # Fallback: old-style declarations inside body
+    if not ports:
+        port_pattern = re.compile(
+            r'(input|output|inout)\s+(?:\[(\d+):(\d+)\]\s+)?([^;]+);'
+        )
+        for match in port_pattern.finditer(source):
+            direction = match.group(1)
+            msb = match.group(2)
+            names = match.group(4)
+            width = 1 if msb is None else (int(msb) + 1)
+            for name in re.split(r'[,\s]+', names.strip()):
+                if name:
+                    ports.append({
+                        "name": name,
+                        "direction": direction,
+                        "width": width,
+                    })
+
     return ports
 
 
@@ -91,12 +120,54 @@ def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
     """
     params = ctx.goal.metadata or {}
     source = str(params.get("source", ""))
+
+    # Fall back to upstream skill outputs when no explicit source given
+    # or when source doesn't look like Verilog (e.g. MyHDL from recipe)
+    use_upstream = (
+        not source.strip()
+        or ("module" not in source and "verilog_parse" in ctx.data)
+    )
+    if use_upstream:
+        upstream = ctx.data.get("verilog_parse", {})
+        if isinstance(upstream, dict):
+            mods = upstream.get("result", {}).get("modules", [])
+            if mods:
+                # Reconstruct source from parsed module data
+                parts = []
+                for mod in mods:
+                    pdecls = ", ".join(
+                        f"{p['direction']} {p['name']}"
+                        for p in mod.get("ports", [])
+                    )
+                    parts.append(f"module {mod['name']} ({pdecls});\n")
+                    for s in mod.get("signals", []):
+                        w = s.get("width", "")
+                        parts.append(f"  {s['type']} {w} {s['name']};\n")
+                    for inst in mod.get("instances", []):
+                        conns = ", ".join(
+                            f".{c['port']}({c['signal']})"
+                            for c in inst.get("connections", [])
+                        )
+                        parts.append(
+                            f"  {inst['module']} {inst['instance']} "
+                            f"({conns});\n"
+                        )
+                    for asn in mod.get("assigns", []):
+                        parts.append(
+                            f"  assign {asn['lhs']} = {asn['rhs']};\n"
+                        )
+                    parts.append("endmodule\n")
+                source = "".join(parts)
+        if not source.strip():
+            source = str(ctx.data.get("__verilog_source", ""))
+
     num_vectors = int(params.get("num_vectors", 8))
 
     if not source.strip():
         return {
             "status": "failed",
-            "error": "source is required in goal metadata",
+            "error": "source is required (provide in metadata or run "
+                     "verilog_parse / myhdl_design first)",
         }
 
     ports = _parse_dut_ports(source)
@@ -136,8 +207,6 @@ def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
                         "actual": out_val,
                         "status": "fail",
                     }))
-                if failed == 0:
-                    passed += 1
 
     # Digest each waveform data point
     for r in results:
@@ -167,6 +236,8 @@ def fpga_verify(ctx: PipelineContext) -> Dict[str, Any]:
                 (passed / (passed + failed) * 100)
                 if (passed + failed) > 0 else 0
             ),
+            "assertion_count": passed + failed,
+            "failed_assertions": failed,
         },
     }
 
