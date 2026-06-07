@@ -35,6 +35,24 @@ The gate must pass before moving to export/runbook polish.
 
 ---
 
+## Result Capture
+
+After running validation, create a result stub:
+
+```bash
+make d4c-result
+```
+
+This writes a timestamped markdown file under:
+
+```text
+docs/operations/validation-results/
+```
+
+Then edit the generated file to mark PASS/FAIL and capture any failures or follow-up actions.
+
+---
+
 ## Validation Coverage
 
 The gate covers:
