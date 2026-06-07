@@ -82,46 +82,61 @@ The UAR boot sequence varies based on the deployment mode:
 └─────────────────────────────────────────────────────────┘
 ```
 
-**API Server Internal Boot (FastAPI Lifespan)**
+**Synchronous Boot Phase (before app creation)**
+
+All steps below run inside `uar.boot.boot()` before the FastAPI app is instantiated.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Synchronous Boot Phase (uar/boot.py)                 │
+│                                                         │
+│ 1. Logger Initialization                               │
+│    - "Booting UAR ... (aligned with UOR ...)"         │
+│                                                         │
+│ 2. Skill Registration                                  │
+│    - import uar.skills (triggers @register_skill)       │
+│                                                         │
+│ 3. Recipe Validation                                   │
+│    - validate_recipes() checks skill references       │
+│                                                         │
+│ 4. Orphaned Temp File Cleanup                          │
+│    - _cleanup_orphaned_temp_files(library)            │
+│    - Removes *.tmp files older than 1 hour             │
+│                                                         │
+│ 5. UOR Runtime Seeding (non-fatal)                     │
+│    - seed_standard_runtimes(get_default_store())      │
+│    - Idempotent — safe to run on every startup         │
+│                                                         │
+│ 6. External Skill Plugin Loading (non-fatal)          │
+│    - load_plugins() scans ~/.uar/skills/ and PyPI     │
+│                                                         │
+│ 7. Production Security Checks                          │
+│    - Warns if CORS_ORIGINS not set in production        │
+│    - Warns if SECURITY_HEADERS not enabled              │
+│                                                         │
+│ 8. Environment Validation (fail-fast)                │
+│    - validate_environment()                            │
+│    - validate_docker_environment()                     │
+│    - Raises RuntimeError on any issue                  │
+│                                                         │
+│ 9. Advanced Config Validation (non-fatal)            │
+│    - Neo4j, OpenAI, etc.                               │
+└─────────────────────────────────────────────────────────┘
+```
+
+**FastAPI Lifespan (async startup hook)**
+
+Only async-safe operations run here; all heavy/sync work happens in `boot()` above.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ FastAPI Lifespan Startup Hook                          │
 │                                                         │
-│ 1. Logger Initialization                               │
-│    - "UAR API starting up..."                          │
-│                                                         │
-│ 2. Orphaned Temp File Cleanup                          │
-│    - _cleanup_orphaned_temp_files(library)            │
-│    - Removes *.tmp files older than 1 hour             │
-│    - Logs count of cleaned files                       │
-│                                                         │
-│ 3. UOR Runtime Seeding (non-fatal)                     │
-│    - seed_standard_runtimes(get_default_store())      │
-│    - Idempotent — safe to run on every startup         │
-│                                                         │
-│ 4. External Skill Plugin Loading (non-fatal)          │
-│    - load_plugins() scans ~/.uar/skills/ and PyPI     │
-│    - entry points for uar.skills                      │
-│                                                         │
-│ 5. Production Security Checks                          │
-│    - Warns if CORS_ORIGINS not set in production        │
-│    - Warns if SECURITY_HEADERS not enabled              │
-│                                                         │
-│ 6. OpenTelemetry Tracing Initialization              │
+│ 1. OpenTelemetry Tracing Initialization              │
 │    - setup_fastapi_tracing(app)                        │
 │    - No-op if OTEL not configured                      │
 │                                                         │
-│ 7. Environment Validation (fail-fast)                │
-│    - validate_environment()                            │
-│    - validate_docker_environment()                     │
-│    - Raises RuntimeError on any issue                  │
-│                                                         │
-│ 8. Advanced Integration Config Validation (non-fatal) │
-│    - Neo4j, OpenAI, etc.                               │
-│    - Results logged, startup continues                 │
-│                                                         │
-│ 9. Background Retention Purge Task                     │
+│ 2. Background Retention Purge Task                     │
 │    - _retention_purge_loop()                         │
 │    - Only if run_retention_days > 0                    │
 │    - Checks hourly and purges old records              │
@@ -336,7 +351,7 @@ The UAR boot sequence varies based on the deployment mode:
 
 ### UOR Runtime Seeding
 
-**Location**: FastAPI lifespan startup hook in `uar/api/lifespan.py`
+**Location**: Synchronous boot phase in `uar/boot.py` (step 4, `boot()` function)
 
 **Timing**: During API server startup, before accepting requests
 
@@ -560,14 +575,18 @@ START
   ↓
 [API Health Check] → (fail) → EXIT
   ↓
-[FastAPI Lifespan Startup]
+[Synchronous Boot Phase]
+  ├─ [Skill Registration]
+  ├─ [Recipe Validation]
   ├─ [Orphaned Temp Cleanup]
   ├─ [UOR Runtime Seeding]
   ├─ [External Plugin Loading]
   ├─ [Production Security Checks]
-  ├─ [OpenTelemetry Tracing Setup]
   ├─ [Environment Validation]
-  ├─ [Advanced Config Validation]
+  └─ [Advanced Config Validation]
+  ↓
+[FastAPI Lifespan Startup]
+  ├─ [OpenTelemetry Tracing Setup]
   └─ [Background Retention Purge]
   ↓
 [Start Web UI] (if full-stack)

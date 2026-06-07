@@ -17,8 +17,8 @@
 ### Precedent Chain (upstream causes)
 
 ```
-boot.py:406 — ctx = boot()
-  → boot.py:397 — from uar.api.middleware import require_auth
+boot.py:420 — ctx = boot()
+  → boot.py:410 — from uar.api.middleware import require_auth
     → server.py:23-49 — from uar.api.state import store, _auth_svc, _event_svc, _exec_svc
       → state.py:198-204 — _exec_svc = GoalExecutionService(event_service=_event_svc, store=store, ...)
         → services/execution.py:496 — executor = Executor()
@@ -309,7 +309,7 @@ Metrics consumed by:
 │   └── Optional METRICS_API_KEY protection
 ├── api/middleware.py — metrics_middleware records every endpoint
 ├── core/executor.py — record_skill() records per-skill latency
-├── boot.py:455 — register_metrics_middleware(app)
+├── boot.py:473 — register_metrics_middleware(app)
 │
 └── SLA.md claims:
     ├── Core API Availability: 99.9%

@@ -32,6 +32,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, NamedTuple
 
+from uar.config import MAX_PORT_NUMBER
+
 logger = logging.getLogger(__name__)
 
 
@@ -371,6 +373,19 @@ def create_lifespan(ctx: BootContext):
         if config.run_retention_days > 0:
             ctx.purge_task = asyncio.create_task(_retention_purge_loop())
 
+            def _log_purge_exc(t: asyncio.Task) -> None:
+                exc = t.exception()
+                if exc is not None and not isinstance(
+                    exc, asyncio.CancelledError
+                ):
+                    logger.error(
+                        "Retention purge task failed: %s",
+                        exc,
+                        exc_info=exc,
+                    )
+
+            ctx.purge_task.add_done_callback(_log_purge_exc)
+
         yield
 
         # Shutdown
@@ -504,6 +519,10 @@ def find_free_port(start: int = 8000, host: str = "127.0.0.1") -> int:
     """Return the first free port at or after *start*."""
     port = start
     while is_port_bound(port, host):
+        if port >= MAX_PORT_NUMBER:
+            raise RuntimeError(
+                f"No free port found between {start} and {MAX_PORT_NUMBER}"
+            )
         logger.info("Port %s in use, trying %s", port, port + 1)
         port += 1
     return port
@@ -799,9 +818,11 @@ async def boot_full_stack(
                     cwd=web_dir,
                     log_path=web_log,
                 )
-                await supervisor.health_check(
+                ok = await supervisor.health_check(
                     "web", web_url, attempts=40, interval=0.5
                 )
+                if not ok:
+                    raise RuntimeError("Web UI health check failed")
                 if open_browser_ui:
                     open_browser(web_url)
             else:
@@ -822,12 +843,14 @@ async def boot_full_stack(
                     cwd=dash_dir,
                     log_path=dash_log,
                 )
-                await supervisor.health_check(
+                ok = await supervisor.health_check(
                     "dashboard",
                     dashboard_url,
                     attempts=40,
                     interval=0.5,
                 )
+                if not ok:
+                    raise RuntimeError("Dashboard health check failed")
                 if open_browser_ui:
                     open_browser(dashboard_url)
             else:

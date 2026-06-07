@@ -108,9 +108,13 @@ class TestCreateLifespan:
         class _FakeTask:
             def __init__(self):
                 self._cancelled = False
+                self._callbacks: list = []
 
             def cancel(self):
                 self._cancelled = True
+
+            def add_done_callback(self, fn):
+                self._callbacks.append(fn)
 
             def __await__(self):
                 if inspect.iscoroutinefunction(self._await_impl):
