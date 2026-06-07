@@ -70,10 +70,10 @@ class TestMathPlot3D:
         assert result is None or isinstance(result, dict)
 
     def test_parse_range_defaults(self):
-        from uar.skills.math_plot_3d import _parse_range
-        assert _parse_range([-1, 1]) == (-1.0, 1.0)
-        assert _parse_range("bad") == (-5.0, 5.0)
-        assert _parse_range(None) == (-5.0, 5.0)
+        from uar.core.plot_utils import parse_range
+        assert parse_range([-1, 1], default=(-5.0, 5.0)) == (-1.0, 1.0)
+        assert parse_range("bad", default=(-5.0, 5.0)) == (-5.0, 5.0)
+        assert parse_range(None, default=(-5.0, 5.0)) == (-5.0, 5.0)
 
     def test_no_expression_uses_default(self):
         from uar.skills.math_plot_3d import math_plot_3d

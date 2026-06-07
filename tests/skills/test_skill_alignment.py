@@ -37,10 +37,17 @@ STUB_PATH = PROJECT_ROOT / "uar" / "skills" / "stub_skills.py"
 
 def _extract_skills_from_skill_groups(source: str) -> Set[str]:
     """Parse UARPanel.tsx and extract all skill IDs from SKILL_GROUPS."""
-    # Regex approach: find all { id: 'xxx', ... } inside SKILL_GROUPS
+    # Isolate SKILL_GROUPS content (before RECIPES which also has id fields)
+    m = re.search(
+        r"const\s+SKILL_GROUPS\s*=\s*\[(.*?)\]\s*\n\s*type\s+Recipe",
+        source,
+        re.DOTALL,
+    )
+    skill_section = m.group(1) if m else source
     skills: Set[str] = set()
-    # Match skill objects: { id: 'skill_name', label: ... }
-    for match in re.finditer(r"\{\s*id:\s*['\"]([^'\"]+)['\"]", source):
+    for match in re.finditer(
+        r"\{\s*id:\s*['\"]([^'\"]+)['\"]", skill_section
+    ):
         skills.add(match.group(1))
     return skills
 
