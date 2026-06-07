@@ -27,6 +27,10 @@ function _missionControl(topSignal: Record<string, unknown> | null = null) {
 
 beforeEach(() => {
   mockUseApiFetch.mockReset()
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: vi.fn().mockResolvedValue({ status: 'ok' }),
+  }))
 })
 
 describe('OperatorBriefingPanel', () => {
@@ -43,6 +47,7 @@ describe('OperatorBriefingPanel', () => {
     expect(screen.getByText('Operator Briefing')).toBeInTheDocument()
     expect(screen.getByText('NOMINAL')).toBeInTheDocument()
     expect(screen.getByText('No interrupting fleet signal. Monitor fleet health.')).toBeInTheDocument()
+    expect(screen.queryByText('Record outcome')).not.toBeInTheDocument()
   })
 
   it('renders top signal linkage and opens replay', async () => {
@@ -76,6 +81,7 @@ describe('OperatorBriefingPanel', () => {
     expect(screen.getByText('Incidents: inc-1')).toBeInTheDocument()
     expect(screen.getByText('Recommendations: rec-1')).toBeInTheDocument()
     expect(screen.getByText('Evidence refs: run:run-1')).toBeInTheDocument()
+    expect(screen.getByText('Record outcome')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Replay run-1/i }))
 
@@ -105,5 +111,44 @@ describe('OperatorBriefingPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Evidence' }))
 
     expect(onSelectTab).toHaveBeenCalledWith('artifacts')
+  })
+
+  it('records a linked recommendation outcome and refreshes briefing', async () => {
+    const user = userEvent.setup()
+    const refetch = vi.fn()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl({
+        id: 'fleet:service:svc-a',
+        level: 'critical',
+        scope: 'service',
+        title: 'Service signal: svc-a',
+        message: '3 failures across 3 runs',
+        latest_run_id: 'run-3',
+        linkage: {
+          replay: { run_id: 'run-3', available: true },
+          recommendations: ['rec-3'],
+        },
+      }),
+      loading: false,
+      error: null,
+      refetch,
+    })
+
+    render(<OperatorBriefingPanel />)
+
+    await user.click(screen.getByRole('button', { name: 'Resolved' }))
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${window.location.origin}/api/uar/recommendations/outcome`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          recommendation_id: 'rec-3',
+          outcome_type: 'resolved',
+          run_id: 'run-3',
+          source: 'operator_briefing',
+        }),
+      })
+    )
+    expect(refetch).toHaveBeenCalled()
   })
 })
