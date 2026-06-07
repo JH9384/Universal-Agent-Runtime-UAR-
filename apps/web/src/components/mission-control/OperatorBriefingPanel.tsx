@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useApiFetch } from "../../hooks/useApiFetch";
+import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
 
 interface FleetSignalLinkage {
   replay?: { run_id?: string | null; available?: boolean } | null;
@@ -121,6 +122,12 @@ export function OperatorBriefingPanel({ onOpenReplay, onSelectTab }: OperatorBri
           <p className="mc-status-summary--ok">No interrupting fleet signal. Monitor fleet health.</p>
         )}
       </div>
+
+      <RecommendationOutcomeCapture
+        recommendationIds={recommendationIds}
+        runId={replayRun}
+        onRecorded={refetch}
+      />
 
       {data?.recent_warnings && data.recent_warnings.length > 0 && (
         <div className="mc-briefing-section">
