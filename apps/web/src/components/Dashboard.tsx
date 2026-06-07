@@ -6,12 +6,14 @@ import { ReplayExplorer } from "./mission-control/ReplayExplorer";
 import { ArtifactBrowser } from "./mission-control/ArtifactBrowser";
 import { TopologyGraph } from "./mission-control/TopologyGraph";
 import { OperatorBriefingPanel } from "./mission-control/OperatorBriefingPanel";
+import { FocusModePanel } from "./mission-control/FocusModePanel";
 import "./Dashboard.css";
 
-type Tab = "briefing" | "health" | "topology" | "replay" | "artifacts";
+type Tab = "briefing" | "focus" | "health" | "topology" | "replay" | "artifacts";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "briefing", label: "Briefing" },
+  { id: "focus", label: "Focus" },
   { id: "health", label: "Health" },
   { id: "topology", label: "Topology" },
   { id: "replay", label: "Replay" },
@@ -31,6 +33,10 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
   const openReplay = (runId: string) => {
     setReplayRunId(runId);
     setTab("replay");
+  };
+
+  const selectOperationalTab = (nextTab: "health" | "topology" | "replay" | "artifacts") => {
+    setTab(nextTab);
   };
 
   return (
@@ -76,7 +82,12 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
       <main className="mc-tab-content" role="tabpanel">
         {tab === "briefing" && (
           <div className="mc-grid mc-grid--wide">
-            <OperatorBriefingPanel onOpenReplay={openReplay} onSelectTab={setTab} />
+            <OperatorBriefingPanel onOpenReplay={openReplay} onSelectTab={selectOperationalTab} />
+          </div>
+        )}
+        {tab === "focus" && (
+          <div className="mc-grid mc-grid--wide">
+            <FocusModePanel onOpenReplay={openReplay} onSelectTab={selectOperationalTab} />
           </div>
         )}
         {tab === "health" && (
