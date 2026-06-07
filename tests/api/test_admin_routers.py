@@ -298,7 +298,7 @@ class TestRequireOperator:
         from uar.api.routers.operator.common import require_operator
 
         with patch(
-            "uar.api.routers.operator.common.auth_middleware"
+            "uar.api.routers.operator.helpers.auth.auth_middleware"
         ) as m:
             m.return_value = {"user": "v", "tier": "viewer"}
             with pytest.raises(Exception) as exc_info:
@@ -310,7 +310,7 @@ class TestRequireOperator:
         from uar.api.routers.operator.common import require_operator
 
         with patch(
-            "uar.api.routers.operator.common.auth_middleware"
+            "uar.api.routers.operator.helpers.auth.auth_middleware"
         ) as m:
             m.return_value = {"user": "op", "tier": "operator"}
             result = require_operator(None)
@@ -320,7 +320,7 @@ class TestRequireOperator:
         from uar.api.routers.operator.common import require_operator
 
         with patch(
-            "uar.api.routers.operator.common.auth_middleware"
+            "uar.api.routers.operator.helpers.auth.auth_middleware"
         ) as m:
             m.return_value = {"user": "ad", "tier": "admin"}
             result = require_operator(None)
@@ -330,7 +330,7 @@ class TestRequireOperator:
         from uar.api.routers.operator.common import require_operator
 
         with patch(
-            "uar.api.routers.operator.common.auth_middleware"
+            "uar.api.routers.operator.helpers.auth.auth_middleware"
         ) as m:
             m.return_value = {"user": "dev", "tier": "developer"}
             result = require_operator(None)

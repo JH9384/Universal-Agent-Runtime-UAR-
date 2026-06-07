@@ -1,4 +1,10 @@
-"""Shared helpers for operator workflow routers."""
+"""Shared helpers for operator workflow routers.
+
+Auth and audit helpers are delegated to ``helpers.auth``; entity
+CRUD helpers are delegated to ``helpers.entity_store``.  This file
+retains the public function signatures so all 21 router imports stay
+unchanged.
+"""
 
 from __future__ import annotations
 
@@ -7,188 +13,80 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from fastapi import HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials
-
-from uar.api.middleware import auth_middleware
+from uar.api.middleware import auth_middleware  # noqa: F401
 from uar.api.state import store
-from uar.core.audit import get_audit_logger
+from uar.api.routers.operator.helpers.auth import (  # noqa: F401
+    audit_admin_action,
+    require_operator,
+)
+from uar.api.routers.operator.helpers.entity_store import (
+    MetadataEntityStore,
+)
 
 logger = logging.getLogger(__name__)
 
-# Operator/admin tiers that may perform destructive admin actions
-_ADMIN_TIERS = frozenset({"operator", "admin", "developer"})
+# ------------------------------------------------------------------
+# Entity stores
+# ------------------------------------------------------------------
 
+_incident_store = MetadataEntityStore(
+    "operator:incident",
+    id_field="id",
+    sort_field="created_at",
+    max_index_scan=100,
+    use_list_meta_keys=True,
+)
+_snapshot_store = MetadataEntityStore(
+    "operator:snapshot",
+    id_field="timestamp",
+    sort_field="timestamp",
+    max_index_scan=100,
+    use_list_meta_keys=False,
+)
+_inbox_store = MetadataEntityStore(
+    "operator:inbox",
+    id_field="id",
+    sort_field="created_at",
+    max_index_scan=200,
+    use_list_meta_keys=False,
+)
+_investigation_store = MetadataEntityStore(
+    "operator:investigation",
+    id_field="id",
+    sort_field="started_at",
+    max_index_scan=100,
+    use_list_meta_keys=False,
+)
 
-def require_operator(
-    credentials: Optional[HTTPAuthorizationCredentials],
-) -> Optional[Dict[str, Any]]:
-    """Authenticate and require operator-or-higher tier.
-
-    Returns user_info dict on success, raises 403 on insufficient tier.
-    """
-    user_info = auth_middleware(credentials)
-    if user_info is None:
-        # Anonymous — not allowed for admin endpoints
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "Authentication required",
-                "error_code": "AUTH_REQUIRED",
-                "message": "Admin endpoints require a valid API key.",
-            },
-        )
-    tier = user_info.get("tier", "")
-    if tier not in _ADMIN_TIERS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "error": "Insufficient privileges",
-                "error_code": "FORBIDDEN",
-                "message": (
-                    f"Tier '{tier}' is not authorised for admin operations."
-                ),
-            },
-        )
-    return user_info
-
-
-def audit_admin_action(
-    *,
-    user_info: Optional[Dict[str, Any]],
-    action: str,
-    resource: str,
-    outcome: str,
-    details: Optional[Dict[str, Any]] = None,
-    request_id: Optional[str] = None,
-) -> None:
-    """Write an immutable audit record for an admin action.
-
-    Also fires webhook alerts for critical outcomes (failure,
-    auth denial, deletion) so on-call engineers are paged.
-
-    Non-blocking: exceptions are swallowed so the main operation
-    is never impeded by audit-log I/O or webhook delivery.
-    """
-    try:
-        actor = (
-            user_info.get("user", "unknown")
-            if user_info
-            else "unknown"
-        )
-        get_audit_logger().write(
-            event_type="admin_action",
-            actor=actor,
-            action=action,
-            resource=resource,
-            outcome=outcome,
-            details=details,
-            request_id=request_id,
-        )
-    except Exception as exc:
-        logger.warning("audit_admin_action audit log failed: %s", exc)
-
-    # Fire webhook for critical events
-    try:
-        if outcome in ("failure", "denied", "not_found") or \
-                "DELETE" in action:
-            from uar.api.webhook_alerts import get_webhook_alerter
-
-            alerter = get_webhook_alerter()
-            alerter.alert_admin_action(
-                actor=actor,
-                action=action,
-                resource=resource,
-                outcome=outcome,
-                details=details,
-            )
-    except Exception as exc:
-        logger.warning("audit_admin_action webhook alert failed: %s", exc)
-
-
-# Namespaces
-_INCIDENT_NAMESPACE = "operator:incident"
-_SNAPSHOT_NAMESPACE = "operator:snapshot"
-_INBOX_NAMESPACE = "operator:inbox"
-_INVESTIGATION_NAMESPACE = "operator:investigation"
 
 # ------------------------------------------------------------------
-# Incident helpers
+# Incident helpers (delegated to _incident_store)
 # ------------------------------------------------------------------
 
 
 def _incident_key(incident_id: str) -> str:
-    return f"{_INCIDENT_NAMESPACE}:{incident_id}"
+    return _incident_store.key(incident_id)
 
 
 def _load_all_incidents() -> List[Dict[str, Any]]:
-    """Load incidents from store metadata (with in-memory fallback)."""
-    incidents: List[Dict[str, Any]] = []
-    seen: set = set()
-    if hasattr(store, "list_meta_keys"):
-        try:
-            keys = store.list_meta_keys()
-            for key in keys:
-                if key.startswith(f"{_INCIDENT_NAMESPACE}:"):
-                    raw = store.get_metadata(key)
-                    if raw:
-                        ev = json.loads(raw) if isinstance(raw, str) else raw
-                        iid = ev.get("id")
-                        if iid and iid not in seen:
-                            seen.add(iid)
-                            incidents.append(ev)
-        except Exception as _exc:
-            logger.warning("Incident list_meta_keys failed: %s", _exc)
-    try:
-        for i in range(100):
-            test_key = f"{_INCIDENT_NAMESPACE}:incident-{i}"
-            raw = store.get_metadata(test_key)
-            if raw:
-                try:
-                    ev = json.loads(raw) if isinstance(raw, str) else raw
-                except Exception as _exc:
-                    logger.debug("Corrupt incident JSON: %s", _exc)
-                    continue
-                iid = ev.get("id")
-                if iid and iid not in seen:
-                    seen.add(iid)
-                    incidents.append(ev)
-    except Exception as _exc:
-        logger.warning("Incident metadata scan failed: %s", _exc)
-    return sorted(
-        incidents, key=lambda x: x.get("created_at", 0), reverse=True
-    )
+    return _incident_store.load_all()
 
 
 def _persist_incident(incident: Dict[str, Any]) -> None:
-    key = _incident_key(incident["id"])
-    try:
-        if hasattr(store, "put_metadata"):
-            store.put_metadata(key, incident)
-        elif hasattr(store, "put_meta"):
-            store.put_meta(key, json.dumps(incident))
-    except Exception as exc:
-        logger.warning("incident persistence failed: %s", exc)
+    _incident_store.persist(incident)
 
 
 # ------------------------------------------------------------------
-# Snapshot helpers
+# Snapshot helpers (delegated to _snapshot_store)
 # ------------------------------------------------------------------
 
 
 def _snapshot_key(timestamp: int) -> str:
-    return f"{_SNAPSHOT_NAMESPACE}:{timestamp}"
+    return _snapshot_store.key(str(timestamp))
 
 
 def _persist_snapshot(snapshot: Dict[str, Any]) -> None:
-    key = _snapshot_key(snapshot["timestamp"])
-    try:
-        if hasattr(store, "put_metadata"):
-            store.put_metadata(key, snapshot)
-        elif hasattr(store, "put_meta"):
-            store.put_meta(key, json.dumps(snapshot))
-    except Exception as exc:
-        logger.warning("snapshot persistence failed: %s", exc)
+    _snapshot_store.persist(snapshot)
 
 
 def _get_snapshot_for_day(day_timestamp: int) -> Optional[Dict[str, Any]]:
@@ -207,71 +105,27 @@ def _get_snapshot_for_day(day_timestamp: int) -> Optional[Dict[str, Any]]:
 
 def _load_all_snapshots(limit: int = 100) -> List[Dict[str, Any]]:
     """Load recent snapshots."""
-    snapshots: List[Dict[str, Any]] = []
-    seen: set = set()
-    now = int(time.time())
-    for h in range(limit):
-        ts = now - h * 3600
-        try:
-            key = _snapshot_key(ts)
-            raw = store.get_metadata(key)
-            if raw:
-                try:
-                    snap = json.loads(raw) if isinstance(raw, str) else raw
-                except Exception as _exc:
-                    logger.debug("Corrupt snapshot JSON: %s", _exc)
-                    continue
-                ts_val = snap.get("timestamp")
-                if ts_val and ts_val not in seen:
-                    seen.add(ts_val)
-                    snapshots.append(snap)
-        except Exception as _exc:
-            logger.warning("Snapshot metadata scan failed: %s", _exc)
-            break
-    return sorted(snapshots, key=lambda x: x.get("timestamp", 0), reverse=True)
+    snapshots = _snapshot_store.load_all()
+    if limit:
+        snapshots = snapshots[:limit]
+    return snapshots
 
 
 # ------------------------------------------------------------------
-# Inbox helpers
+# Inbox helpers (delegated to _inbox_store)
 # ------------------------------------------------------------------
 
 
 def _inbox_key(item_id: str) -> str:
-    return f"{_INBOX_NAMESPACE}:{item_id}"
+    return _inbox_store.key(item_id)
 
 
 def _load_all_inbox_items() -> List[Dict[str, Any]]:
-    """Load inbox items from store metadata."""
-    items: List[Dict[str, Any]] = []
-    seen: set = set()
-    try:
-        for i in range(200):
-            test_key = f"{_INBOX_NAMESPACE}:item-{i}"
-            raw = store.get_metadata(test_key)
-            if raw:
-                try:
-                    ev = json.loads(raw) if isinstance(raw, str) else raw
-                except Exception as _exc:
-                    logger.debug("Corrupt inbox JSON: %s", _exc)
-                    continue
-                iid = ev.get("id")
-                if iid and iid not in seen:
-                    seen.add(iid)
-                    items.append(ev)
-    except Exception as _exc:
-        logger.warning("Inbox metadata scan failed: %s", _exc)
-    return sorted(items, key=lambda x: x.get("created_at", 0), reverse=True)
+    return _inbox_store.load_all()
 
 
 def _persist_inbox_item(item: Dict[str, Any]) -> None:
-    key = _inbox_key(item["id"])
-    try:
-        if hasattr(store, "put_metadata"):
-            store.put_metadata(key, item)
-        elif hasattr(store, "put_meta"):
-            store.put_meta(key, json.dumps(item))
-    except Exception as exc:
-        logger.warning("inbox persistence failed: %s", exc)
+    _inbox_store.persist(item)
 
 
 def _generate_inbox_items() -> List[Dict[str, Any]]:
@@ -318,43 +172,17 @@ def _generate_inbox_items() -> List[Dict[str, Any]]:
 
 
 # ------------------------------------------------------------------
-# Investigation helpers
+# Investigation helpers (delegated to _investigation_store)
 # ------------------------------------------------------------------
 
 
 def _investigation_key(inv_id: str) -> str:
-    return f"{_INVESTIGATION_NAMESPACE}:{inv_id}"
+    return _investigation_store.key(inv_id)
 
 
 def _load_all_investigations() -> List[Dict[str, Any]]:
-    """Load investigation sessions from store metadata."""
-    sessions: List[Dict[str, Any]] = []
-    seen: set = set()
-    try:
-        for i in range(100):
-            test_key = f"{_INVESTIGATION_NAMESPACE}:inv-{i}"
-            raw = store.get_metadata(test_key)
-            if raw:
-                try:
-                    ev = json.loads(raw) if isinstance(raw, str) else raw
-                except Exception as _exc:
-                    logger.debug("Corrupt investigation JSON: %s", _exc)
-                    continue
-                sid = ev.get("id")
-                if sid and sid not in seen:
-                    seen.add(sid)
-                    sessions.append(ev)
-    except Exception as _exc:
-        logger.warning("Investigation metadata scan failed: %s", _exc)
-    return sorted(sessions, key=lambda x: x.get("started_at", 0), reverse=True)
+    return _investigation_store.load_all()
 
 
 def _persist_investigation(inv: Dict[str, Any]) -> None:
-    key = _investigation_key(inv["id"])
-    try:
-        if hasattr(store, "put_metadata"):
-            store.put_metadata(key, inv)
-        elif hasattr(store, "put_meta"):
-            store.put_meta(key, json.dumps(inv))
-    except Exception as exc:
-        logger.warning("investigation persistence failed: %s", exc)
+    _investigation_store.persist(inv)
