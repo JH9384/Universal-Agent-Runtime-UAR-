@@ -1,9 +1,27 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { dashboardApi } from "../../api/dashboard";
 import type { RunRecord } from "../../api/dashboard";
+import { useApiFetch } from "../../hooks/useApiFetch";
 import { buildEvidencePackPreview } from "../../utils/evidencePackPreview";
 
 type StatusFilter = "all" | "completed" | "failed" | "running" | "pending";
+
+interface MissionControlSnapshot {
+  incident_summary?: {
+    status: string;
+    recurring_patterns: number;
+    top_pattern: {
+      scope: string;
+      value: string;
+      recurrence_count: number;
+      affected_run_ids: string[];
+      latest_run_id?: string | null;
+      linked_incident_ids?: string[];
+      linked_recommendation_ids?: string[];
+      evidence_refs?: string[];
+    } | null;
+  } | null;
+}
 
 const STATUS_COLOR: Record<string, string> = {
   completed: "#22c55e",
@@ -20,6 +38,10 @@ export function ArtifactBrowser() {
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { data: missionControl } = useApiFetch<MissionControlSnapshot>(
+    "/api/uar/mission-control",
+    { interval: 30_000 }
+  );
 
   const fetchData = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -71,7 +93,10 @@ export function ArtifactBrowser() {
     return acc;
   }, {});
 
-  const evidencePreview = buildEvidencePackPreview(runs);
+  const evidencePreview = buildEvidencePackPreview(runs, Date.now(), {
+    incidentSummary: missionControl?.incident_summary,
+  });
+  const recurrence = evidencePreview.top_recurrence;
 
   function copyEvidenceMarkdown() {
     navigator.clipboard.writeText(evidencePreview.markdown).then(() => {
@@ -128,7 +153,17 @@ export function ArtifactBrowser() {
           <dd>{evidencePreview.completed_records}</dd>
           <dt>Top failed run</dt>
           <dd>{evidencePreview.top_failed_run_id ?? "none"}</dd>
+          <dt>Recurrence</dt>
+          <dd>{evidencePreview.recurrence_count}</dd>
         </dl>
+        {recurrence && (
+          <div className="mc-briefing-section">
+            <h3>Top recurrence</h3>
+            <p className="mc-subtext"><strong>{recurrence.scope}:{recurrence.value}</strong></p>
+            <p className="mc-meta--xs">Latest run: {recurrence.latest_run_id ?? "none"}</p>
+            <p className="mc-meta--xs">Evidence refs: {recurrence.evidence_refs?.join(", ") || "none"}</p>
+          </div>
+        )}
         <div className="mc-briefing-links">
           <button type="button" className="mc-filter-btn" onClick={copyEvidenceMarkdown}>
             {copied ? "Copied" : "Copy Evidence Markdown"}
