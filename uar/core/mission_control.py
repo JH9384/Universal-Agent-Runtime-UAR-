@@ -37,6 +37,7 @@ class MissionControlSnapshot:
     recent_warnings: List[str] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     trust_summary: Optional[Dict[str, Any]] = None
+    fleet_summary: Optional[Dict[str, Any]] = None
     server_version: str = "unknown"
     uptime_seconds: int = 0
     skills_available: int = 0
@@ -159,6 +160,22 @@ def build_snapshot(
         _logging.getLogger(__name__).exception("Trust summary failed")
         warnings.append(f"trust_summary: {exc}")
 
+    # D4C-S1.2: Fleet summary for Mission Control using existing records.
+    # This intentionally creates no fleet store and no duplicate dashboard.
+    fleet_summary = None
+    try:
+        from uar.core.fleet_signals import (
+            build_fleet_signals,
+            build_fleet_summary,
+        )
+        records = store.list_records(limit=50000)
+        fleet_summary = build_fleet_summary(build_fleet_signals(records))
+    except Exception as exc:
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Fleet summary failed")
+        warnings.append(f"fleet_summary: {exc}")
+
     skills_available = 0
     skills_total = 0
     circuit_breakers = []
@@ -198,6 +215,7 @@ def build_snapshot(
         recent_warnings=unique_warnings[:20],
         timestamp=time.time(),
         trust_summary=trust_summary,
+        fleet_summary=fleet_summary,
         server_version=get_uar_version(),
         uptime_seconds=int(time.time() - _uar_start_time),
         skills_available=skills_available,
