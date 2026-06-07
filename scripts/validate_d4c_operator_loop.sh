@@ -26,6 +26,7 @@ cd "$ROOT_DIR/apps/web"
 npm run test:run -- \
   src/components/AlertBanner.test.tsx \
   src/components/mission-control/OperatorBriefingPanel.test.tsx \
+  src/components/mission-control/FocusModePanel.test.tsx \
   src/components/mission-control/RecommendationOutcomeCapture.test.tsx \
   src/components/mission-control/ArtifactBrowser.test.tsx \
   src/components/Dashboard.test.tsx \
