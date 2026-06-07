@@ -1,38 +1,38 @@
 # UAR Freeze and Lock Registry
 
-> Canonical record of all engineering freezes, directional locks, and expansion halts.  
-> Last updated: 2026-06-05
+> Canonical record of engineering freezes, directional locks, and expansion halts.  
+> Last updated: 2026-06-07
 
 ---
 
 ## Active Freezes
 
-*None. Lifted 2026-06-05 to proceed with D4C — Fleet Operations.*
+**None.**
+
+All prior engineering freezes, learning freezes, and directional locks are cleared for now. Historical entries below are retained for audit context only and are not active policy.
+
+Current posture:
+
+- New runtime capabilities are allowed.
+- New operator, fleet, admin, UI, deployment, observability, and infrastructure work is allowed.
+- Learning, trust, ranking, recommendation, and outcome logic may be changed when supported by tests and documentation.
+- Normal engineering hygiene still applies: test behavior changes, update docs, preserve auditability, and keep evidence paths clean.
 
 ---
 
-## Historical Freezes (Completed or Lifted)
+## Historical Freezes and Locks
 
 ### 1. Feature Freeze — Ω-7B.1 Operational Validation
 
 | | |
 |---|---|
 | **Declared** | 2026-06-01 |
-| **Lifted** | 2026-06-05 |
-| **Status** | **LIFTED** — D4A and D4B complete; freeze no longer necessary. |
-| **Scope** | No new runtime capabilities, autonomy layers, or infrastructure expansions |
-| **Rationale** | The Trust Spine (T1–T6) is complete. The architecture is rich enough that the next improvements should come from observed behavior rather than design intuition. |
-| **Exit criteria** | D4A success gate met (all 6 work packages complete). D4B automation layer operational. |
+| **Cleared** | 2026-06-07 |
+| **Status** | **CLEARED** — no longer active policy. |
+| **Original scope** | No new runtime capabilities, autonomy layers, or infrastructure expansions. |
+| **Original rationale** | The Trust Spine had reached operational maturity and needed observation-first validation. |
 
-**Permitted during freeze:**
-- Bug fixes and correctness patches
-- Instrumentation additions
-- Documentation updates
-- Dashboard visualizations
-- Operational validation tooling
-
-**Deferred (now unblocked):**
-- D4C — Fleet Operations
+Previously deferred work, including D4C Fleet Operations, runtime expansion, infrastructure expansion, and operator productization, is now unblocked.
 
 ---
 
@@ -41,34 +41,26 @@
 | | |
 |---|---|
 | **Declared** | 2026-06-01 |
-| **Lifted** | 2026-06-05 |
-| **Status** | **LIFTED** — Feature freeze lifted; learning layers remain stable but not frozen against fleet-context additions. |
+| **Cleared** | 2026-06-07 |
+| **Status** | **CLEARED** — no longer active policy. |
+| **Original scope** | Stabilize learning, trust, ranking, recommendation, and outcome-attribution semantics during validation. |
 
-**Frozen layers:**
+The following layers are historical baselines, not active freeze boundaries:
 
-| Layer | Status |
-|-------|--------|
-| Ω-5.1 Pattern Recognition | Locked |
-| Ω-5.2 Feedback Collection | Locked |
-| Ω-5.3 Quality Metrics | Locked |
-| Ω-5.4 Adaptive Confidence | Locked |
-| Ω-5.5 Outcome Attribution | Locked |
-| Ω-6a Effectiveness Intelligence | Locked |
-| Ω-6b Calibration Intelligence | Locked |
-| Ω-6c Replay Intelligence | Locked |
-| Ω-7a Trust Computation | Locked |
-| Ω-7b Trust-Aware Ranking | Locked |
-
-**Not frozen:**
-- Bug fixes
-- Instrumentation additions
-- Documentation updates
-- Dashboard visualizations
-- Operational validation tooling
+| Layer | Current posture |
+|-------|-----------------|
+| Ω-5.1 Pattern Recognition | Open to tested changes |
+| Ω-5.2 Feedback Collection | Open to tested changes |
+| Ω-5.3 Quality Metrics | Open to tested changes |
+| Ω-5.4 Adaptive Confidence | Open to tested changes |
+| Ω-5.5 Outcome Attribution | Open to tested changes |
+| Ω-6a Effectiveness Intelligence | Open to tested changes |
+| Ω-6b Calibration Intelligence | Open to tested changes |
+| Ω-6c Replay Intelligence | Open to tested changes |
+| Ω-7a Trust Computation | Open to tested changes |
+| Ω-7b Trust-Aware Ranking | Open to tested changes |
 
 ---
-
-## Historical Freezes (Completed)
 
 ### 3. Trust Spine Construction Freeze
 
@@ -76,27 +68,10 @@
 |---|---|
 | **Declared** | 2026-05-15 |
 | **Lifted** | 2026-05-31 |
-| **Status** | Complete — all phases operational |
-| **Scope** | Capability expansion frozen until Trust Spine milestones were complete |
-| **Rationale** | Capability Atlas audits showed infrastructure maturity exceeded trust maturity. No new subsystems until trust primitives were operational. |
+| **Status** | Historical — complete, no longer active policy. |
+| **Original scope** | Capability expansion frozen until Trust Spine milestones were complete. |
 
-**Deferred during freeze:**
-- Parallel executor expansion
-- Replay timeline UI
-- Richer orchestration intelligence
-- Advanced graph animation
-- Production database backends beyond JSONL
-- Marketplace systems
-- Agent economy systems
-- Workflow studio expansion
-
-**Exit criteria met:**
-- T1 Replay Confidence operational
-- T2 Runtime Health operational
-- T3 Burn-In Framework operational
-- T4 Certification Engine operational
-- T5 Mission Control operational
-- T6 Replay Explorer operational
+Exit criteria met: T1 Replay Confidence, T2 Runtime Health, T3 Burn-In Framework, T4 Certification Engine, T5 Mission Control, and T6 Replay Explorer operational.
 
 ---
 
@@ -106,83 +81,51 @@
 |---|---|
 | **Declared** | 2026-05-31 |
 | **Lifted** | 2026-06-01 |
-| **Status** | Complete — transitioned to Operational Intelligence Platform |
-| **Scope** | No new Trust Spine phases, concepts, layers, or subsystems |
-| **Rationale** | Trust Spine was built; hardening focused on performance, persistence, correctness, and observability before declaring completion. |
+| **Status** | Historical — complete, no longer active policy. |
+| **Original scope** | No new Trust Spine phases, concepts, layers, or subsystems. |
 
-**Permitted during hardening:**
-- Performance (query consolidation, caching)
-- Persistence (burn-in store, report durability)
-- Correctness (ownership, concurrency, error paths)
-- Observability (structured logging, metrics)
-
-**Hardening backlog (all resolved):**
-- ~~#85~~ Runtime Health Query Consolidation — resolved
-- ~~#86~~ Burn-In Persistence Layer — resolved
-- ~~#87~~ Certification Engine Refactor — resolved
+Hardening focus was performance, persistence, correctness, and observability. Backlog items #85, #86, and #87 are resolved.
 
 ---
 
-## Directional Locks
-
-### 5. Issue #83 — Runtime Health Contract & Scoring Engine
+### 5. Issue #83 — Runtime Health Contract & Scoring Engine Directional Lock
 
 | | |
 |---|---|
 | **Locked** | 2026-05-15 |
-| **Status** | Complete — T2 Runtime Health operational |
-| **Scope** | Directional lock: all engineering effort aligned to the Trust Spine until it was complete |
-| **Rationale** | Execution exists to generate evidence. Evidence exists to establish trust. Trust exists to support operations. |
+| **Cleared** | 2026-06-07 |
+| **Status** | Historical — complete, no longer active policy. |
+| **Original scope** | Align engineering effort to the Trust Spine until T2 Runtime Health was operational. |
 
-**Path:** Execution → Evidence → Trust → Operations → Analytics → Search → Insight
+Historical path: Execution → Evidence → Trust → Operations → Analytics → Search → Insight
 
 ---
 
 ## Decision Matrix
 
-| Condition | Action |
-|-----------|--------|
-| All Ω-7B.1 exit criteria met | Proceed to Ω-7c Trust Visibility |
-| Trust distribution compressed | Investigate formula weights |
-| No resolution correlation | Extend burn-in or adjust evidence_component |
-| High drift without detection | Tighten drift_penalty threshold |
-| Ranking thrashes | Increase evidence gate before trust applies |
+There are no freeze gates currently blocking roadmap work.
+
+| Condition | Suggested action |
+|-----------|------------------|
+| Trust distribution compresses | Investigate formula weights and sample gates. |
+| No resolution correlation appears | Extend burn-in or adjust evidence component. |
+| High drift appears without detection | Tighten drift penalty and alert thresholds. |
+| Ranking thrashes | Increase evidence gate before trust applies. |
+| Operator workflows become noisy | Simplify UI surfaces and add progressive disclosure. |
+| Fleet expansion introduces instability | Isolate with feature flags, tests, and deployment checks. |
 
 ---
 
 ## Enforcement
 
-These freezes are **binding engineering policy**, not advisory notes.
+There are **no active freeze-enforcement requirements** at this time.
 
-### Violation Checklist
-
-Before any PR is merged during an active freeze, the author must confirm:
-
-- [ ] No new components, layers, or subsystems are introduced
-- [ ] No new learning logic is added (during Learning Architecture Freeze)
-- [ ] No new dependencies are added without explicit freeze-exemption review
-- [ ] All changes are listed in one of: bug fix, instrumentation, documentation, visualization, or validation tooling
-- [ ] `docs/FREEZES_AND_LOCKS.md` is updated if the freeze boundary changes
-
-### Exemption Process
-
-If a change genuinely requires violating an active freeze:
-
-1. Open a dedicated issue titled `[Freeze Exemption] <brief description>`
-2. Tag it with the freeze name (e.g., `freeze:feature-freeze-v1`)
-3. Document: what, why, why it cannot wait, and what validation will be performed
-4. Require two approvals before merge
-
-No exemptions have been granted since 2026-06-01.
+If a future freeze is declared, this registry should be updated with the freeze name, declaration date, scope, allowed changes, exit criteria, and enforcement checklist.
 
 ---
 
 ## Key Principle
 
-The most valuable commit may not be Ω-7a or Ω-7b.
+Open development does not mean careless development.
 
-It may be the commit that says:
-
-**STOP BUILDING. START MEASURING.**
-
-Because that's the point where the system begins teaching you something back.
+**Build freely. Measure continuously. Keep the evidence trail clean.**
