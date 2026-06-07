@@ -9,7 +9,7 @@ vi.mock('../../hooks/useApiFetch', () => ({
   useApiFetch: (...args: unknown[]) => mockUseApiFetch(...args),
 }))
 
-function _snapshot(topSignal: Record<string, unknown> | null = null) {
+function _snapshot(topSignal: Record<string, unknown> | null = null, incidentSummary: Record<string, unknown> | null = null) {
   return {
     fleet_summary: {
       status: topSignal ? 'critical' : 'nominal',
@@ -18,11 +18,28 @@ function _snapshot(topSignal: Record<string, unknown> | null = null) {
       warning_signals: 0,
       top_signal: topSignal,
     },
+    incident_summary: incidentSummary,
     runtime_health: { score: 95, tier: 'Healthy' },
     certification: { score: 90, level: 'Gold' },
     trust_summary: { top_trusted: 'cache', top_trust_score: 0.82, drift_count: 0 },
     recent_warnings: [],
   }
+}
+
+const recurrence = {
+  status: 'active',
+  recurring_patterns: 1,
+  top_pattern: {
+    id: 'incident:service:svc-focus',
+    scope: 'service',
+    value: 'svc-focus',
+    recurrence_count: 2,
+    affected_run_ids: ['fr2', 'fr1'],
+    latest_run_id: 'fr2',
+    linked_incident_ids: ['inc-focus'],
+    linked_recommendation_ids: ['rec-focus'],
+    evidence_refs: ['run:fr2', 'run:fr1'],
+  },
 }
 
 beforeEach(() => {
@@ -83,6 +100,28 @@ describe('FocusModePanel', () => {
     await user.click(screen.getByRole('button', { name: /Replay run-focus/i }))
 
     expect(onOpenReplay).toHaveBeenCalledWith('run-focus-1')
+  })
+
+  it('renders recurrence when no fleet signal exists', async () => {
+    const user = userEvent.setup()
+    const onOpenReplay = vi.fn()
+    mockUseApiFetch.mockReturnValue({
+      data: _snapshot(null, recurrence),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<FocusModePanel onOpenReplay={onOpenReplay} />)
+
+    expect(screen.getByText('service:svc-focus')).toBeInTheDocument()
+    expect(screen.getByText('1 recurring pattern(s).')).toBeInTheDocument()
+    expect(screen.getByText('Top recurrence')).toBeInTheDocument()
+    expect(screen.getByText('Evidence refs: run:fr2, run:fr1')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Replay fr2/i }))
+
+    expect(onOpenReplay).toHaveBeenCalledWith('fr2')
   })
 
   it('routes evidence button to artifacts', async () => {
