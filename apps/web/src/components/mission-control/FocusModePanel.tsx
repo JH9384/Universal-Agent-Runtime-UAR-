@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useApiFetch } from "../../hooks/useApiFetch";
 import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
+import { IncidentRecurrenceSummary } from "./IncidentRecurrenceSummary";
 
 interface FleetSignalLinkage {
   replay?: { run_id?: string | null; available?: boolean } | null;
@@ -27,6 +28,7 @@ interface MissionControlSnapshot {
     warning_signals: number;
     top_signal: FleetSignal | null;
   } | null;
+  incident_summary?: any;
   runtime_health?: { score?: number; tier?: string } | null;
   certification?: { score?: number; level?: string } | null;
   trust_summary?: {
@@ -45,6 +47,8 @@ interface FocusModePanelProps {
 function primarySignal(snapshot: MissionControlSnapshot | null): string {
   const signal = snapshot?.fleet_summary?.top_signal;
   if (signal) return `${signal.title}: ${signal.message}`;
+  const pattern = snapshot?.incident_summary?.top_pattern;
+  if (pattern) return `${pattern.scope}:${pattern.value}`;
   const warnings = snapshot?.recent_warnings ?? [];
   if (warnings.length) return warnings[0];
   return "No interrupting signal.";
@@ -52,10 +56,12 @@ function primarySignal(snapshot: MissionControlSnapshot | null): string {
 
 function recentChange(snapshot: MissionControlSnapshot | null): string {
   const fleet = snapshot?.fleet_summary;
+  const recurrence = snapshot?.incident_summary?.recurring_patterns ?? 0;
   const drift = snapshot?.trust_summary?.drift_count ?? 0;
   if (fleet?.active_signals) {
     return `${fleet.active_signals} fleet signal(s): ${fleet.critical_signals} critical, ${fleet.warning_signals} warning.`;
   }
+  if (recurrence > 0) return `${recurrence} recurring pattern(s).`;
   if (drift > 0) return `${drift} trust drift signal(s).`;
   return "No material change detected.";
 }
@@ -112,6 +118,12 @@ export function FocusModePanel({ onOpenReplay, onSelectTab }: FocusModePanelProp
           Evidence
         </button>
       </div>
+
+      <IncidentRecurrenceSummary
+        incidentSummary={data?.incident_summary}
+        onOpenReplay={onOpenReplay}
+        onSelectTab={onSelectTab}
+      />
 
       <RecommendationOutcomeCapture
         recommendationIds={recommendationIds}
