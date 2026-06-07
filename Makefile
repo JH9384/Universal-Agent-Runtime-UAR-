@@ -1,4 +1,4 @@
-.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c api web dashboard up up-full up-all clean release version sync-version check-version
+.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result api web dashboard up up-full up-all clean release version sync-version check-version
 
 PYTHON ?= python3.12
 API_HOST ?= 127.0.0.1
@@ -28,6 +28,7 @@ help:
 	@echo "  make build-frontend   Build production frontend bundle"
 	@echo "  make validate         Install and run foundation validation"
 	@echo "  make validate-d4c     Run focused D4C operator loop validation"
+	@echo "  make d4c-result       Write D4C validation result stub"
 	@echo "  make validate-uor     Validate pinned UOR artifacts (SHACL + JSON Schema)"
 	@echo "  make api              Start the FastAPI runtime server"
 	@echo "  make web              Start the staged web UI"
@@ -101,6 +102,9 @@ validate: check-version $(VENV_STAMP)
 
 validate-d4c:
 	bash scripts/validate_d4c_operator_loop.sh
+
+d4c-result:
+	$(PYTHON) scripts/write_d4c_validation_result.py
 
 validate-uor: $(VENV_STAMP)
 	$(VENV_PYTHON) scripts/validate_uor_alignment.py
