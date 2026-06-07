@@ -38,6 +38,7 @@ class MissionControlSnapshot:
     timestamp: float = field(default_factory=time.time)
     trust_summary: Optional[Dict[str, Any]] = None
     fleet_summary: Optional[Dict[str, Any]] = None
+    incident_summary: Optional[Dict[str, Any]] = None
     server_version: str = "unknown"
     uptime_seconds: int = 0
     skills_available: int = 0
@@ -128,7 +129,8 @@ def build_snapshot(
             violations=[str(exc)],
         )
 
-    # Ω-7B.1: Trust summary for Mission Control visibility.
+    outcomes = []
+    metadata = []
     trust_summary = None
     try:
         from uar.core.trust_engine import compute_trust
@@ -160,8 +162,7 @@ def build_snapshot(
         _logging.getLogger(__name__).exception("Trust summary failed")
         warnings.append(f"trust_summary: {exc}")
 
-    # D4C-S1.2/S1.4: Fleet summary and linkage from existing records.
-    # This intentionally creates no fleet store and no duplicate dashboard.
+    records = []
     fleet_summary = None
     try:
         from uar.core.fleet_linkage import attach_linkage_to_fleet_summary
@@ -178,6 +179,24 @@ def build_snapshot(
 
         _logging.getLogger(__name__).exception("Fleet summary failed")
         warnings.append(f"fleet_summary: {exc}")
+
+    incident_summary = None
+    try:
+        from uar.core.incident_intelligence import (
+            build_incident_intelligence_summary,
+        )
+        if not records:
+            records = store.list_records(limit=50000)
+        incident_summary = build_incident_intelligence_summary(
+            records,
+            outcomes=outcomes,
+            recommendation_metadata=metadata,
+        )
+    except Exception as exc:
+        import logging as _logging
+
+        _logging.getLogger(__name__).exception("Incident summary failed")
+        warnings.append(f"incident_summary: {exc}")
 
     skills_available = 0
     skills_total = 0
@@ -219,6 +238,7 @@ def build_snapshot(
         timestamp=time.time(),
         trust_summary=trust_summary,
         fleet_summary=fleet_summary,
+        incident_summary=incident_summary,
         server_version=get_uar_version(),
         uptime_seconds=int(time.time() - _uar_start_time),
         skills_available=skills_available,
