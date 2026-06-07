@@ -17,6 +17,7 @@ pytest \
   tests/core/test_fleet_linkage.py \
   tests/core/test_fleet_outcome_trust_movement.py \
   tests/core/test_fleet_evidence_section.py \
+  tests/core/test_incident_evidence_section.py \
   tests/core/test_evidence_pack_v2.py \
   tests/core/test_operator_daily_briefing.py \
   tests/core/test_incident_intelligence.py \
