@@ -9,7 +9,7 @@ type Skill = {
   example: string
   prerequisites?: string[]
   output: string
-  category: 'Core' | 'AI' | 'GraphRAG' | 'Storage' | 'Analysis' | 'Ecosystem'
+  category: 'Core' | 'AI' | 'GraphRAG' | 'Storage' | 'Analysis' | 'Ecosystem' | 'Hardware'
 }
 
 const SKILLS: Skill[] = [
@@ -331,17 +331,17 @@ const SKILLS: Skill[] = [
     useCase: 'Extract modules, ports, signals, and instances from Verilog',
     example: 'Goal: "Parse Verilog" → Skills: [verilog_parse]',
     output: 'Module hierarchy, port definitions, signal declarations, and instance connections',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'fpga_verify',
     label: 'fpga_verify',
     desc: 'Verify Verilog modules with generated test vectors',
     useCase: 'Generate pseudo-random test vectors and verify combinational logic',
-    example: 'Goal: "Verify FPGA module" → Skills: [verilog_parse, fpga_verify]',
+    example: 'Goal: "Verify FPGA module" → Recipe: hw_verify, or Skills: [verilog_parse, fpga_verify]',
     prerequisites: ['verilog_parse'],
     output: 'Test vector results, waveform metadata, pass/fail assertions',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'riscv_sim',
@@ -350,7 +350,7 @@ const SKILLS: Skill[] = [
     useCase: 'Emulate RISC-V instructions with symbol support and flexible execution',
     example: 'Goal: "Simulate RISC-V" → Skills: [riscv_sim]',
     output: 'Execution trace, register state, and memory contents',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'physics_compute',
@@ -749,10 +749,10 @@ const SKILLS: Skill[] = [
     label: 'myhdl_design',
     desc: 'Hardware design with MyHDL',
     useCase: 'Digital hardware design and simulation in Python',
-    example: 'Goal: "Design a counter" → Skills: [myhdl_design]',
+    example: 'Goal: "Design a counter" → Recipe: hw_design, or Skills: [myhdl_design]',
     prerequisites: ['myhdl'],
     output: 'Hardware module and simulation results',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'riscv_cycle',
@@ -762,7 +762,7 @@ const SKILLS: Skill[] = [
     example: 'Goal: "Simulate RISC-V core" → Skills: [riscv_cycle]',
     prerequisites: ['riscv-pk'],
     output: 'Cycle-accurate trace and stats',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'verilator_sim',
@@ -772,7 +772,7 @@ const SKILLS: Skill[] = [
     example: 'Goal: "Simulate this Verilog" → Skills: [verilator_sim]',
     prerequisites: ['verilator'],
     output: 'Simulation waveform and coverage',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'micropython',
@@ -782,7 +782,7 @@ const SKILLS: Skill[] = [
     example: 'Goal: "Flash MicroPython" → Skills: [micropython]',
     prerequisites: ['micropython'],
     output: 'Device output and sensor readings',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'platformio',
@@ -792,7 +792,7 @@ const SKILLS: Skill[] = [
     example: 'Goal: "Build firmware" → Skills: [platformio]',
     prerequisites: ['platformio'],
     output: 'Build artifacts and upload status',
-    category: 'Analysis'
+    category: 'Hardware'
   },
   {
     id: 'math_plot_3d',
@@ -1134,7 +1134,7 @@ const SKILLS: Skill[] = [
   }
 ]
 
-const CATEGORIES = ['Core', 'AI', 'GraphRAG', 'Storage', 'Analysis', 'Ecosystem'] as const
+const CATEGORIES = ['Core', 'AI', 'GraphRAG', 'Storage', 'Analysis', 'Ecosystem', 'Hardware'] as const
 
 export function SkillGuide() {
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)

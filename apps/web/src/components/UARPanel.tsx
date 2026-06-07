@@ -409,6 +409,10 @@ const RECIPES: Recipe[] = [
   { id: 'eco_status', label: '🌐 Ecosystem status',  skills: ['uor_ecosystem_status'], hint: 'Check all UOR ecosystem integrations' },
   { id: 'eco_canon',  label: '🌐 Canonicalize',     skills: ['uor_addr_canonicalize'], hint: 'Canonicalize data per UOR-ADDR-1' },
   { id: 'eco_foundation', label: '🌐 Foundation verify', skills: ['uor_foundation_verify'], hint: 'Call the live UOR Foundation API' },
+  { id: 'hw_design',    label: '⚡ HW design',       skills: ['myhdl_design', 'verilog_parse'], hint: 'MyHDL design to Verilog parse' },
+  { id: 'hw_verify',    label: '🔍 HW verify',       skills: ['verilog_parse', 'fpga_verify'], hint: 'Parse Verilog then verify with test vectors' },
+  { id: 'hw_full',      label: '⚙️ HW full pipeline', skills: ['myhdl_design', 'verilog_parse', 'fpga_verify'], hint: 'Design → parse → verify end-to-end' },
+  { id: 'riscv_dev',    label: '🖥️ RISC-V dev',      skills: ['riscv_sim'], hint: 'Assemble and run RISC-V with trace' },
 ]
 
 type LibFile = {

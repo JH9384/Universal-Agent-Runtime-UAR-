@@ -97,6 +97,34 @@ DEFAULT_RECIPES: Dict[str, Dict[str, Any]] = {
         "skills": ["uor_foundation_verify"],
         "hint": "Call the live UOR Foundation API",
     },
+    "hw_design": {
+        "id": "hw_design",
+        "version": "1",
+        "label": "⚡ HW design",
+        "skills": ["myhdl_design", "verilog_parse"],
+        "hint": "MyHDL design to Verilog parse",
+    },
+    "hw_verify": {
+        "id": "hw_verify",
+        "version": "1",
+        "label": "🔍 HW verify",
+        "skills": ["verilog_parse", "fpga_verify"],
+        "hint": "Parse Verilog then verify with test vectors",
+    },
+    "hw_full": {
+        "id": "hw_full",
+        "version": "1",
+        "label": "⚙️ HW full pipeline",
+        "skills": ["myhdl_design", "verilog_parse", "fpga_verify"],
+        "hint": "Design → parse → verify end-to-end",
+    },
+    "riscv_dev": {
+        "id": "riscv_dev",
+        "version": "1",
+        "label": "🖥️ RISC-V dev",
+        "skills": ["riscv_sim"],
+        "hint": "Assemble and run RISC-V with trace",
+    },
 }
 
 # Create RECIPE_MAP for quick lookup of skill lists by recipe ID
