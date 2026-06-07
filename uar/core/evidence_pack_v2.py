@@ -13,6 +13,7 @@ import time
 from typing import Any, Dict, Iterable, List, Optional
 
 from uar.core.fleet_evidence_section import build_fleet_evidence_section
+from uar.core.incident_evidence_section import build_incident_evidence_section
 
 
 def compose_evidence_pack_v2(
@@ -26,13 +27,22 @@ def compose_evidence_pack_v2(
     """Compose an Evidence Pack v2 payload from reusable sections."""
 
     generated = time.time() if generated_at is None else generated_at
+    record_list = list(records)
+    outcome_rows = outcomes or []
+    metadata_rows = recommendation_metadata or []
     fleet_section = build_fleet_evidence_section(
-        records,
-        outcomes=outcomes or [],
-        recommendation_metadata=recommendation_metadata or [],
+        record_list,
+        outcomes=outcome_rows,
+        recommendation_metadata=metadata_rows,
         generated_at=generated,
     )
-    sections = [fleet_section]
+    incident_section = build_incident_evidence_section(
+        record_list,
+        outcomes=outcome_rows,
+        recommendation_metadata=metadata_rows,
+        generated_at=generated,
+    )
+    sections = [fleet_section, incident_section]
     markdown_parts = [
         f"# {title}",
         "",
