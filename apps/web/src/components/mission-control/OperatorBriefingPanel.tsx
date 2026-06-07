@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useApiFetch } from "../../hooks/useApiFetch";
 import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
+import { IncidentRecurrenceSummary } from "./IncidentRecurrenceSummary";
 
 interface FleetSignalLinkage {
   replay?: { run_id?: string | null; available?: boolean } | null;
@@ -27,6 +28,7 @@ interface MissionControlSnapshot {
     warning_signals: number;
     top_signal: FleetSignal | null;
   } | null;
+  incident_summary?: any;
   runtime_health?: { score?: number; tier?: string } | null;
   certification?: { score?: number; level?: string } | null;
   trust_summary?: {
@@ -122,6 +124,12 @@ export function OperatorBriefingPanel({ onOpenReplay, onSelectTab }: OperatorBri
           <p className="mc-status-summary--ok">No interrupting fleet signal. Monitor fleet health.</p>
         )}
       </div>
+
+      <IncidentRecurrenceSummary
+        incidentSummary={data?.incident_summary}
+        onOpenReplay={onOpenReplay}
+        onSelectTab={onSelectTab}
+      />
 
       <RecommendationOutcomeCapture
         recommendationIds={recommendationIds}
