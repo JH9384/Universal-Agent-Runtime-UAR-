@@ -14,6 +14,7 @@ vi.mock('../api/dashboard', () => ({
     listRuns: vi.fn().mockResolvedValue([
       { run_id: 'run-brief-1', status: 'failed', skills: ['echo'] },
       { run_id: 'run-focus-1', status: 'failed', skills: ['echo'] },
+      { run_id: 'run-recur-1', status: 'failed', skills: ['echo'] },
       { run_id: 'run-other', status: 'completed', skills: ['echo'] },
     ]),
   },
@@ -39,6 +40,42 @@ function _missionControl(runId = 'run-brief-1') {
           recommendations: [],
           evidence_refs: [`run:${runId}`],
         },
+      },
+    },
+    incident_summary: {
+      status: 'nominal',
+      recurring_patterns: 0,
+      top_pattern: null,
+    },
+    runtime_health: { score: 95, tier: 'Healthy' },
+    certification: { score: 90, level: 'Gold' },
+    trust_summary: { top_trusted: 'cache', top_trust_score: 0.82, drift_count: 0 },
+    recent_warnings: [],
+  }
+}
+
+function _missionControlWithRecurrence() {
+  return {
+    fleet_summary: {
+      status: 'nominal',
+      active_signals: 0,
+      critical_signals: 0,
+      warning_signals: 0,
+      top_signal: null,
+    },
+    incident_summary: {
+      status: 'active',
+      recurring_patterns: 1,
+      top_pattern: {
+        id: 'incident:service:svc-recur',
+        scope: 'service',
+        value: 'svc-recur',
+        recurrence_count: 2,
+        affected_run_ids: ['run-recur-1', 'run-recur-old'],
+        latest_run_id: 'run-recur-1',
+        linked_incident_ids: ['inc-recur'],
+        linked_recommendation_ids: ['rec-recur'],
+        evidence_refs: ['run:run-recur-1'],
       },
     },
     runtime_health: { score: 95, tier: 'Healthy' },
@@ -88,5 +125,23 @@ describe('Dashboard operator loop', () => {
 
     expect(screen.getByRole('tab', { name: 'Replay' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByDisplayValue('run-focus-1')).toBeInTheDocument()
+  })
+
+  it('moves from briefing recurrence to replay tab with run filter', async () => {
+    const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControlWithRecurrence(),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    expect(screen.getByText('Top recurrence')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Replay run-recur/i }))
+
+    expect(screen.getByRole('tab', { name: 'Replay' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByDisplayValue('run-recur-1')).toBeInTheDocument()
   })
 })
