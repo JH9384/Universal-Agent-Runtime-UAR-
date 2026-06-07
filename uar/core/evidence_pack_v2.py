@@ -1,0 +1,53 @@
+"""Evidence Pack v2 composer.
+
+Reuse-first evidence pack composition for D4C and later operator flows.
+
+This module is intentionally thin: it composes existing section builders and
+returns structured data plus markdown.  It creates no new durable store and can
+be used by scripts, APIs, or report viewers as the canonical evidence-pack seam.
+"""
+
+from __future__ import annotations
+
+import time
+from typing import Any, Dict, Iterable, List, Optional
+
+from uar.core.fleet_evidence_section import build_fleet_evidence_section
+
+
+def compose_evidence_pack_v2(
+    records: Iterable[Dict[str, Any]],
+    *,
+    outcomes: Optional[List[Dict[str, Any]]] = None,
+    recommendation_metadata: Optional[List[Dict[str, Any]]] = None,
+    generated_at: Optional[float] = None,
+    title: str = "UAR Evidence Pack v2",
+) -> Dict[str, Any]:
+    """Compose an Evidence Pack v2 payload from reusable sections."""
+
+    generated = time.time() if generated_at is None else generated_at
+    fleet_section = build_fleet_evidence_section(
+        records,
+        outcomes=outcomes or [],
+        recommendation_metadata=recommendation_metadata or [],
+        generated_at=generated,
+    )
+    sections = [fleet_section]
+    markdown_parts = [
+        f"# {title}",
+        "",
+        f"Generated at: `{generated}`",
+        "",
+    ]
+    markdown_parts.extend(section["markdown"] for section in sections)
+
+    return {
+        "title": title,
+        "version": "v2",
+        "generated_at": generated,
+        "sections": sections,
+        "markdown": "\n\n".join(markdown_parts),
+    }
+
+
+__all__ = ["compose_evidence_pack_v2"]
