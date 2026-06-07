@@ -2,7 +2,7 @@
 
 > Status: active validation gate  
 > Date: 2026-06-07  
-> Scope: reuse-first fleet operations and operator daily loop
+> Scope: reuse-first fleet operations, operator daily loop, and recurrence surfacing
 
 ---
 
@@ -10,13 +10,13 @@
 
 This document captures the validation gate for the D4C reuse-first operator loop.
 
-The goal is to prove the operational loop works without creating sprawl:
+The current loop is:
 
 ```text
-Briefing → Fleet Health → Top Signal → Replay → Recommendation/Outcome Context → Evidence
+Briefing / Focus → Fleet Signal or Recurrence → Replay → Outcome Capture → Evidence Pack Preview
 ```
 
-This validation gate is intentionally focused. It does not replace the full test suite; it protects the new D4C spine while the broader platform continues to evolve.
+This validation gate is intentionally focused. It does not replace the full test suite; it protects the D4C spine while the broader platform continues to evolve.
 
 ---
 
@@ -31,9 +31,11 @@ The backend slice validates:
 - replay / incident / recommendation linkage,
 - fleet-linked outcome movement through the existing trust engine,
 - fleet evidence section generation,
+- incident intelligence recurrence detection,
+- incident evidence section generation,
 - Evidence Pack v2 composition,
 - operator daily briefing composition,
-- Mission Control fleet summary and linkage.
+- Mission Control fleet summary, incident summary, and linkage.
 
 ### Frontend
 
@@ -41,7 +43,14 @@ The frontend slice validates:
 
 - AlertBanner fleet surfacing,
 - OperatorBriefingPanel rendering and actions,
+- FocusModePanel rendering and actions,
+- IncidentRecurrenceSummary rendering and actions,
+- RecommendationOutcomeCapture,
+- ArtifactBrowser Evidence Pack preview,
+- recurrence-aware Evidence Pack preview,
 - Dashboard Briefing → Replay handoff,
+- Dashboard Focus → Replay handoff,
+- Dashboard recurrence → Replay handoff,
 - ReplayExplorer initial run filtering,
 - frontend production build.
 
@@ -79,6 +88,8 @@ The validation gate protects the following constraints:
 - no new fleet store,
 - no new briefing store,
 - no new replay surface,
+- no new incident console,
+- no new incident store,
 - no new incident workbench,
 - no new outcome table,
 - no second trust score,
@@ -94,13 +105,15 @@ If future work violates one of these constraints, it should be reshaped before m
 | Step | Reused surface |
 |------|----------------|
 | Briefing | Existing Dashboard shell |
+| Focus | Existing Dashboard shell |
 | Fleet Health | Mission Control `fleet_summary` |
+| Recurrence | Mission Control `incident_summary` |
 | Top Signal | Fleet signal builder + AlertBanner |
 | Replay | Existing ReplayExplorer |
 | Incident context | Existing incident IDs from run metadata |
 | Recommendation context | Existing recommendation IDs and metadata |
 | Outcome movement | Existing recommendation outcome + trust engine |
-| Evidence | Evidence Pack v2 composer and fleet evidence section |
+| Evidence | Evidence Pack v2 composer, fleet section, incident section, Artifacts preview |
 
 ---
 
@@ -118,12 +131,17 @@ If the gate fails, fix the regression before expanding the operator loop.
 
 ---
 
-## Next Eligible Work After Passing
+## Current Boundary
 
-After this gate passes, the next reuse-first work can proceed in one of three directions:
+D4C now has a complete reuse-first operator loop through recurrence-aware evidence surfacing.
 
-1. **Outcome capture UI** — expose existing recommendation outcome capture inside the operator loop.
-2. **Boring Mode** — simplify the daily view into only broken/changed/evidence/action/history/confidence.
-3. **Evidence Pack surfacing** — make Evidence Pack v2 visible from the existing Artifacts tab.
+The next responsible step is validation and cleanup, not a new incident console.
+
+Potential future work after validation:
+
+1. improve export behavior for Evidence Pack v2,
+2. add compact operator runbook text for recurring incidents,
+3. add CI artifacts for evidence previews,
+4. only then consider incident workbench requirements if real operators need it.
 
 Do not start a plugin registry, separate fleet console, or new incident system until the operator loop is validated and stable.
