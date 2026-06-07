@@ -1,5 +1,6 @@
 """Unit tests for Mission Control (T5)."""
 
+from uar.core.contracts import RunRecord
 from uar.core.mission_control import MissionControlSnapshot, build_snapshot
 from uar.core.registry import SkillRegistry
 from uar.memory.sqlite_store import SqliteRunStore
@@ -162,3 +163,40 @@ def test_snapshot_skills_available_less_than_total_on_failure(tmp_path):
     )
     assert snap.skills_total == 2
     assert snap.skills_available == 2
+
+
+def test_snapshot_includes_nominal_fleet_summary_empty_store(tmp_path):
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=_make_registry(),
+    )
+    assert snap.fleet_summary is not None
+    assert snap.fleet_summary["status"] == "nominal"
+    assert snap.fleet_summary["active_signals"] == 0
+    assert snap.fleet_summary["top_signal"] is None
+
+
+def test_snapshot_includes_fleet_summary_from_existing_runs(tmp_path):
+    store = _make_store(tmp_path)
+    store.append(
+        RunRecord(
+            run_id="fleet-r1",
+            goal_id="g1",
+            skills=["echo"],
+            status="failed",
+            errors=["boom"],
+            metadata={"service": "svc-a"},
+        )
+    )
+    store.flush()
+
+    snap = build_snapshot(
+        store=store,
+        registry=_make_registry(),
+    )
+
+    assert snap.fleet_summary is not None
+    assert snap.fleet_summary["status"] == "critical"
+    assert snap.fleet_summary["active_signals"] == 1
+    assert snap.fleet_summary["top_signal"]["latest_run_id"] == "fleet-r1"
+    assert snap.fleet_summary["top_signal"]["scope"] == "service"
