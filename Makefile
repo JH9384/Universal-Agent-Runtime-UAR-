@@ -1,4 +1,4 @@
-.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate api web dashboard up up-full up-all clean release version sync-version check-version
+.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate d4d-status api web dashboard up up-full up-all clean release version sync-version check-version
 
 PYTHON ?= python3.12
 API_HOST ?= 127.0.0.1
@@ -30,6 +30,7 @@ help:
 	@echo "  make validate-d4c     Run focused D4C operator loop validation"
 	@echo "  make d4c-result       Write D4C validation result stub"
 	@echo "  make d4c-release-gate Run focused D4C validation and write result stub"
+	@echo "  make d4d-status       Print D4D validation/burn-in sequence"
 	@echo "  make validate-uor     Validate pinned UOR artifacts (SHACL + JSON Schema)"
 	@echo "  make api              Start the FastAPI runtime server"
 	@echo "  make web              Start the staged web UI"
@@ -111,6 +112,14 @@ d4c-release-gate: validate-d4c d4c-result
 	@echo "========================================"
 	@echo "  D4C RELEASE GATE COMPLETE"
 	@echo "========================================"
+
+d4d-status:
+	@echo "D4D validation/burn-in sequence"
+	@echo "1. make d4c-release-gate"
+	@echo "2. record status with docs/operations/D4D_VALIDATION_STATUS_TEMPLATE.md"
+	@echo "3. fix only validation failures"
+	@echo "4. run make test-regression or decomposed backend/frontend/build checks"
+	@echo "5. request explicit tag approval only after gates pass"
 
 validate-uor: $(VENV_STAMP)
 	$(VENV_PYTHON) scripts/validate_uor_alignment.py
