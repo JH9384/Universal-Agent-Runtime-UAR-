@@ -41,6 +41,7 @@ interface MissionControlSnapshot {
 
 interface FocusModePanelProps {
   onOpenReplay?: (runId: string) => void;
+  onOpenEvidence?: (ref: string) => void;
   onSelectTab?: (tab: "health" | "topology" | "replay" | "artifacts") => void;
 }
 
@@ -66,7 +67,14 @@ function recentChange(snapshot: MissionControlSnapshot | null): string {
   return "No material change detected.";
 }
 
-export function FocusModePanel({ onOpenReplay, onSelectTab }: FocusModePanelProps) {
+function focusedGuidance(replayRun: string | null, recommendationIds: string[], evidenceRefs: string[]): string {
+  if (replayRun && recommendationIds.length) return "Review replay, verify evidence, record outcome.";
+  if (replayRun) return "Review replay and confirm whether follow-up is needed.";
+  if (evidenceRefs.length) return "Open evidence and decide whether to create/record follow-up.";
+  return "Monitor.";
+}
+
+export function FocusModePanel({ onOpenReplay, onOpenEvidence, onSelectTab }: FocusModePanelProps) {
   const { data, loading, error, refetch } = useApiFetch<MissionControlSnapshot>(
     "/api/uar/mission-control",
     { interval: 30_000 }
@@ -79,6 +87,7 @@ export function FocusModePanel({ onOpenReplay, onSelectTab }: FocusModePanelProp
   const incidents = topSignal?.linkage?.incidents ?? [];
   const signalText = useMemo(() => primarySignal(data), [data]);
   const changeText = useMemo(() => recentChange(data), [data]);
+  const guidance = useMemo(() => focusedGuidance(replayRun, recommendationIds, evidenceRefs), [replayRun, recommendationIds, evidenceRefs]);
 
   if (loading && !data) return <section className="mission-panel">Loading Focus Mode…</section>;
   if (error) return <section className="mission-panel"><p className="error">Focus Mode failed: {error}</p></section>;
@@ -89,6 +98,11 @@ export function FocusModePanel({ onOpenReplay, onSelectTab }: FocusModePanelProp
         <h2>Focus Mode</h2>
         <button type="button" className="mc-reset-btn" onClick={refetch}>Refresh</button>
       </header>
+
+      <div className="mc-next-action">
+        <h3>Operator move</h3>
+        <p className="mc-subtext"><strong>{guidance}</strong></p>
+      </div>
 
       <dl>
         <dt>Primary signal</dt>
@@ -114,10 +128,20 @@ export function FocusModePanel({ onOpenReplay, onSelectTab }: FocusModePanelProp
         <button type="button" className="mc-filter-btn" onClick={() => onSelectTab?.("health")}>
           Health
         </button>
-        <button type="button" className="mc-filter-btn" onClick={() => onSelectTab?.("artifacts")}>
+        <button type="button" className="mc-filter-btn" onClick={() => evidenceRefs[0] ? onOpenEvidence?.(evidenceRefs[0]) : onSelectTab?.("artifacts")}>
           Evidence
         </button>
       </div>
+
+      {evidenceRefs.length > 0 && (
+        <div className="mc-evidence-chips" aria-label="Evidence references">
+          {evidenceRefs.map((ref) => (
+            <button key={ref} type="button" className="mc-link-chip" onClick={() => onOpenEvidence?.(ref)}>
+              {ref}
+            </button>
+          ))}
+        </div>
+      )}
 
       <IncidentRecurrenceSummary
         incidentSummary={data?.incident_summary}
