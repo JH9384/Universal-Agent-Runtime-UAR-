@@ -35,11 +35,15 @@ def test_doc_ingest_bad_input_path_still_completes_with_warning():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "completed"
-    # doc_ingest handles missing paths gracefully with error documents
+    # doc_ingest handles missing paths gracefully and preserves a structured
+    # per-document error so operators can see which path failed.
     doc_ingest_result = data["final_context"]["doc_ingest"]
     assert doc_ingest_result["status"] == "failed"
-    assert len(doc_ingest_result["documents"]) == 0
-    assert "error" in doc_ingest_result
+    assert doc_ingest_result["document_count"] == 0
+    assert doc_ingest_result["paths"] == []
+    assert doc_ingest_result["errors"] == ["Input path not found"]
+    assert len(doc_ingest_result["documents"]) == 1
+    assert doc_ingest_result["documents"][0]["error"] == "Input path not found"
 
 
 def test_api_missing_goal_returns_validation_error():
