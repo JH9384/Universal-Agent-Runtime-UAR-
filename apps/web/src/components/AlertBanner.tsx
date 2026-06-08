@@ -16,8 +16,8 @@ interface AlertItem {
 interface AlertsSummary {
   hours: number
   count: number
-  top_alert: AlertItem
-  alerts: AlertItem[]
+  top_alert?: AlertItem | null
+  alerts?: AlertItem[] | null
 }
 
 interface FleetSignalData {
@@ -98,7 +98,7 @@ function _fleetAlertFromMissionControl(mc?: MissionControlSnapshot | null): Aler
   }
 }
 
-function _pickTopAlert(apiTop: AlertItem | undefined, fleetTop: AlertItem | null): AlertItem | null {
+function _pickTopAlert(apiTop: AlertItem | null | undefined, fleetTop: AlertItem | null): AlertItem | null {
   if (!apiTop) return fleetTop
   if (!fleetTop) return apiTop
   const apiPriority = LEVEL_PRIORITY[apiTop.level] ?? 2
@@ -122,10 +122,11 @@ export function AlertBanner({ onOpenMissionControl }: AlertBannerProps) {
 
   const [manuallyDismissed, setManuallyDismissed] = useState(false)
 
+  const alerts = Array.isArray(data?.alerts) ? data.alerts : []
   const fleetTop = _fleetAlertFromMissionControl(missionControl)
   const top = _pickTopAlert(data?.top_alert, fleetTop)
   const levelClass = top ? LEVEL_CLASS[top.level] || styles.warning : styles.warning
-  const alertCount = (data?.alerts.length ?? 0) + (fleetTop ? 1 : 0)
+  const alertCount = alerts.length + (fleetTop ? 1 : 0)
 
   const handleClick = useCallback(() => {
     if (onOpenMissionControl && top) {
