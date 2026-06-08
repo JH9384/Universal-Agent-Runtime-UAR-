@@ -162,3 +162,11 @@ for _path in _STATIC_FIRST_PATHS:
         and _static_idx > _dynamic_idx
     ):
         router.routes.insert(_dynamic_idx, router.routes.pop(_static_idx))
+
+
+@router.get("/api/uar/operator/entity-health")
+async def entity_health(credentials=None) -> Dict[str, Any]:
+    """Inspect operator metadata entity discovery and retention capability."""
+    from uar.api.routers.operator.common import _entity_retention_health
+    return _entity_retention_health()
+
