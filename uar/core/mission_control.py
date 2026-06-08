@@ -1,12 +1,4 @@
-"""Mission Control — operator snapshot aggregating T1, T2, and T4.
-
-Produces a single operator-facing snapshot combining replay confidence,
-runtime health, certification, active run count, and recent warnings.
-
-Trust Spine Phase: T5
-Issues: #72, #55
-Spec: docs/operations/MISSION_CONTROL.md
-"""
+"""Mission Control — operator snapshot aggregating T1, T2, and T4."""
 
 from __future__ import annotations
 
@@ -28,8 +20,6 @@ from uar.version import get_uar_version
 
 @dataclass(slots=True)
 class MissionControlSnapshot:
-    """Aggregated operator view of the running UAR system."""
-
     replay_confidence: Optional[Dict[str, Any]]
     runtime_health: Optional[Dict[str, Any]]
     certification: Optional[Dict[str, Any]]
@@ -55,20 +45,6 @@ def build_snapshot(
     burnin_report: Optional[Any] = None,
     snapshot: Optional[Any] = None,
 ) -> MissionControlSnapshot:
-    """Build a Mission Control snapshot from live runtime state.
-
-    Issue #85: pass a pre-built RuntimeSnapshot to avoid multiple store
-    queries.  When snapshot is None one is built here from store.
-
-    Args:
-        store:          RunStore instance.
-        registry:       SkillRegistry instance.
-        burnin_report:  BurnInProxy from T3 runner, or None.
-        snapshot:       Pre-built RuntimeSnapshot, or None (built here).
-
-    Returns:
-        MissionControlSnapshot with all Trust Spine evidence aggregated.
-    """
     if snapshot is None:
         snapshot = build_runtime_snapshot(store)
 
@@ -83,11 +59,7 @@ def build_snapshot(
         warnings.extend(rh_report.warnings)
     except Exception as exc:
         warnings.append(f"runtime_health: {exc}")
-        rh_report = RuntimeHealthReport(
-            score=0,
-            tier="Critical",
-            components={},
-        )
+        rh_report = RuntimeHealthReport(score=0, tier="Critical", components={})
 
     replay_confidence_dict = None
     replay_score = None
@@ -143,12 +115,8 @@ def build_snapshot(
                 "system_calibration_error"
             ),
             "recommendation_type_count": len(types),
-            "top_trusted": (
-                types[0]["type"] if types else None
-            ),
-            "top_trust_score": (
-                types[0]["trust_score"] if types else None
-            ),
+            "top_trusted": types[0]["type"] if types else None,
+            "top_trust_score": types[0]["trust_score"] if types else None,
             "drift_count": sum(
                 1 for t in types if t.get("drift_penalty", 0.0) > 0.0
             ),
@@ -158,25 +126,20 @@ def build_snapshot(
         }
     except Exception as exc:
         import logging as _logging
-
         _logging.getLogger(__name__).exception("Trust summary failed")
         warnings.append(f"trust_summary: {exc}")
 
-    records = []
+    records = list(getattr(snapshot, "recent_records", []) or [])
+
     fleet_summary = None
     try:
         from uar.core.fleet_linkage import attach_linkage_to_fleet_summary
-        from uar.core.fleet_signals import (
-            build_fleet_signals,
-            build_fleet_summary,
-        )
-        records = store.list_records(limit=50000)
+        from uar.core.fleet_signals import build_fleet_signals, build_fleet_summary
         fleet_summary = attach_linkage_to_fleet_summary(
             build_fleet_summary(build_fleet_signals(records))
         )
     except Exception as exc:
         import logging as _logging
-
         _logging.getLogger(__name__).exception("Fleet summary failed")
         warnings.append(f"fleet_summary: {exc}")
 
@@ -185,8 +148,6 @@ def build_snapshot(
         from uar.core.incident_intelligence import (
             build_incident_intelligence_summary,
         )
-        if not records:
-            records = store.list_records(limit=50000)
         incident_summary = build_incident_intelligence_summary(
             records,
             outcomes=outcomes,
@@ -194,7 +155,6 @@ def build_snapshot(
         )
     except Exception as exc:
         import logging as _logging
-
         _logging.getLogger(__name__).exception("Incident summary failed")
         warnings.append(f"incident_summary: {exc}")
 
@@ -210,15 +170,11 @@ def build_snapshot(
                     skills_available += 1
                 except Exception as _exc:
                     import logging as _logging
-
                     _logging.getLogger(__name__).debug(
                         "Skill %s listed but not gettable: %s", name, _exc
                     )
-        from uar.core.circuit_breaker_decorator import (
-            get_circuit_breaker_details,
-        )
+        from uar.core.circuit_breaker_decorator import get_circuit_breaker_details
         from uar.core.async_utils import run_sync_safe
-
         cb_details = run_sync_safe(get_circuit_breaker_details())
         circuit_breakers = [
             {"name": name, **info}
