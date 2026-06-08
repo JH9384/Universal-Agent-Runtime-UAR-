@@ -3,6 +3,7 @@ import { dashboardApi } from "../../api/dashboard";
 import type { RunRecord } from "../../api/dashboard";
 import { useApiFetch } from "../../hooks/useApiFetch";
 import { buildEvidencePackPreview } from "../../utils/evidencePackPreview";
+import { downloadMarkdown, evidencePackFilename } from "../../utils/downloadMarkdown";
 
 type StatusFilter = "all" | "completed" | "failed" | "running" | "pending";
 
@@ -34,10 +35,12 @@ export function ArtifactBrowser() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [copied, setCopied] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const downloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: missionControl } = useApiFetch<MissionControlSnapshot>(
     "/api/uar/mission-control",
     { interval: 30_000 }
@@ -83,6 +86,7 @@ export function ArtifactBrowser() {
   useEffect(() => {
     return () => {
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      if (downloadTimerRef.current) clearTimeout(downloadTimerRef.current);
     };
   }, []);
 
@@ -109,6 +113,15 @@ export function ArtifactBrowser() {
     }).catch(() => {
       if (mountedRef.current) setCopied(false);
     });
+  }
+
+  function downloadEvidenceMarkdown() {
+    downloadMarkdown(evidencePackFilename(evidencePreview.generated_at), evidencePreview.markdown);
+    setDownloaded(true);
+    downloadTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) setDownloaded(false);
+      downloadTimerRef.current = null;
+    }, 1500);
   }
 
   if (loading) {
@@ -167,6 +180,9 @@ export function ArtifactBrowser() {
         <div className="mc-briefing-links">
           <button type="button" className="mc-filter-btn" onClick={copyEvidenceMarkdown}>
             {copied ? "Copied" : "Copy Evidence Markdown"}
+          </button>
+          <button type="button" className="mc-filter-btn" onClick={downloadEvidenceMarkdown}>
+            {downloaded ? "Downloaded" : "Download Evidence Markdown"}
           </button>
         </div>
         <pre className="mc-evidence-preview">{evidencePreview.markdown}</pre>
