@@ -205,3 +205,6 @@ clean:
 	rm -rf $(DASHBOARD_DIR)/node_modules/.cache
 	rm -rf .mypy_cache
 	rm -rf .ruff_cache
+
+docker-security:
+	bash scripts/docker_security_check.sh
