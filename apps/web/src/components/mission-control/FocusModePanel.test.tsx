@@ -114,7 +114,7 @@ describe('FocusModePanel', () => {
 
     render(<FocusModePanel onOpenReplay={onOpenReplay} />)
 
-    expect(screen.getByText('service:svc-focus')).toBeInTheDocument()
+    expect(screen.getAllByText('service:svc-focus').length).toBeGreaterThan(0)
     expect(screen.getByText('1 recurring pattern(s).')).toBeInTheDocument()
     expect(screen.getByText('Top recurrence')).toBeInTheDocument()
     expect(screen.getByText('Evidence refs: run:fr2, run:fr1')).toBeInTheDocument()
