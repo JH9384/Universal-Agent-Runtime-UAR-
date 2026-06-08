@@ -11,6 +11,7 @@ import inspect
 import logging
 import os
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 from .exceptions import UARError
@@ -147,6 +148,34 @@ def require_env(
         "status": status,
         "error": f"Missing required environment variable(s): {env_list}.{hint}".strip(),
     }
+
+
+def require_path(
+    mapping: Mapping[str, Any] | None,
+    field: str,
+    *,
+    error_msg: Optional[str] = None,
+    label: str = "metadata",
+    status: str = "failed",
+) -> Optional[Dict[str, str]]:
+    """Return an error dict if a required path field is missing or invalid."""
+    missing = require_field(mapping, field, label=label, status=status)
+    if missing:
+        if error_msg:
+            missing["error"] = error_msg
+        return missing
+
+    assert mapping is not None
+    value = mapping.get(field)
+    try:
+        path = Path(os.fspath(value))
+    except TypeError:
+        return {"status": status, "error": error_msg or f"{field} is not a valid path"}
+
+    if not path.exists():
+        return {"status": status, "error": error_msg or f"{field} does not exist: {path}"}
+
+    return None
 
 
 def require_package(
