@@ -17,6 +17,23 @@ from .exceptions import UARError
 logger = logging.getLogger(__name__)
 
 
+def normalize_skill_result(result: Any) -> Any:
+    """Apply small compatibility normalizations to skill result dicts."""
+    if not isinstance(result, dict):
+        return result
+    if "status" in result:
+        return result
+    errors = result.get("errors")
+    document_count = result.get("document_count")
+    if errors and document_count == 0:
+        normalized = dict(result)
+        normalized["status"] = "failed"
+        if "error" not in normalized or normalized.get("error") is None:
+            normalized["error"] = errors[0] if isinstance(errors, list) else errors
+        return normalized
+    return result
+
+
 def wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
     """Add a UOR content-addressed digest to a result dict.
 
@@ -24,6 +41,7 @@ def wrap_with_digest(result: Dict[str, Any]) -> Dict[str, Any]:
     raises, or if the result already carries a ``uor_digest`` key
     (e.g. skills that compute their own content address).
     """
+    result = normalize_skill_result(result)
     if not isinstance(result, dict):
         return result
     if "uor_digest" in result:
@@ -46,28 +64,7 @@ def skill_guard(
     *,
     status: str = "error",
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Decorator that wraps a skill in canonical error handling.
-
-    Catches unexpected exceptions, logs them at ERROR level, and returns
-    the standard UAR error dict so the pipeline can continue gracefully.
-
-    Framework-level exceptions (subclasses of :class:`UARError`) are
-    **not** caught — they propagate to the executor so that retry,
-    circuit-breaker, and timeout logic work correctly.
-
-    Args:
-        operation_name: Human-readable name used in log messages.
-        status: Value for the ``"status"`` key in the error response.
-            Use ``"error"`` for framework wrappers (default) or
-            ``"failed"`` for computation skills.
-
-    Usage::
-
-        @register_skill("my_skill")
-        @skill_guard("My skill", status="failed")
-        def my_skill(ctx: PipelineContext) -> Dict[str, Any]:
-            ...
-    """
+    """Decorator that wraps a skill in canonical error handling."""
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         mod_logger = logging.getLogger(fn.__module__)
@@ -114,28 +111,7 @@ def require_package(
     package: Union[str, List[str]], *,
     install_hint: Optional[str] = None,
 ) -> Optional[Dict[str, str]]:
-    """Return an error dict if *package* is not importable, else ``None``.
-
-    Eliminates the duplicated ``importlib.util.find_spec`` guard that
-    exists across many optional-dependency skills.
-
-    Args:
-        package: Package name or list of package names to check.
-        install_hint: Optional hint shown in the error message.
-
-    Usage::
-
-        err = require_package("scipy", install_hint="pip install scipy")
-        if err:
-            return err
-
-        err = require_package(
-            ["matplotlib", "numpy"],
-            install_hint="pip install matplotlib numpy",
-        )
-        if err:
-            return err
-    """
+    """Return an error dict if *package* is not importable, else ``None``."""
     packages = [package] if isinstance(package, str) else package
     missing = []
     for p in packages:
@@ -158,89 +134,3 @@ def require_package(
         "status": "failed",
         "error": f"{pkg_list} not installed. {hint}",
     }
-
-
-def require_field(
-    meta: Dict[str, Any],
-    key: str,
-    error_msg: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    """Return error dict if *key* is missing or falsy in *meta*, else ``None``.
-
-    Eliminates the duplicated early-validation guard that exists across
-    many ecosystem and utility skills.
-
-    Args:
-        meta: The skill's metadata dict (usually ``ctx.goal.metadata``).
-        key: Required metadata key.
-        error_msg: Optional custom error message.  Defaults to
-            ``"metadata '<key>' required"``.
-
-    Usage::
-
-        err = require_field(meta, "digest")
-        if err:
-            return err
-    """
-    value = meta.get(key)
-    if value:
-        return None
-    msg = error_msg or f"metadata '{key}' required"
-    return {"status": "failed", "error": msg}
-
-
-def require_path(
-    meta: Dict[str, Any],
-    key: str,
-    error_msg: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    """Return error dict if *key* path is missing or does not exist.
-
-    Eliminates the duplicated file-existence guard in CV and data skills.
-
-    Args:
-        meta: The skill's metadata dict.
-        key: Metadata key holding the file path.
-        error_msg: Optional custom error message.  Defaults to
-            ``"<key> not found"``.
-
-    Usage::
-
-        err = require_path(meta, "cv_image_path")
-        if err:
-            return err
-    """
-    from pathlib import Path
-
-    value = meta.get(key, "")
-    if value and Path(value).exists():
-        return None
-    msg = error_msg or f"{key} not found"
-    return {"status": "failed", "error": msg}
-
-
-def require_env(
-    var: str,
-    error_msg: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
-    """Return error dict if environment variable *var* is missing or empty.
-
-    Eliminates repeated ``os.getenv`` checks in LLM integration skills.
-
-    Args:
-        var: Environment variable name.
-        error_msg: Optional custom error message. Defaults to
-            ``"<var> not set"``.
-
-    Usage::
-
-        err = require_env("GEMINI_API_KEY")
-        if err:
-            return err
-    """
-    import os
-
-    if os.getenv(var):
-        return None
-    msg = error_msg or f"{var} not set"
-    return {"status": "failed", "error": msg}
