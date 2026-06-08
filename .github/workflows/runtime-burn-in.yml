@@ -101,8 +101,16 @@ jobs:
 
       - name: Run burn-in script
         run: |
+          mkdir -p artifacts/burn-in
           chmod +x scripts/burn_in.sh
-          ./scripts/burn_in.sh
+          ./scripts/burn_in.sh 2>&1 | tee artifacts/burn-in/burn-in-script.log
+
+      - name: Upload burn-in script log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: burn-in-script-log
+          path: artifacts/burn-in/burn-in-script.log
 
       - name: Run full Python test suite
         run: pytest -q
