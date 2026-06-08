@@ -90,7 +90,7 @@ jobs:
         run: |
           mkdir -p artifacts/burn-in
           cd apps/web
-          npm install 2>&1 | tee ../../artifacts/burn-in/npm-install.log
+          npm ci 2>&1 | tee ../../artifacts/burn-in/npm-install.log
 
       - name: Upload npm install log
         if: always()
