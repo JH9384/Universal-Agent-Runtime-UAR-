@@ -88,8 +88,16 @@ jobs:
 
       - name: Install frontend dependencies for gate
         run: |
+          mkdir -p artifacts/burn-in
           cd apps/web
-          npm install
+          npm install 2>&1 | tee ../../artifacts/burn-in/npm-install.log
+
+      - name: Upload npm install log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-install-log
+          path: artifacts/burn-in/npm-install.log
 
       - name: Run burn-in script
         run: |
