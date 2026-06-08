@@ -8,6 +8,9 @@ interface AlertItem {
   message: string
   detail?: unknown
   tab?: string
+  run_id?: string | null
+  signal_id?: string | null
+  scope?: string | null
 }
 
 interface AlertsSummary {
@@ -15,6 +18,21 @@ interface AlertsSummary {
   count: number
   top_alert: AlertItem
   alerts: AlertItem[]
+}
+
+interface FleetSignalData {
+  id: string
+  level: 'critical' | 'warning' | 'info'
+  scope: string
+  title: string
+  message: string
+  latest_run_id: string | null
+}
+
+interface MissionControlSnapshot {
+  fleet_summary?: {
+    top_signal: FleetSignalData | null
+  } | null
 }
 
 const LEVEL_ICON: Record<string, string> = {
@@ -27,6 +45,12 @@ const LEVEL_CLASS: Record<string, string> = {
   critical: styles.critical,
   warning: styles.warning,
   info: styles.info,
+}
+
+const LEVEL_PRIORITY: Record<string, number> = {
+  critical: 0,
+  warning: 1,
+  info: 2,
 }
 
 const DISMISS_PREFIX = 'uar_alert_dismissed_'
@@ -59,6 +83,29 @@ function _dismiss(alert: AlertItem): void {
   }
 }
 
+function _fleetAlertFromMissionControl(mc?: MissionControlSnapshot | null): AlertItem | null {
+  const signal = mc?.fleet_summary?.top_signal
+  if (!signal || signal.level === 'info') return null
+  return {
+    level: signal.level,
+    source: 'fleet',
+    message: `${signal.title}: ${signal.message}`,
+    detail: signal,
+    tab: 'health',
+    run_id: signal.latest_run_id,
+    signal_id: signal.id,
+    scope: signal.scope,
+  }
+}
+
+function _pickTopAlert(apiTop: AlertItem | undefined, fleetTop: AlertItem | null): AlertItem | null {
+  if (!apiTop) return fleetTop
+  if (!fleetTop) return apiTop
+  const apiPriority = LEVEL_PRIORITY[apiTop.level] ?? 2
+  const fleetPriority = LEVEL_PRIORITY[fleetTop.level] ?? 2
+  return fleetPriority < apiPriority ? fleetTop : apiTop
+}
+
 interface AlertBannerProps {
   onOpenMissionControl?: (tab?: string) => void
 }
@@ -68,14 +115,38 @@ export function AlertBanner({ onOpenMissionControl }: AlertBannerProps) {
     '/api/uar/alerts/summary?hours=24',
     { interval: 30_000 }
   )
+  const { data: missionControl } = useApiFetch<MissionControlSnapshot>(
+    '/api/uar/mission-control',
+    { interval: 30_000 }
+  )
 
   const [manuallyDismissed, setManuallyDismissed] = useState(false)
 
+  const fleetTop = _fleetAlertFromMissionControl(missionControl)
+  const top = _pickTopAlert(data?.top_alert, fleetTop)
+  const levelClass = top ? LEVEL_CLASS[top.level] || styles.warning : styles.warning
+  const alertCount = (data?.alerts.length ?? 0) + (fleetTop ? 1 : 0)
+
+  const handleClick = useCallback(() => {
+    if (onOpenMissionControl && top) {
+      onOpenMissionControl(top.tab)
+    }
+  }, [onOpenMissionControl, top])
+
+  const handleDismiss = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (top) {
+        _dismiss(top)
+      }
+      setManuallyDismissed(true)
+    },
+    [top]
+  )
+
   if (loading && !data) return null
   if (error) return null
-  if (!data || !data.top_alert) return null
-
-  const top = data.top_alert
+  if (!top) return null
 
   // Threshold: only show critical or warning
   if (top.level === 'info') return null
@@ -86,23 +157,6 @@ export function AlertBanner({ onOpenMissionControl }: AlertBannerProps) {
   // Honor manual dismiss for this session
   if (manuallyDismissed) return null
 
-  const levelClass = LEVEL_CLASS[top.level] || styles.warning
-
-  const handleClick = useCallback(() => {
-    if (onOpenMissionControl) {
-      onOpenMissionControl(top.tab)
-    }
-  }, [onOpenMissionControl, top.tab])
-
-  const handleDismiss = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      _dismiss(top)
-      setManuallyDismissed(true)
-    },
-    [top]
-  )
-
   return (
     <div
       className={`${styles.banner} ${levelClass} ${styles.clickable}`}
@@ -111,11 +165,11 @@ export function AlertBanner({ onOpenMissionControl }: AlertBannerProps) {
       title="Click to open Mission Control"
     >
       <span className={styles.icon} aria-hidden="true">
-        {LEVEL_ICON[top.level] || '�'}
+        {LEVEL_ICON[top.level] || '•'}
       </span>
       <span className={styles.message}>{top.message}</span>
-      {data.alerts.length > 1 && (
-        <span className={styles.count}>+{data.alerts.length - 1}</span>
+      {alertCount > 1 && (
+        <span className={styles.count}>+{alertCount - 1}</span>
       )}
       <button
         className={styles.dismissBtn}

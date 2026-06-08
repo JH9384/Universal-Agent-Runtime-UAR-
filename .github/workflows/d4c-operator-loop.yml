@@ -1,0 +1,102 @@
+name: D4C Operator Loop Validation
+
+on:
+  pull_request:
+    paths:
+      - 'uar/core/fleet_*.py'
+      - 'uar/core/incident_*.py'
+      - 'uar/core/evidence_pack_v2.py'
+      - 'uar/core/operator_daily_briefing.py'
+      - 'uar/core/mission_control.py'
+      - 'tests/core/test_fleet_*.py'
+      - 'tests/core/test_incident_*.py'
+      - 'tests/core/test_evidence_pack_v2.py'
+      - 'tests/core/test_operator_daily_briefing.py'
+      - 'tests/api/test_mission_control.py'
+      - 'apps/web/src/components/AlertBanner.tsx'
+      - 'apps/web/src/components/AlertBanner.test.tsx'
+      - 'apps/web/src/components/Dashboard.tsx'
+      - 'apps/web/src/components/Dashboard.test.tsx'
+      - 'apps/web/src/components/mission-control/**'
+      - 'apps/web/src/utils/downloadMarkdown.ts'
+      - 'apps/web/src/utils/downloadMarkdown.test.ts'
+      - 'apps/web/src/utils/evidencePackPreview.ts'
+      - 'apps/web/src/utils/evidencePackPreview.test.ts'
+      - 'apps/web/src/utils/recurrenceNotes.ts'
+      - 'apps/web/src/utils/recurrenceNotes.test.ts'
+      - 'apps/web/package.json'
+      - 'apps/web/package-lock.json'
+      - 'scripts/validate_d4c_operator_loop.sh'
+      - '.github/workflows/d4c-operator-loop.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'uar/core/fleet_*.py'
+      - 'uar/core/incident_*.py'
+      - 'uar/core/evidence_pack_v2.py'
+      - 'uar/core/operator_daily_briefing.py'
+      - 'uar/core/mission_control.py'
+      - 'tests/core/test_fleet_*.py'
+      - 'tests/core/test_incident_*.py'
+      - 'tests/core/test_evidence_pack_v2.py'
+      - 'tests/core/test_operator_daily_briefing.py'
+      - 'tests/api/test_mission_control.py'
+      - 'apps/web/src/components/AlertBanner.tsx'
+      - 'apps/web/src/components/AlertBanner.test.tsx'
+      - 'apps/web/src/components/Dashboard.tsx'
+      - 'apps/web/src/components/Dashboard.test.tsx'
+      - 'apps/web/src/components/mission-control/**'
+      - 'apps/web/src/utils/downloadMarkdown.ts'
+      - 'apps/web/src/utils/downloadMarkdown.test.ts'
+      - 'apps/web/src/utils/evidencePackPreview.ts'
+      - 'apps/web/src/utils/evidencePackPreview.test.ts'
+      - 'apps/web/src/utils/recurrenceNotes.ts'
+      - 'apps/web/src/utils/recurrenceNotes.test.ts'
+      - 'apps/web/package.json'
+      - 'apps/web/package-lock.json'
+      - 'scripts/validate_d4c_operator_loop.sh'
+      - '.github/workflows/d4c-operator-loop.yml'
+  workflow_dispatch:
+
+jobs:
+  d4c-operator-loop:
+    name: Validate D4C operator loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: python -m pip install -e '.[dev]'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Validate D4C operator loop
+        run: |
+          mkdir -p artifacts/d4c
+          bash scripts/validate_d4c_operator_loop.sh 2>&1 | tee artifacts/d4c/validation.log
+
+      - name: Upload D4C validation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d4c-validation-${{ github.run_id }}
+          path: artifacts/d4c/validation.log
+          retention-days: 14

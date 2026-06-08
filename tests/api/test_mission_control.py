@@ -1,5 +1,6 @@
 """Unit tests for Mission Control (T5)."""
 
+from uar.core.contracts import RunRecord
 from uar.core.mission_control import MissionControlSnapshot, build_snapshot
 from uar.core.registry import SkillRegistry
 from uar.memory.sqlite_store import SqliteRunStore
@@ -162,3 +163,123 @@ def test_snapshot_skills_available_less_than_total_on_failure(tmp_path):
     )
     assert snap.skills_total == 2
     assert snap.skills_available == 2
+
+
+def test_snapshot_includes_nominal_fleet_summary_empty_store(tmp_path):
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=_make_registry(),
+    )
+    assert snap.fleet_summary is not None
+    assert snap.fleet_summary["status"] == "nominal"
+    assert snap.fleet_summary["active_signals"] == 0
+    assert snap.fleet_summary["top_signal"] is None
+
+
+def test_snapshot_includes_fleet_summary_from_existing_runs(tmp_path):
+    store = _make_store(tmp_path)
+    store.append(
+        RunRecord(
+            run_id="fleet-r1",
+            goal_id="g1",
+            skills=["echo"],
+            status="failed",
+            errors=["boom"],
+            metadata={"service": "svc-a"},
+        )
+    )
+    store.flush()
+
+    snap = build_snapshot(
+        store=store,
+        registry=_make_registry(),
+    )
+
+    assert snap.fleet_summary is not None
+    assert snap.fleet_summary["status"] == "critical"
+    assert snap.fleet_summary["active_signals"] == 1
+    assert snap.fleet_summary["top_signal"]["latest_run_id"] == "fleet-r1"
+    assert snap.fleet_summary["top_signal"]["scope"] == "service"
+
+
+def test_snapshot_fleet_summary_includes_replay_incident_and_recommendation_linkage(tmp_path):
+    store = _make_store(tmp_path)
+    store.append(
+        RunRecord(
+            run_id="fleet-r2",
+            goal_id="g1",
+            skills=["echo"],
+            status="failed",
+            errors=["boom"],
+            metadata={
+                "service": "svc-b",
+                "incident_id": "inc-1",
+                "recommendation_id": "rec-1",
+            },
+        )
+    )
+    store.flush()
+
+    snap = build_snapshot(
+        store=store,
+        registry=_make_registry(),
+    )
+
+    top = snap.fleet_summary["top_signal"]
+    linkage = top["linkage"]
+    assert linkage["replay"] == {"run_id": "fleet-r2", "available": True}
+    assert linkage["incidents"] == ["inc-1"]
+    assert linkage["recommendations"] == ["rec-1"]
+    assert linkage["evidence_refs"] == ["run:fleet-r2"]
+
+
+def test_snapshot_includes_nominal_incident_summary_empty_store(tmp_path):
+    snap = build_snapshot(
+        store=_make_store(tmp_path),
+        registry=_make_registry(),
+    )
+
+    assert snap.incident_summary is not None
+    assert snap.incident_summary["status"] == "nominal"
+    assert snap.incident_summary["recurring_patterns"] == 0
+    assert snap.incident_summary["top_pattern"] is None
+
+
+def test_snapshot_includes_incident_summary_from_recurring_failures(tmp_path):
+    store = _make_store(tmp_path)
+    store.append(
+        RunRecord(
+            run_id="incident-r1",
+            goal_id="g1",
+            skills=["echo"],
+            status="failed",
+            errors=["boom"],
+            metadata={"service": "svc-rec", "incident_id": "inc-1"},
+        )
+    )
+    store.append(
+        RunRecord(
+            run_id="incident-r2",
+            goal_id="g1",
+            skills=["echo"],
+            status="failed",
+            errors=["boom again"],
+            metadata={"service": "svc-rec", "recommendation_id": "rec-1"},
+        )
+    )
+    store.flush()
+
+    snap = build_snapshot(
+        store=store,
+        registry=_make_registry(),
+    )
+
+    assert snap.incident_summary is not None
+    assert snap.incident_summary["status"] == "active"
+    assert snap.incident_summary["recurring_patterns"] == 1
+    top = snap.incident_summary["top_pattern"]
+    assert top["scope"] == "service"
+    assert top["value"] == "svc-rec"
+    assert top["latest_run_id"] in {"incident-r1", "incident-r2"}
+    assert top["linked_incident_ids"] == ["inc-1"]
+    assert top["linked_recommendation_ids"] == ["rec-1"]

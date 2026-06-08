@@ -43,6 +43,27 @@ Choose one:
 - [ ] Option A: Runtime + API + Streaming + Replay (UI staged)
 - [ ] Option B: Extract slices (core, API, replay, UI)
 
+## Phase 7B — D4C Operator Loop Release Gate
+
+Required if promoting the D4C fleet/operator/recurrence/evidence spine:
+
+- [ ] `make d4c-release-gate` passes
+- [ ] D4C validation result is captured under `docs/operations/validation-results/` or CI artifact exists
+- [ ] Mission Control still exposes `fleet_summary`
+- [ ] Mission Control still exposes `incident_summary`
+- [ ] Briefing and Focus surface fleet or recurrence context
+- [ ] Replay handoff works from Briefing, Focus, and recurrence
+- [ ] Outcome capture still uses `/api/uar/recommendations/outcome`
+- [ ] Artifacts still surfaces Evidence Pack preview
+- [ ] Evidence Markdown copy/download works
+- [ ] Anti-sprawl criteria confirmed: no incident console, no incident store, no duplicate endpoint, no new dashboard, no second trust score, no parallel evidence pipeline
+
+Reference docs:
+
+- `docs/operations/D4C_RELEASE_READINESS_SUMMARY.md`
+- `docs/operations/D4C_RELEASE_PROMOTION_CHECKLIST.md`
+- `docs/operations/D4C_RELEASE_NOTES_DRAFT.md`
+
 ## Phase 8 — Final Review
 
 - [ ] PR size acceptable OR split into slices

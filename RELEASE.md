@@ -14,6 +14,7 @@ All of the following must be true:
 - No failing streaming or replay tests
 - Contract schema (uar.event.v1) unchanged or intentionally versioned
 - Documentation updated (SYSTEM.md, CHANGELOG.md, RELEASE_CHECKLIST.md)
+- D4C gate passes if promoting fleet/operator/recurrence/evidence work
 
 ---
 
@@ -40,6 +41,14 @@ Add a new section under `[Unreleased]` and move it to a versioned entry.
 ```bash
 make validate
 ```
+
+If the release includes D4C fleet/operator/recurrence/evidence changes, also run:
+
+```bash
+make d4c-release-gate
+```
+
+This performs focused D4C validation and writes a validation result stub.
 
 ---
 
@@ -87,6 +96,17 @@ This will:
 - VERSION file is the source of truth
 - pyproject.toml must match VERSION
 - Tags must match VERSION exactly
+
+---
+
+## D4C Release Rule
+
+For D4C fleet/operator/recurrence/evidence releases:
+
+- `make d4c-release-gate` must pass,
+- a local validation result or CI validation artifact must exist,
+- anti-sprawl criteria in `docs/operations/D4C_RELEASE_PROMOTION_CHECKLIST.md` must remain satisfied,
+- do not tag until explicit approval is given.
 
 ---
 
