@@ -18,8 +18,12 @@ on:
       - 'apps/web/src/components/Dashboard.tsx'
       - 'apps/web/src/components/Dashboard.test.tsx'
       - 'apps/web/src/components/mission-control/**'
+      - 'apps/web/src/utils/downloadMarkdown.ts'
+      - 'apps/web/src/utils/downloadMarkdown.test.ts'
       - 'apps/web/src/utils/evidencePackPreview.ts'
       - 'apps/web/src/utils/evidencePackPreview.test.ts'
+      - 'apps/web/src/utils/recurrenceNotes.ts'
+      - 'apps/web/src/utils/recurrenceNotes.test.ts'
       - 'apps/web/package.json'
       - 'apps/web/package-lock.json'
       - 'scripts/validate_d4c_operator_loop.sh'
@@ -42,8 +46,12 @@ on:
       - 'apps/web/src/components/Dashboard.tsx'
       - 'apps/web/src/components/Dashboard.test.tsx'
       - 'apps/web/src/components/mission-control/**'
+      - 'apps/web/src/utils/downloadMarkdown.ts'
+      - 'apps/web/src/utils/downloadMarkdown.test.ts'
       - 'apps/web/src/utils/evidencePackPreview.ts'
       - 'apps/web/src/utils/evidencePackPreview.test.ts'
+      - 'apps/web/src/utils/recurrenceNotes.ts'
+      - 'apps/web/src/utils/recurrenceNotes.test.ts'
       - 'apps/web/package.json'
       - 'apps/web/package-lock.json'
       - 'scripts/validate_d4c_operator_loop.sh'
@@ -81,4 +89,14 @@ jobs:
         run: npm ci
 
       - name: Validate D4C operator loop
-        run: bash scripts/validate_d4c_operator_loop.sh
+        run: |
+          mkdir -p artifacts/d4c
+          bash scripts/validate_d4c_operator_loop.sh 2>&1 | tee artifacts/d4c/validation.log
+
+      - name: Upload D4C validation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d4c-validation-${{ github.run_id }}
+          path: artifacts/d4c/validation.log
+          retention-days: 14
