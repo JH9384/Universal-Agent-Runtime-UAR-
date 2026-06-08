@@ -1,4 +1,4 @@
-.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate d4d-status api web dashboard up up-full up-all clean release version sync-version check-version
+.PHONY: help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate d4d-status api web dashboard up up-full up-all docker-up docker-up-full docker-smoke docker-down mcp-smoke mcp-server clean release version sync-version check-version
 
 PYTHON ?= python3.12
 API_HOST ?= 127.0.0.1
@@ -36,8 +36,14 @@ help:
 	@echo "  make web              Start the staged web UI"
 	@echo "  make dashboard        Start the Mission Control dashboard"
 	@echo "  make up               One-command runtime launch: install + API"
-	@echo "  make up-full          One-command full launch: install + API + staged UI"
-	@echo "  make up-all           One-command full launch: install + API + staged UI + dashboard"
+	@echo "  make up-full          One-command full launch: install + staged UI"
+	@echo "  make up-all           One-command full launch: install + staged UI + dashboard"
+	@echo "  make docker-up        Build and start Dockerized API runtime"
+	@echo "  make docker-up-full   Build and start Dockerized API + staged UI"
+	@echo "  make docker-smoke     Smoke-check Dockerized API runtime"
+	@echo "  make docker-down      Stop Dockerized runtime"
+	@echo "  make mcp-smoke        Validate read-only MCP tool registry"
+	@echo "  make mcp-server       Start read-only MCP stdio server"
 	@echo "  make version          Show current version"
 	@echo "  make check-version    Verify VERSION matches pyproject.toml"
 	@echo "  make sync-version     Sync VERSION into pyproject.toml"
@@ -145,6 +151,24 @@ up-all: install
 	@(cd $(DASHBOARD_DIR) && npm install && npm run dev) & \
 	(cd $(WEB_DIR) && npm install && npm run dev) & \
 	uvicorn uar.api.server:app --reload --host $(API_HOST) --port $(API_PORT)
+
+docker-up:
+	docker compose up --build uar-api
+
+docker-up-full:
+	docker compose --profile web up --build
+
+docker-smoke:
+	bash scripts/docker_smoke.sh
+
+docker-down:
+	docker compose down
+
+mcp-smoke: $(VENV_STAMP)
+	$(VENV_PYTHON) scripts/mcp_smoke.py
+
+mcp-server: $(VENV_STAMP)
+	$(VENV_PYTHON) -m uar.mcp.server
 
 web:
 	cd $(WEB_DIR) && npm install && npm run dev
