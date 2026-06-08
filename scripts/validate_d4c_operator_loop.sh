@@ -33,7 +33,8 @@ npm run test:run -- \
   src/components/mission-control/RecommendationOutcomeCapture.test.tsx \
   src/components/mission-control/ArtifactBrowser.test.tsx \
   src/components/Dashboard.test.tsx \
-  src/utils/evidencePackPreview.test.ts
+  src/utils/evidencePackPreview.test.ts \
+  src/utils/recurrenceNotes.test.ts
 
 echo "== Frontend production build =="
 npm run build
