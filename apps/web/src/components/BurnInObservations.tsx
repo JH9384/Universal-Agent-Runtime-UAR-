@@ -33,6 +33,13 @@ interface BurninObsReport {
     expected_snapshots: number | null
     avg_snapshot_retrieval_latency_ms: number | null
     max_snapshot_retrieval_latency_ms: number | null
+    entity_retention_capable_rate?: number | null
+    entity_retention_snapshot_count_start?: number | null
+    entity_retention_snapshot_count_end?: number | null
+    entity_integrity_status_final?: string | null
+    entity_integrity_issue_count_start?: number | null
+    entity_integrity_issue_count_end?: number | null
+    max_entity_integrity_issue_count?: number | null
     avg_trust_report_duration_ms: number | null
     max_trust_report_duration_ms: number | null
     avg_burnin_report_duration_ms: number | null
@@ -137,6 +144,11 @@ export function BurnInObservations() {
     s.snapshot_count_end == null ? 'unknown'
     : s.expected_snapshots != null && s.snapshot_count_end >= s.expected_snapshots ? 'ok' : 'warn'
 
+  const entityPressureStatus: AreaCardProps['status'] =
+    s.entity_integrity_status_final == null ? 'unknown'
+    : s.entity_integrity_status_final === 'ok' && (s.entity_integrity_issue_count_end ?? 0) === 0 ? 'ok'
+    : s.entity_integrity_status_final === 'fail' ? 'fail' : 'warn'
+
   const reportStatus: AreaCardProps['status'] =
     s.avg_trust_report_duration_ms == null ? 'unknown'
     : s.avg_trust_report_duration_ms < 2000 ? 'ok'
@@ -198,6 +210,18 @@ export function BurnInObservations() {
             ['Growth', `${s.snapshot_growth ?? '—'}`],
             ['Avg retrieval', `${fmt(s.avg_snapshot_retrieval_latency_ms)}ms`],
             ['Max retrieval', `${fmt(s.max_snapshot_retrieval_latency_ms)}ms`],
+          ]}
+        />
+
+        <AreaCard
+          title="3b · Entity Pressure"
+          status={entityPressureStatus}
+          rows={[
+            ['Retention capable', pct(s.entity_retention_capable_rate)],
+            ['Integrity status', `${s.entity_integrity_status_final ?? '—'}`],
+            ['Issues', `${s.entity_integrity_issue_count_start ?? '—'} → ${s.entity_integrity_issue_count_end ?? '—'}`],
+            ['Max issues', `${s.max_entity_integrity_issue_count ?? '—'}`],
+            ['Entity snapshots', `${s.entity_retention_snapshot_count_start ?? '—'} → ${s.entity_retention_snapshot_count_end ?? '—'}`],
           ]}
         />
 

@@ -33,6 +33,13 @@ interface BurninReport {
     snapshot_growth?: number | null
     expected_snapshots?: number | null
     avg_snapshot_retrieval_latency_ms?: number | null
+    entity_retention_capable_rate?: number | null
+    entity_retention_snapshot_count_start?: number | null
+    entity_retention_snapshot_count_end?: number | null
+    entity_integrity_status_final?: string | null
+    entity_integrity_issue_count_start?: number | null
+    entity_integrity_issue_count_end?: number | null
+    max_entity_integrity_issue_count?: number | null
     avg_trust_report_duration_ms?: number | null
     avg_burnin_report_duration_ms?: number | null
     graph_node_count_end?: number | null
@@ -125,6 +132,14 @@ export function ReportViewer() {
                     <StatBox label="Scan Avg" value={burninData.summary.avg_metadata_scan_latency_ms != null ? `${burninData.summary.avg_metadata_scan_latency_ms.toFixed(1)}ms` : '—'} />
                     <StatBox label="Snap Growth" value={burninData.summary.snapshot_growth ?? '—'} />
                     <StatBox label="Ret Avg" value={burninData.summary.avg_snapshot_retrieval_latency_ms != null ? `${burninData.summary.avg_snapshot_retrieval_latency_ms.toFixed(1)}ms` : '—'} />
+                  </div>
+                  <h5 className={styles.sectionTitle}>Entity Pressure</h5>
+                  <div className={styles.statGrid}>
+                    <StatBox label="Retention" value={burninData.summary.entity_retention_capable_rate != null ? `${(burninData.summary.entity_retention_capable_rate * 100).toFixed(1)}%` : '—'} />
+                    <StatBox label="Integrity" value={burninData.summary.entity_integrity_status_final ?? '—'} />
+                    <StatBox label="Issues" value={`${burninData.summary.entity_integrity_issue_count_start ?? '—'} → ${burninData.summary.entity_integrity_issue_count_end ?? '—'}`} />
+                    <StatBox label="Max Issues" value={burninData.summary.max_entity_integrity_issue_count ?? '—'} />
+                    <StatBox label="Entity Snaps" value={`${burninData.summary.entity_retention_snapshot_count_start ?? '—'} → ${burninData.summary.entity_retention_snapshot_count_end ?? '—'}`} />
                   </div>
                   <h5 className={styles.sectionTitle}>Report Timing</h5>
                   <div className={styles.statGrid}>
