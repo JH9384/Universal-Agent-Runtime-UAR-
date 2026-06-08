@@ -1,37 +1,41 @@
-"""Model Context Protocol (MCP) server for UAR skills.
+"""Read-only Model Context Protocol (MCP) server for UAR.
 
-Exposes every registered UAR skill as an MCP tool so Claude, Cursor,
-Copilot, and other MCP-compatible clients can invoke them.
+The previous MCP scaffold exposed every registered UAR skill as an invokable
+MCP tool. That is useful for experiments, but too broad for operational use.
+This server is deny-by-default and exposes only read-only inspection tools.
 
 Usage:
     python -m uar.mcp.server
 
-The server communicates via JSON-RPC 2.0 over stdio as per the
-Model Context Protocol specification.
+Environment:
+    UAR_MCP_API_URL    Base UAR API URL, default http://127.0.0.1:8000
+    UAR_MCP_API_TOKEN  Optional bearer token for guarded endpoints
 """
+
+from __future__ import annotations
 
 import json
 import logging
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, Mapping
 
-from uar.core.registry import registry
-
-import uar.skills  # noqa: F401 — registers all standard skills
+from uar.mcp.tools import UARMCPError, call_tool, get_tools
 
 logger = logging.getLogger("uar.mcp")
+JSONRPC_VERSION = "2.0"
+_MAX_MCP_PAYLOAD = 10_000_000  # 10 MB safety cap
 
 
 def _send(msg: Dict[str, Any]) -> None:
-    """Write a JSON-RPC message to stdout."""
+    """Write a framed JSON-RPC message to stdout."""
     payload = json.dumps(msg, separators=(",", ":"))
     sys.stdout.write(f"Content-Length: {len(payload)}\r\n\r\n{payload}")
     sys.stdout.flush()
 
 
 def _recv() -> Dict[str, Any]:
-    """Read a JSON-RPC message from stdin."""
-    headers = {}
+    """Read one framed JSON-RPC message from stdin."""
+    headers: Dict[str, str] = {}
     while True:
         line = sys.stdin.readline()
         if not line or line == "\r\n":
@@ -42,114 +46,77 @@ def _recv() -> Dict[str, Any]:
     length = int(headers.get("content-length", 0))
     if length <= 0:
         return {}
-    _MAX_MCP_PAYLOAD = 10_000_000  # 10 MB safety cap
     if length > _MAX_MCP_PAYLOAD:
         raise ValueError("MCP payload too large")
 
     raw = sys.stdin.read(length)
     try:
-        return json.loads(raw)
+        decoded = json.loads(raw)
     except json.JSONDecodeError as exc:
         logger.warning("MCP message JSON decode failed: %s", exc)
         return {}
+    return decoded if isinstance(decoded, dict) else {}
 
 
-def _build_tool(name: str, fn: Any) -> Dict[str, Any]:
-    """Create an MCP tool definition from a UAR skill."""
-    doc = (fn.__doc__ or "").strip()
-    # Truncate description to first sentence for MCP
-    desc = doc.split(".")[0] + "." if doc else f"UAR skill: {name}"
+def _error(msg_id: Any, code: int, message: str) -> Dict[str, Any]:
     return {
-        "type": "tool",
-        "name": name,
-        "description": desc[:200],
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "type": "object",
-                    "description": "Goal metadata dict (key-value params)",
-                },
-            },
-            "required": ["metadata"],
-        },
+        "jsonrpc": JSONRPC_VERSION,
+        "id": msg_id,
+        "error": {"code": code, "message": message},
     }
 
 
-def _handle_initialize(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Respond to MCP initialize request."""
+def _handle_initialize(_: Mapping[str, Any]) -> Dict[str, Any]:
     return {
         "protocolVersion": "2024-11-05",
-        "capabilities": {
-            "tools": {"listChanged": True},
-        },
-        "serverInfo": {
-            "name": "uar-mcp-server",
-            "version": "1.2.0",
-        },
+        "capabilities": {"tools": {"listChanged": False}},
+        "serverInfo": {"name": "uar-readonly-mcp-server", "version": "0.1.0"},
     }
 
 
-def _handle_tools_list() -> List[Dict[str, Any]]:
-    """Return all registered UAR skills as MCP tools."""
-    tools = []
-    for name in registry.list():
-        try:
-            fn = registry.get(name)
-            tools.append(_build_tool(name, fn))
-        except Exception:
-            logger.warning("Skipping skill %s: not callable", name)
-    return tools
+def _handle_tools_list() -> Dict[str, Any]:
+    return {
+        "tools": [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "inputSchema": tool.input_schema,
+            }
+            for tool in get_tools().values()
+        ]
+    }
 
 
-def _handle_tool_call(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute a UAR skill and return MCP-compliant content."""
-    try:
-        fn = registry.get(name)
-    except Exception as exc:
-        logger.exception("Skill lookup failed")
-        return {
-            "content": [{"type": "text", "text": f"Skill error: {exc}"}],
-            "isError": True,
-        }
+def _handle_tool_call(params: Mapping[str, Any]) -> Dict[str, Any]:
+    name = params.get("name")
+    arguments = params.get("arguments") or {}
+    if not isinstance(name, str):
+        raise UARMCPError("tools/call requires a string name")
+    if not isinstance(arguments, dict):
+        raise UARMCPError("tools/call arguments must be an object")
 
-    # Build a minimal PipelineContext-like object
-    class _FakeContext:
-        def __init__(self, metadata: Dict[str, Any]) -> None:
-            class _FakeGoal:
-                def __init__(self, meta: Dict[str, Any]) -> None:
-                    self.metadata = meta
-            self.goal = _FakeGoal(metadata)
-            self.data: Dict[str, Any] = {}
-
-    ctx = _FakeContext(arguments.get("metadata", {}))
-    try:
-        result = fn(ctx)
-        text = json.dumps(result, indent=2, default=str)
-        return {
-            "content": [{"type": "text", "text": text}],
-            "isError": result.get("status") == "failed",
-        }
-    except Exception as exc:
-        return {
-            "content": [{"type": "text", "text": f"Execution error: {exc}"}],
-            "isError": True,
-        }
+    result = call_tool(name, arguments)
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(result, indent=2, sort_keys=True, default=str),
+            }
+        ],
+        "isError": False,
+    }
 
 
 def main() -> None:
     """Run the MCP stdio server loop."""
-    logging.basicConfig(
-        level=logging.WARNING,
-        handlers=[logging.StreamHandler(sys.stderr)],
-    )
-
+    logging.basicConfig(level=logging.WARNING, handlers=[logging.StreamHandler(sys.stderr)])
     initialized = False
 
     while True:
         try:
             req = _recv()
-        except Exception:
+        except Exception as exc:
+            logger.warning("MCP receive failed: %s", exc)
             break
 
         if not req:
@@ -158,47 +125,37 @@ def main() -> None:
         msg_id = req.get("id")
         method = req.get("method", "")
         params = req.get("params", {})
+        if not isinstance(params, dict):
+            params = {}
 
-        # Notifications (no id) — just ack
+        # Notifications have no response.
         if msg_id is None:
+            if method == "notifications/initialized":
+                initialized = True
             continue
 
         if method == "initialize":
-            result = _handle_initialize(params)
             initialized = True
-            _send({"jsonrpc": "2.0", "id": msg_id, "result": result})
+            _send({"jsonrpc": JSONRPC_VERSION, "id": msg_id, "result": _handle_initialize(params)})
             continue
 
         if not initialized:
-            _send({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {"code": -32002, "message": "Not initialized"},
-            })
+            _send(_error(msg_id, -32002, "Not initialized"))
             continue
 
         if method == "tools/list":
-            _send({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {"tools": _handle_tools_list()},
-            })
+            _send({"jsonrpc": JSONRPC_VERSION, "id": msg_id, "result": _handle_tools_list()})
+            continue
 
-        elif method == "tools/call":
-            name = params.get("name", "")
-            arguments = params.get("arguments", {})
-            result = _handle_tool_call(name, arguments)
-            _send({"jsonrpc": "2.0", "id": msg_id, "result": result})
+        if method == "tools/call":
+            try:
+                result = _handle_tool_call(params)
+                _send({"jsonrpc": JSONRPC_VERSION, "id": msg_id, "result": result})
+            except UARMCPError as exc:
+                _send(_error(msg_id, -32000, str(exc)))
+            continue
 
-        else:
-            _send({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {
-                    "code": -32601,
-                    "message": f"Method not found: {method}",
-                },
-            })
+        _send(_error(msg_id, -32601, f"Method not found: {method}"))
 
 
 if __name__ == "__main__":
