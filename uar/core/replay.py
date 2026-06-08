@@ -241,6 +241,7 @@ def certify_replay(record: RunRecord) -> Dict[str, Any]:
     try:
         reconstructed = run_record_from_events(
             events,
+            skills=list(record.skills or []),
             user_id=record.user_id,
             metadata=record.metadata,
         )
@@ -256,6 +257,9 @@ def certify_replay(record: RunRecord) -> Dict[str, Any]:
             "replay_duration_ms": round((time.time() - start_ts) * 1000, 2),
             "state_hash_matches": False,
             "checkpoint_count": 0,
+            "checkpoint_matches": False,
+            "provenance_valid": False,
+            "uor_address_present": record.uor_address is not None,
             "fidelity_score": 0.0,
         }
 
@@ -273,7 +277,11 @@ def certify_replay(record: RunRecord) -> Dict[str, Any]:
         for i in range(len(checkpoints))
     )
 
-    # Level 3: Provenance verification (UOR address / witness)
+    # Level 3: Provenance verification is reported separately from replay
+    # fidelity. Replay answers whether the supplied event stream is internally
+    # reconstructable; provenance/authenticity answers whether that stream is
+    # the original untampered stream. Keeping these orthogonal lets Ω-4A detect
+    # tampering that replay alone intentionally cannot detect.
     provenance_valid = True
     if record.uor_address and record.uor_witness is not None:
         try:
@@ -286,10 +294,11 @@ def certify_replay(record: RunRecord) -> Dict[str, Any]:
 
     duration_ms = round((time.time() - start_ts) * 1000, 2)
 
-    # Fidelity score: 100% only if all levels pass
+    # Fidelity score: 100% when deterministic replay and checkpoint replay pass.
+    # Provenance validity is surfaced but does not collapse replay fidelity.
     fidelity_score = (
         100.0
-        if (state_hash_matches and checkpoint_matches and provenance_valid)
+        if (state_hash_matches and checkpoint_matches)
         else 0.0
     )
 
