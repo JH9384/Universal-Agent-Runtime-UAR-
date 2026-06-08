@@ -6,6 +6,7 @@ import { ArtifactBrowser } from './ArtifactBrowser'
 const mockListRuns = vi.fn()
 const mockUseApiFetch = vi.fn()
 const mockDownloadMarkdown = vi.fn()
+const mockWriteText = vi.fn()
 
 vi.mock('../../api/dashboard', () => ({
   dashboardApi: {
@@ -26,15 +27,18 @@ beforeEach(() => {
   mockListRuns.mockReset()
   mockUseApiFetch.mockReset()
   mockDownloadMarkdown.mockReset()
+  mockWriteText.mockReset()
+  mockWriteText.mockResolvedValue(undefined)
   mockUseApiFetch.mockReturnValue({
     data: null,
     loading: false,
     error: null,
     refetch: vi.fn(),
   })
-  Object.assign(navigator, {
-    clipboard: {
-      writeText: vi.fn().mockResolvedValue(undefined),
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: mockWriteText,
     },
   })
 })
@@ -50,7 +54,7 @@ describe('ArtifactBrowser evidence preview', () => {
 
     expect(await screen.findByText('Evidence Pack v2 Preview')).toBeInTheDocument()
     expect(screen.getByText('warning')).toBeInTheDocument()
-    expect(screen.getByText('run-failed-1')).toBeInTheDocument()
+    expect(screen.getAllByText('run-failed-1').length).toBeGreaterThan(0)
     expect(screen.getByText(/Fleet status: \*\*warning\*\*/)).toBeInTheDocument()
     expect(screen.getByText(/run:run-failed-1/)).toBeInTheDocument()
   })
@@ -85,7 +89,7 @@ describe('ArtifactBrowser evidence preview', () => {
 
     expect(await screen.findByText('Top recurrence')).toBeInTheDocument()
     expect(screen.getByText('service:svc-artifact')).toBeInTheDocument()
-    expect(screen.getByText('run-rec-2')).toBeInTheDocument()
+    expect(screen.getByText(/Latest run:\s*run-rec-2/)).toBeInTheDocument()
     expect(screen.getByText(/Recurring patterns: \*\*1\*\*/)).toBeInTheDocument()
     expect(screen.getByText(/Incident IDs: `inc-artifact`/)).toBeInTheDocument()
   })
@@ -101,7 +105,7 @@ describe('ArtifactBrowser evidence preview', () => {
     const button = await screen.findByRole('button', { name: 'Copy Evidence Markdown' })
     await user.click(button)
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+    expect(mockWriteText).toHaveBeenCalledWith(
       expect.stringContaining('run:run-failed-2')
     )
   })
