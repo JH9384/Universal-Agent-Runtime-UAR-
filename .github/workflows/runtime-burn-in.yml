@@ -39,14 +39,16 @@ jobs:
 
       - name: Diagnose frontend dependency inputs
         run: |
-          node --version
-          npm --version
+          mkdir -p artifacts/burn-in
+          node --version | tee artifacts/burn-in/frontend-dependency-diagnostics.txt
+          npm --version | tee -a artifacts/burn-in/frontend-dependency-diagnostics.txt
           test -f apps/web/package.json
           test -f apps/web/package-lock.json
           python - <<'PY'
           import json
           from pathlib import Path
 
+          report = Path('artifacts/burn-in/frontend-dependency-diagnostics.txt')
           package = json.loads(Path('apps/web/package.json').read_text())
           lock = json.loads(Path('apps/web/package-lock.json').read_text())
           root_lock = lock.get('packages', {}).get('', {})
@@ -64,14 +66,25 @@ jobs:
               if lock_dev.get(name) != version:
                   mismatches.append((name, version, lock_dev.get(name)))
 
-          if mismatches:
-              print('package-lock root dependency mismatches:')
-              for name, pkg_version, lock_version in mismatches:
-                  print(f'- {name}: package.json={pkg_version!r}, package-lock={lock_version!r}')
-              raise SystemExit(1)
+          with report.open('a') as f:
+              if mismatches:
+                  print('package-lock root dependency mismatches:', file=f)
+                  for name, pkg_version, lock_version in mismatches:
+                      print(f'- {name}: package.json={pkg_version!r}, package-lock={lock_version!r}', file=f)
+              else:
+                  print('package-lock root dependency metadata matches package.json', file=f)
 
-          print('package-lock root dependency metadata matches package.json')
+          print(report.read_text())
+          if mismatches:
+              raise SystemExit(1)
           PY
+
+      - name: Upload frontend dependency diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dependency-diagnostics
+          path: artifacts/burn-in/frontend-dependency-diagnostics.txt
 
       - name: Install frontend dependencies for gate
         run: |
