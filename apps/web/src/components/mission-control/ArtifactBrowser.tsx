@@ -24,6 +24,10 @@ interface MissionControlSnapshot {
   } | null;
 }
 
+interface ArtifactBrowserProps {
+  initialEvidenceRef?: string;
+}
+
 const STATUS_COLOR: Record<string, string> = {
   completed: "#22c55e",
   running: "#3b82f6",
@@ -31,9 +35,15 @@ const STATUS_COLOR: Record<string, string> = {
   pending: "#f59e0b",
 };
 
-export function ArtifactBrowser() {
+function runIdFromEvidenceRef(ref?: string): string | null {
+  if (!ref) return null;
+  return ref.startsWith("run:") ? ref.slice(4) : null;
+}
+
+export function ArtifactBrowser({ initialEvidenceRef }: ArtifactBrowserProps) {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [evidenceRef, setEvidenceRef] = useState(initialEvidenceRef ?? "");
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,6 +67,10 @@ export function ArtifactBrowser() {
       if (mountedRef.current) setError(String(err));
     }
   }, []);
+
+  useEffect(() => {
+    if (initialEvidenceRef) setEvidenceRef(initialEvidenceRef);
+  }, [initialEvidenceRef]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -90,7 +104,11 @@ export function ArtifactBrowser() {
     };
   }, []);
 
-  const visible = filter === "all" ? runs : runs.filter((r) => r.status === filter);
+  const highlightedRunId = runIdFromEvidenceRef(evidenceRef);
+  const visibleByStatus = filter === "all" ? runs : runs.filter((r) => r.status === filter);
+  const visible = highlightedRunId
+    ? visibleByStatus.filter((r) => r.run_id.includes(highlightedRunId))
+    : visibleByStatus;
 
   const counts = runs.reduce<Record<string, number>>((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
@@ -150,6 +168,24 @@ export function ArtifactBrowser() {
         <h2>Artifacts</h2>
         <span aria-live="polite">{visible.length} / {runs.length} records</span>
       </header>
+
+      <div className="mc-next-action">
+        <h3>Evidence focus</h3>
+        <p className="mc-subtext"><strong>{evidenceRef ? `Review linked evidence ${evidenceRef}.` : "Review evidence pack preview, then export markdown for release or incident review."}</strong></p>
+        {evidenceRef && (
+          <button type="button" className="mc-filter-btn" onClick={() => setEvidenceRef("")}>Clear evidence focus</button>
+        )}
+      </div>
+
+      <label className="mc-field-label" htmlFor="artifact-evidence-ref">Evidence ref</label>
+      <input
+        id="artifact-evidence-ref"
+        type="search"
+        value={evidenceRef}
+        onChange={(e) => setEvidenceRef(e.target.value)}
+        placeholder="Filter by evidence ref, e.g. run:abc123…"
+        className="mc-search-input"
+      />
 
       <div className="mc-briefing-section" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
         <h3>Evidence Pack v2 Preview</h3>
@@ -214,13 +250,15 @@ export function ArtifactBrowser() {
       <ul>
         {visible.map((r) => {
           const color = STATUS_COLOR[r.status] ?? "#94a3b8";
+          const highlighted = highlightedRunId && r.run_id.includes(highlightedRunId);
           return (
-            <li key={r.run_id} style={{ "--mc-status-color": color } as React.CSSProperties}>
+            <li key={r.run_id} className={highlighted ? "mc-artifact-row mc-artifact-row--highlight" : "mc-artifact-row"} style={{ "--mc-status-color": color } as React.CSSProperties}>
               <div className="mc-row mc-row--sm-gap">
                 <span className="mc-dot mc-dot--sm" aria-hidden="true" />
                 <code className="mc-run-id">{r.run_id}</code>
                 <span className="mc-status-badge">{r.status}</span>
               </div>
+              {highlighted && <p className="mc-status-summary--ok">Selected evidence match: run:{r.run_id}</p>}
               {r.skills && r.skills.length > 0 && (
                 <div className="mc-skills">{r.skills.join(", ")}</div>
               )}
