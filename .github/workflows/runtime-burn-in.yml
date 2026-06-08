@@ -113,4 +113,13 @@ jobs:
           path: artifacts/burn-in/burn-in-script.log
 
       - name: Run full Python test suite
-        run: pytest -q
+        run: |
+          mkdir -p artifacts/burn-in
+          pytest -q 2>&1 | tee artifacts/burn-in/full-pytest.log
+
+      - name: Upload full pytest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-pytest-log
+          path: artifacts/burn-in/full-pytest.log
