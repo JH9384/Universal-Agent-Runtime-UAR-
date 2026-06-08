@@ -5,6 +5,7 @@ import { ArtifactBrowser } from './ArtifactBrowser'
 
 const mockListRuns = vi.fn()
 const mockUseApiFetch = vi.fn()
+const mockDownloadMarkdown = vi.fn()
 
 vi.mock('../../api/dashboard', () => ({
   dashboardApi: {
@@ -16,9 +17,15 @@ vi.mock('../../hooks/useApiFetch', () => ({
   useApiFetch: (...args: unknown[]) => mockUseApiFetch(...args),
 }))
 
+vi.mock('../../utils/downloadMarkdown', () => ({
+  downloadMarkdown: (...args: unknown[]) => mockDownloadMarkdown(...args),
+  evidencePackFilename: () => 'uar-evidence-pack-test.md',
+}))
+
 beforeEach(() => {
   mockListRuns.mockReset()
   mockUseApiFetch.mockReset()
+  mockDownloadMarkdown.mockReset()
   mockUseApiFetch.mockReturnValue({
     data: null,
     loading: false,
@@ -96,6 +103,23 @@ describe('ArtifactBrowser evidence preview', () => {
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining('run:run-failed-2')
+    )
+  })
+
+  it('downloads Evidence Pack markdown', async () => {
+    const user = userEvent.setup()
+    mockListRuns.mockResolvedValue([
+      { run_id: 'run-download-1', status: 'failed', skills: ['echo'] },
+    ])
+
+    render(<ArtifactBrowser />)
+
+    const button = await screen.findByRole('button', { name: 'Download Evidence Markdown' })
+    await user.click(button)
+
+    expect(mockDownloadMarkdown).toHaveBeenCalledWith(
+      'uar-evidence-pack-test.md',
+      expect.stringContaining('run:run-download-1')
     )
   })
 })
