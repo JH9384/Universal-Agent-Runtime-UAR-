@@ -283,3 +283,35 @@ def test_snapshot_includes_incident_summary_from_recurring_failures(tmp_path):
     assert top["latest_run_id"] in {"incident-r1", "incident-r2"}
     assert top["linked_incident_ids"] == ["inc-1"]
     assert top["linked_recommendation_ids"] == ["rec-1"]
+
+
+def test_mission_control_route_includes_entity_retention(monkeypatch):
+    import asyncio
+    from unittest.mock import MagicMock
+
+    import uar.api.routers.mission_control as mc_router
+
+    class FakeSnapshot:
+        active_count = 0
+        latest_record = None
+        recent_records = []
+
+    class FakeMissionSnapshot:
+        def to_dict(self):
+            return {
+                "runtime_health": {"score": 100, "tier": "healthy"},
+                "certification": {"score": 100, "level": "certified"},
+                "active_runs": 0,
+            }
+
+    monkeypatch.setattr(mc_router, "store", MagicMock())
+    monkeypatch.setattr(mc_router, "auth_middleware", lambda _credentials: {"user": "test"})
+    monkeypatch.setattr(mc_router, "build_runtime_snapshot", lambda _store: FakeSnapshot())
+    monkeypatch.setattr(mc_router, "build_snapshot", lambda *_a, **_kw: FakeMissionSnapshot())
+
+    result = asyncio.run(mc_router.get_mission_control(credentials=None))
+
+    assert "entity_retention" in result
+    assert "metadata_backend" in result["entity_retention"]
+    assert "entities" in result["entity_retention"]
+
