@@ -51,6 +51,22 @@ interface CertificationData {
   timestamp: number
 }
 
+interface EntityRetentionData {
+  metadata_backend?: {
+    list_meta_keys?: boolean
+    delete_metadata?: boolean
+  }
+  entities?: Record<string, {
+    namespace?: string
+    count?: number | null
+    discovery?: string
+    retention_capable?: boolean
+    sort_field?: string
+    error?: string
+  }>
+  error?: string
+}
+
 interface TrustSummaryData {
   system_calibration_error: number | null
   recommendation_type_count: number
@@ -95,6 +111,7 @@ interface MissionControlSnapshot {
   recent_warnings: string[]
   timestamp: number
   trust_summary: TrustSummaryData | null
+  entity_retention?: EntityRetentionData | null
   fleet_summary: FleetSummaryData | null
   server_version: string
   uptime_seconds: number
@@ -119,6 +136,25 @@ function ScoreRing({ score, label, tier }: { score: number; label: string; tier:
     <div className={styles.scoreRingCard}>
       <div className={`${styles.scoreRing} ${colorClass}`}>
         <span className={styles.scoreValue}>{score}</span>
+          <div className={styles.card}>
+            <div className={styles.cardHeader}>Entity Retention</div>
+            {entityRetention ? (
+              <>
+                <div className={styles.bigNumber}>
+                  {entityRetention.entities?.snapshots?.retention_capable ? "Ready" : "Watch"}
+                </div>
+                <div className={styles.subText}>
+                  Snapshots: {entityRetention.entities?.snapshots?.count ?? "—"}
+                </div>
+                <div className={styles.subText}>
+                  Keys: {entityRetention.metadata_backend?.list_meta_keys ? "yes" : "no"} · Delete: {entityRetention.metadata_backend?.delete_metadata ? "yes" : "no"}
+                </div>
+              </>
+            ) : (
+              <div className={styles.subText}>No entity retention signal yet.</div>
+            )}
+          </div>
+
       </div>
       <div className={styles.scoreLabel}>{label}</div>
       <div className={`${styles.scoreTier} ${colorClass}`}>{tier}</div>
@@ -199,6 +235,7 @@ export function MissionControlWidget({ onOpenReplay, initialTab }: MissionContro
   const rh = mc.runtime_health
   const rc = mc.replay_confidence
   const cert = mc.certification
+  const entityRetention = mc.entity_retention
   const fleet = mc.fleet_summary
   const topFleetSignal = fleet?.top_signal ?? null
 

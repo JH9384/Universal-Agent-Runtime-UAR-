@@ -84,6 +84,20 @@ async def get_mission_control(
         snapshot=rt_snapshot,
     )
     snapshot_dict = mc_snapshot.to_dict()
+    try:
+        from uar.api.routers.operator.common import _entity_retention_health
+
+        snapshot_dict["entity_retention"] = _entity_retention_health()
+    except Exception as exc:
+        logger.warning("Mission Control entity retention health failed: %s", exc)
+        snapshot_dict["entity_retention"] = {
+            "metadata_backend": {
+                "list_meta_keys": False,
+                "delete_metadata": False,
+            },
+            "entities": {},
+            "error": str(exc),
+        }
     _append_history(snapshot_dict)
     return snapshot_dict
 
