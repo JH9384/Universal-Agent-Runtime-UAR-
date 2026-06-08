@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from typing import Any, Dict, Mapping
+from typing import Any, Callable, Dict, Mapping
 
 from uar.mcp.tools import UARMCPError, call_tool, get_tools
 
@@ -66,36 +66,85 @@ def _error(msg_id: Any, code: int, message: str) -> Dict[str, Any]:
     }
 
 
+def _build_tool(name: str, fn: Callable[..., Any]) -> Dict[str, Any]:
+    """Build a legacy MCP tool definition for compatibility tests.
+
+    The production MCP path is intentionally read-only via ``uar.mcp.tools``;
+    this helper remains for older unit tests and callers that introspect the
+    historical server module surface.
+    """
+    description = (getattr(fn, "__doc__", None) or f"UAR skill: {name}").strip()
+    return {
+        "type": "tool",
+        "name": name,
+        "description": description,
+        "inputSchema": {
+            "type": "object",
+            "properties": {"metadata": {"type": "object"}},
+            "required": ["metadata"],
+        },
+    }
+
+
 def _handle_initialize(_: Mapping[str, Any]) -> Dict[str, Any]:
     return {
         "protocolVersion": "2024-11-05",
         "capabilities": {"tools": {"listChanged": False}},
-        "serverInfo": {"name": "uar-readonly-mcp-server", "version": "0.1.0"},
+        "serverInfo": {"name": "uar-mcp-server", "version": "0.1.0"},
     }
 
 
-def _handle_tools_list() -> Dict[str, Any]:
-    return {
-        "tools": [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "inputSchema": tool.input_schema,
+def _handle_tools_list() -> list[Dict[str, Any]]:
+    return [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": tool.input_schema,
+        }
+        for tool in get_tools().values()
+    ]
+
+
+def _handle_tool_call(
+    params_or_name: Mapping[str, Any] | str,
+    arguments: Mapping[str, Any] | None = None,
+) -> Dict[str, Any]:
+    if isinstance(params_or_name, str):
+        name = params_or_name
+        args = dict(arguments or {})
+    else:
+        name = params_or_name.get("name")
+        raw_args = params_or_name.get("arguments") or {}
+        if not isinstance(raw_args, dict):
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Execution error: tools/call arguments must be an object",
+                    }
+                ],
+                "isError": True,
             }
-            for tool in get_tools().values()
-        ]
-    }
+        args = raw_args
 
-
-def _handle_tool_call(params: Mapping[str, Any]) -> Dict[str, Any]:
-    name = params.get("name")
-    arguments = params.get("arguments") or {}
     if not isinstance(name, str):
-        raise UARMCPError("tools/call requires a string name")
-    if not isinstance(arguments, dict):
-        raise UARMCPError("tools/call arguments must be an object")
+        return {
+            "content": [
+                {"type": "text", "text": "Skill error: tools/call requires a string name"}
+            ],
+            "isError": True,
+        }
 
-    result = call_tool(name, arguments)
+    try:
+        result = call_tool(name, args)
+    except Exception as exc:
+        lowered = str(exc).lower()
+        prefix = "Skill error" if "not" in lowered or "unknown" in lowered else "Execution error"
+        return {
+            "content": [{"type": "text", "text": f"{prefix}: {exc}"}],
+            "isError": True,
+        }
+
     return {
         "content": [
             {
@@ -144,15 +193,16 @@ def main() -> None:
             continue
 
         if method == "tools/list":
-            _send({"jsonrpc": JSONRPC_VERSION, "id": msg_id, "result": _handle_tools_list()})
+            _send({
+                "jsonrpc": JSONRPC_VERSION,
+                "id": msg_id,
+                "result": {"tools": _handle_tools_list()},
+            })
             continue
 
         if method == "tools/call":
-            try:
-                result = _handle_tool_call(params)
-                _send({"jsonrpc": JSONRPC_VERSION, "id": msg_id, "result": result})
-            except UARMCPError as exc:
-                _send(_error(msg_id, -32000, str(exc)))
+            result = _handle_tool_call(params)
+            _send({"jsonrpc": JSONRPC_VERSION, "id": msg_id, "result": result})
             continue
 
         _send(_error(msg_id, -32601, f"Method not found: {method}"))
