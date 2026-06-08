@@ -26,6 +26,9 @@ dependencies = [
   "matplotlib>=3.0,<4.0",
   "sympy>=1.12",
   "pycryptodome>=3.20",
+  "cryptography>=42.0,<43.0",
+  "python-dotenv>=1.0,<2.0",
+  "astropy>=6.0,<8.0",
   # Additional utilities
   "tenacity>=8.0,<10.0",
   "rich>=13.0,<14.0",
