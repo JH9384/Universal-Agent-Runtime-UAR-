@@ -1,112 +1,162 @@
-"""Integrity checkers for metadata-backed operator entities.
-
-Light-weight diagnostics that can be called from health endpoints
-or periodic maintenance tasks to detect store drift, orphaned keys,
-and corrupted records.
-"""
+"""Operator metadata entity integrity checks."""
 
 from __future__ import annotations
 
-import json
-import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Set
 
 from uar.api.state import store
-from uar.api.routers.operator.helpers.entity_store import MetadataEntityStore
-
-logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class IntegrityReport:
-    """Summary of a single entity namespace scan."""
+def _decode_entity(raw: Any) -> Dict[str, Any] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        import json
 
-    namespace: str
-    total_keys: int
-    valid_records: int
-    corrupt_records: int
-    orphan_ids: List[str]
-
-    @property
-    def is_healthy(self) -> bool:
-        return self.corrupt_records == 0 and not self.orphan_ids
+        try:
+            decoded = json.loads(raw)
+        except Exception:
+            return None
+        return decoded if isinstance(decoded, dict) else None
+    return None
 
 
-def check_entity_integrity(
-    store_instance: MetadataEntityStore,
+def check_metadata_namespace(
+    namespace: str,
     *,
-    expected_fields: Optional[List[str]] = None,
-) -> IntegrityReport:
-    """Scan every key under *store_instance*'s namespace and report issues.
+    id_field: str = "id",
+    sort_field: str = "created_at",
+    use_list_meta_keys: bool = True,
+    max_index_scan: int = 100,
+) -> Dict[str, Any]:
+    """Validate metadata entities for one namespace."""
+    keys: List[str] = []
+    discovery = "bounded_index_scan"
 
-    * **Corrupt** — JSON that fails to parse.
-    * **Orphan**  — key exists but record has no ``id_field`` value, so
-      it is unreachable by normal load_all/load_by_id logic.
-    """
-    namespace = store_instance._namespace
-    expected = expected_fields or [store_instance._id_field]
+    if use_list_meta_keys and hasattr(store, "list_meta_keys"):
+        discovery = "list_meta_keys"
+        try:
+            keys = [
+                key
+                for key in store.list_meta_keys()
+                if str(key).startswith(f"{namespace}:")
+            ]
+        except Exception as exc:
+            return {
+                "namespace": namespace,
+                "status": "fail",
+                "discovery": discovery,
+                "count": 0,
+                "corrupt": 0,
+                "missing_id": 0,
+                "missing_sort_field": 0,
+                "duplicate_ids": 0,
+                "oldest": None,
+                "newest": None,
+                "error": str(exc),
+            }
+    else:
+        suffix = namespace.split(":")[-1]
+        keys = [f"{namespace}:{suffix}-{i}" for i in range(max_index_scan)]
 
-    total_keys = 0
-    valid_records = 0
-    corrupt_records = 0
-    orphan_ids: List[str] = []
+    count = 0
+    corrupt = 0
+    missing_id = 0
+    missing_sort_field = 0
+    duplicate_ids = 0
+    ids: Set[str] = set()
+    sort_values: List[Any] = []
 
-    def _inspect_key(key: str) -> None:
-        nonlocal total_keys, valid_records, corrupt_records
-        total_keys += 1
+    for key in keys:
         try:
             raw = store.get_metadata(key)
-        except Exception as exc:
-            logger.debug("Failed to read %s: %s", key, exc)
-            corrupt_records += 1
-            return
-
-        if raw is None:
-            return
-
-        # Decode
-        try:
-            if isinstance(raw, str):
-                record: Dict[str, Any] = json.loads(raw)
-            elif isinstance(raw, dict):
-                record = raw
-            else:
-                corrupt_records += 1
-                return
         except Exception:
-            corrupt_records += 1
-            return
+            corrupt += 1
+            continue
 
-        # Validate expected fields
-        missing = [f for f in expected if f not in record]
-        if missing:
-            orphan_ids.append(key)
-            return
+        entity = _decode_entity(raw)
+        if entity is None:
+            if raw is not None:
+                corrupt += 1
+            continue
 
-        # Validate ID presence
-        entity_id = record.get(store_instance._id_field)
+        count += 1
+
+        entity_id = entity.get(id_field)
         if entity_id is None:
-            orphan_ids.append(key)
-            return
+            missing_id += 1
+        else:
+            entity_id_s = str(entity_id)
+            if entity_id_s in ids:
+                duplicate_ids += 1
+            ids.add(entity_id_s)
 
-        valid_records += 1
+        sort_value = entity.get(sort_field)
+        if sort_value is None:
+            missing_sort_field += 1
+        else:
+            sort_values.append(sort_value)
 
-    # Scan via list_meta_keys if available
-    if hasattr(store, "list_meta_keys"):
-        try:
-            for key in store.list_meta_keys():
-                if key.startswith(f"{namespace}:"):
-                    _inspect_key(key)
-        except Exception as exc:
-            logger.warning(
-                "Integrity check list_meta_keys failed: %s", exc
-            )
+    status = "ok"
+    if corrupt or missing_id or duplicate_ids:
+        status = "fail"
+    elif missing_sort_field:
+        status = "warn"
 
-    return IntegrityReport(
-        namespace=namespace,
-        total_keys=total_keys,
-        valid_records=valid_records,
-        corrupt_records=corrupt_records,
-        orphan_ids=orphan_ids,
-    )
+    return {
+        "namespace": namespace,
+        "status": status,
+        "discovery": discovery,
+        "count": count,
+        "corrupt": corrupt,
+        "missing_id": missing_id,
+        "missing_sort_field": missing_sort_field,
+        "duplicate_ids": duplicate_ids,
+        "oldest": min(sort_values) if sort_values else None,
+        "newest": max(sort_values) if sort_values else None,
+    }
+
+
+def check_operator_entity_integrity() -> Dict[str, Any]:
+    """Return integrity status for all operator metadata namespaces."""
+    namespaces = {
+        "snapshots": {
+            "namespace": "operator:snapshot",
+            "id_field": "timestamp",
+            "sort_field": "timestamp",
+            "use_list_meta_keys": True,
+        },
+        "incidents": {
+            "namespace": "operator:incident",
+            "id_field": "id",
+            "sort_field": "created_at",
+            "use_list_meta_keys": True,
+        },
+        "inbox": {
+            "namespace": "operator:inbox",
+            "id_field": "id",
+            "sort_field": "created_at",
+            "use_list_meta_keys": False,
+            "max_index_scan": 200,
+        },
+        "investigations": {
+            "namespace": "operator:investigation",
+            "id_field": "id",
+            "sort_field": "started_at",
+            "use_list_meta_keys": False,
+        },
+    }
+
+    results: Dict[str, Any] = {}
+    for name, cfg in namespaces.items():
+        results[name] = check_metadata_namespace(**cfg)
+
+    statuses = {v.get("status") for v in results.values()}
+    overall = "fail" if "fail" in statuses else "warn" if "warn" in statuses else "ok"
+
+    return {
+        "status": overall,
+        "namespaces": results,
+    }

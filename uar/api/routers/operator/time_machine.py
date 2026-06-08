@@ -170,3 +170,11 @@ async def entity_health(credentials=None) -> Dict[str, Any]:
     from uar.api.routers.operator.common import _entity_retention_health
     return _entity_retention_health()
 
+@router.get("/api/uar/operator/entity-integrity")
+async def entity_integrity(credentials=None) -> Dict[str, Any]:
+    """Inspect operator metadata entity structural integrity."""
+    from uar.api.routers.operator.checkers.entity_integrity import (
+        check_operator_entity_integrity,
+    )
+
+    return check_operator_entity_integrity()
