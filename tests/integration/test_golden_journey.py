@@ -39,18 +39,20 @@ AUTH_HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 def journey_client(tmp_path, monkeypatch):
     """TestClient backed by a real SqliteRunStore so metadata persists.
 
-    Routers that do ``from uar.api.server import store`` re-bind at import
-    time, so we patch the canonical location (uar.api.server.store) plus the
-    module-level ``store`` used by incident/reports routers that hold a
-    direct reference at import time via ``from uar.api.state import store``.
+    Routers that do ``from uar.api.server import store`` or
+    ``from uar.api.state import store`` re-bind at import time, so patch the
+    canonical server location plus every router module in this journey that
+    holds a direct module-level store reference.
     """
     import uar.api.server as _server_mod
+    import uar.api.routers.runs as _runs_mod
     import uar.api.routers.operator.common as _common_mod
     import uar.api.routers.operator.incidents as _inc_mod
     import uar.api.routers.operator.reports as _rpt_mod
 
     sqlite = SqliteRunStore(path=str(tmp_path / "golden_journey.db"))
     monkeypatch.setattr(_server_mod, "store", sqlite)
+    monkeypatch.setattr(_runs_mod, "store", sqlite)
     monkeypatch.setattr(_common_mod, "store", sqlite)
     monkeypatch.setattr(_inc_mod, "store", sqlite)
     monkeypatch.setattr(_rpt_mod, "store", sqlite)
