@@ -84,6 +84,19 @@ async def get_mission_control(
         snapshot=rt_snapshot,
     )
     snapshot_dict = mc_snapshot.to_dict()
+
+    try:
+        from uar.api.routers.operator.checkers.entity_integrity import (
+            check_operator_entity_integrity,
+        )
+
+        snapshot_dict["entity_integrity"] = check_operator_entity_integrity()
+    except Exception as exc:
+        snapshot_dict["entity_integrity"] = {
+            "status": "warn",
+            "error": str(exc),
+            "namespaces": {},
+        }
     try:
         from uar.api.routers.operator.common import _entity_retention_health
 
