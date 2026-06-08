@@ -51,6 +51,22 @@ docs/operations/validation-results/
 
 Then edit the generated file to mark PASS/FAIL and capture any failures or follow-up actions.
 
+### CI artifact capture
+
+The D4C GitHub Actions workflow also uploads a validation log artifact:
+
+```text
+d4c-validation-${{ github.run_id }}
+```
+
+It contains:
+
+```text
+validation.log
+```
+
+Retention is 14 days.
+
 ---
 
 ## Validation Coverage
@@ -70,6 +86,7 @@ The gate covers:
 - Focus panel,
 - recurrence summary component,
 - Artifacts evidence preview,
+- Evidence Pack markdown download,
 - Dashboard replay handoffs,
 - frontend production build.
 
@@ -103,11 +120,13 @@ Proceed only when:
 
 ## Current Boundary
 
+The export/runbook/artifact support layer is now in place.
+
 Next eligible work after validation:
 
-1. Evidence Pack export polish,
-2. compact recurrence runbook text,
-3. CI artifact capture for evidence previews.
+1. run focused validation and record result,
+2. fix any failures,
+3. only then consider broader release hygiene.
 
 Do not start:
 
