@@ -19,6 +19,8 @@ import logging
 import sys
 from typing import Any, Callable, Dict, Mapping
 
+from uar.core.contracts import GoalSpec, PipelineContext
+from uar.core.registry import registry
 from uar.mcp.tools import UARMCPError, call_tool, get_tools
 
 logger = logging.getLogger("uar.mcp")
@@ -105,27 +107,70 @@ def _handle_tools_list() -> list[Dict[str, Any]]:
     ]
 
 
+def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, Any]:
+    """Compatibility path for older tests/callers that patch registry.get.
+
+    The JSON-RPC production path uses the read-only MCP allowlist in
+    ``uar.mcp.tools``. Direct string calls historically invoked registered UAR
+    skills, so keep that surface stable without widening the production tool
+    list.
+    """
+    try:
+        skill = registry.get(name)
+    except Exception as exc:
+        return {
+            "content": [{"type": "text", "text": f"Skill error: {exc}"}],
+            "isError": True,
+        }
+
+    try:
+        metadata = args.get("metadata", {}) if isinstance(args, Mapping) else {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        goal = GoalSpec(
+            id=f"mcp-{name}",
+            user_intent=f"MCP call: {name}",
+            objective=f"MCP call: {name}",
+            metadata=metadata,
+        )
+        result = skill(PipelineContext(goal=goal))
+    except Exception as exc:
+        return {
+            "content": [{"type": "text", "text": f"Execution error: {exc}"}],
+            "isError": True,
+        }
+
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(result, indent=2, sort_keys=True, default=str),
+            }
+        ],
+        "isError": False,
+    }
+
+
 def _handle_tool_call(
     params_or_name: Mapping[str, Any] | str,
     arguments: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     if isinstance(params_or_name, str):
-        name = params_or_name
-        args = dict(arguments or {})
-    else:
-        name = params_or_name.get("name")
-        raw_args = params_or_name.get("arguments") or {}
-        if not isinstance(raw_args, dict):
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Execution error: tools/call arguments must be an object",
-                    }
-                ],
-                "isError": True,
-            }
-        args = raw_args
+        return _handle_legacy_skill_call(params_or_name, dict(arguments or {}))
+
+    name = params_or_name.get("name")
+    raw_args = params_or_name.get("arguments") or {}
+    if not isinstance(raw_args, dict):
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Execution error: tools/call arguments must be an object",
+                }
+            ],
+            "isError": True,
+        }
+    args = raw_args
 
     if not isinstance(name, str):
         return {
@@ -134,7 +179,6 @@ def _handle_tool_call(
             ],
             "isError": True,
         }
-
     try:
         result = call_tool(name, args)
     except Exception as exc:
