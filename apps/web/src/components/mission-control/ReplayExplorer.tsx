@@ -11,11 +11,27 @@ const STATUS_COLOR: Record<string, string> = {
 
 interface ReplayExplorerProps {
   initialRunId?: string;
+  onOpenEvidence?: (ref: string) => void;
 }
 
-export function ReplayExplorer({ initialRunId }: ReplayExplorerProps) {
+function runTimestamp(record: RunRecord): string {
+  const ts = record.timestamp ?? record.created_at;
+  if (!ts) return "unknown";
+  const value = ts > 10_000_000_000 ? ts : ts * 1000;
+  return new Date(value).toISOString();
+}
+
+function runGuidance(record: RunRecord): string {
+  if (record.status === "failed") return "Inspect failure path and attach evidence before closing.";
+  if (record.status === "running") return "Monitor until completion before recording an outcome.";
+  if (record.status === "completed") return "Use as replay evidence if linked to an operator decision.";
+  return "Check run state before taking action.";
+}
+
+export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerProps) {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [filter, setFilter] = useState(initialRunId ?? "");
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null);
   const [copied, setCopied] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +51,10 @@ export function ReplayExplorer({ initialRunId }: ReplayExplorerProps) {
   }, []);
 
   useEffect(() => {
-    if (initialRunId) setFilter(initialRunId);
+    if (initialRunId) {
+      setFilter(initialRunId);
+      setSelectedRunId(initialRunId);
+    }
   }, [initialRunId]);
 
   useEffect(() => {
@@ -118,6 +137,11 @@ export function ReplayExplorer({ initialRunId }: ReplayExplorerProps) {
         <span aria-live="polite">{visible.length} / {runs.length} runs</span>
       </header>
 
+      <div className="mc-next-action">
+        <h3>Investigation flow</h3>
+        <p className="mc-subtext"><strong>Select a run, inspect status/skills, then open its evidence reference if it supports an operator outcome.</strong></p>
+      </div>
+
       <input
         type="search"
         value={filter}
@@ -129,26 +153,62 @@ export function ReplayExplorer({ initialRunId }: ReplayExplorerProps) {
       <ul>
         {visible.map((r) => {
           const color = STATUS_COLOR[r.status] ?? "#94a3b8";
+          const selected = selectedRunId === r.run_id;
+          const evidenceRef = `run:${r.run_id}`;
           return (
-            <li key={r.run_id} className="mc-row" style={{ "--mc-status-color": color } as React.CSSProperties}>
-              <span className="mc-dot" aria-hidden="true" />
-              <code className="mc-run-id">{r.run_id}</code>
-              <span className="mc-status-badge">
-                {r.status}
-              </span>
-              {r.skills && r.skills.length > 0 && (
-                <span className="mc-skill-count">
-                  {r.skills.length} skills
+            <li key={r.run_id} className="mc-replay-row" style={{ "--mc-status-color": color } as React.CSSProperties}>
+              <div className="mc-row">
+                <span className="mc-dot" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="mc-run-select"
+                  aria-expanded={selected ? "true" : "false"}
+                  onClick={() => setSelectedRunId(selected ? null : r.run_id)}
+                >
+                  <code className="mc-run-id">{r.run_id}</code>
+                </button>
+                <span className="mc-status-badge">
+                  {r.status}
                 </span>
+                {r.skills && r.skills.length > 0 && (
+                  <span className="mc-skill-count">
+                    {r.skills.length} skills
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => copyId(r.run_id)}
+                  title="Copy run ID"
+                  className={copied === r.run_id ? "mc-copy-btn mc-copy-btn--copied" : "mc-copy-btn"}
+                >
+                  {copied === r.run_id ? "✓" : "⧉"}
+                </button>
+              </div>
+              {selected && (
+                <div className="mc-run-detail">
+                  <dl>
+                    <dt>Operator meaning</dt>
+                    <dd>{runGuidance(r)}</dd>
+                    <dt>Timestamp</dt>
+                    <dd>{runTimestamp(r)}</dd>
+                    <dt>Goal</dt>
+                    <dd>{r.goal_id ?? "unknown"}</dd>
+                    <dt>Evidence ref</dt>
+                    <dd>{evidenceRef}</dd>
+                  </dl>
+                  {r.skills && r.skills.length > 0 && (
+                    <p className="mc-skills">Skills: {r.skills.join(", ")}</p>
+                  )}
+                  <div className="mc-briefing-links">
+                    <button type="button" className="mc-filter-btn" onClick={() => onOpenEvidence?.(evidenceRef)}>
+                      Open Evidence
+                    </button>
+                    <button type="button" className="mc-filter-btn" onClick={() => copyId(r.run_id)}>
+                      Copy Run ID
+                    </button>
+                  </div>
+                </div>
               )}
-              <button
-                type="button"
-                onClick={() => copyId(r.run_id)}
-                title="Copy run ID"
-                className={copied === r.run_id ? "mc-copy-btn mc-copy-btn--copied" : "mc-copy-btn"}
-              >
-                {copied === r.run_id ? "✓" : "⧉"}
-              </button>
             </li>
           );
         })}
