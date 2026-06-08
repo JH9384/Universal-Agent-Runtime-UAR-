@@ -131,6 +131,8 @@ class RunStoreProtocol(Protocol):
 
     def list_meta_keys(self) -> List[str]: ...
 
+    def delete_metadata(self, key: str) -> None: ...
+
 
 def get_store() -> RunStoreProtocol:
     """Return a concrete store matching the current environment.

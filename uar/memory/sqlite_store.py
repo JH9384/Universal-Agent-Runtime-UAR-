@@ -190,6 +190,12 @@ class SqliteRunStore:
                             # because the writer-thread connection is
                             # opened with isolation_level=None
                             # (autocommit ON).
+                        elif op == "delete_meta":
+                            cur = conn.execute(
+                                "DELETE FROM uar_metadata WHERE key = ?",
+                                (payload,),
+                            )
+                            result = cur.rowcount
                         elif op == "feedback":
                             rec_id, action, user_id_fb = payload
                             conn.execute(
@@ -890,6 +896,15 @@ class SqliteRunStore:
             return [row[0] for row in cur.fetchall()]
         finally:
             self._release_read_conn(conn)
+
+    def delete_metadata(self, key: str) -> None:
+        """Delete metadata by key.
+
+        Routed through the writer thread so deletion is serialized with writes.
+        """
+        result = self._enqueue_write_sync("delete_meta", key)
+        if isinstance(result, Exception):
+            raise result
 
     def purge_old_records(self, retention_days: int) -> int:
         if retention_days <= 0:

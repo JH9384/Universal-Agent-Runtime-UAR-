@@ -288,6 +288,11 @@ class EncryptedRunStore:
     def list_meta_keys(self) -> List[str]:
         return self._store.list_meta_keys()
 
+    def delete_metadata(self, key: str) -> None:
+        delete = getattr(self._store, "delete_metadata", None)
+        if callable(delete):
+            delete(key)
+
 
 def maybe_encrypt_store(
     store: RunStoreProtocol,

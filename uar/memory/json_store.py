@@ -507,6 +507,28 @@ class JsonRunStore:
         except (json.JSONDecodeError, OSError):
             return []
 
+    def delete_metadata(self, key: str) -> None:
+        """Delete a metadata key if present."""
+        path = self._meta_path()
+        if not path.exists():
+            return
+
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            data = {}
+
+        if key not in data:
+            return
+
+        data.pop(key, None)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with tmp.open("w", encoding="utf-8") as f:
+            json.dump(data, f)
+            f.flush()
+            os.fsync(f.fileno())
+        tmp.replace(path)
+
     def get_recommendation_metadata(
         self,
         recommendation_id: Optional[str] = None,

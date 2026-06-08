@@ -91,3 +91,36 @@ def test_metadata_entity_store_prune_to_limit(monkeypatch):
 
     assert removed == 1
     fake_store.delete_metadata.assert_called_once_with("operator:snapshot:1")
+
+
+def test_sqlite_delete_metadata_removes_key(tmp_path):
+    from uar.memory.sqlite_store import SqliteRunStore
+
+    db_file = str(tmp_path / "meta_delete.db")
+    store = SqliteRunStore(db_file)
+    try:
+        store.put_metadata("operator:snapshot:1", {"timestamp": 1})
+        assert store.get_metadata("operator:snapshot:1") == {"timestamp": 1}
+
+        store.delete_metadata("operator:snapshot:1")
+
+        assert store.get_metadata("operator:snapshot:1") is None
+        assert "operator:snapshot:1" not in store.list_meta_keys()
+    finally:
+        close = getattr(store, "close", None)
+        if callable(close):
+            close()
+
+
+def test_json_delete_metadata_removes_key(tmp_path):
+    from uar.memory.json_store import JsonRunStore
+
+    store = JsonRunStore(path=tmp_path / "runs.jsonl")
+    store.put_metadata("operator:snapshot:1", {"timestamp": 1})
+    assert store.get_metadata("operator:snapshot:1") == {"timestamp": 1}
+
+    store.delete_metadata("operator:snapshot:1")
+
+    assert store.get_metadata("operator:snapshot:1") is None
+    assert "operator:snapshot:1" not in store.list_meta_keys()
+
