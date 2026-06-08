@@ -1,70 +1,90 @@
-# Local development Docker Compose for UAR
-# Usage:
-#   docker-compose up --build
+# Local development Docker Compose for UAR.
 #
-# For production, use docker-compose.prod.yml instead.
-
-version: '3.8'
+# Core API only:
+#   docker compose up --build uar-api
+#
+# API + staged web UI:
+#   docker compose --profile web up --build
 
 services:
   uar-api:
     build:
       context: .
-      dockerfile: Dockerfile.prod
-    ports:
-      - "8000:8000"
+      dockerfile: Dockerfile
+    image: uar-api:local
+    container_name: uar-api
     environment:
-      - ENVIRONMENT=development
-      - API_HOST=0.0.0.0
-      - API_PORT=8000
-      - DEBUG=true
-      - LOG_LEVEL=debug
-      - RATE_LIMIT_ENABLED=false
-      - API_KEYS=dev-key-12345:developer:authenticated
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
+      UAR_DATA_DIR: /data
+      UAR_ARTIFACT_DIR: /artifacts
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
+      UAR_API_KEYS: ${UAR_API_KEYS:-dev-admin-key:admin,dev-user-key:user}
+      API_KEYS: ${API_KEYS:-dev-key-12345:developer:authenticated}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${UAR_API_PORT:-8000}:8000"
     volumes:
-      - ./runs:/var/lib/uar/runs
-      - ./logs:/var/log/uar
-      - .:/app
-    restart: "no"
+      - ./data:/data
+      - ./artifacts:/artifacts
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 5s
-      timeout: 10s
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/health || curl -fsS http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
       retries: 10
-      start_period: 40s
+      start_period: 30s
+    restart: unless-stopped
 
   uar-web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
+    image: node:22-alpine
+    container_name: uar-web
+    working_dir: /app/apps/web
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     environment:
-      - VITE_API_URL=http://uar-api:8000
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_UAR_API_BASE: ${VITE_UAR_API_BASE:-http://localhost:8000}
+    ports:
+      - "${UAR_WEB_PORT:-5173}:5173"
+    volumes:
+      - .:/app
+      - uar-web-node-modules:/app/apps/web/node_modules
     depends_on:
       uar-api:
         condition: service_healthy
     profiles:
       - web
+    restart: unless-stopped
 
   uar-dashboard:
-    build:
-      context: ./apps/operator-dashboard
-      dockerfile: Dockerfile
-    ports:
-      - "3001:3001"
+    image: node:22-alpine
+    container_name: uar-dashboard
+    working_dir: /app/apps/operator-dashboard
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     environment:
-      - VITE_API_URL=http://uar-api:8000
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    ports:
+      - "${UAR_DASHBOARD_PORT:-3001}:3001"
+    volumes:
+      - .:/app
+      - uar-dashboard-node-modules:/app/apps/operator-dashboard/node_modules
     depends_on:
       uar-api:
         condition: service_healthy
     profiles:
       - dashboard
+    restart: unless-stopped
 
-  # Optional: Redis for rate limiting in dev
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
+    container_name: uar-redis
     ports:
-      - "6379:6379"
+      - "${UAR_REDIS_PORT:-6379}:6379"
     profiles:
       - redis
+
+volumes:
+  uar-web-node-modules:
+  uar-dashboard-node-modules:
