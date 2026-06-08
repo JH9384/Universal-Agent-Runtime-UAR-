@@ -18,7 +18,12 @@ COPY uar ./uar
 RUN python -m pip install --upgrade pip \
     && python -m pip install -e .
 
-RUN mkdir -p /data /artifacts
+RUN groupadd --system --gid 10001 uar \
+    && useradd --system --uid 10001 --gid uar --home-dir /app --shell /bin/sh uar \
+    && mkdir -p /data /artifacts \
+    && chown -R uar:uar /app /data /artifacts
+
+USER uar
 
 EXPOSE 8000
 
