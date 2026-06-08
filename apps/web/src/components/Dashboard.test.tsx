@@ -177,7 +177,7 @@ describe('Dashboard operator loop', () => {
     await user.click(screen.getByRole('button', { name: /Replay run-brief/i }))
     await screen.findByDisplayValue('run-brief-1')
     await user.click(screen.getByRole('button', { name: 'run-brief-1' }))
-    await user.click(screen.getByRole('button', { name: 'Open Evidence' }))
+    await user.click(await screen.findByRole('button', { name: 'Open Evidence' }))
 
     expect(screen.getByRole('tab', { name: 'Artifacts' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByDisplayValue('run:run-brief-1')).toBeInTheDocument()
