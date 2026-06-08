@@ -29,10 +29,16 @@ interface DashboardProps {
 export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
   const [tab, setTab] = useState<Tab>("briefing");
   const [replayRunId, setReplayRunId] = useState<string | null>(null);
+  const [evidenceRef, setEvidenceRef] = useState<string | null>(null);
 
   const openReplay = (runId: string) => {
     setReplayRunId(runId);
     setTab("replay");
+  };
+
+  const openEvidence = (ref: string) => {
+    setEvidenceRef(ref);
+    setTab("artifacts");
   };
 
   const selectOperationalTab = (nextTab: "health" | "topology" | "replay" | "artifacts") => {
@@ -82,12 +88,20 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
       <main className="mc-tab-content" role="tabpanel">
         {tab === "briefing" && (
           <div className="mc-grid mc-grid--wide">
-            <OperatorBriefingPanel onOpenReplay={openReplay} onSelectTab={selectOperationalTab} />
+            <OperatorBriefingPanel
+              onOpenReplay={openReplay}
+              onOpenEvidence={openEvidence}
+              onSelectTab={selectOperationalTab}
+            />
           </div>
         )}
         {tab === "focus" && (
           <div className="mc-grid mc-grid--wide">
-            <FocusModePanel onOpenReplay={openReplay} onSelectTab={selectOperationalTab} />
+            <FocusModePanel
+              onOpenReplay={openReplay}
+              onOpenEvidence={openEvidence}
+              onSelectTab={selectOperationalTab}
+            />
           </div>
         )}
         {tab === "health" && (
@@ -105,12 +119,12 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
         )}
         {tab === "replay" && (
           <div className="mc-grid mc-grid--wide">
-            <ReplayExplorer initialRunId={replayRunId ?? undefined} />
+            <ReplayExplorer initialRunId={replayRunId ?? undefined} onOpenEvidence={openEvidence} />
           </div>
         )}
         {tab === "artifacts" && (
           <div className="mc-grid">
-            <ArtifactBrowser />
+            <ArtifactBrowser initialEvidenceRef={evidenceRef ?? undefined} />
           </div>
         )}
       </main>
