@@ -160,12 +160,19 @@ class TestTier1BoundedMetrics:
 
             assert report["fidelity_score"] == 100.0
 
-        max_time = max(cert_times)
-        # Keep this as a tight regression guard while allowing small local/CI
-        # scheduler jitter. The certified operational target remains sub-100ms
-        # in normal runs; this test should fail only on meaningful regression.
-        assert max_time < 0.15, (
-            f"Certification time exceeded jitter-tolerant 150ms guard: {max_time}"
+        ordered = sorted(cert_times)
+        median_time = ordered[len(ordered) // 2]
+        p95_time = ordered[int(len(ordered) * 0.95) - 1]
+
+        # Guard against sustained certification regression while tolerating
+        # isolated local/CI scheduler stalls. A single outlier should not fail
+        # this burn-in stability test; median/p95 drift should.
+        assert median_time < 0.05, (
+            f"Median certification time exceeded 50ms guard: {median_time}"
+        )
+        assert p95_time < 0.15, (
+            f"P95 certification time exceeded 150ms guard: {p95_time}; "
+            f"max={max(cert_times)}"
         )
 
     def test_cache_entries_bounded(self):

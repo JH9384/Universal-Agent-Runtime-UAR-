@@ -63,6 +63,10 @@ class Sample:
     # 3. Snapshot accumulation
     snapshot_count: Optional[int] = None
     snapshot_retrieval_latency_ms: Optional[float] = None
+    entity_retention_capable: Optional[bool] = None
+    entity_retention_snapshot_count: Optional[int] = None
+    entity_integrity_status: Optional[str] = None
+    entity_integrity_issue_count: Optional[int] = None
     # 4. Report timing
     trust_report_duration_ms: Optional[float] = None
     burnin_report_duration_ms: Optional[float] = None
@@ -268,6 +272,52 @@ def probe_report_timing(
     }
 
 
+def probe_entity_pressure(
+    session: requests.Session, api_url: str
+) -> Dict[str, object]:
+    """Read Mission Control entity retention/integrity pressure fields."""
+    try:
+        start = time.perf_counter()
+        resp = session.get(f"{api_url}/api/uar/mission-control", timeout=10)
+        latency = (time.perf_counter() - start) * 1000
+        if resp.status_code != 200:
+            return {
+                "entity_retention_capable": None,
+                "entity_retention_snapshot_count": None,
+                "entity_integrity_status": "unknown",
+                "entity_integrity_issue_count": None,
+                "entity_pressure_latency_ms": round(latency, 1),
+            }
+
+        data = resp.json()
+        retention = data.get("entity_retention") or {}
+        integrity = data.get("entity_integrity") or {}
+        entities = retention.get("entities") or {}
+        snapshots = entities.get("snapshots") or {}
+        summary = integrity.get("summary") or {}
+        issues = integrity.get("issues") or []
+
+        issue_count = summary.get("issue_count")
+        if issue_count is None and isinstance(issues, list):
+            issue_count = len(issues)
+
+        return {
+            "entity_retention_capable": snapshots.get("retention_capable"),
+            "entity_retention_snapshot_count": snapshots.get("count"),
+            "entity_integrity_status": integrity.get("status", "unknown"),
+            "entity_integrity_issue_count": issue_count,
+            "entity_pressure_latency_ms": round(latency, 1),
+        }
+    except Exception as exc:
+        return {
+            "entity_retention_capable": None,
+            "entity_retention_snapshot_count": None,
+            "entity_integrity_status": "error",
+            "entity_integrity_issue_count": None,
+            "entity_pressure_error": str(exc),
+        }
+
+
 def probe_graph_growth(
     session: requests.Session, api_url: str, sample_run_id: str
 ) -> dict:
@@ -354,6 +404,7 @@ def run_burnin(
         cache = probe_cache_consistency(session, api_url)
         meta = probe_metadata_growth(session, api_url)
         snaps = probe_snapshot_accumulation(session, api_url)
+        entity_pressure = probe_entity_pressure(session, api_url)
         reports = probe_report_timing(session, api_url)
         graph = probe_graph_growth(session, api_url, sample_run_id)
 
@@ -367,6 +418,7 @@ def run_burnin(
             **cache,
             **meta,
             **snaps,
+            **entity_pressure,
             **reports,
             **graph,
         )
@@ -422,6 +474,7 @@ def run_burnin(
         meta_lats = _vals("metadata_scan_latency_ms")
         snap_counts = _vals("snapshot_count")
         snap_lats = _vals("snapshot_retrieval_latency_ms")
+        entity_issue_counts = _vals("entity_integrity_issue_count")
         trust_rpt = _vals("trust_report_duration_ms")
         burnin_rpt = _vals("burnin_report_duration_ms")
         node_counts = _vals("graph_node_count")
@@ -484,6 +537,26 @@ def run_burnin(
             "expected_snapshots": duration_hours,
             "avg_snapshot_retrieval_latency_ms": _avg(snap_lats),
             "max_snapshot_retrieval_latency_ms": _max(snap_lats),
+            # 3b. Entity retention/integrity pressure
+            "entity_retention_capable_rate": round(
+                sum(1 for s in samples if s.entity_retention_capable is True)
+                / len(samples),
+                4,
+            ) if samples else None,
+            "entity_retention_snapshot_count_start": (
+                samples[0].entity_retention_snapshot_count
+            ),
+            "entity_retention_snapshot_count_end": (
+                samples[-1].entity_retention_snapshot_count
+            ),
+            "entity_integrity_status_final": samples[-1].entity_integrity_status,
+            "entity_integrity_issue_count_start": (
+                samples[0].entity_integrity_issue_count
+            ),
+            "entity_integrity_issue_count_end": (
+                samples[-1].entity_integrity_issue_count
+            ),
+            "max_entity_integrity_issue_count": _max(entity_issue_counts),
             # 4. Report timing
             "avg_trust_report_duration_ms": _avg(trust_rpt),
             "max_trust_report_duration_ms": _max(trust_rpt),
