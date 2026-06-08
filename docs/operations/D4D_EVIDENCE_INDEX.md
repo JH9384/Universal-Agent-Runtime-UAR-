@@ -1,6 +1,6 @@
 # D4D Evidence Index
 
-> Status: evidence index scaffolded  
+> Status: focused D4C release gate passed locally  
 > Scope: D4D validation, burn-in, and release-readiness evidence
 
 ---
@@ -23,6 +23,18 @@ make d4c-release-gate
 
 This performs focused D4C validation and writes a local result stub.
 
+Latest local focused gate result:
+
+```text
+D4C RELEASE GATE COMPLETE
+```
+
+Evidence file:
+
+```text
+docs/operations/validation-results/d4c-validation-2026-06-08T11-10-45Z.md
+```
+
 ---
 
 ## Local Evidence
@@ -37,6 +49,12 @@ Template:
 
 ```text
 docs/operations/D4D_VALIDATION_STATUS_TEMPLATE.md
+```
+
+Confirmed local evidence:
+
+```text
+docs/operations/validation-results/d4c-validation-2026-06-08T11-10-45Z.md
 ```
 
 ---
@@ -79,14 +97,14 @@ validation.log
 
 At least one validation result source:
 
-- [ ] local validation result file exists,
+- [x] local validation result file exists,
 - [ ] CI validation artifact exists.
 
 And all gates pass:
 
-- [ ] focused backend D4C tests,
-- [ ] focused frontend D4C tests,
-- [ ] frontend production build,
+- [x] focused backend D4C tests,
+- [x] focused frontend D4C tests,
+- [x] frontend production build,
 - [ ] broader regression or explicitly accepted decomposed checks.
 
 ---
@@ -95,13 +113,13 @@ And all gates pass:
 
 Confirm the release still does not add:
 
-- [ ] incident workbench,
-- [ ] new dashboard,
-- [ ] plugin registry,
-- [ ] incident store,
-- [ ] fleet store,
-- [ ] second trust score,
-- [ ] new evidence pipeline.
+- [x] incident workbench,
+- [x] new dashboard,
+- [x] plugin registry,
+- [x] incident store,
+- [x] fleet store,
+- [x] second trust score,
+- [x] new evidence pipeline.
 
 ---
 
@@ -115,3 +133,5 @@ Promotion decision should reference:
 4. explicit tag approval.
 
 Do not tag from this index alone.
+
+Current decision: focused gate passed; broader regression evidence is still required before promotion or tag approval.
