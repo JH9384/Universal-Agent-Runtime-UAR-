@@ -10,7 +10,7 @@ import importlib.util
 import inspect
 import logging
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 from .exceptions import UARError
 
@@ -105,6 +105,28 @@ def skill_guard(
         return wrapper
 
     return decorator
+
+
+def require_field(
+    mapping: Mapping[str, Any] | None,
+    field: str,
+    *,
+    label: str = "metadata",
+    status: str = "failed",
+) -> Optional[Dict[str, str]]:
+    """Return an error dict if a required field is missing or empty.
+
+    Several skill modules use this small guard to keep input validation
+    consistent without raising during skill registration or execution.
+    """
+    if mapping is None:
+        return {"status": status, "error": f"{field} is required in {label}"}
+
+    value = mapping.get(field)
+    if value is None or value == "":
+        return {"status": status, "error": f"{field} is required in {label}"}
+
+    return None
 
 
 def require_package(
