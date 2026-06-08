@@ -57,10 +57,25 @@ describe('ArtifactBrowser evidence preview', () => {
     render(<ArtifactBrowser />)
 
     expect(await screen.findByText('Evidence Pack v2 Preview')).toBeInTheDocument()
+    expect(screen.getByText('Review evidence pack preview, then export markdown for release or incident review.')).toBeInTheDocument()
     expect(screen.getByText('warning')).toBeInTheDocument()
     expect(screen.getAllByText('run-failed-1').length).toBeGreaterThan(0)
     expect(screen.getByText(/Fleet status: \*\*warning\*\*/)).toBeInTheDocument()
     expect(screen.getByText(/run:run-failed-1/)).toBeInTheDocument()
+  })
+
+  it('focuses an incoming evidence ref and highlights the matching run', async () => {
+    mockListRuns.mockResolvedValue([
+      { run_id: 'run-linked-1', status: 'failed', skills: ['echo'] },
+      { run_id: 'run-other-1', status: 'completed', skills: ['echo'] },
+    ])
+
+    render(<ArtifactBrowser initialEvidenceRef="run:run-linked-1" />)
+
+    expect(await screen.findByDisplayValue('run:run-linked-1')).toBeInTheDocument()
+    expect(screen.getByText('Review linked evidence run:run-linked-1.')).toBeInTheDocument()
+    expect(screen.getByText('Selected evidence match: run:run-linked-1')).toBeInTheDocument()
+    expect(screen.queryByText('run-other-1')).not.toBeInTheDocument()
   })
 
   it('renders recurrence context from Mission Control incident summary', async () => {
