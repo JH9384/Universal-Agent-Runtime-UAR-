@@ -8,6 +8,15 @@ const mockUseApiFetch = vi.fn()
 const mockDownloadMarkdown = vi.fn()
 const mockWriteText = vi.fn()
 
+function stubClipboard() {
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: mockWriteText,
+    },
+  })
+}
+
 vi.mock('../../api/dashboard', () => ({
   dashboardApi: {
     listRuns: (...args: unknown[]) => mockListRuns(...args),
@@ -35,12 +44,7 @@ beforeEach(() => {
     error: null,
     refetch: vi.fn(),
   })
-  Object.defineProperty(navigator, 'clipboard', {
-    configurable: true,
-    value: {
-      writeText: mockWriteText,
-    },
-  })
+  stubClipboard()
 })
 
 describe('ArtifactBrowser evidence preview', () => {
@@ -96,6 +100,7 @@ describe('ArtifactBrowser evidence preview', () => {
 
   it('copies Evidence Pack markdown', async () => {
     const user = userEvent.setup()
+    stubClipboard()
     mockListRuns.mockResolvedValue([
       { run_id: 'run-failed-2', status: 'failed', skills: ['echo'] },
     ])
