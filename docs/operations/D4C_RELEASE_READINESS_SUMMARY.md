@@ -1,6 +1,6 @@
 # D4C Release Readiness Summary
 
-> Status: release-hygiene support added  
+> Status: release-gate support added  
 > Scope: D4C fleet/operator/recurrence/evidence spine
 
 ---
@@ -27,17 +27,23 @@ D4C now has a reuse-first operator path:
 
 ---
 
-## Validation Commands
+## Canonical Release Gate
 
 Run:
 
 ```bash
-make validate-d4c
+make d4c-release-gate
 ```
 
-Then capture a local result stub:
+This performs:
+
+1. focused D4C validation,
+2. validation result stub generation.
+
+Equivalent manual sequence:
 
 ```bash
+make validate-d4c
 make d4c-result
 ```
 
@@ -104,8 +110,8 @@ Still prohibited:
 
 The next move is validation, not feature expansion:
 
-1. run `make validate-d4c`,
+1. run `make d4c-release-gate`,
 2. review CI artifact or local output,
-3. record result with `make d4c-result`,
+3. edit generated validation result if needed,
 4. fix failures,
 5. only then consider release tagging or broader regression.
