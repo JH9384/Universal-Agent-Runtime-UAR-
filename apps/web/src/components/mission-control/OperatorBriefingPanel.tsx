@@ -41,6 +41,7 @@ interface MissionControlSnapshot {
 
 interface OperatorBriefingPanelProps {
   onOpenReplay?: (runId: string) => void;
+  onOpenEvidence?: (ref: string) => void;
   onSelectTab?: (tab: "health" | "topology" | "replay" | "artifacts") => void;
 }
 
@@ -55,7 +56,24 @@ function _priority(snapshot: MissionControlSnapshot | null): string {
   return "nominal";
 }
 
-export function OperatorBriefingPanel({ onOpenReplay, onSelectTab }: OperatorBriefingPanelProps) {
+function nextAction(replayRun: string | null, recommendationIds: string[], evidenceRefs: string[], priority: string): string {
+  if (replayRun && recommendationIds.length > 0) return "Open replay, inspect evidence, then record recommendation outcome.";
+  if (replayRun) return "Open replay and verify the run path before closing the signal.";
+  if (evidenceRefs.length > 0) return "Open linked evidence and confirm whether this signal needs an operator outcome.";
+  if (priority !== "nominal") return "Open Health and validate runtime pressure before proceeding.";
+  return "Monitor fleet health. No operator action required.";
+}
+
+function nextReason(replayRun: string | null, recommendationIds: string[], incidentIds: string[], evidenceRefs: string[]): string {
+  const parts = [];
+  if (replayRun) parts.push(`replay ${replayRun}`);
+  if (recommendationIds.length) parts.push(`${recommendationIds.length} recommendation(s)`);
+  if (incidentIds.length) parts.push(`${incidentIds.length} incident(s)`);
+  if (evidenceRefs.length) parts.push(`${evidenceRefs.length} evidence ref(s)`);
+  return parts.length ? `Linked context: ${parts.join(" · ")}.` : "No linked context is interrupting the operator loop.";
+}
+
+export function OperatorBriefingPanel({ onOpenReplay, onOpenEvidence, onSelectTab }: OperatorBriefingPanelProps) {
   const { data, loading, error, refetch } = useApiFetch<MissionControlSnapshot>(
     "/api/uar/mission-control",
     { interval: 30_000 }
@@ -67,6 +85,14 @@ export function OperatorBriefingPanel({ onOpenReplay, onSelectTab }: OperatorBri
   const recommendationIds = topSignal?.linkage?.recommendations ?? [];
   const incidentIds = topSignal?.linkage?.incidents ?? [];
   const evidenceRefs = topSignal?.linkage?.evidence_refs ?? [];
+  const operatorAction = useMemo(
+    () => nextAction(replayRun, recommendationIds, evidenceRefs, priority),
+    [replayRun, recommendationIds, evidenceRefs, priority]
+  );
+  const operatorReason = useMemo(
+    () => nextReason(replayRun, recommendationIds, incidentIds, evidenceRefs),
+    [replayRun, recommendationIds, incidentIds, evidenceRefs]
+  );
 
   if (loading && !data) return <section className="mission-panel">Loading briefing…</section>;
   if (error) return <section className="mission-panel"><p className="error">Briefing failed: {error}</p></section>;
@@ -80,6 +106,12 @@ export function OperatorBriefingPanel({ onOpenReplay, onSelectTab }: OperatorBri
 
       <div className={`mc-briefing-priority mc-briefing-priority--${priority}`}>
         {priority.toUpperCase()}
+      </div>
+
+      <div className="mc-next-action">
+        <h3>Next action</h3>
+        <p className="mc-subtext"><strong>{operatorAction}</strong></p>
+        <p className="mc-meta--xs">{operatorReason}</p>
       </div>
 
       <dl>
@@ -112,13 +144,20 @@ export function OperatorBriefingPanel({ onOpenReplay, onSelectTab }: OperatorBri
               <button type="button" className="mc-filter-btn" onClick={() => onSelectTab?.("health")}>
                 Open Health
               </button>
-              <button type="button" className="mc-filter-btn" onClick={() => onSelectTab?.("artifacts")}>
+              <button type="button" className="mc-filter-btn" onClick={() => evidenceRefs[0] ? onOpenEvidence?.(evidenceRefs[0]) : onSelectTab?.("artifacts")}>
                 Evidence
               </button>
             </div>
             <p className="mc-meta--xs">Incidents: {incidentIds.length ? incidentIds.join(", ") : "none"}</p>
             <p className="mc-meta--xs">Recommendations: {recommendationIds.length ? recommendationIds.join(", ") : "none"}</p>
-            <p className="mc-meta--xs">Evidence refs: {evidenceRefs.length ? evidenceRefs.join(", ") : "none"}</p>
+            <div className="mc-evidence-chips" aria-label="Evidence references">
+              <span className="mc-meta--xs">Evidence refs: </span>
+              {evidenceRefs.length ? evidenceRefs.map((ref) => (
+                <button key={ref} type="button" className="mc-link-chip" onClick={() => onOpenEvidence?.(ref)}>
+                  {ref}
+                </button>
+              )) : <span className="mc-meta--xs">none</span>}
+            </div>
           </div>
         ) : (
           <p className="mc-status-summary--ok">No interrupting fleet signal. Monitor fleet health.</p>
