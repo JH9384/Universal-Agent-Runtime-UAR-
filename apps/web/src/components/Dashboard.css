@@ -204,6 +204,19 @@
   background: rgba(34, 197, 94, 0.14);
 }
 
+.mc-next-action {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #0b0c10;
+  border-left: 3px solid #66fcf1;
+  border-radius: 4px;
+  background: rgba(11, 12, 16, 0.55);
+}
+
+.mc-next-action p {
+  margin: 0.25rem 0;
+}
+
 .mc-briefing-section {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -228,6 +241,57 @@
   font-size: 0.75rem;
   line-height: 1.4;
   white-space: pre-wrap;
+}
+
+.mc-evidence-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+
+.mc-link-chip,
+.mc-run-select {
+  border: 0;
+  background: transparent;
+  color: #66fcf1;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+}
+
+.mc-link-chip {
+  padding: 1px 6px;
+  border: 1px solid #45a29e;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  background: #0b0c10;
+}
+
+.mc-link-chip:hover,
+.mc-run-select:hover {
+  color: #ffffff;
+}
+
+.mc-run-detail {
+  margin-top: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid #0b0c10;
+  border-radius: 4px;
+  background: rgba(11, 12, 16, 0.48);
+}
+
+.mc-run-detail dl {
+  margin-bottom: 0.5rem;
+}
+
+.mc-artifact-row--highlight {
+  padding: 0.55rem;
+  border: 1px solid #22c55e;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.08);
 }
 
 /* Row layouts */
@@ -406,4 +470,11 @@
   background: #0b0c10;
   color: #c5c6c7;
   font-size: 0.82rem;
+}
+
+.mc-field-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+  color: #45a29e;
 }
