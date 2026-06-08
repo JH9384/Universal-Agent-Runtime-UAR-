@@ -132,6 +132,69 @@ class MetadataEntityStore:
         )
 
     # ------------------------------------------------------------------
+    # Retention
+    # ------------------------------------------------------------------
+
+    def delete_by_id(self, entity_id: str) -> bool:
+        """Delete a single entity if the metadata backend supports deletion."""
+        key = self.key(entity_id)
+        try:
+            if hasattr(store, "delete_metadata"):
+                store.delete_metadata(key)
+                return True
+            if hasattr(store, "delete_meta"):
+                store.delete_meta(key)
+                return True
+        except Exception as exc:
+            logger.warning("%s delete failed for %s: %s", self._namespace, key, exc)
+        return False
+
+    def prune_to_limit(self, limit: int) -> int:
+        """Keep only the newest *limit* entities for this namespace.
+
+        Requires ``list_meta_keys`` for complete discovery. If the store cannot
+        enumerate metadata keys, this is a no-op rather than risking partial
+        deletion through the sequential fallback path.
+        """
+        if limit <= 0:
+            return 0
+        if not hasattr(store, "list_meta_keys"):
+            return 0
+
+        entities: List[Dict[str, Any]] = []
+        seen: Set[str] = set()
+        try:
+            for key in store.list_meta_keys():
+                if not key.startswith(f"{self._namespace}:"):
+                    continue
+                raw = store.get_metadata(key)
+                entity = self._decode(raw)
+                if entity is None:
+                    continue
+                eid = entity.get(self._id_field)
+                if eid is None:
+                    continue
+                eid_s = str(eid)
+                if eid_s in seen:
+                    continue
+                seen.add(eid_s)
+                entities.append(entity)
+        except Exception as exc:
+            logger.warning("%s retention scan failed: %s", self._namespace, exc)
+            return 0
+
+        entities.sort(
+            key=lambda x: x.get(self._sort_field, 0),
+            reverse=True,
+        )
+        removed = 0
+        for entity in entities[limit:]:
+            eid = entity.get(self._id_field)
+            if eid is not None and self.delete_by_id(str(eid)):
+                removed += 1
+        return removed
+
+    # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 

@@ -41,7 +41,7 @@ _snapshot_store = MetadataEntityStore(
     id_field="timestamp",
     sort_field="timestamp",
     max_index_scan=100,
-    use_list_meta_keys=False,
+    use_list_meta_keys=True,
 )
 _inbox_store = MetadataEntityStore(
     "operator:inbox",
@@ -87,6 +87,10 @@ def _snapshot_key(timestamp: int) -> str:
 
 def _persist_snapshot(snapshot: Dict[str, Any]) -> None:
     _snapshot_store.persist(snapshot)
+    # Keep operator time-machine snapshots bounded. 168 ~= hourly snapshots
+    # for one week. The helper is best-effort if the backing store does not
+    # expose metadata deletion.
+    _snapshot_store.prune_to_limit(168)
 
 
 def _get_snapshot_for_day(day_timestamp: int) -> Optional[Dict[str, Any]]:
