@@ -37,6 +37,42 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
 
+      - name: Diagnose frontend dependency inputs
+        run: |
+          node --version
+          npm --version
+          test -f apps/web/package.json
+          test -f apps/web/package-lock.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          package = json.loads(Path('apps/web/package.json').read_text())
+          lock = json.loads(Path('apps/web/package-lock.json').read_text())
+          root_lock = lock.get('packages', {}).get('', {})
+
+          package_deps = package.get('dependencies', {})
+          lock_deps = root_lock.get('dependencies', {})
+          package_dev = package.get('devDependencies', {})
+          lock_dev = root_lock.get('devDependencies', {})
+
+          mismatches = []
+          for name, version in sorted(package_deps.items()):
+              if lock_deps.get(name) != version:
+                  mismatches.append((name, version, lock_deps.get(name)))
+          for name, version in sorted(package_dev.items()):
+              if lock_dev.get(name) != version:
+                  mismatches.append((name, version, lock_dev.get(name)))
+
+          if mismatches:
+              print('package-lock root dependency mismatches:')
+              for name, pkg_version, lock_version in mismatches:
+                  print(f'- {name}: package.json={pkg_version!r}, package-lock={lock_version!r}')
+              raise SystemExit(1)
+
+          print('package-lock root dependency metadata matches package.json')
+          PY
+
       - name: Install frontend dependencies for gate
         run: |
           cd apps/web
