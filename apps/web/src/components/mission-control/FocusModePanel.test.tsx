@@ -62,9 +62,10 @@ describe('FocusModePanel', () => {
     render(<FocusModePanel />)
 
     expect(screen.getByText('Focus Mode')).toBeInTheDocument()
+    expect(screen.getByText('Operator move')).toBeInTheDocument()
+    expect(screen.getAllByText('Monitor.').length).toBeGreaterThan(0)
     expect(screen.getByText('Primary signal')).toBeInTheDocument()
     expect(screen.getByText('No interrupting signal.')).toBeInTheDocument()
-    expect(screen.getByText('Monitor.')).toBeInTheDocument()
   })
 
   it('renders top signal and opens replay', async () => {
@@ -92,8 +93,9 @@ describe('FocusModePanel', () => {
 
     render(<FocusModePanel onOpenReplay={onOpenReplay} />)
 
+    expect(screen.getByText('Review replay, verify evidence, record outcome.')).toBeInTheDocument()
     expect(screen.getByText('Service signal: svc-a: 3 failures across 3 runs')).toBeInTheDocument()
-    expect(screen.getByText('run:run-focus-1')).toBeInTheDocument()
+    expect(screen.getAllByText('run:run-focus-1').length).toBeGreaterThan(0)
     expect(screen.getByText('Open replay and record outcome.')).toBeInTheDocument()
     expect(screen.getByText('Record outcome')).toBeInTheDocument()
 
@@ -124,7 +126,35 @@ describe('FocusModePanel', () => {
     expect(onOpenReplay).toHaveBeenCalledWith('fr2')
   })
 
-  it('routes evidence button to artifacts', async () => {
+  it('routes evidence button to first linked evidence ref', async () => {
+    const user = userEvent.setup()
+    const onOpenEvidence = vi.fn()
+    mockUseApiFetch.mockReturnValue({
+      data: _snapshot({
+        id: 'fleet:service:svc-a',
+        level: 'critical',
+        scope: 'service',
+        title: 'Service signal: svc-a',
+        message: '3 failures across 3 runs',
+        latest_run_id: 'run-focus-1',
+        linkage: {
+          replay: { run_id: 'run-focus-1', available: true },
+          evidence_refs: ['run:run-focus-1'],
+        },
+      }),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<FocusModePanel onOpenEvidence={onOpenEvidence} />)
+
+    await user.click(screen.getByRole('button', { name: 'Evidence' }))
+
+    expect(onOpenEvidence).toHaveBeenCalledWith('run:run-focus-1')
+  })
+
+  it('routes evidence button to artifacts when no evidence ref exists', async () => {
     const user = userEvent.setup()
     const onSelectTab = vi.fn()
     mockUseApiFetch.mockReturnValue({
