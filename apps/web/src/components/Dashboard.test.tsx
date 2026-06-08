@@ -108,6 +108,24 @@ describe('Dashboard operator loop', () => {
     expect(await screen.findByDisplayValue('run-brief-1')).toBeInTheDocument()
   })
 
+  it('moves from briefing evidence to artifacts with evidence focus', async () => {
+    const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('button', { name: 'Evidence' }))
+
+    expect(screen.getByRole('tab', { name: 'Artifacts' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByDisplayValue('run:run-brief-1')).toBeInTheDocument()
+    expect(screen.getByText('Review linked evidence run:run-brief-1.')).toBeInTheDocument()
+  })
+
   it('moves from focus mode to replay tab with run filter', async () => {
     const user = userEvent.setup()
     mockUseApiFetch.mockReturnValue({
@@ -143,5 +161,25 @@ describe('Dashboard operator loop', () => {
 
     expect(screen.getByRole('tab', { name: 'Replay' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByDisplayValue('run-recur-1')).toBeInTheDocument()
+  })
+
+  it('moves from replay detail to artifacts with generated run evidence', async () => {
+    const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('button', { name: /Replay run-brief/i }))
+    await screen.findByDisplayValue('run-brief-1')
+    await user.click(screen.getByRole('button', { name: 'run-brief-1' }))
+    await user.click(screen.getByRole('button', { name: 'Open Evidence' }))
+
+    expect(screen.getByRole('tab', { name: 'Artifacts' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByDisplayValue('run:run-brief-1')).toBeInTheDocument()
   })
 })
