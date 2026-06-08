@@ -63,6 +63,7 @@ describe('OperatorBriefingPanel', () => {
 
     expect(screen.getByText('Operator Briefing')).toBeInTheDocument()
     expect(screen.getByText('NOMINAL')).toBeInTheDocument()
+    expect(screen.getByText('Monitor fleet health. No operator action required.')).toBeInTheDocument()
     expect(screen.getByText('No interrupting fleet signal. Monitor fleet health.')).toBeInTheDocument()
     expect(screen.queryByText('Record outcome')).not.toBeInTheDocument()
   })
@@ -93,11 +94,13 @@ describe('OperatorBriefingPanel', () => {
     render(<OperatorBriefingPanel onOpenReplay={onOpenReplay} />)
 
     expect(screen.getByText('CRITICAL')).toBeInTheDocument()
+    expect(screen.getByText('Open replay, inspect evidence, then record recommendation outcome.')).toBeInTheDocument()
+    expect(screen.getByText('Linked context: replay run-1 · 1 recommendation(s) · 1 incident(s) · 1 evidence ref(s).')).toBeInTheDocument()
     expect(screen.getByText('Service signal: svc-a')).toBeInTheDocument()
     expect(screen.getByText('3 failures across 3 runs')).toBeInTheDocument()
     expect(screen.getByText('Incidents: inc-1')).toBeInTheDocument()
     expect(screen.getByText('Recommendations: rec-1')).toBeInTheDocument()
-    expect(screen.getByText('Evidence refs: run:run-1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'run:run-1' })).toBeInTheDocument()
     expect(screen.getByText('Record outcome')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Replay run-1/i }))
@@ -127,7 +130,35 @@ describe('OperatorBriefingPanel', () => {
     expect(onOpenReplay).toHaveBeenCalledWith('ir2')
   })
 
-  it('routes evidence action to artifacts tab', async () => {
+  it('routes evidence action to the first linked evidence ref', async () => {
+    const user = userEvent.setup()
+    const onOpenEvidence = vi.fn()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl({
+        id: 'fleet:service:svc-a',
+        level: 'warning',
+        scope: 'service',
+        title: 'Service signal: svc-a',
+        message: '1 failure across 1 run',
+        latest_run_id: 'run-2',
+        linkage: {
+          replay: { run_id: 'run-2', available: true },
+          evidence_refs: ['run:run-2'],
+        },
+      }),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<OperatorBriefingPanel onOpenEvidence={onOpenEvidence} />)
+
+    await user.click(screen.getByRole('button', { name: 'Evidence' }))
+
+    expect(onOpenEvidence).toHaveBeenCalledWith('run:run-2')
+  })
+
+  it('falls back to artifacts tab when no evidence ref exists', async () => {
     const user = userEvent.setup()
     const onSelectTab = vi.fn()
     mockUseApiFetch.mockReturnValue({
