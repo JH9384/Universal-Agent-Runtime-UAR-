@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import logging
+import os
 from functools import wraps
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
@@ -127,6 +128,25 @@ def require_field(
         return {"status": status, "error": f"{field} is required in {label}"}
 
     return None
+
+
+def require_env(
+    name: Union[str, List[str]], *,
+    install_hint: Optional[str] = None,
+    status: str = "failed",
+) -> Optional[Dict[str, str]]:
+    """Return an error dict if required environment variables are missing."""
+    names = [name] if isinstance(name, str) else name
+    missing = [env_name for env_name in names if not os.getenv(env_name)]
+    if not missing:
+        return None
+
+    hint = f" {install_hint}" if install_hint else ""
+    env_list = ", ".join(missing)
+    return {
+        "status": status,
+        "error": f"Missing required environment variable(s): {env_list}.{hint}".strip(),
+    }
 
 
 def require_package(
