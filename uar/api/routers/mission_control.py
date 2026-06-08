@@ -357,6 +357,48 @@ async def get_alerts_summary(
                 "tab": "failures",
             })
 
+    # ---- Entity pressure alerts ----
+    entity_integrity = mc.get("entity_integrity") or {}
+    entity_retention = mc.get("entity_retention") or {}
+
+    integrity_status = entity_integrity.get("status")
+    integrity_summary = entity_integrity.get("summary") or {}
+    integrity_issues = entity_integrity.get("issues") or []
+    issue_count = integrity_summary.get("issue_count")
+    if issue_count is None and isinstance(integrity_issues, list):
+        issue_count = len(integrity_issues)
+
+    if integrity_status == "fail":
+        alerts.append({
+            "level": "critical",
+            "source": "entity_pressure",
+            "message": (
+                f"Operator entity integrity failed"
+                f" ({issue_count or 0} issue(s))"
+            ),
+            "tab": "health",
+        })
+    elif integrity_status == "warn" or (issue_count or 0) > 0:
+        alerts.append({
+            "level": "warning",
+            "source": "entity_pressure",
+            "message": (
+                f"Operator entity integrity warning"
+                f" ({issue_count or 0} issue(s))"
+            ),
+            "tab": "health",
+        })
+
+    entities = entity_retention.get("entities") or {}
+    snapshot_entity = entities.get("snapshots") or {}
+    if snapshot_entity.get("retention_capable") is False:
+        alerts.append({
+            "level": "warning",
+            "source": "entity_pressure",
+            "message": "Operator snapshot retention is not fully enforceable",
+            "tab": "health",
+        })
+
     # ---- Warning alerts ----
     if burnin_passed is not None and not burnin_passed:
         alerts.append({
