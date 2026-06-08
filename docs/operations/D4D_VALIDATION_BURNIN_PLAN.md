@@ -19,6 +19,18 @@ Fleet Signal Spine → Operator Loop → Incident Recurrence → Evidence Previe
 
 ---
 
+## Operating Index
+
+Use the D4D evidence index as the central navigation point:
+
+```text
+docs/operations/D4D_EVIDENCE_INDEX.md
+```
+
+It links the focused gate, local results, CI artifacts, release documents, and anti-sprawl evidence.
+
+---
+
 ## Phase Goals
 
 1. Run the focused D4C release gate.
@@ -88,6 +100,12 @@ At least one must exist before promotion:
 
 - CI artifact: `d4c-validation-${{ github.run_id }}` containing `validation.log`,
 - local validation result under `docs/operations/validation-results/`.
+
+Track evidence in:
+
+```text
+docs/operations/D4D_EVIDENCE_INDEX.md
+```
 
 ---
 
