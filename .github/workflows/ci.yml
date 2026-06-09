@@ -126,17 +126,48 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          mkdir -p ../../artifacts/uar-ci/web
+          set -o pipefail
+          npm ci 2>&1 | tee ../../artifacts/uar-ci/web/npm-ci.log
+
+      - name: Upload web npm ci log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-npm-ci-log
+          path: artifacts/uar-ci/web/npm-ci.log
+          retention-days: 7
 
       - name: Run tests
-        run: npm run test:run
+        run: |
+          mkdir -p ../../artifacts/uar-ci/web
+          set -o pipefail
+          npm run test:run 2>&1 | tee ../../artifacts/uar-ci/web/test-run.log
+
+      - name: Upload web test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-test-log
+          path: artifacts/uar-ci/web/test-run.log
+          retention-days: 7
 
       - name: Build
-        run: npm run build
+        run: |
+          mkdir -p ../../artifacts/uar-ci/web
+          set -o pipefail
+          npm run build 2>&1 | tee ../../artifacts/uar-ci/web/build.log
+
+      - name: Upload web build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build-log
+          path: artifacts/uar-ci/web/build.log
+          retention-days: 7
 
   operator-dashboard-tests:
     runs-on: ubuntu-latest
@@ -151,17 +182,48 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: apps/operator-dashboard/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          mkdir -p ../../artifacts/uar-ci/operator-dashboard
+          set -o pipefail
+          npm ci 2>&1 | tee ../../artifacts/uar-ci/operator-dashboard/npm-ci.log
+
+      - name: Upload operator dashboard npm ci log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-dashboard-npm-ci-log
+          path: artifacts/uar-ci/operator-dashboard/npm-ci.log
+          retention-days: 7
 
       - name: Run tests
-        run: npx vitest run
+        run: |
+          mkdir -p ../../artifacts/uar-ci/operator-dashboard
+          set -o pipefail
+          npx vitest run 2>&1 | tee ../../artifacts/uar-ci/operator-dashboard/test-run.log
+
+      - name: Upload operator dashboard test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-dashboard-test-log
+          path: artifacts/uar-ci/operator-dashboard/test-run.log
+          retention-days: 7
 
       - name: Build
-        run: npm run build
+        run: |
+          mkdir -p ../../artifacts/uar-ci/operator-dashboard
+          set -o pipefail
+          npm run build 2>&1 | tee ../../artifacts/uar-ci/operator-dashboard/build.log
+
+      - name: Upload operator dashboard build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-dashboard-build-log
+          path: artifacts/uar-ci/operator-dashboard/build.log
+          retention-days: 7
 
   web-svelte-tests:
     runs-on: ubuntu-latest
@@ -176,20 +238,62 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: apps/web-svelte/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          mkdir -p ../../artifacts/uar-ci/web-svelte
+          set -o pipefail
+          npm ci 2>&1 | tee ../../artifacts/uar-ci/web-svelte/npm-ci.log
+
+      - name: Upload web-svelte npm ci log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-svelte-npm-ci-log
+          path: artifacts/uar-ci/web-svelte/npm-ci.log
+          retention-days: 7
 
       - name: Run tests
-        run: npm run test:run
+        run: |
+          mkdir -p ../../artifacts/uar-ci/web-svelte
+          set -o pipefail
+          npm run test:run 2>&1 | tee ../../artifacts/uar-ci/web-svelte/test-run.log
+
+      - name: Upload web-svelte test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-svelte-test-log
+          path: artifacts/uar-ci/web-svelte/test-run.log
+          retention-days: 7
 
       - name: Build
-        run: npm run build
+        run: |
+          mkdir -p ../../artifacts/uar-ci/web-svelte
+          set -o pipefail
+          npm run build 2>&1 | tee ../../artifacts/uar-ci/web-svelte/build.log
+
+      - name: Upload web-svelte build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-svelte-build-log
+          path: artifacts/uar-ci/web-svelte/build.log
+          retention-days: 7
 
       - name: Check
-        run: npm run check
+        run: |
+          mkdir -p ../../artifacts/uar-ci/web-svelte
+          set -o pipefail
+          npm run check 2>&1 | tee ../../artifacts/uar-ci/web-svelte/check.log
+
+      - name: Upload web-svelte check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-svelte-check-log
+          path: artifacts/uar-ci/web-svelte/check.log
+          retention-days: 7
 
   sign-uor-artifacts:
     runs-on: ubuntu-latest
