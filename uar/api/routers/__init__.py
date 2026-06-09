@@ -16,7 +16,13 @@ from .fleet import router as fleet_router
 # Preserve the existing public export consumed by uar.boot while allowing
 # Trust Spine routes to be mounted without expanding boot wiring.
 uor_router = APIRouter()
-uor_router.include_router(_uor_router)
+
+# The legacy UOR object/agent router uses postponed ``Dict[str, Any]`` return
+# annotations that can become unresolved Pydantic v2 forward references under
+# randomized test import order. Keep the runtime routes mounted, but exclude
+# this legacy surface from OpenAPI until its response schemas are normalized.
+uor_router.include_router(_uor_router, include_in_schema=False)
+
 uor_router.include_router(replay_confidence_router)
 uor_router.include_router(burn_in_router)
 uor_router.include_router(runtime_health_router)
