@@ -1,5 +1,7 @@
 import logging
 import os
+from typing import Any, Dict, List, Optional
+
 from uar.version import get_uar_version
 from uar.compat.uor_version import get_uor_version
 
@@ -59,6 +61,55 @@ logger = logging.getLogger(__name__)
 from uar.boot import create_app  # noqa: E402
 
 app = create_app()
+
+
+def _rebuild_openapi_type_adapters() -> None:
+    """Make FastAPI OpenAPI generation stable under randomized test order."""
+    try:
+        from fastapi.routing import APIRoute
+    except Exception:
+        return
+
+    namespace = {
+        "Any": Any,
+        "Dict": Dict,
+        "List": List,
+        "Optional": Optional,
+        "dict": dict,
+        "list": list,
+    }
+
+    def rebuild_field(field: Any) -> None:
+        adapter = getattr(field, "_type_adapter", None)
+        rebuild = getattr(adapter, "rebuild", None)
+        if not callable(rebuild):
+            return
+        try:
+            rebuild(_types_namespace=namespace)
+        except TypeError:
+            rebuild()
+        except Exception as exc:
+            logger.debug("OpenAPI field rebuild skipped: %s", exc)
+
+    for route in getattr(app, "routes", []):
+        if not isinstance(route, APIRoute):
+            continue
+        rebuild_field(getattr(route, "body_field", None))
+        dependant = getattr(route, "dependant", None)
+        if dependant is None:
+            continue
+        for attr in (
+            "path_params",
+            "query_params",
+            "header_params",
+            "cookie_params",
+            "body_params",
+        ):
+            for field in getattr(dependant, attr, []) or []:
+                rebuild_field(field)
+
+
+_rebuild_openapi_type_adapters()
 logger.info(
     "UAR API server module ready (%s, UOR %s)",
     get_uar_version(),
