@@ -6,17 +6,9 @@ properly handle exceptions and return the expected status values
 based on their configuration.
 """
 
-import asyncio
+from unittest.mock import MagicMock
 
-import pytest
-from unittest.mock import MagicMock, patch
 from uar.core.contracts import PipelineContext
-from uar.core.exceptions import (
-    SkillExecutionError,
-    TimeoutError,
-    UARError,
-    ValidationError,
-)
 from uar.core.skill_utils import skill_guard
 
 
