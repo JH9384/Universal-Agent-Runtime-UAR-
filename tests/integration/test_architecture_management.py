@@ -10,6 +10,7 @@ Covers:
   - Circuit breaker decorator integration
 """
 
+import asyncio
 from __future__ import annotations
 
 import threading
@@ -146,7 +147,7 @@ class TestCircuitBreakerDecorator:
     """@with_circuit_breaker integration patterns."""
 
     def test_successful_call_passes_through(self):
-        reset_circuit_breaker("stable_svc")
+        asyncio.run(reset_circuit_breaker("stable_svc"))
         call_count = [0]
 
         @with_circuit_breaker("stable_svc", failure_threshold=3)
@@ -159,7 +160,7 @@ class TestCircuitBreakerDecorator:
         assert call_count[0] == 1
 
     def test_failure_increments_count(self):
-        reset_circuit_breaker("flaky_svc")
+        asyncio.run(reset_circuit_breaker("flaky_svc"))
         call_count = [0]
 
         @with_circuit_breaker("flaky_svc", failure_threshold=2)
@@ -178,7 +179,7 @@ class TestCircuitBreakerDecorator:
 
     def test_circuit_resets_after_timeout(self, monkeypatch):
         monkeypatch.setenv("UAR_CB_HALF_OPEN_AFTER", "0")
-        reset_circuit_breaker("recover_svc")
+        asyncio.run(reset_circuit_breaker("recover_svc"))
 
         call_count = [0]
 
