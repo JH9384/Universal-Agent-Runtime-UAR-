@@ -25,35 +25,40 @@ _batch_pool_shutdown = False
 _batch_pool_lock = threading.Lock()
 
 
+def _new_batch_pool() -> ThreadPoolExecutor:
+    return ThreadPoolExecutor(
+        max_workers=_BATCH_POOL_MAX,
+        thread_name_prefix="uar-batch",
+    )
+
+
 def _get_batch_pool() -> ThreadPoolExecutor:
+    """Return a live shared batch pool, recreating after test/order shutdowns.
+
+    The pool is intentionally shared for normal runtime efficiency. Some test
+    and shutdown paths call the module-level shutdown helper before later batch
+    tests execute under randomized ordering. In that case a stale executor can
+    still be referenced by older ``BatchProcessor`` instances, so this helper
+    must create a fresh pool and clear the shutdown marker before new work is
+    scheduled.
+    """
+
     global _batch_pool, _batch_pool_shutdown
     if _batch_pool is not None and not _batch_pool_shutdown:
         return _batch_pool
     with _batch_pool_lock:
-        if _batch_pool is not None and not _batch_pool_shutdown:
-            return _batch_pool
-        if _batch_pool_shutdown:
-            # Pool was shut down (e.g. by atexit) while we were waiting
-            # for the lock; do not recreate — let the caller handle it.
-            _batch_pool = ThreadPoolExecutor(
-                max_workers=_BATCH_POOL_MAX,
-                thread_name_prefix="uar-batch",
-            )
+        if _batch_pool is None or _batch_pool_shutdown:
+            _batch_pool = _new_batch_pool()
             _batch_pool_shutdown = False
-        else:
-            _batch_pool = ThreadPoolExecutor(
-                max_workers=_BATCH_POOL_MAX,
-                thread_name_prefix="uar-batch",
-            )
-            _batch_pool_shutdown = False
-    return _batch_pool
+        return _batch_pool
 
 
 def _shutdown_batch_pool():
-    global _batch_pool_shutdown
+    global _batch_pool, _batch_pool_shutdown
     with _batch_pool_lock:
         if _batch_pool is not None:
             _batch_pool.shutdown(wait=False)
+            _batch_pool = None
         _batch_pool_shutdown = True
 
 
@@ -102,6 +107,13 @@ class BatchProcessor:
             )
             self._owns_pool = True
 
+    def _executor(self) -> ThreadPoolExecutor:
+        """Return a live executor for this processor."""
+        if self._owns_pool:
+            return self._pool
+        self._pool = _get_batch_pool()
+        return self._pool
+
     def close(self) -> None:
         """Shut down the dedicated pool if this processor owns one."""
         if self._owns_pool and self._pool is not None:
@@ -120,9 +132,10 @@ class BatchProcessor:
             BatchResult with digest results
         """
         result = BatchResult(total=len(objects))
+        pool = self._executor()
 
         futures = {
-            self._pool.submit(
+            pool.submit(
                 self._compute_single_digest,
                 obj,
                 algorithm,
@@ -182,8 +195,9 @@ class BatchProcessor:
         if validator is None:
             validator = UORSchemaValidator()
 
+        pool = self._executor()
         futures = {
-            self._pool.submit(
+            pool.submit(
                 self._validate_single,
                 obj,
                 validator,
@@ -250,9 +264,10 @@ class BatchProcessor:
             BatchResult with transformation results
         """
         result = BatchResult(total=len(objects))
+        pool = self._executor()
 
         futures = {
-            self._pool.submit(
+            pool.submit(
                 self._transform_single,
                 obj,
                 transform_func,
@@ -306,9 +321,10 @@ class BatchProcessor:
             BatchResult with canonicalization results
         """
         result = BatchResult(total=len(objects))
+        pool = self._executor()
 
         futures = {
-            self._pool.submit(
+            pool.submit(
                 self._canonicalize_single,
                 obj,
                 i,
