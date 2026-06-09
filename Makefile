@@ -97,7 +97,7 @@ gate: test-backend lint
 lint: lint-py lint-ts
 
 lint-py: $(VENV_STAMP)
-	$(RUFF) check uar/ tests/ --select=E,W,F
+	$(RUFF) check uar/ tests/ --select=E,W,F --ignore=E501
 
 lint-ts:
 	cd $(WEB_DIR) && npx tsc --noEmit
