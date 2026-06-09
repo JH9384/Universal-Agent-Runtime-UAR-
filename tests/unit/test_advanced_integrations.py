@@ -1,5 +1,6 @@
 """Tests for uar.skills.advanced_integrations."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from uar.core.contracts import GoalSpec, PipelineContext
@@ -172,23 +173,27 @@ class TestBlackboardStatus:
 
 class TestAgentWorkflow:
     def test_basic(self):
+        executed = {
+            "status": "success",
+            "workflow_id": "w1",
+            "result": {"ok": True},
+        }
+
         with patch(
             "uar.core.agent_framework.get_orchestrator",
             return_value=MagicMock(),
         ):
             with patch(
                 "uar.core.agent_framework.execute_agent_workflow",
-                return_value={"workflow_id": "w1"},
+                new=MagicMock(return_value=executed),
             ):
                 with patch(
                     "uar.skills.advanced_integrations.run_sync_safe",
-                    return_value={
-                        "status": "success",
-                        "workflow_id": "w1",
-                    },
+                    side_effect=lambda value: value,
                 ):
                     with patch(
-                        "uar.core.agent_framework.Agent"
+                        "uar.core.agent_framework.Agent",
+                        return_value=MagicMock(),
                     ):
                         result = agent_workflow(
                             _ctx({
@@ -199,17 +204,48 @@ class TestAgentWorkflow:
                                 ],
                             })
                         )
+
         assert result["status"] == "success"
         assert result["workflow_id"] == "w1"
 
 
 class TestCrewaiTask:
     def test_basic(self):
-        result = crewai_task(_ctx({
-            "workflow_type": "research",
-            "input_data": "test",
-        }))
-        assert "status" in result
+        executed = SimpleNamespace(
+            status="completed",
+            result={"ok": True},
+        )
+        task = SimpleNamespace(id="task1")
+        agent = SimpleNamespace(agent_id="agent1")
+
+        orchestrator = MagicMock()
+        orchestrator.create_task.return_value = task
+        orchestrator.execute_task.return_value = executed
+
+        with patch(
+            "uar.core.crewai_integration.TaskOrchestrator",
+            return_value=orchestrator,
+        ):
+            with patch(
+                "uar.core.crewai_integration.create_standard_agent",
+                return_value=agent,
+            ):
+                with patch(
+                    "uar.skills.advanced_integrations.run_sync_safe",
+                    side_effect=lambda value: value,
+                ):
+                    result = crewai_task(_ctx({
+                        "role": "researcher",
+                        "task_description": "research test",
+                        "expected_output": "summary",
+                    }))
+
+        assert result["status"] == "completed"
+        assert result["agent_id"] == "agent1"
+        assert result["role"] == "researcher"
+        assert result["task_id"] == "task1"
+        assert result["mode"] == "uar_native"
+        assert result["result"] == {"ok": True}
 
 
 class TestLlamaIndexRag:

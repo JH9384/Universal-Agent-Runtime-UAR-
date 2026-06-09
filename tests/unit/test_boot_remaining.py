@@ -1,9 +1,10 @@
 """Tests for remaining uncovered boot.py paths."""
 
 import asyncio
+import inspect
 import subprocess
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -25,11 +26,45 @@ from uar.boot import (
 )
 
 
+class _ClosedMockTask:
+    """Awaitable task-like object for tests that intercept asyncio.create_task."""
+
+    def __init__(self, coro=None):
+        if inspect.iscoroutine(coro):
+            coro.close()
+        self.cancel = Mock()
+        self.cancelled = Mock(return_value=False)
+        self.done = Mock(return_value=True)
+
+    def add_done_callback(self, fn):
+        fn(self)
+
+    def exception(self):
+        return None
+
+    def __await__(self):
+        async def _done():
+            return None
+
+        return _done().__await__()
+
+
+def _close_asyncio_run_coro(coro):
+    """Close boot_cli coroutine objects when asyncio.run is mocked."""
+    if inspect.iscoroutine(coro):
+        coro.close()
+    return None
+
+
+def _closed_mock_task(coro):
+    """Return an awaitable task-like mock while closing unscheduled coroutines."""
+    return _ClosedMockTask(coro)
+
+
 class TestBootCli:
     """boot_cli entry point."""
 
     def test_source_has_single_asyncio_run(self):
-        import inspect
         source = inspect.getsource(boot_cli)
         assert source.count("asyncio.run(") == 1
 
@@ -55,7 +90,7 @@ class TestBootCli:
     def test_boot_cli_services_parsing(self):
         with patch("sys.argv", ["uar.boot", "--services", "api,web"]):
             with patch("uar.boot.boot_full_stack", new_callable=AsyncMock):
-                with patch("asyncio.run"):
+                with patch("asyncio.run", side_effect=_close_asyncio_run_coro):
                     boot_cli()
 
 
@@ -102,7 +137,6 @@ class TestCreateLifespan:
 
     @pytest.mark.asyncio
     async def test_lifespan_starts_purge_task(self):
-        import inspect
         from fastapi import FastAPI
 
         class _FakeTask:
@@ -130,12 +164,11 @@ class TestCreateLifespan:
         with patch("uar.api.tracing.setup_fastapi_tracing"):
             with patch("uar.config.config") as mock_cfg:
                 mock_cfg.run_retention_days = 7
-                fake_task = _FakeTask()
-                with patch("asyncio.create_task", return_value=fake_task):
+                with patch("asyncio.create_task", side_effect=_closed_mock_task):
                     with patch("uar.boot.SHUTDOWN_SLEEP", 0.001):
                         async with lifespan(app):
                             pass
-                    assert ctx.purge_task is fake_task
+                    assert isinstance(ctx.purge_task, _ClosedMockTask)
 
 
 class TestServiceSupervisorStart:
@@ -297,7 +330,7 @@ class TestBootCliFullStack:
     def test_full_stack_services(self):
         with patch("sys.argv", ["uar.boot", "--services", "api,web"]):
             with patch("uar.boot.boot_full_stack") as mock_boot:
-                with patch("asyncio.run"):
+                with patch("asyncio.run", side_effect=_close_asyncio_run_coro):
                     boot_cli()
             mock_boot.assert_not_called()  # asyncio.run patches prevent call
 
