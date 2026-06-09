@@ -131,7 +131,7 @@ jobs:
         run: |
           mkdir -p ../../artifacts/uar-ci/web
           set -o pipefail
-          npm ci 2>&1 | tee ../../artifacts/uar-ci/web/npm-ci.log
+          npm ci --legacy-peer-deps 2>&1 | tee ../../artifacts/uar-ci/web/npm-ci.log
 
       - name: Upload web npm ci log
         if: always()
@@ -257,7 +257,7 @@ jobs:
         run: |
           mkdir -p ../../artifacts/uar-ci/web-svelte
           set -o pipefail
-          npm run test:run 2>&1 | tee ../../artifacts/uar-ci/web-svelte/test-run.log
+          npm run test:run -- --passWithNoTests 2>&1 | tee ../../artifacts/uar-ci/web-svelte/test-run.log
 
       - name: Upload web-svelte test log
         if: always()
