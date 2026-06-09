@@ -1,0 +1,125 @@
+name: Runtime Burn-In
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'uar/**'
+      - 'tests/**'
+      - 'scripts/burn_in.sh'
+      - 'docs/BURN_IN_CHECKLIST.md'
+      - 'docs/GOLDEN_TRACE_POLICY.md'
+      - 'docs/RUNTIME_BASELINE.md'
+      - 'pyproject.toml'
+      - 'Makefile'
+      - '.github/workflows/runtime-burn-in.yml'
+
+jobs:
+  burn-in:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Diagnose frontend dependency inputs
+        run: |
+          mkdir -p artifacts/burn-in
+          node --version | tee artifacts/burn-in/frontend-dependency-diagnostics.txt
+          npm --version | tee -a artifacts/burn-in/frontend-dependency-diagnostics.txt
+          test -f apps/web/package.json
+          test -f apps/web/package-lock.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = Path('artifacts/burn-in/frontend-dependency-diagnostics.txt')
+          package = json.loads(Path('apps/web/package.json').read_text())
+          lock = json.loads(Path('apps/web/package-lock.json').read_text())
+          root_lock = lock.get('packages', {}).get('', {})
+
+          package_deps = package.get('dependencies', {})
+          lock_deps = root_lock.get('dependencies', {})
+          package_dev = package.get('devDependencies', {})
+          lock_dev = root_lock.get('devDependencies', {})
+
+          mismatches = []
+          for name, version in sorted(package_deps.items()):
+              if lock_deps.get(name) != version:
+                  mismatches.append((name, version, lock_deps.get(name)))
+          for name, version in sorted(package_dev.items()):
+              if lock_dev.get(name) != version:
+                  mismatches.append((name, version, lock_dev.get(name)))
+
+          with report.open('a') as f:
+              if mismatches:
+                  print('package-lock root dependency mismatches:', file=f)
+                  for name, pkg_version, lock_version in mismatches:
+                      print(f'- {name}: package.json={pkg_version!r}, package-lock={lock_version!r}', file=f)
+              else:
+                  print('package-lock root dependency metadata matches package.json', file=f)
+
+          print(report.read_text())
+          if mismatches:
+              raise SystemExit(1)
+          PY
+
+      - name: Upload frontend dependency diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dependency-diagnostics
+          path: artifacts/burn-in/frontend-dependency-diagnostics.txt
+
+      - name: Install frontend dependencies for gate
+        run: |
+          mkdir -p artifacts/burn-in
+          cd apps/web
+          npm ci 2>&1 | tee ../../artifacts/burn-in/npm-install.log
+
+      - name: Upload npm install log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-install-log
+          path: artifacts/burn-in/npm-install.log
+
+      - name: Run burn-in script
+        run: |
+          mkdir -p artifacts/burn-in
+          chmod +x scripts/burn_in.sh
+          ./scripts/burn_in.sh 2>&1 | tee artifacts/burn-in/burn-in-script.log
+
+      - name: Upload burn-in script log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: burn-in-script-log
+          path: artifacts/burn-in/burn-in-script.log
+
+      - name: Run full Python test suite
+        run: |
+          mkdir -p artifacts/burn-in
+          pytest -q 2>&1 | tee artifacts/burn-in/full-pytest.log
+
+      - name: Upload full pytest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-pytest-log
+          path: artifacts/burn-in/full-pytest.log
