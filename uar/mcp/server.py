@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, Mapping
 
 from uar.core.contracts import GoalSpec, PipelineContext
 from uar.core.registry import registry
-from uar.mcp.tools import UARMCPError, call_tool, get_tools
+from uar.mcp.tools import call_tool, get_tools
 
 logger = logging.getLogger("uar.mcp")
 JSONRPC_VERSION = "2.0"
