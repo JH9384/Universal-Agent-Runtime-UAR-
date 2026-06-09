@@ -16,6 +16,8 @@ Accepted as D4D API validation evidence.
 ## Validation Commands
 
 ```bash
+cd "/Volumes/Sabrent SSD/Projects/Universal-Agent-Runtime-UAR-"
+
 ulimit -n 8192
 
 ruff check .
@@ -33,12 +35,12 @@ The API suite clears under strict Python 3.14 warning gates for unraisable corou
 
 ## Environmental Note
 
-The default shell file descriptor limit of `256` is too low for broader API/integration validation and can produce secondary teardown failures such as `Too many open files`.
+The API validation ring requires a higher file descriptor limit than the default local shell value of `256`.
 
-For this validation ring, `ulimit -n 8192` is required.
+Use `ulimit -n 8192` before running the API suite locally.
 
 ## Guardrails
 
-- No production runtime behavior was changed.
-- API warning cleanup was limited to replacing deprecated `httpx` / `TestClient` raw `data=` usage with `content=`.
+- No production runtime behavior is changed by this evidence record.
+- This document records validation scope only.
 - Strict warning gates remain active for D4D validation.
