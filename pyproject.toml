@@ -131,6 +131,8 @@ testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--disable-socket --allow-unix-socket --timeout=60 --ignore=tests/api/test_schemathesis_fuzz.py"
 filterwarnings = [
+    "ignore:A test tried to use socket\\..*:UserWarning:pytest_socket",
+    "ignore:\\'asyncio.iscoroutinefunction\\' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction\\(\\) instead:DeprecationWarning:chromadb\\.telemetry\\.opentelemetry",
     "ignore::DeprecationWarning:pytest_asyncio",
     "ignore::DeprecationWarning:multiprocessing.popen_fork",
 ]

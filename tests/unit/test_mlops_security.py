@@ -431,3 +431,5 @@ class TestKubeflowPipe:
                 result = kubeflow_pipe(ctx)
         assert result["status"] == "completed"
         assert result["pipeline_name"] == "test_pipe"
+
+

@@ -826,7 +826,7 @@ class TestApplyMiddleware:
         response = client.post(
             "/test",
             headers={"content-length": "999999999"},
-            data="x",
+            content="x",
         )
         assert response.status_code == 413
 
@@ -842,7 +842,7 @@ class TestApplyMiddleware:
         response = client.post(
             "/test",
             headers={"content-length": "not-a-number"},
-            data="x",
+            content="x",
         )
         # Malformed header passes through to handler
         assert response.status_code == 200
@@ -856,7 +856,7 @@ class TestApplyMiddleware:
         async def endpoint():
             return {"ok": True}
 
-        response = client.post("/test", data="x")
+        response = client.post("/test", content="x")
         # No content-length header passes through to handler
         assert response.status_code == 200
 
