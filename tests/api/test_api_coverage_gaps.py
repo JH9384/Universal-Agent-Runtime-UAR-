@@ -63,7 +63,7 @@ class TestMiddleware:
             return {"ok": True}
 
         big_body = "x" * (11 * 1024 * 1024)  # 11MB
-        response = client.post("/test", data=big_body)
+        response = client.post("/test", content=big_body)
         assert response.status_code == 413
 
     def test_api_version_rewrite(self):
