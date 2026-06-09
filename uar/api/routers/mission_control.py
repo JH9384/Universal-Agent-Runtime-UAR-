@@ -6,6 +6,8 @@ Issues: #72, #55
 
 from __future__ import annotations
 
+import logging
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
