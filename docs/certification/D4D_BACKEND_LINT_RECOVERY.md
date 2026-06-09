@@ -2,7 +2,9 @@
 
 ## Status
 
-Backend lint recovery is complete at the repository patch level. Final local evidence should be captured by running `ruff check .` and `pytest` after pulling `main`.
+Backend lint recovery is closed for the scoped production lint findings. Local evidence confirms `ruff check .` passes and the targeted `skill_guard` regression test passes.
+
+A full-suite `pytest` run was attempted but is not accepted as D4D pass/fail evidence from the current shell because it ran under Python 3.14.5, while the project declares `requires-python = ">=3.10,<3.13"`. The run eventually aborted during pytest cleanup with `OSError: [Errno 24] Too many open files` after many unrelated failures/errors. Full-suite D4D validation should be rerun in a supported Python 3.11 or 3.12 virtual environment.
 
 ## Source evidence
 
@@ -20,6 +22,7 @@ The backend lint artifact reported production and intentional-regression lint fi
 - Imported `Any` and `Dict` in the operator Time Machine router.
 - Removed the unused `UARMCPError` import from the MCP server.
 - Marked the intentional bad import in the `skill_guard` regression test with line-scoped `# noqa: F401`.
+- Removed unused imports from `tests/core/test_skill_guard_regression.py`.
 
 ## Key commits
 
@@ -28,6 +31,7 @@ The backend lint artifact reported production and intentional-regression lint fi
 - `f0d041e00a44508790ac5939da4940d5a45af798` — restore Mission Control logger
 - `4dab2b10b7afac47933d35c67fc09e697eaa6d97` — import logging for Mission Control logger
 - `0d74742fcdab9b7bb1ce144b3238da90c3053269` — mark intentional bad import in skill guard regression
+- `09bfc0f5057fae6f46154e41654914263ccc33e3` — remove unused skill guard regression imports
 
 ## Guardrails
 
@@ -43,20 +47,36 @@ Run from repository root:
 ```bash
 git pull --rebase origin main
 ruff check .
-pytest
+pytest tests/core/test_skill_guard_regression.py
 git status --short --branch
 ```
 
-Expected lint result:
+## Accepted local evidence
 
 ```text
+git pull --rebase origin main
+Already up to date.
+
+ruff check .
 All checks passed!
+
+pytest tests/core/test_skill_guard_regression.py
+collected 7 items
+tests/core/test_skill_guard_regression.py ....... [100%]
+7 passed, 3 warnings in 4.06s
+
+git status --short --branch
+## main...origin/main
 ```
 
-## Evidence placeholder
+## Full-suite environment note
 
-Paste local command output below after the final evidence run.
+A full `pytest` run was also attempted from the repository root. It used Python 3.14.5 and collected 5036 tests, but this environment is outside the declared project support range and eventually aborted during pytest tempdir cleanup:
 
 ```text
-PENDING LOCAL EVIDENCE
+platform darwin -- Python 3.14.5
+requires-python = >=3.10,<3.13
+OSError: [Errno 24] Too many open files
 ```
+
+Operational conclusion: backend lint recovery is closed. Full-suite D4D validation remains open and should be rerun under Python 3.11 or Python 3.12 with a clean virtual environment and raised file-descriptor limit if needed.
