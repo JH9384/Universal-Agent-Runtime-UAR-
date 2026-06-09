@@ -47,7 +47,7 @@ jobs:
           retention-days: 7
 
       - name: Lint backend
-        run: make lint-py PYTHON=python
+        run: .venv/bin/python -m ruff check uar/ tests/ --select=E,W,F --ignore=E501
 
       - name: Check release version alignment
         run: make check-version PYTHON=python
