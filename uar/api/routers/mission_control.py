@@ -19,6 +19,8 @@ from uar.config import config
 from uar.core.mission_control import build_snapshot
 from uar.core.runtime_health import build_runtime_snapshot
 
+logger = logging.getLogger(__name__)
+
 security = HTTPBearer(auto_error=False)
 
 router = APIRouter()
