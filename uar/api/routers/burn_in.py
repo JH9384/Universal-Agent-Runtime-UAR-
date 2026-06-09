@@ -38,6 +38,16 @@ _BURNIN_HISTORY: List[dict] = []
 _BURNIN_HISTORY_MAX = 50
 
 
+def _auth_required() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={
+            "error": "unauthorized",
+            "message": "Authentication required",
+        },
+    )
+
+
 class BurnInProxy:
     """Lightweight adapter from a stored burn-in report dict to the
     duck-typed interface expected by score_runtime_health and
@@ -94,9 +104,9 @@ class BurnInProxy:
                 with _report_lock:
                     if _latest_report is None:
                         _latest_report = dict(stored)
-                        report = _latest_report  # Use the value we just wrote
+                        report = _latest_report
                     else:
-                        report = _latest_report  # Use fresher value
+                        report = _latest_report
 
         return cls(report) if report is not None else None
 
@@ -137,9 +147,9 @@ class BurnInProxy:
                 with _report_lock:
                     if _latest_report is None:
                         _latest_report = dict(stored)
-                        report = _latest_report  # Use the value we just wrote
+                        report = _latest_report
                     else:
-                        report = _latest_report  # Use fresher value
+                        report = _latest_report
 
         if report is None:
             return None, None
@@ -205,13 +215,7 @@ async def get_burnin_history(
     """
     user_info = auth_middleware(credentials)
     if user_info is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "authentication_required",
-                "message": "Authentication required",
-            },
-        )
+        raise _auth_required()
 
     reports = list(_BURNIN_HISTORY[-limit:])
     total = len(_BURNIN_HISTORY)
@@ -243,6 +247,10 @@ async def get_latest_burnin(
     Bug fix: proxy and raw dict are captured in one atomic read via
     snapshot_latest() to prevent TOCTOU races with _set_latest_report.
     """
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise _auth_required()
+
     proxy, raw = BurnInProxy.snapshot_latest(store=store)
     if proxy is None:
         return JSONResponse(
@@ -271,13 +279,7 @@ async def run_burnin(
 
     user_info = auth_middleware(credentials)
     if user_info is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": "authentication_required",
-                "message": "Authentication required",
-            },
-        )
+        raise _auth_required()
     is_admin = user_info.get("tier") == "admin"
     if not is_admin and not is_dev_mode():
         raise HTTPException(
