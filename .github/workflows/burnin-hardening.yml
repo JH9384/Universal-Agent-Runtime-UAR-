@@ -31,24 +31,52 @@ jobs:
         run: |
           make install PYTHON=python
 
+      - name: Ensure artifact directory exists
+        run: mkdir -p artifacts/hardening
+
       - name: Run hardening tests
         run: |
-          .venv/bin/pytest tests/hardening -q --tb=short
+          set -o pipefail
+          .venv/bin/pytest tests/hardening -q --tb=short 2>&1 | tee artifacts/hardening/hardening-tests.log
+
+      - name: Upload hardening test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardening-tests-log
+          path: artifacts/hardening/hardening-tests.log
+          retention-days: 7
 
       - name: Run ordering stress test (5 random seeds)
         run: |
+          set -o pipefail
+          : > artifacts/hardening/ordering-stress.log
           for seed in 1 2 3 7 42; do
-            echo "=== Randomly seed=$seed ==="
+            echo "=== Randomly seed=$seed ===" | tee -a artifacts/hardening/ordering-stress.log
             .venv/bin/pytest tests/ --ignore=tests/conformance/test_invariants.py \
-              -q --tb=line --timeout=60 --randomly-seed=$seed || exit 1
+              -q --tb=line --timeout=60 --randomly-seed=$seed 2>&1 | tee -a artifacts/hardening/ordering-stress.log
           done
+
+      - name: Upload ordering stress log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ordering-stress-log
+          path: artifacts/hardening/ordering-stress.log
+          retention-days: 7
 
       - name: Run gate target
         run: |
-          make gate PYTHON=python
+          set -o pipefail
+          make gate PYTHON=python 2>&1 | tee artifacts/hardening/gate.log
 
-      - name: Ensure artifact directory exists
-        run: mkdir -p artifacts/hardening
+      - name: Upload gate log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardening-gate-log
+          path: artifacts/hardening/gate.log
+          retention-days: 7
 
       - name: Run burn-in probe
         run: |
@@ -60,3 +88,4 @@ jobs:
         with:
           name: burnin-artifacts
           path: artifacts/hardening
+          retention-days: 7
