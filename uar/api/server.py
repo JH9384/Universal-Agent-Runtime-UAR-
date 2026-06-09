@@ -63,8 +63,15 @@ from uar.boot import create_app  # noqa: E402
 app = create_app()
 
 
-def _rebuild_openapi_type_adapters() -> None:
-    """Make FastAPI OpenAPI generation stable under randomized test order."""
+def _manage_openapi_schema_routes() -> None:
+    """Keep OpenAPI generation stable without removing runtime routes.
+
+    Enterprise contract posture:
+    - runtime routes remain mounted and executable
+    - schema-broken legacy routes are hidden from OpenAPI only
+    - hidden route paths are retained in app.state.openapi_excluded_routes
+      for audit and follow-up normalization
+    """
     try:
         from fastapi.routing import APIRoute
     except Exception:
@@ -78,38 +85,70 @@ def _rebuild_openapi_type_adapters() -> None:
         "dict": dict,
         "list": list,
     }
+    excluded: list[str] = []
 
-    def rebuild_field(field: Any) -> None:
+    def field_is_schema_safe(field: Any) -> bool:
+        if field is None:
+            return True
         adapter = getattr(field, "_type_adapter", None)
         rebuild = getattr(adapter, "rebuild", None)
         if not callable(rebuild):
-            return
+            return True
         try:
-            rebuild(_types_namespace=namespace)
+            rebuild(_types_namespace=namespace, force=True)
+            return True
         except TypeError:
-            rebuild()
-        except Exception as exc:
-            logger.debug("OpenAPI field rebuild skipped: %s", exc)
+            try:
+                rebuild(_types_namespace=namespace)
+                return True
+            except TypeError:
+                try:
+                    rebuild()
+                    return True
+                except Exception:
+                    return False
+            except Exception:
+                return False
+        except Exception:
+            return False
+
+    def route_schema_fields(route: Any) -> list[Any]:
+        fields: list[Any] = [
+            getattr(route, "body_field", None),
+            getattr(route, "response_field", None),
+            getattr(route, "secure_cloned_response_field", None),
+        ]
+        fields.extend((getattr(route, "response_fields", None) or {}).values())
+        dependant = getattr(route, "dependant", None)
+        if dependant is not None:
+            for attr in (
+                "path_params",
+                "query_params",
+                "header_params",
+                "cookie_params",
+                "body_params",
+            ):
+                fields.extend(getattr(dependant, attr, []) or [])
+        return fields
 
     for route in getattr(app, "routes", []):
         if not isinstance(route, APIRoute):
             continue
-        rebuild_field(getattr(route, "body_field", None))
-        dependant = getattr(route, "dependant", None)
-        if dependant is None:
+        if all(field_is_schema_safe(field) for field in route_schema_fields(route)):
             continue
-        for attr in (
-            "path_params",
-            "query_params",
-            "header_params",
-            "cookie_params",
-            "body_params",
-        ):
-            for field in getattr(dependant, attr, []) or []:
-                rebuild_field(field)
+        route.include_in_schema = False
+        excluded.append(getattr(route, "path", "<unknown>"))
+
+    app.state.openapi_excluded_routes = excluded
+    if excluded:
+        logger.warning(
+            "Excluded %s schema-broken route(s) from OpenAPI: %s",
+            len(excluded),
+            ", ".join(excluded),
+        )
 
 
-_rebuild_openapi_type_adapters()
+_manage_openapi_schema_routes()
 logger.info(
     "UAR API server module ready (%s, UOR %s)",
     get_uar_version(),
