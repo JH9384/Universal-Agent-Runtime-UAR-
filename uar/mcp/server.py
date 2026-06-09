@@ -76,6 +76,10 @@ def _build_tool(name: str, fn: Callable[..., Any]) -> Dict[str, Any]:
     historical server module surface.
     """
     description = (getattr(fn, "__doc__", None) or f"UAR skill: {name}").strip()
+    if "." in description:
+        description = description.split(".", 1)[0].strip() + "."
+    if len(description) > 200:
+        description = description[:197].rstrip() + "..."
     return {
         "type": "tool",
         "name": name,
@@ -97,14 +101,41 @@ def _handle_initialize(_: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def _handle_tools_list() -> list[Dict[str, Any]]:
-    return [
-        {
+    # Legacy compatibility: older callers expect built-in runtime skills
+    # such as math_compute to appear in the server helper list.
+    try:
+        import uar.skills  # noqa: F401
+    except Exception:
+        logger.exception("Failed to import built-in UAR skills for MCP listing")
+
+    tools: list[Dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for tool in get_tools().values():
+        input_schema = dict(tool.input_schema or {})
+        properties = dict(input_schema.get("properties") or {})
+        properties.setdefault("metadata", {"type": "object"})
+        input_schema["properties"] = properties
+        input_schema.setdefault("type", "object")
+        input_schema.setdefault("required", ["metadata"])
+
+        tools.append({
+            "type": "tool",
             "name": tool.name,
             "description": tool.description,
-            "inputSchema": tool.input_schema,
-        }
-        for tool in get_tools().values()
-    ]
+            "inputSchema": input_schema,
+        })
+        seen.add(tool.name)
+
+    for name in registry.list():
+        if name in seen:
+            continue
+        try:
+            tools.append(_build_tool(name, registry.get(name)))
+        except Exception:
+            tools.append(_build_tool(name, lambda _ctx: None))
+
+    return tools
 
 
 def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, Any]:
@@ -140,6 +171,10 @@ def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, A
             "isError": True,
         }
 
+    is_error = (
+        isinstance(result, dict)
+        and str(result.get("status", "")).lower() in {"error", "failed"}
+    )
     return {
         "content": [
             {
@@ -147,7 +182,7 @@ def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, A
                 "text": json.dumps(result, indent=2, sort_keys=True, default=str),
             }
         ],
-        "isError": False,
+        "isError": is_error,
     }
 
 
