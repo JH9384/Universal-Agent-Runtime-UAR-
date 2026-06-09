@@ -30,6 +30,17 @@ router = APIRouter()
 _ANALYTICS_CACHE = None
 
 
+
+def _mission_control_registry():
+    """Return active skill registry, tolerating legacy module shapes."""
+    try:
+        from uar.core.registry import registry
+        return registry
+    except ImportError:
+        from uar.core.registry import SkillRegistry
+        return SkillRegistry()
+
+
 def _analytics_cache():
     global _ANALYTICS_CACHE
     if _ANALYTICS_CACHE is None:
@@ -76,14 +87,13 @@ async def get_mission_control(
             },
         )
 
-    from uar.core.registry import registry
     from uar.api.routers.burn_in import BurnInProxy
 
     rt_snapshot = await run_in_threadpool(build_runtime_snapshot, store)
     mc_snapshot = await run_in_threadpool(
         build_snapshot,
         store=store,
-        registry=registry,
+        registry=_mission_control_registry(),
         burnin_report=BurnInProxy.from_latest(store=store),
         snapshot=rt_snapshot,
     )
@@ -249,7 +259,6 @@ async def get_alerts_summary(
         )
 
     import time
-    from uar.core.registry import registry
     from uar.api.routers.burn_in import BurnInProxy, _BURNIN_HISTORY
     from uar.core.mission_control import build_snapshot
     from uar.core.runtime_health import build_runtime_snapshot
@@ -276,7 +285,7 @@ async def get_alerts_summary(
     mc_snapshot = await run_in_threadpool(
         build_snapshot,
         store=store,
-        registry=registry,
+        registry=_mission_control_registry(),
         burnin_report=BurnInProxy.from_latest(store=store),
         snapshot=rt_snapshot,
     )
