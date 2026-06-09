@@ -101,13 +101,44 @@ hardening-gate-log
 burnin-artifacts
 ```
 
+## OpenAPI schema stabilization note
+
+PR #113 may temporarily exclude legacy operational routers from OpenAPI schema generation while keeping their runtime routes mounted.
+
+This is a D4D stabilization measure, not a permanent API documentation strategy.
+
+Current temporary exclusions are tracked in issue #116 and should be removed after schema normalization:
+
+```text
+uar/api/routers/uor.py
+uar/api/routers/fleet.py
+```
+
+Reason:
+
+```text
+Some legacy operational routers use broad dictionary annotations such as Dict[str, Any]
+and List[Dict[str, Any]] with postponed annotations. Under randomized test import
+order, FastAPI/Pydantic v2 can surface unresolved TypeAdapter forward references
+while generating /openapi.json.
+```
+
+Required follow-up:
+
+```text
+Replace broad dict request/response annotations with explicit Pydantic models or stable builtin dict annotations.
+Add targeted OpenAPI tests for the legacy operational routers.
+Re-enable those routers in OpenAPI after /openapi.json is stable under randomized order.
+```
+
 ## Current known follow-ups
 
 The following are intentionally tracked as follow-up work rather than hidden inside the D4D baseline:
 
 ```text
-Replace npm ci --legacy-peer-deps with true React dependency alignment.
-Add real smoke/component tests to apps/web-svelte and remove --passWithNoTests.
+#114 Replace npm ci --legacy-peer-deps with true React dependency alignment.
+#115 Add real smoke/component tests to apps/web-svelte and remove --passWithNoTests.
+#116 Normalize OpenAPI schemas for legacy operational routers and remove temporary schema exclusions.
 Review any ordering-stress failure using ordering-stress-log before changing runtime semantics.
 ```
 
