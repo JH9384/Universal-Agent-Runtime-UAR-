@@ -17,7 +17,9 @@ from pydantic import BaseModel, Field
 from uar.api.middleware import api_error_handler
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/advanced", tags=["advanced"])
+# Optional advanced integrations keep runtime routes mounted, but are excluded
+# from OpenAPI until broad Dict[str, Any] schemas are normalized in #116.
+router = APIRouter(prefix="/api/advanced", tags=["advanced"], include_in_schema=False)
 
 
 # ------------------------------------------------------------------
