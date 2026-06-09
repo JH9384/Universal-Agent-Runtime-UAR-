@@ -15,16 +15,12 @@ input UOR objects. Execution is sandboxed in a child process with:
 from __future__ import annotations
 
 import ast
-import logging
 import multiprocessing as mp
 import queue
 import resource
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
-from uar.core.exceptions import UARError, ErrorCode
-
-logger = logging.getLogger(__name__)
-
+from uar.core.exceptions import ErrorCode, UARError
 
 DEFAULT_TIMEOUT_SECONDS = 2.0
 DEFAULT_MEMORY_MB = 128
@@ -141,7 +137,7 @@ def validate_code(code: str) -> None:
 
 
 def _object_value(obj: Dict[str, Any]) -> Any:
-    """Unwrap ``content`` shape ``{"result": x}`` to ``x`` for chaining."""
+    """Unwrap ``content`` shape ``{"result": x}`` to ``x``."""
     content = obj.get("content")
     if isinstance(content, dict) and set(content.keys()) == {"result"}:
         return content["result"]
@@ -151,7 +147,7 @@ def _object_value(obj: Dict[str, Any]) -> Any:
 def _trusted_runtime_fast_path(
     code: str,
     input_objects: List[Dict[str, Any]],
-) -> Tuple[bool, Any]:
+) -> tuple[bool, Any]:
     """Run exact bundled runtime expressions without subprocess overhead.
 
     CI coverage on Python 3.11 can make subprocess startup noisy enough to
@@ -213,9 +209,7 @@ def _safe_child_exec(
         result_queue.put({"ok": True, "result": result})
     except BaseException:  # noqa: BLE001 - report all failures
         # Child must never leak exceptions outward.
-        result_queue.put(
-            {"ok": False, "error": "Execution failed"}
-        )
+        result_queue.put({"ok": False, "error": "Execution failed"})
 
 
 def run_code(
