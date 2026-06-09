@@ -68,6 +68,18 @@ def _error(msg_id: Any, code: int, message: str) -> Dict[str, Any]:
     }
 
 
+def _description_summary(fn: Callable[..., Any], name: str) -> str:
+    """Return a stable one-sentence MCP description."""
+
+    description = (getattr(fn, "__doc__", None) or f"UAR skill: {name}").strip()
+    first_sentence = description.split(".", 1)[0].strip()
+    if first_sentence:
+        description = f"{first_sentence}."
+    if len(description) > 200:
+        description = description[:197].rstrip() + "..."
+    return description
+
+
 def _build_tool(name: str, fn: Callable[..., Any]) -> Dict[str, Any]:
     """Build a legacy MCP tool definition for compatibility tests.
 
@@ -75,11 +87,10 @@ def _build_tool(name: str, fn: Callable[..., Any]) -> Dict[str, Any]:
     this helper remains for older unit tests and callers that introspect the
     historical server module surface.
     """
-    description = (getattr(fn, "__doc__", None) or f"UAR skill: {name}").strip()
     return {
         "type": "tool",
         "name": name,
-        "description": description,
+        "description": _description_summary(fn, name),
         "inputSchema": {
             "type": "object",
             "properties": {"metadata": {"type": "object"}},
@@ -96,15 +107,52 @@ def _handle_initialize(_: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _legacy_registry_tools() -> list[Dict[str, Any]]:
+    """Return legacy registered-skill tool descriptions in stable order.
+
+    Older tests and local integrations still validate that historical registry
+    skills can be inspected through this helper. Keep this compatibility layer
+    separate from the JSON-RPC call path, which continues to execute only the
+    read-only allowlisted tools unless callers use the explicit legacy string
+    invocation helper.
+    """
+
+    skills = getattr(registry, "_skills", {})
+    tools: list[Dict[str, Any]] = []
+    for name in sorted(skills):
+        tools.append(_build_tool(name, skills[name]))
+    return tools
+
+
+def _read_only_tools_for_listing() -> list[Dict[str, Any]]:
+    """Return read-only MCP tools using the legacy metadata schema envelope."""
+
+    listed: list[Dict[str, Any]] = []
+    for tool in get_tools().values():
+        listed.append(
+            {
+                "type": "tool",
+                "name": tool.name,
+                "description": tool.description,
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"metadata": {"type": "object"}},
+                    "required": ["metadata"],
+                },
+            }
+        )
+    return listed
+
+
 def _handle_tools_list() -> list[Dict[str, Any]]:
-    return [
-        {
-            "name": tool.name,
-            "description": tool.description,
-            "inputSchema": tool.input_schema,
-        }
-        for tool in get_tools().values()
-    ]
+    seen: set[str] = set()
+    tools: list[Dict[str, Any]] = []
+    for tool in _legacy_registry_tools() + _read_only_tools_for_listing():
+        name = tool.get("name")
+        if isinstance(name, str) and name not in seen:
+            seen.add(name)
+            tools.append(tool)
+    return tools
 
 
 def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, Any]:
@@ -140,6 +188,7 @@ def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, A
             "isError": True,
         }
 
+    is_error = isinstance(result, Mapping) and result.get("status") == "failed"
     return {
         "content": [
             {
@@ -147,7 +196,7 @@ def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, A
                 "text": json.dumps(result, indent=2, sort_keys=True, default=str),
             }
         ],
-        "isError": False,
+        "isError": bool(is_error),
     }
 
 
