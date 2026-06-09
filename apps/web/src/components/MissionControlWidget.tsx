@@ -136,25 +136,6 @@ function ScoreRing({ score, label, tier }: { score: number; label: string; tier:
     <div className={styles.scoreRingCard}>
       <div className={`${styles.scoreRing} ${colorClass}`}>
         <span className={styles.scoreValue}>{score}</span>
-          <div className={styles.card}>
-            <div className={styles.cardHeader}>Entity Retention</div>
-            {entityRetention ? (
-              <>
-                <div className={styles.bigNumber}>
-                  {entityRetention.entities?.snapshots?.retention_capable ? "Ready" : "Watch"}
-                </div>
-                <div className={styles.subText}>
-                  Snapshots: {entityRetention.entities?.snapshots?.count ?? "—"}
-                </div>
-                <div className={styles.subText}>
-                  Keys: {entityRetention.metadata_backend?.list_meta_keys ? "yes" : "no"} · Delete: {entityRetention.metadata_backend?.delete_metadata ? "yes" : "no"}
-                </div>
-              </>
-            ) : (
-              <div className={styles.subText}>No entity retention signal yet.</div>
-            )}
-          </div>
-
       </div>
       <div className={styles.scoreLabel}>{label}</div>
       <div className={`${styles.scoreTier} ${colorClass}`}>{tier}</div>
@@ -315,6 +296,28 @@ export function MissionControlWidget({ onOpenReplay, initialTab }: MissionContro
                 </>
               ) : (
                 <div className={styles.muted}>No fleet summary</div>
+              )}
+            </MiniCard>
+
+            <MiniCard title="Entity Retention">
+              {entityRetention ? (
+                <>
+                  <div className={styles.bigNumber}>
+                    {entityRetention.entities?.snapshots?.retention_capable ? 'Ready' : 'Watch'}
+                  </div>
+                  <div className={styles.subText}>
+                    Snapshots: {entityRetention.entities?.snapshots?.count ?? '—'}
+                  </div>
+                  <div className={styles.subText}>
+                    Keys: {entityRetention.metadata_backend?.list_meta_keys ? 'yes' : 'no'} · Delete:{' '}
+                    {entityRetention.metadata_backend?.delete_metadata ? 'yes' : 'no'}
+                  </div>
+                  {entityRetention.error && (
+                    <div className={styles.alertBadge} role="status">{entityRetention.error}</div>
+                  )}
+                </>
+              ) : (
+                <div className={styles.muted}>No entity retention signal yet.</div>
               )}
             </MiniCard>
 
