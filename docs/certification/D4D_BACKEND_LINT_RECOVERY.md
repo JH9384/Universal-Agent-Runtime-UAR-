@@ -2,13 +2,14 @@
 
 ## Status
 
-Backend lint recovery is closed. Full-suite validation is also green at the local evidence level.
+Backend lint recovery is closed. Full-suite validation is green under a supported Python runtime.
 
-Final local evidence confirms:
+Final canonical local evidence confirms:
 
-- `ruff check .` passes.
-- `pytest` passes the full repository test suite.
-- Working tree is clean and aligned with `origin/main`.
+- `python --version` reports Python 3.12.13.
+- `python -m ruff check .` passes.
+- `python -m pytest` passes the full repository test suite.
+- Working tree is clean and aligned with `origin/main`, except for the local untracked `.venv-d4d/` validation environment, which must not be committed.
 
 ## Source evidence
 
@@ -40,6 +41,11 @@ The backend lint artifact originally reported production and intentional-regress
 - `09bfc0f5057fae6f46154e41654914263ccc33e3` — remove unused skill guard regression imports
 - `847882e` — tolerate missing global skill registry in Mission Control
 - `2618fed` — restore MCP legacy server compatibility
+- `dbdc182` — record D4D full-suite green evidence
+
+## Checkpoint tag
+
+- `d4d-full-suite-green` — D4D local validation green checkpoint.
 
 ## Guardrails
 
@@ -49,49 +55,58 @@ The backend lint artifact originally reported production and intentional-regress
 - One-shot workflow files used during recovery were removed after execution.
 - MCP production JSON-RPC tool calls remain deny-by-default/read-only through the explicit MCP tool allowlist.
 - Legacy MCP helper behavior remains available for tests and direct in-process compatibility callers.
+- The `.venv-d4d/` directory is local validation state and must not be committed.
 
 ## Final evidence commands
 
 Run from repository root:
 
 ```bash
-git pull --rebase origin main
-ulimit -n 8192
-ruff check .
-pytest
+source .venv-d4d/bin/activate
+which python
+python --version
+python -m ruff check .
+python -m pytest
 git status --short --branch
 ```
 
-## Accepted local evidence
+## Accepted canonical local evidence
 
 ```text
-git pull --rebase origin main
-Already up to date.
+which python
+/Volumes/Sabrent SSD/Projects/Universal-Agent-Runtime-UAR-/.venv-d4d/bin/python
 
-ruff check .
+python --version
+Python 3.12.13
+
+python -m ruff check .
 All checks passed!
 
-pytest
+python -m pytest
+platform darwin -- Python 3.12.13
 collected 5036 items
-5023 passed, 13 skipped, 36 warnings in 180.96s (0:03:00)
+5026 passed, 10 skipped, 34 warnings in 189.30s (0:03:09)
 
 git status --short --branch
 ## main...origin/main
+?? .venv-d4d/
 ```
 
 ## Environment note
 
-The final green run was executed on macOS using Python 3.14.5 with the shell file descriptor limit raised to `8192`.
+The canonical local evidence was produced on macOS using Python 3.12.13, which is inside the project declaration `requires-python = ">=3.10,<3.13"`.
 
-The project declares `requires-python = ">=3.10,<3.13"`, so release certification should still prefer Python 3.11 or Python 3.12 for canonical CI/release evidence. However, this local D4D recovery pass is stronger than the earlier failed run because the same shell now completes the full suite with zero failures after the targeted fixes.
+A previous green full-suite run also completed under Python 3.14.5 with `5023 passed, 13 skipped, 36 warnings`, but the Python 3.12.13 result supersedes it for D4D release-grade local evidence.
 
 ## Operational conclusion
 
-Backend lint recovery and full-suite D4D local validation are closed:
+Backend lint recovery and full-suite D4D supported-Python validation are closed:
 
 ```text
-ruff check .                         PASS
-pytest                               PASS
-Full suite                           5023 passed / 13 skipped / 0 failed
-Working tree                         clean, aligned with origin/main
+python -m ruff check .              PASS
+python -m pytest                    PASS
+Python runtime                      3.12.13
+Full suite                          5026 passed / 10 skipped / 0 failed
+Tracked working tree                clean, aligned with origin/main
+Local validation venv               untracked, do not commit
 ```
