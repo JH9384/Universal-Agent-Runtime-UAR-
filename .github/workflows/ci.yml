@@ -47,7 +47,18 @@ jobs:
           retention-days: 7
 
       - name: Lint backend
-        run: .venv/bin/python -m ruff check uar/ tests/ --select=E,W,F --ignore=E501
+        run: |
+          mkdir -p artifacts/uar-ci/python
+          set -o pipefail
+          .venv/bin/python -m ruff check uar/ tests/ --select=E,W,F --ignore=E501 2>&1 | tee artifacts/uar-ci/python/lint-py${{ matrix.python-version }}.log
+
+      - name: Upload backend lint log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-lint-log-py${{ matrix.python-version }}
+          path: artifacts/uar-ci/python/lint-py${{ matrix.python-version }}.log
+          retention-days: 7
 
       - name: Check release version alignment
         run: make check-version PYTHON=python
