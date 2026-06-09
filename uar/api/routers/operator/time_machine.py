@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -169,6 +169,7 @@ async def entity_health(credentials=None) -> Dict[str, Any]:
     """Inspect operator metadata entity discovery and retention capability."""
     from uar.api.routers.operator.common import _entity_retention_health
     return _entity_retention_health()
+
 
 @router.get("/api/uar/operator/entity-integrity")
 async def entity_integrity(credentials=None) -> Dict[str, Any]:
