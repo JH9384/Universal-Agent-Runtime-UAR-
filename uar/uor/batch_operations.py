@@ -32,22 +32,26 @@ def _new_batch_pool() -> ThreadPoolExecutor:
     )
 
 
-def _get_batch_pool() -> ThreadPoolExecutor:
-    """Return a live shared batch pool, recreating after test/order shutdowns.
+def _executor_is_shutdown(pool: Optional[ThreadPoolExecutor]) -> bool:
+    return bool(getattr(pool, "_shutdown", False))
 
-    The pool is intentionally shared for normal runtime efficiency. Some test
-    and shutdown paths call the module-level shutdown helper before later batch
-    tests execute under randomized ordering. In that case a stale executor can
-    still be referenced by older ``BatchProcessor`` instances, so this helper
-    must create a fresh pool and clear the shutdown marker before new work is
-    scheduled.
-    """
+
+def _get_batch_pool() -> ThreadPoolExecutor:
+    """Return a live shared batch pool, recreating after shutdowns."""
 
     global _batch_pool, _batch_pool_shutdown
-    if _batch_pool is not None and not _batch_pool_shutdown:
+    if (
+        _batch_pool is not None
+        and not _batch_pool_shutdown
+        and not _executor_is_shutdown(_batch_pool)
+    ):
         return _batch_pool
     with _batch_pool_lock:
-        if _batch_pool is None or _batch_pool_shutdown:
+        if (
+            _batch_pool is None
+            or _batch_pool_shutdown
+            or _executor_is_shutdown(_batch_pool)
+        ):
             _batch_pool = _new_batch_pool()
             _batch_pool_shutdown = False
         return _batch_pool
@@ -111,7 +115,10 @@ class BatchProcessor:
         """Return a live executor for this processor."""
         if self._owns_pool:
             return self._pool
-        self._pool = _get_batch_pool()
+        if _executor_is_shutdown(self._pool):
+            self._pool = _get_batch_pool()
+        else:
+            self._pool = _get_batch_pool()
         return self._pool
 
     def close(self) -> None:
@@ -122,28 +129,13 @@ class BatchProcessor:
     def batch_compute_digests(
         self, objects: List[Dict[str, Any]], algorithm: str = "sha256"
     ) -> BatchResult:
-        """Compute digests for multiple objects in batch.
-
-        Args:
-            objects: List of objects to digest
-            algorithm: Hash algorithm to use
-
-        Returns:
-            BatchResult with digest results
-        """
+        """Compute digests for multiple objects in batch."""
         result = BatchResult(total=len(objects))
         pool = self._executor()
-
         futures = {
-            pool.submit(
-                self._compute_single_digest,
-                obj,
-                algorithm,
-                i,
-            ): i
+            pool.submit(self._compute_single_digest, obj, algorithm, i): i
             for i, obj in enumerate(objects)
         }
-
         for future in as_completed(futures):
             idx = futures[future]
             try:
@@ -152,28 +144,11 @@ class BatchProcessor:
                 result.successful += 1
             except Exception as exc:
                 result.failed += 1
-                result.errors.append(
-                    (idx, f"Digest computation failed: {exc}")
-                )
-                logger.exception(
-                    "Failed to compute digest for object %s", idx
-                )
-
+                result.errors.append((idx, f"Digest computation failed: {exc}"))
+                logger.exception("Failed to compute digest for object %s", idx)
         return result
 
-    def _compute_single_digest(
-        self, obj: Dict[str, Any], algorithm: str, index: int
-    ) -> str:
-        """Compute digest for a single object.
-
-        Args:
-            obj: Object to digest
-            algorithm: Hash algorithm
-            index: Object index
-
-        Returns:
-            Digest string
-        """
+    def _compute_single_digest(self, obj: Dict[str, Any], algorithm: str, index: int) -> str:
         return compute_uor_digest(obj, algorithm)
 
     def batch_validate(
@@ -181,42 +156,20 @@ class BatchProcessor:
         objects: List[Dict[str, Any]],
         validator: Optional[UORSchemaValidator] = None,
     ) -> BatchResult:
-        """Validate multiple objects in batch.
-
-        Args:
-            objects: List of objects to validate
-            validator: Schema validator instance
-
-        Returns:
-            BatchResult with validation results
-        """
+        """Validate multiple objects in batch."""
         result = BatchResult(total=len(objects))
-
         if validator is None:
             validator = UORSchemaValidator()
-
         pool = self._executor()
         futures = {
-            pool.submit(
-                self._validate_single,
-                obj,
-                validator,
-                i,
-            ): i
+            pool.submit(self._validate_single, obj, validator, i): i
             for i, obj in enumerate(objects)
         }
-
         for future in as_completed(futures):
             idx = futures[future]
             try:
                 is_valid, errors = future.result()
-                result.results.append(
-                    {
-                        "index": idx,
-                        "valid": is_valid,
-                        "errors": errors,
-                    }
-                )
+                result.results.append({"index": idx, "valid": is_valid, "errors": errors})
                 if is_valid:
                     result.successful += 1
                 else:
@@ -224,10 +177,7 @@ class BatchProcessor:
             except Exception as exc:
                 result.failed += 1
                 result.errors.append((idx, f"Validation failed: {exc}"))
-                logger.exception(
-                    "Failed to validate object %s", idx
-                )
-
+                logger.exception("Failed to validate object %s", idx)
         return result
 
     def _validate_single(
@@ -236,16 +186,6 @@ class BatchProcessor:
         validator: UORSchemaValidator,
         index: int,
     ) -> Tuple[bool, List[str]]:
-        """Validate a single object.
-
-        Args:
-            obj: Object to validate
-            validator: Schema validator
-            index: Object index
-
-        Returns:
-            Tuple of (is_valid, errors)
-        """
         is_valid, errors = validator.validate_envelope(obj)
         return is_valid, errors
 
@@ -254,43 +194,23 @@ class BatchProcessor:
         objects: List[Dict[str, Any]],
         transform_func: Callable[[Dict[str, Any]], Dict[str, Any]],
     ) -> BatchResult:
-        """Transform multiple objects in batch.
-
-        Args:
-            objects: List of objects to transform
-            transform_func: Function to apply to each object
-
-        Returns:
-            BatchResult with transformation results
-        """
+        """Transform multiple objects in batch."""
         result = BatchResult(total=len(objects))
         pool = self._executor()
-
         futures = {
-            pool.submit(
-                self._transform_single,
-                obj,
-                transform_func,
-                i,
-            ): i
+            pool.submit(self._transform_single, obj, transform_func, i): i
             for i, obj in enumerate(objects)
         }
-
         for future in as_completed(futures):
             idx = futures[future]
             try:
                 transformed = future.result()
-                result.results.append(
-                    {"index": idx, "object": transformed}
-                )
+                result.results.append({"index": idx, "object": transformed})
                 result.successful += 1
             except Exception as exc:
                 result.failed += 1
                 result.errors.append((idx, f"Transformation failed: {exc}"))
-                logger.exception(
-                    "Failed to transform object %s", idx
-                )
-
+                logger.exception("Failed to transform object %s", idx)
         return result
 
     def _transform_single(
@@ -299,66 +219,29 @@ class BatchProcessor:
         transform_func: Callable[[Dict[str, Any]], Dict[str, Any]],
         index: int,
     ) -> Dict[str, Any]:
-        """Transform a single object.
-
-        Args:
-            obj: Object to transform
-            transform_func: Transformation function
-            index: Object index
-
-        Returns:
-            Transformed object
-        """
         return transform_func(obj)
 
     def batch_canonicalize(self, objects: List[Dict[str, Any]]) -> BatchResult:
-        """Canonicalize multiple objects in batch.
-
-        Args:
-            objects: List of objects to canonicalize
-
-        Returns:
-            BatchResult with canonicalization results
-        """
+        """Canonicalize multiple objects in batch."""
         result = BatchResult(total=len(objects))
         pool = self._executor()
-
         futures = {
-            pool.submit(
-                self._canonicalize_single,
-                obj,
-                i,
-            ): i
+            pool.submit(self._canonicalize_single, obj, i): i
             for i, obj in enumerate(objects)
         }
-
         for future in as_completed(futures):
             idx = futures[future]
             try:
                 canonical = future.result()
-                result.results.append(
-                    {"index": idx, "canonical": canonical}
-                )
+                result.results.append({"index": idx, "canonical": canonical})
                 result.successful += 1
             except Exception as exc:
                 result.failed += 1
                 result.errors.append((idx, f"Canonicalization failed: {exc}"))
-                logger.exception(
-                    "Failed to canonicalize object %s", idx
-                )
-
+                logger.exception("Failed to canonicalize object %s", idx)
         return result
 
     def _canonicalize_single(self, obj: Dict[str, Any], index: int) -> str:
-        """Canonicalize a single object.
-
-        Args:
-            obj: Object to canonicalize
-            index: Object index
-
-        Returns:
-            Canonical JSON string
-        """
         return canonicalize_json(obj)
 
 
@@ -408,22 +291,12 @@ class BatchDeduplicator:
         return unique_objects, duplicate_indices
 
     def find_duplicates(
-        self, objects: List[Dict[str, Any]]
-    ) -> Dict[str, List[Dict[str, Any]]]:
-        """Find all duplicate objects.
-
-        Args:
-            objects: List of objects
-
-        Returns:
-            Dictionary mapping digest to list of duplicate objects
-        """
+        self, objects: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Find all duplicate objects."""
         digest_map: Dict[str, List[Dict[str, Any]]] = {}
         for obj in objects:
             digest = compute_uor_digest(obj, algorithm=self.algorithm)
             if digest not in digest_map:
                 digest_map[digest] = []
             digest_map[digest].append(obj)
-
-        # Return only duplicates
         return {d: objs for d, objs in digest_map.items() if len(objs) > 1}
