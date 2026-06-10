@@ -12,8 +12,7 @@ D4D final validation is closed and accepted.
 
 - Branch: `main`
 - Remote: `origin/main`
-- Pull/rebase result: already up to date
-- Working tree: clean before final closure document
+- Final validation rebase state: already up to date before closure
 
 ## Final Validation Gate
 
@@ -27,12 +26,21 @@ D4D final validation is closed and accepted.
 ## Runtime Conditions
 
 - Python: `3.14.5`
-- File descriptor limit used: `ulimit -n 8192`
+- File descriptor limit used for broad validation: `ulimit -n 8192`
 - Strict warning gates enabled for unraisable exceptions, runtime warnings, deprecation warnings, and unit-suite user warnings.
 
-## Evidence Meaning
+## Evidence Stack Closed
 
-D4D has cleared warning-clean validation, focused runtime evidence, direct burn-in smoke, MCP smoke, live API certification-package export, release-validation summary refresh, and final lint/unit/API/integration validation.
+- Python 3.14 warning-clean unit baseline
+- API warning-clean baseline
+- Integration warning-clean baseline
+- Focused runtime evidence ring
+- Direct burn-in CLI smoke
+- MCP smoke
+- Live API certification package
+- Live API smoke evidence
+- D4D release validation summary refresh
+- Final lint/unit/API/integration validation pass
 
 ## Closure Decision
 
