@@ -40,12 +40,30 @@ D4D release validation is active and evidence-backed.
 
 D4D has moved from local warning-clean validation into runtime-facing evidence. The system has validated lint, unit, API, integration, focused replay/burn-in/certification tests, direct burn-in smoke, MCP tool exposure, and authenticated live API certification-package export.
 
-## Remaining Before Final D4D Lock
+## D4D Closure State
 
-1. Live API smoke evidence capture for Mission Control, certification, burn-in run, and latest burn-in retrieval.
-2. Docker smoke validation, if Docker runtime is available.
-3. Short long-duration burn-in sample or documented deferral if the full soak is intentionally postponed.
-4. Final D4D closure document.
+D4D final validation is closed and tagged.
+
+- Final closure document: `docs/certification/D4D_FINAL_VALIDATION_CLOSURE.md`
+- Final tag: `v1.2.2-d4d-final`
+- D4D validation head: `128c526`
+
+## D4E Forward Lane
+
+D4E has started as the repeatable runtime smoke and operational validation lane.
+
+- Runtime smoke script: `scripts/validate_d4e_runtime_smoke.sh`
+- Summary writer: `scripts/d4e/write_runtime_smoke_summary.py`
+- Evidence document: `docs/certification/D4E_RUNTIME_SMOKE_BASELINE.md`
+- Latest result: `D4E runtime smoke: PASS`
+- Burn-in score: `99`
+
+## Remaining Before D4E Lock
+
+1. Re-run D4E runtime smoke after the formatting cleanup.
+2. Add Docker smoke only if Docker runtime is available.
+3. Add short long-duration burn-in sample or document deferral.
+4. Create D4E closure document when the lane is stable.
 
 ## Guardrails
 
