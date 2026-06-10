@@ -1,0 +1,55 @@
+name: D4E Runtime Smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "uar/**"
+      - "scripts/validate_d4e_runtime_smoke.sh"
+      - "scripts/d4e/**"
+      - "Makefile"
+      - ".github/workflows/d4e-runtime-smoke.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "uar/**"
+      - "scripts/validate_d4e_runtime_smoke.sh"
+      - "scripts/d4e/**"
+      - "Makefile"
+      - ".github/workflows/d4e-runtime-smoke.yml"
+
+jobs:
+  d4e-runtime-smoke:
+    name: D4E runtime smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      UAR_AUTH_MODE: api_key
+      API_KEYS: local-admin-key:admin:ci-d4e
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run D4E runtime smoke
+        run: make d4e-runtime-smoke
+
+      - name: Upload D4E smoke artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: d4e-runtime-smoke
+          path: reports/d4e/
+          if-no-files-found: warn
