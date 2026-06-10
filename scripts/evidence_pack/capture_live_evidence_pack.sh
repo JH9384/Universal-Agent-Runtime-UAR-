@@ -24,6 +24,18 @@ fi
 
 python -m json.tool "${REPORT_DIR}/health.json" >/dev/null
 
+if ! curl -fsS -H "Authorization: Bearer ${API_KEY}" "${API_URL}/api/health" > "${REPORT_DIR}/health.json"; then
+  echo "D5H live evidence pack capture: FAIL"
+  echo "UAR API is not reachable at ${API_URL}."
+  echo "Start it with:"
+  echo "  export API_KEYS=\"local-admin-key:admin:local-d5h\""
+  echo "  export UAR_AUTH_MODE=\"api_key\""
+  echo "  python -m uar.boot --services api"
+  exit 1
+fi
+
+python -m json.tool "${REPORT_DIR}/health.json" >/dev/null
+
 curl -sS -H "Authorization: Bearer ${API_KEY}" \
   "${API_URL}/api/uar/mission-control" \
   | python -m json.tool > "${REPORT_DIR}/mission_control.json"
