@@ -51,10 +51,18 @@ The make target should call:
 
 ## CI Decision Point
 
-D4F should decide whether runtime smoke becomes:
+D4F runtime smoke is now promoted to a CI-visible workflow.
 
-- a local-only release gate, or
-- a CI job with hosted-runner-compatible API boot behavior.
+Workflow:
+
+- `.github/workflows/d4e-runtime-smoke.yml`
+
+Hosted-runner compatibility finding:
+
+- Python `3.14.5` is available on GitHub-hosted runners.
+- UAR package metadata currently requires `<3.13,>=3.10`.
+- Therefore the D4E/D4F CI smoke lane uses Python `3.12`.
+- Local D4D/D4E evidence remains recorded against Python `3.14.5`.
 
 Docker smoke remains deferred until Docker daemon availability is confirmed.
 
