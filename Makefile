@@ -1,4 +1,4 @@
-.PHONY: d5h-evidence-capture help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate d4d-status d4e-runtime-smoke api web dashboard up up-full up-all docker-up docker-up-full docker-smoke docker-down mcp-smoke mcp-server clean release version sync-version check-version
+.PHONY: d5w-evidence-pack-api-smoke d5h-evidence-capture help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate d4d-status d4e-runtime-smoke api web dashboard up up-full up-all docker-up docker-up-full docker-smoke docker-down mcp-smoke mcp-server clean release version sync-version check-version
 
 PYTHON ?= python3.12
 API_HOST ?= 127.0.0.1
@@ -216,3 +216,7 @@ docker-security:
 
 d5h-evidence-capture:
 	./scripts/evidence_pack/capture_live_evidence_pack.sh
+
+d5w-evidence-pack-api-smoke:
+	bash scripts/evidence_pack/validate_evidence_pack_api_smoke.sh
+
