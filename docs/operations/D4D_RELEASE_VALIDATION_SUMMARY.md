@@ -1,67 +1,54 @@
 # D4D Release Validation Summary
 
-Generated: 2026-06-08
+## Status
 
-## Decision
+D4D release validation is active and evidence-backed.
 
-D4D release validation is cleared for release-note review and release tagging.
+## Date
 
-## Final Validation State
+2026-06-09
 
-- Focused golden journey validation: PASS
-- Backend sliced validation: PASS across all configured slices
-- Frontend Vitest suite: PASS
-- Frontend production build: PASS
-- MCP smoke: PASS
-- Docker smoke: PASS
-- Docker non-root validation: PASS
+## Current Evidence Stack
 
-## Docker Hardening Evidence
+| Evidence Layer | Status | Result |
+| --- | --- | --- |
+| Python 3.14 unit warning-clean baseline | Closed | `1649 passed` |
+| API warning-clean baseline | Closed | `783 passed, 1 skipped` |
+| Integration warning-clean baseline | Closed | `340 passed` |
+| Focused runtime evidence ring | Validated | `135 passed` |
+| Direct burn-in CLI smoke | Validated | `passed: true`, score `99` |
+| MCP smoke | Validated | `PASS` |
+| Live API certification package | Validated | all package sections `OK` |
 
-The Docker API runtime now runs as a non-root user.
+## Evidence Documents
 
-- Expected UID: `10001`
-- Expected GID: `10001`
-- Check target: `make docker-security`
-- Check script: `scripts/docker_security_check.sh`
+- `docs/certification/D4D_PYTHON_314_WARNING_CLEAN_BASELINE.md`
+- `docs/certification/D4D_API_WARNING_CLEAN_BASELINE.md`
+- `docs/certification/D4D_INTEGRATION_WARNING_CLEAN_BASELINE.md`
+- `docs/certification/D4D_WARNING_CLEAN_VALIDATION_INDEX.md`
+- `docs/certification/D4D_WARNING_CLEAN_VALIDATION_CLOSURE.md`
+- `docs/certification/D4D_RUNTIME_EVIDENCE_RING_1.md`
+- `docs/certification/D4D_LIVE_API_CERTIFICATION_PACKAGE.md`
 
-## Fixes Closed During D4D
+## Runtime Requirements
 
-- Restored guarded optional-integration skill utilities.
-- Fixed MCP server registry/error-handling regression.
-- Resolved document-ingest bad-path runtime expectation.
-- Stabilized golden journey run visibility validation.
-- Ignored generated validation artifacts with `.gitignore`.
-- Hardened Docker runtime by running the API container as a non-root user.
-- Added repeatable Docker non-root validation.
+- Python: `3.14.5`
+- Local file descriptor setting for API/integration rings: `ulimit -n 8192`
+- Live API validation auth mode: `api_key`
 
-## Non-blocking Warnings
+## Release-Gate Meaning
 
-The final passing validation runs still emitted non-blocking warnings from optional packages, offline socket-guard tests, async test mocks, and a passing React hook test. These warnings did not block the final validation result.
+D4D has moved from local warning-clean validation into runtime-facing evidence. The system has validated lint, unit, API, integration, focused replay/burn-in/certification tests, direct burn-in smoke, MCP tool exposure, and authenticated live API certification-package export.
 
-## Release Position
+## Remaining Before Final D4D Lock
 
-```text
-D4D: CLEARED
-Backend sliced validation: PASS
-Frontend tests: PASS
-Frontend build: PASS
-MCP smoke: PASS
-Docker smoke: PASS
-Docker security check: PASS
-Release posture: GREEN
-```
+1. Live API smoke evidence capture for Mission Control, certification, burn-in run, and latest burn-in retrieval.
+2. Docker smoke validation, if Docker runtime is available.
+3. Short long-duration burn-in sample or documented deferral if the full soak is intentionally postponed.
+4. Final D4D closure document.
 
-## Next Release-Control Steps
+## Guardrails
 
-1. Confirm local `git status` is clean.
-2. Push any remaining local changes.
-3. Create the release tag from the current `main` head.
-4. Publish release notes using this summary as the validation evidence source.
-
-Recommended tag:
-
-```bash
-git tag -a uar-v1.2.0-d4d-cleared -m "UAR v1.2.0 D4D release validation cleared"
-git push origin uar-v1.2.0-d4d-cleared
-```
+- This summary records evidence only.
+- No production runtime behavior is changed by this document.
+- Strict warning gates remain active for validation.
