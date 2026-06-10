@@ -86,6 +86,38 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
     };
   }, [fetchData]);
 
+  async function openEvidencePack(runId: string) {
+    setEvidencePackRunId(runId);
+    setEvidencePackMarkdown(null);
+    setEvidencePackError(null);
+    setEvidencePackLoading(true);
+
+    try {
+      const response = await fetch(
+        `/api/uar/evidence-pack/${encodeURIComponent(runId)}?include_markdown=true`,
+      );
+
+      if (!response.ok) {
+        throw new Error(`Evidence Pack request failed: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      setEvidencePackMarkdown(
+        typeof payload.markdown === "string"
+          ? payload.markdown
+          : "No Evidence Pack markdown returned.",
+      );
+    } catch (err) {
+      setEvidencePackError(
+        err instanceof Error ? err.message : "Evidence Pack request failed.",
+      );
+    } finally {
+      if (mountedRef.current) {
+        setEvidencePackLoading(false);
+      }
+    }
+  }
+
   function copyId(id: string) {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     navigator.clipboard.writeText(id).then(() => {
@@ -206,6 +238,9 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
                   <div className="mc-briefing-links">
                     <button type="button" className="mc-filter-btn" onClick={() => onOpenEvidence?.(evidenceRef)}>
                       Open Evidence
+                    </button>
+                    <button type="button" className="mc-filter-btn" onClick={() => openEvidencePack(r.run_id)}>
+                      Evidence Pack
                     </button>
                     <button type="button" className="mc-filter-btn" onClick={() => copyId(r.run_id)}>
                       Copy Run ID
