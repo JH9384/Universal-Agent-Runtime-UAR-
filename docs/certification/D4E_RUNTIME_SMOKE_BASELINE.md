@@ -2,7 +2,7 @@
 
 ## Status
 
-D4E runtime smoke validation is available and validated.
+D4E runtime smoke validation is repeatable and passed.
 
 ## Date
 
@@ -48,7 +48,7 @@ The script:
 
 ## Expected Result
 
-`D4E runtime smoke: PASS`
+`D4E runtime smoke: PASS`\n\n## Latest Result\n\n- Status: `PASS`\n- Burn-in passed: `true`\n- Burn-in score: `99`\n- Mission Control JSON captured successfully\n- Certification JSON captured successfully\n- Latest burn-in JSON captured successfully\n- Summary artifact: `reports/d4e/runtime_smoke_summary.json`
 
 ## Guardrails
 
