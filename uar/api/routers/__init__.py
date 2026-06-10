@@ -6,6 +6,7 @@ from .uor import router as _uor_router
 from .burn_in import router as burn_in_router
 from .certification import router as certification_router
 from .mission_control import router as mission_control_router
+from .evidence_pack import router as evidence_pack_router
 from .replay_confidence import router as replay_confidence_router
 from .replay_explorer import router as replay_explorer_router
 from .runtime_health import router as runtime_health_router
@@ -22,6 +23,7 @@ uor_router.include_router(burn_in_router)
 uor_router.include_router(runtime_health_router)
 uor_router.include_router(certification_router)
 uor_router.include_router(mission_control_router)
+uor_router.include_router(evidence_pack_router)
 uor_router.include_router(replay_explorer_router)
 uor_router.include_router(topology_router)
 uor_router.include_router(operator_workflows_router)
@@ -34,6 +36,7 @@ __all__ = [
     "runtime_health_router",
     "certification_router",
     "mission_control_router",
+    "evidence_pack_router",
     "replay_explorer_router",
     "topology_router",
 ]
