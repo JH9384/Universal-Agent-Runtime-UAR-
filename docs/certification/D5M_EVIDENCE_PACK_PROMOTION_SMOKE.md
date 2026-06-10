@@ -51,3 +51,7 @@ D5M proves the evidence-pack promotion path works without promoting raw `reports
 - Raw `reports/` artifacts remain ignored by default.
 - Promotion does not mutate runtime state.
 - Promoted artifacts require matching documentation.
+
+## Supersession Note
+
+`v1.2.28-d5m-evidence-promotion-smoke` was created before the promoted artifacts were committed. The clean D5M authority tag is `v1.2.29-d5m-evidence-promotion-validated`.
