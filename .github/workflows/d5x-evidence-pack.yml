@@ -1,0 +1,58 @@
+name: D5X Evidence Pack Gates
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "uar/core/evidence_pack.py"
+      - "uar/api/routers/evidence_pack.py"
+      - "tests/core/test_evidence_pack.py"
+      - "tests/api/test_evidence_pack_router.py"
+      - "tests/api/test_evidence_pack_api_contract.py"
+      - ".github/workflows/d5x-evidence-pack.yml"
+
+jobs:
+  evidence-pack-contract:
+    name: Evidence Pack contract tests
+    runs-on: ubuntu-latest
+    env:
+      UAR_AUTH_MODE: api_key
+      API_KEYS: dev-key-12345:test-user:admin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run ruff
+        run: ruff check .
+
+      - name: Run Evidence Pack core tests
+        run: |
+          pytest tests/core/test_evidence_pack.py -q \
+            -W error::pytest.PytestUnraisableExceptionWarning \
+            -W error::RuntimeWarning \
+            -W error::DeprecationWarning
+
+      - name: Run Evidence Pack router tests
+        run: |
+          pytest tests/api/test_evidence_pack_router.py -q \
+            -W error::pytest.PytestUnraisableExceptionWarning \
+            -W error::RuntimeWarning \
+            -W error::DeprecationWarning
+
+      - name: Run Evidence Pack API contract tests
+        run: |
+          pytest tests/api/test_evidence_pack_api_contract.py -q \
+            -W error::pytest.PytestUnraisableExceptionWarning \
+            -W error::RuntimeWarning \
+            -W error::DeprecationWarning
