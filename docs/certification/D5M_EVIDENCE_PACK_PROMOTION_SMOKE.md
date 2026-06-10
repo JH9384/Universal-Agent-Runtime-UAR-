@@ -55,3 +55,7 @@ D5M proves the evidence-pack promotion path works without promoting raw `reports
 ## Supersession Note
 
 `v1.2.28-d5m-evidence-promotion-smoke` was created before the promoted artifacts were committed. The clean D5M authority tag is `v1.2.29-d5m-evidence-promotion-validated`.
+
+## Final Authority Note
+
+`v1.2.31-d5m-promoted-artifacts-committed` is the authoritative D5M tag because it includes the promoted JSON and Markdown artifacts. Earlier D5M tags recorded the promotion flow but did not include the force-added ignored artifact files.
