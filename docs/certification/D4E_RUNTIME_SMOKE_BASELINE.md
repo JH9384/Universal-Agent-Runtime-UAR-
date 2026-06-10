@@ -48,7 +48,17 @@ The script:
 
 ## Expected Result
 
-`D4E runtime smoke: PASS`\n\n## Latest Result\n\n- Status: `PASS`\n- Burn-in passed: `true`\n- Burn-in score: `99`\n- Mission Control JSON captured successfully\n- Certification JSON captured successfully\n- Latest burn-in JSON captured successfully\n- Summary artifact: `reports/d4e/runtime_smoke_summary.json`
+`D4E runtime smoke: PASS`
+
+## Latest Result
+
+- Status: `PASS`
+- Burn-in passed: `true`
+- Burn-in score: `99`
+- Mission Control JSON captured successfully
+- Certification JSON captured successfully
+- Latest burn-in JSON captured successfully
+- Summary artifact: `reports/d4e/runtime_smoke_summary.json`
 
 ## Guardrails
 
