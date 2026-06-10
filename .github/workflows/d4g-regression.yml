@@ -1,0 +1,87 @@
+name: D4G Regression Gates
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run ruff
+        run: ruff check .
+
+  unit:
+    name: Unit warning-clean
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run unit tests
+        run: |
+          ulimit -n 8192
+          pytest tests/unit -q \
+            -W error::pytest.PytestUnraisableExceptionWarning \
+            -W error::RuntimeWarning \
+            -W error::UserWarning \
+            -W error::DeprecationWarning
+
+  api:
+    name: API warning-clean
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run API tests
+        run: |
+          ulimit -n 8192
+          pytest tests/api -q \
+            -W error::pytest.PytestUnraisableExceptionWarning \
+            -W error::RuntimeWarning \
+            -W error::DeprecationWarning \
+            --tb=short
+
+  integration:
+    name: Integration warning-clean
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run integration tests
+        run: |
+          ulimit -n 8192
+          pytest tests/integration -q \
+            -W error::pytest.PytestUnraisableExceptionWarning \
+            -W error::RuntimeWarning \
+            -W error::DeprecationWarning \
+            --tb=short
