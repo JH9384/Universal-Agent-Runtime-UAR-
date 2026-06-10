@@ -70,3 +70,24 @@ D4E has started as the repeatable runtime smoke and operational validation lane.
 - This summary records evidence only.
 - No production runtime behavior is changed by this document.
 - Strict warning gates remain active for validation.
+
+## CI Validation Expansion
+
+D4F and D4G extended the D4D/D4E validation stack into GitHub Actions.
+
+- D4F CI runtime smoke baseline: `v1.2.5-d4f-ci-smoke`
+- D4G CI regression verified baseline: `v1.2.8-d4g-ci-verified`
+- D4G verified run: GitHub Actions conclusion `success`
+- D4H consolidation opened to align release docs, tags, workflows, and operator checklists.
+
+## Superseded D4G Tags
+
+- `v1.2.6-d4g-ci-regression` was created before CI success was verified.
+- `v1.2.7-d4g-ci-confirmed` was also premature.
+- `v1.2.8-d4g-ci-verified` is the authoritative D4G verification tag.
+
+## D4H Immediate Hygiene
+
+- Track GitHub Actions Node 20 deprecation warnings.
+- Keep Python CI on `3.12` until package metadata supports newer runtimes.
+- Preserve strict warning gates across lint, unit, API, and integration jobs.
