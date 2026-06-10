@@ -87,6 +87,22 @@ function _missionControlWithRecurrence() {
 
 beforeEach(() => {
   mockUseApiFetch.mockReset()
+  it('renders Evidence Pack markdown from Replay Explorer action', async () => {
+    const user = userEvent.setup()
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('tab', { name: /Replay/i }))
+
+    const runButton = await screen.findByText('run-brief-1')
+    await user.click(runButton)
+
+    await user.click(screen.getByRole('button', { name: 'Evidence Pack' }))
+
+    expect(await screen.findByText('Evidence Pack')).toBeInTheDocument()
+    expect(await screen.findByText(/Evidence Pack v2/)).toBeInTheDocument()
+    expect(await screen.findByText(/run-brief-1/)).toBeInTheDocument()
+  })
+
 })
 
 describe('Dashboard operator loop', () => {
