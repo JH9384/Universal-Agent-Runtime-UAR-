@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from uar.api.middleware import auth_middleware
 from uar.core.evidence_pack import build_evidence_pack, render_evidence_pack_markdown
 
 router = APIRouter(prefix="/api/uar/evidence-pack", tags=["evidence-pack"])
+security = HTTPBearer(auto_error=False)
 
 
 def _validate_run_id(run_id: str) -> str:
@@ -26,12 +29,23 @@ def get_evidence_pack(
     signal_id: str | None = Query(default=None),
     recommendation_id: str | None = Query(default=None),
     outcome_id: str | None = Query(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> dict[str, Any]:
     """Return a read-only Evidence Pack v2 object.
 
     This endpoint intentionally assembles a pack from the core D5E builder
     without mutating runtime state or writing artifacts.
     """
+
+    user_info = auth_middleware(credentials)
+    if user_info is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+            },
+        )
 
     normalized_run_id = _validate_run_id(run_id)
 
