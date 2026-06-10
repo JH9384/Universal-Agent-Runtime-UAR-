@@ -53,6 +53,7 @@ The script:
 ## Latest Result
 
 - Status: `PASS`
+- Repeat validation: `2 consecutive passes`
 - Burn-in passed: `true`
 - Burn-in score: `99`
 - Mission Control JSON captured successfully
