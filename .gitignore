@@ -38,3 +38,5 @@ overview_architecture.puml
 # Generated evidence packs
 reports/
 artifacts/
+reports/evidence_pack/
+reports/d4e/
