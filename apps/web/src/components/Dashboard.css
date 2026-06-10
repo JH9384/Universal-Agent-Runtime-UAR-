@@ -478,3 +478,11 @@
   font-size: 0.72rem;
   color: #45a29e;
 }
+
+.mc-evidence-pack-panel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--mc-border, rgba(148, 163, 184, 0.35));
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.04);
+}

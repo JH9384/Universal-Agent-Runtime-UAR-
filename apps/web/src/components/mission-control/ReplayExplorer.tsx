@@ -33,6 +33,10 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
   const [filter, setFilter] = useState(initialRunId ?? "");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [evidencePackRunId, setEvidencePackRunId] = useState<string | null>(null);
+  const [evidencePackMarkdown, setEvidencePackMarkdown] = useState<string | null>(null);
+  const [evidencePackLoading, setEvidencePackLoading] = useState(false);
+  const [evidencePackError, setEvidencePackError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -218,6 +222,33 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
           </li>
         )}
       </ul>
+      {(evidencePackRunId || evidencePackLoading || evidencePackError || evidencePackMarkdown) && (
+        <section className="mc-evidence-pack-panel" aria-label="Evidence Pack preview">
+          <div className="mc-section-header">
+            <div>
+              <h3>Evidence Pack</h3>
+              <p className="mc-subtext">
+                Read-only Evidence Pack v2 preview for <code>{evidencePackRunId}</code>.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="mc-filter-btn"
+              onClick={() => {
+                setEvidencePackRunId(null);
+                setEvidencePackMarkdown(null);
+                setEvidencePackError(null);
+              }}
+            >
+              Close
+            </button>
+          </div>
+
+          {evidencePackLoading && <p className="mc-meta--xs">Loading Evidence Pack…</p>}
+          {evidencePackError && <p className="mc-status-summary--fail">{evidencePackError}</p>}
+          {evidencePackMarkdown && <pre className="mc-evidence-preview">{evidencePackMarkdown}</pre>}
+        </section>
+      )}
     </section>
   );
 }
