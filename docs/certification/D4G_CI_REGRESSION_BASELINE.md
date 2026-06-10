@@ -24,6 +24,11 @@ D4G CI regression gates passed.
 - API warning-clean suite
 - Integration warning-clean suite
 
+## GitHub Actions Evidence
+
+- Run URL: `https://github.com/JH9384/Universal-Agent-Runtime-UAR-/actions/runs/27251510132`
+- Conclusion: `success`
+
 ## Operational Meaning
 
 D4G promotes the local D4D warning-clean validation stack into CI-visible regression gates.
