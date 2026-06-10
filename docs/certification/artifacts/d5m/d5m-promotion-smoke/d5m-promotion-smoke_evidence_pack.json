@@ -1,0 +1,76 @@
+{
+  "authority_tag": "v1.2.18-d5d-evidence-pack-field-map",
+  "burnin": {
+    "available": true,
+    "data": {
+      "passed": true,
+      "score": 99
+    },
+    "missing": [],
+    "source": "burnin"
+  },
+  "certification": {
+    "available": true,
+    "data": {
+      "level": "sample",
+      "score": 95
+    },
+    "missing": [],
+    "source": "certification"
+  },
+  "closure": {
+    "available": true,
+    "data": {
+      "status": "open"
+    },
+    "missing": [],
+    "source": "closure"
+  },
+  "evidence_pack_id": "evidence-pack:d5m-promotion-smoke",
+  "generated_at": "2026-06-10T12:22:34.184373+00:00",
+  "mission_control": {
+    "available": true,
+    "data": {
+      "runtime_health": {
+        "status": "sample"
+      }
+    },
+    "missing": [],
+    "source": "mission_control"
+  },
+  "outcome": {
+    "available": true,
+    "data": {
+      "outcome_type": "sample"
+    },
+    "missing": [],
+    "source": "outcome"
+  },
+  "replay": {
+    "available": true,
+    "data": {
+      "replay_available": true,
+      "replay_confidence_score": 96
+    },
+    "missing": [],
+    "source": "replay"
+  },
+  "run_id": "d5m-promotion-smoke",
+  "signal": {
+    "available": true,
+    "data": {
+      "severity": "info",
+      "signal_type": "sample"
+    },
+    "missing": [],
+    "source": "signal"
+  },
+  "trust": {
+    "available": true,
+    "data": {
+      "trust_score": 0.9
+    },
+    "missing": [],
+    "source": "trust"
+  }
+}
