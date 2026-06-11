@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from uar.api.middleware import auth_middleware
@@ -26,6 +27,27 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 router = APIRouter()
+
+
+class TrustMovementPreviewRequest(BaseModel):
+    recommendation_ids: list[str] = []
+    run_id: str | None = None
+
+
+class TrustMovementPreviewRecord(BaseModel):
+    recommendation_id: str
+    run_id: str | None = None
+    before: float | None = None
+    after: float | None = None
+    delta: float | None = None
+    outcome_type: str | None = None
+    evidence_refs: list[str] = []
+
+
+class TrustMovementPreviewResponse(BaseModel):
+    status: str = "ok"
+    movements: list[TrustMovementPreviewRecord] = []
+
 
 _ANALYTICS_CACHE = None
 
@@ -1469,3 +1491,30 @@ async def record_alert_action(
         )
     _analytics_cache().invalidate("alerts-summary")
     return {"ok": True, "alert_id": alert_id, "status": status_value}
+
+
+@router.post("/api/uar/recommendations/trust-movement/preview", response_model=TrustMovementPreviewResponse)
+def preview_recommendation_trust_movement(
+    body: TrustMovementPreviewRequest,
+) -> TrustMovementPreviewResponse:
+    """Return a read-only trust movement preview for operator evidence handoff.
+
+    This endpoint does not record outcomes, recompute trust, or mutate runtime state.
+    It provides the UI a stable read model while persisted trust movement history matures.
+    """
+    return TrustMovementPreviewResponse(
+        status="ok",
+        movements=[
+            TrustMovementPreviewRecord(
+                recommendation_id=recommendation_id,
+                run_id=body.run_id,
+                before=None,
+                after=None,
+                delta=None,
+                outcome_type=None,
+                evidence_refs=[f"run:{body.run_id}"] if body.run_id else [],
+            )
+            for recommendation_id in body.recommendation_ids
+        ],
+    )
+

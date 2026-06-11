@@ -417,3 +417,38 @@ class TestRecommendationTrustRankingOmega7b:
         assert round(compute_blend(0.80, 0.0), 2) == 0.56
         # Clamped to 0
         assert compute_blend(0.0, -0.5) == 0.0
+
+def test_trust_movement_preview_accepts_recommendation_and_run():
+    headers = {"Authorization": "Bearer dev-key-12345"}
+    response = client.post(
+        "/api/uar/recommendations/trust-movement/preview",
+        headers=headers,
+        json={
+            "recommendation_ids": ["rec-1"],
+            "run_id": "run-1",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert isinstance(payload["movements"], list)
+    assert payload["movements"][0]["recommendation_id"] == "rec-1"
+    assert payload["movements"][0]["run_id"] == "run-1"
+
+
+def test_trust_movement_preview_is_read_only_empty_safe():
+    headers = {"Authorization": "Bearer dev-key-12345"}
+    response = client.post(
+        "/api/uar/recommendations/trust-movement/preview",
+        headers=headers,
+        json={
+            "recommendation_ids": [],
+            "run_id": None,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["movements"] == []
