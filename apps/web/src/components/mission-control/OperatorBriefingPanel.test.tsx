@@ -105,7 +105,7 @@ describe('OperatorBriefingPanel', () => {
 
     await user.click(screen.getByRole('button', { name: /Replay run-1/i }))
 
-    expect(onOpenReplay).toHaveBeenCalledWith('run-1')
+    expect(onOpenReplay).toHaveBeenCalledWith('run-1', ['rec-1'])
   })
 
   it('surfaces top recurrence and opens replay', async () => {

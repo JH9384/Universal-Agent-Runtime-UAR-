@@ -101,7 +101,7 @@ describe('FocusModePanel', () => {
 
     await user.click(screen.getByRole('button', { name: /Replay run-focus/i }))
 
-    expect(onOpenReplay).toHaveBeenCalledWith('run-focus-1')
+    expect(onOpenReplay).toHaveBeenCalledWith('run-focus-1', ['rec-1'])
   })
 
   it('renders recurrence when no fleet signal exists', async () => {

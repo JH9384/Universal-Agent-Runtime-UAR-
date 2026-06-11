@@ -40,7 +40,7 @@ interface MissionControlSnapshot {
 }
 
 interface OperatorBriefingPanelProps {
-  onOpenReplay?: (runId: string) => void;
+  onOpenReplay?: (runId: string, recommendationIds?: string[]) => void;
   onOpenEvidence?: (ref: string) => void;
   onSelectTab?: (tab: "health" | "topology" | "replay" | "artifacts") => void;
 }
@@ -137,7 +137,7 @@ export function OperatorBriefingPanel({ onOpenReplay, onOpenEvidence, onSelectTa
             <p className="mc-subtext">{topSignal.message}</p>
             <div className="mc-briefing-links">
               {replayRun && (
-                <button type="button" className="mc-filter-btn" onClick={() => onOpenReplay?.(replayRun)}>
+                <button type="button" className="mc-filter-btn" onClick={() => onOpenReplay?.(replayRun, recommendationIds)}>
                   ▶ Replay {replayRun.slice(0, 12)}…
                 </button>
               )}

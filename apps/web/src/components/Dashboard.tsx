@@ -29,10 +29,12 @@ interface DashboardProps {
 export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
   const [tab, setTab] = useState<Tab>("briefing");
   const [replayRunId, setReplayRunId] = useState<string | null>(null);
+  const [replayRecommendationIds, setReplayRecommendationIds] = useState<string[]>([]);
   const [evidenceRef, setEvidenceRef] = useState<string | null>(null);
 
-  const openReplay = (runId: string) => {
+  const openReplay = (runId: string, recommendationIds: string[] = []) => {
     setReplayRunId(runId);
+    setReplayRecommendationIds(recommendationIds);
     setTab("replay");
   };
 
@@ -119,7 +121,11 @@ export function Dashboard({ onBack, onToggleMode, modeLabel }: DashboardProps) {
         )}
         {tab === "replay" && (
           <div className="mc-grid mc-grid--wide">
-            <ReplayExplorer initialRunId={replayRunId ?? undefined} onOpenEvidence={openEvidence} />
+            <ReplayExplorer
+              initialRunId={replayRunId ?? undefined}
+              recommendationIds={replayRecommendationIds}
+              onOpenEvidence={openEvidence}
+            />
           </div>
         )}
         {tab === "artifacts" && (
