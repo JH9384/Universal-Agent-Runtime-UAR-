@@ -234,4 +234,55 @@ describe('Dashboard operator loop', () => {
     expect(screen.getByRole('button', { name: 'Resolved' })).toBeInTheDocument()
   })
 
+  it('records a resolved outcome from replay Evidence Pack handoff', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/api/uar/recommendations/outcome')) {
+        return new Response(JSON.stringify({ status: 'ok' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      return new Response(JSON.stringify({}), {
+        status: 404,
+        statusText: 'Not Found',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('button', { name: /Replay run-brief/i }))
+    await screen.findByDisplayValue('run-brief-1')
+    await user.click(await screen.findByRole('button', { name: 'Evidence Pack' }))
+    await screen.findByLabelText('Recommendation')
+
+    await user.click(screen.getByRole('button', { name: 'Resolved' }))
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${window.location.origin}/api/uar/recommendations/outcome`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          recommendation_id: 'rec-1',
+          outcome_type: 'resolved',
+          run_id: 'run-brief-1',
+          source: 'operator_briefing',
+        }),
+      }),
+    )
+    expect(await screen.findByText('Recorded resolved for rec-1')).toBeInTheDocument()
+  })
+
 })
