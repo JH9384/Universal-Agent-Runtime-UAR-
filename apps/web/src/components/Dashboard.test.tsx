@@ -26,6 +26,20 @@ vi.mock('../api/dashboard', () => ({
       },
       markdown: '# Evidence Pack v2 — run-brief-1\n\nSignal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement',
     }),
+    trustMovementPreview: vi.fn().mockResolvedValue({
+      status: 'ok',
+      movements: [
+        {
+          recommendation_id: 'rec-1',
+          run_id: 'run-brief-1',
+          before: 0.72,
+          after: 0.81,
+          delta: 0.09,
+          outcome_type: 'resolved',
+          evidence_refs: ['run:run-brief-1'],
+        },
+      ],
+    }),
   },
 }))
 
@@ -283,6 +297,30 @@ describe('Dashboard operator loop', () => {
       }),
     )
     expect(await screen.findByText('Recorded resolved for rec-1')).toBeInTheDocument()
+  })
+
+  it('renders trust movement data inside replay Evidence Pack handoff', async () => {
+    const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('button', { name: /Replay run-brief/i }))
+    await screen.findByDisplayValue('run-brief-1')
+    await user.click(await screen.findByRole('button', { name: 'Evidence Pack' }))
+
+    const trustRegion = await screen.findByRole('region', { name: 'Trust movement preview' })
+    expect(trustRegion).toBeInTheDocument()
+    expect(trustRegion.textContent).toContain('rec-1')
+    expect(trustRegion.textContent).toContain('run-brief-1')
+    expect(trustRegion.textContent).toContain('0.72')
+    expect(trustRegion.textContent).toContain('0.81')
+    expect(trustRegion.textContent).toContain('+0.09')
   })
 
 })

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { dashboardApi } from "../../api/dashboard";
 import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
 import { TrustMovementPreview } from "./TrustMovementPreview";
+import type { TrustMovementRecord } from "../../api/dashboard";
 import type { RunRecord } from "../../api/dashboard";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -40,6 +41,9 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
   const [evidencePackMarkdown, setEvidencePackMarkdown] = useState<string | null>(null);
   const [evidencePackLoading, setEvidencePackLoading] = useState(false);
   const [evidencePackError, setEvidencePackError] = useState<string | null>(null);
+  const [trustMovements, setTrustMovements] = useState<TrustMovementRecord[]>([]);
+  const [trustMovementLoading, setTrustMovementLoading] = useState(false);
+  const [trustMovementError, setTrustMovementError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,6 +97,8 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
     setEvidencePackRunId(runId);
     setEvidencePackMarkdown(null);
     setEvidencePackError(null);
+    setTrustMovements([]);
+    setTrustMovementError(null);
     setEvidencePackLoading(true);
 
     const requestedRunId = runId;
@@ -106,6 +112,30 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
           ? payload.markdown
           : "No Evidence Pack markdown returned.",
       );
+
+      if (recommendationIds.length > 0) {
+        setTrustMovementLoading(true);
+        try {
+          const movementPayload = await dashboardApi.trustMovementPreview({
+            recommendation_ids: recommendationIds,
+            run_id: runId,
+          });
+          if (!mountedRef.current || requestedRunId !== runId) return;
+          setTrustMovements(Array.isArray(movementPayload.movements) ? movementPayload.movements : []);
+        } catch (movementErr) {
+          if (!mountedRef.current || requestedRunId !== runId) return;
+          setTrustMovementError(
+            movementErr instanceof Error
+              ? movementErr.message
+              : "Trust movement preview request failed.",
+          );
+          setTrustMovements([]);
+        } finally {
+          if (mountedRef.current) {
+            setTrustMovementLoading(false);
+          }
+        }
+      }
     } catch (err) {
       if (!mountedRef.current || requestedRunId !== runId) return;
 
@@ -287,6 +317,8 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
                 setEvidencePackRunId(null);
                 setEvidencePackMarkdown(null);
                 setEvidencePackError(null);
+                setTrustMovements([]);
+                setTrustMovementError(null);
               }}
             >
               Close
@@ -311,10 +343,16 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
             )}
           </div>
 
+          {trustMovementLoading && <p className="mc-meta--xs">Loading trust movement…</p>}
+          {trustMovementError && (
+            <p className="mc-status-summary--warn">
+              Trust movement preview unavailable: {trustMovementError}
+            </p>
+          )}
           <TrustMovementPreview
             recommendationIds={recommendationIds}
             runId={evidencePackRunId}
-            movements={[]}
+            movements={trustMovements}
           />
         </section>
       )}

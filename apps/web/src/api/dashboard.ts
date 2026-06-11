@@ -72,6 +72,21 @@ export interface EvidencePackResponse {
   markdown: string | null
 }
 
+export interface TrustMovementRecord {
+  recommendation_id: string
+  run_id?: string | null
+  before?: number | null
+  after?: number | null
+  delta?: number | null
+  outcome_type?: string | null
+  evidence_refs?: string[]
+}
+
+export interface TrustMovementResponse {
+  status: string
+  movements: TrustMovementRecord[]
+}
+
 export const dashboardApi = {
   healthDashboard(init?: RequestInit): Promise<HealthDashboardData> {
     return fetchJson('/api/health/dashboard', init)
@@ -90,6 +105,17 @@ export const dashboardApi = {
       `/api/uar/evidence-pack/${encodeURIComponent(runId)}?include_markdown=true`,
       init
     )
+  },
+
+  trustMovementPreview(body: {
+    recommendation_ids: string[]
+    run_id?: string | null
+  }, init?: RequestInit): Promise<TrustMovementResponse> {
+    return fetchJson('/api/uar/recommendations/trust-movement/preview', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...init,
+    })
   },
 
   pingSkill(name: string, init?: RequestInit): Promise<SkillPingResult> {
