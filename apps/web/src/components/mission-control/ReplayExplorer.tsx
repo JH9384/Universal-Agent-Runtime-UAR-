@@ -92,14 +92,20 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
     setEvidencePackError(null);
     setEvidencePackLoading(true);
 
+    const requestedRunId = runId;
+
     try {
       const payload = await dashboardApi.evidencePack(runId);
+      if (!mountedRef.current || requestedRunId !== runId) return;
+
       setEvidencePackMarkdown(
-        typeof payload.markdown === "string"
+        typeof payload.markdown === "string" && payload.markdown.trim()
           ? payload.markdown
           : "No Evidence Pack markdown returned.",
       );
     } catch (err) {
+      if (!mountedRef.current || requestedRunId !== runId) return;
+
       setEvidencePackError(
         err instanceof Error ? err.message : "Evidence Pack request failed.",
       );
