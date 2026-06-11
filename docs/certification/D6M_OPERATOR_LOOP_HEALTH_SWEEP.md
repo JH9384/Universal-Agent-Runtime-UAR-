@@ -43,7 +43,7 @@ Repository hygiene:
 
 ## Operational meaning
 
-D6 is now safe to freeze as the operator-loop baseline. The system has one operator path for replay evidence and outcome capture, and it reuses the existing trust-learning infrastructure rather than introducing a parallel outcome model.
+D6 is safe to freeze as the operator-loop baseline. The system has one operator path for replay evidence and outcome capture, and it reuses the existing trust-learning infrastructure rather than introducing a parallel outcome model.
 
 ## Next release action
 
