@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { dashboardApi } from "../../api/dashboard";
 import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
 import { TrustMovementPreview } from "./TrustMovementPreview";
+import { RecurrenceCorrelationPreview } from "./RecurrenceCorrelationPreview";
 import type { TrustMovementRecord } from "../../api/dashboard";
 import type { RunRecord } from "../../api/dashboard";
 
@@ -353,6 +354,12 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
             recommendationIds={recommendationIds}
             runId={evidencePackRunId}
             movements={trustMovements}
+          />
+
+          <RecurrenceCorrelationPreview
+            recommendationIds={recommendationIds}
+            runId={evidencePackRunId}
+            correlations={[]}
           />
         </section>
       )}
