@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from uar.core.fleet_evidence_section import build_fleet_evidence_section
 from uar.core.incident_evidence_section import build_incident_evidence_section
+from uar.core.evidence_pack_correlation_section import build_correlation_evidence_section
 
 
 def compose_evidence_pack_v2(
@@ -21,6 +22,7 @@ def compose_evidence_pack_v2(
     *,
     outcomes: Optional[List[Dict[str, Any]]] = None,
     recommendation_metadata: Optional[List[Dict[str, Any]]] = None,
+    correlations: Optional[List[Dict[str, Any]]] = None,
     generated_at: Optional[float] = None,
     title: str = "UAR Evidence Pack v2",
 ) -> Dict[str, Any]:
@@ -42,7 +44,12 @@ def compose_evidence_pack_v2(
         recommendation_metadata=metadata_rows,
         generated_at=generated,
     )
-    sections = [fleet_section, incident_section]
+    correlation_section = build_correlation_evidence_section(
+        correlations or [],
+        generated_at=generated,
+    )
+
+    sections = [fleet_section, incident_section, correlation_section]
     markdown_parts = [
         f"# {title}",
         "",
