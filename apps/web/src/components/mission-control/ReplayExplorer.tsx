@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { dashboardApi } from "../../api/dashboard";
+import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
 import type { RunRecord } from "../../api/dashboard";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -12,6 +13,7 @@ const STATUS_COLOR: Record<string, string> = {
 interface ReplayExplorerProps {
   initialRunId?: string;
   onOpenEvidence?: (ref: string) => void;
+  recommendationIds?: string[];
 }
 
 function runTimestamp(record: RunRecord): string {
@@ -28,7 +30,7 @@ function runGuidance(record: RunRecord): string {
   return "Check run state before taking action.";
 }
 
-export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerProps) {
+export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds = [] }: ReplayExplorerProps) {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [filter, setFilter] = useState(initialRunId ?? "");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(initialRunId ?? null);
@@ -293,6 +295,20 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
           {evidencePackLoading && <p className="mc-meta--xs">Loading Evidence Pack…</p>}
           {evidencePackError && <p className="mc-status-summary--fail">{evidencePackError}</p>}
           {evidencePackMarkdown && <pre className="mc-evidence-preview">{evidencePackMarkdown}</pre>}
+
+          <div className="mc-briefing-section">
+            <h3>Outcome handoff</h3>
+            {recommendationIds.length > 0 ? (
+              <RecommendationOutcomeCapture
+                recommendationIds={recommendationIds}
+                runId={evidencePackRunId}
+              />
+            ) : (
+              <p className="mc-status-summary--warn">
+                Outcome capture is waiting for recommendation linkage. This Evidence Pack is run-linked, but no recommendation ID is available in Replay Explorer yet.
+              </p>
+            )}
+          </div>
         </section>
       )}
     </section>
