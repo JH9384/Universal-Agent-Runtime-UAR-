@@ -3,7 +3,7 @@ import { dashboardApi } from "../../api/dashboard";
 import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
 import { TrustMovementPreview } from "./TrustMovementPreview";
 import { RecurrenceCorrelationPreview } from "./RecurrenceCorrelationPreview";
-import type { TrustMovementRecord } from "../../api/dashboard";
+import type { TrustMovementRecord, RecurrenceCorrelationRecord } from "../../api/dashboard";
 import type { RunRecord } from "../../api/dashboard";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -45,6 +45,9 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
   const [trustMovements, setTrustMovements] = useState<TrustMovementRecord[]>([]);
   const [trustMovementLoading, setTrustMovementLoading] = useState(false);
   const [trustMovementError, setTrustMovementError] = useState<string | null>(null);
+  const [recurrenceCorrelations, setRecurrenceCorrelations] = useState<RecurrenceCorrelationRecord[]>([]);
+  const [recurrenceCorrelationLoading, setRecurrenceCorrelationLoading] = useState(false);
+  const [recurrenceCorrelationError, setRecurrenceCorrelationError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,6 +103,8 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
     setEvidencePackError(null);
     setTrustMovements([]);
     setTrustMovementError(null);
+    setRecurrenceCorrelations([]);
+    setRecurrenceCorrelationError(null);
     setEvidencePackLoading(true);
 
     const requestedRunId = runId;
@@ -123,6 +128,28 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
           });
           if (!mountedRef.current || requestedRunId !== runId) return;
           setTrustMovements(Array.isArray(movementPayload.movements) ? movementPayload.movements : []);
+
+          setRecurrenceCorrelationLoading(true);
+          try {
+            const correlationPayload = await dashboardApi.recurrenceCorrelationPreview({
+              recommendation_ids: recommendationIds,
+              run_id: runId,
+            });
+            setRecurrenceCorrelations(
+              Array.isArray(correlationPayload.correlations)
+                ? correlationPayload.correlations
+                : [],
+            );
+          } catch (err) {
+            setRecurrenceCorrelationError(
+              err instanceof Error
+                ? err.message
+                : "Recurrence correlation preview request failed.",
+            );
+            setRecurrenceCorrelations([]);
+          } finally {
+            setRecurrenceCorrelationLoading(false);
+          }
         } catch (movementErr) {
           if (!mountedRef.current || requestedRunId !== runId) return;
           setTrustMovementError(
@@ -131,6 +158,7 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
               : "Trust movement preview request failed.",
           );
           setTrustMovements([]);
+          setRecurrenceCorrelations([]);
         } finally {
           if (mountedRef.current) {
             setTrustMovementLoading(false);
@@ -356,10 +384,16 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
             movements={trustMovements}
           />
 
+          {recurrenceCorrelationLoading && <p className="mc-meta--xs">Loading recurrence correlation…</p>}
+          {recurrenceCorrelationError && (
+            <p className="mc-status-summary--warn">
+              Recurrence correlation preview unavailable: {recurrenceCorrelationError}
+            </p>
+          )}
           <RecurrenceCorrelationPreview
             recommendationIds={recommendationIds}
             runId={evidencePackRunId}
-            correlations={[]}
+            correlations={recurrenceCorrelations}
           />
         </section>
       )}

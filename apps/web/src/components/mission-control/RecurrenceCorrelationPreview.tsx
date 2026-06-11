@@ -6,7 +6,7 @@ export interface RecurrenceCorrelationRecord {
   trust_delta?: number | null
   later_recurrence_count: number
   later_recurrence_run_ids: string[]
-  correlation_status: 'improved' | 'recurred' | 'unknown'
+  correlation_status: 'improved' | 'recurred' | 'no_later_recurrence' | 'unknown'
 }
 
 interface RecurrenceCorrelationPreviewProps {
@@ -24,6 +24,7 @@ function formatDelta(value?: number | null): string {
 function statusText(status: RecurrenceCorrelationRecord['correlation_status']): string {
   if (status === 'improved') return 'Improved'
   if (status === 'recurred') return 'Recurred'
+  if (status === 'no_later_recurrence') return 'no_later_recurrence'
   return 'Unknown'
 }
 

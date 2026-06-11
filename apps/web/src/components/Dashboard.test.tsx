@@ -40,6 +40,20 @@ vi.mock('../api/dashboard', () => ({
         },
       ],
     }),
+    recurrenceCorrelationPreview: vi.fn().mockResolvedValue({
+      status: 'ok',
+      correlations: [
+        {
+          recommendation_id: 'rec-1',
+          run_id: 'run-brief-1',
+          outcome_type: 'resolved',
+          evidence_refs: ['run:run-brief-1'],
+          later_recurrence_count: 0,
+          later_recurrence_run_ids: [],
+          correlation_status: 'no_later_recurrence',
+        },
+      ],
+    }),
   },
 }))
 
@@ -321,6 +335,28 @@ describe('Dashboard operator loop', () => {
     expect(trustRegion.textContent).toContain('0.72')
     expect(trustRegion.textContent).toContain('0.81')
     expect(trustRegion.textContent).toContain('+0.09')
+  })
+
+  it('renders recurrence correlation data inside replay Evidence Pack handoff', async () => {
+    const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('button', { name: /Replay run-brief/i }))
+    await screen.findByDisplayValue('run-brief-1')
+    await user.click(await screen.findByRole('button', { name: 'Evidence Pack' }))
+
+    const correlationRegion = await screen.findByRole('region', { name: 'Recurrence correlation preview' })
+    expect(correlationRegion).toBeInTheDocument()
+    expect(correlationRegion.textContent).toContain('rec-1')
+    expect(correlationRegion.textContent).toContain('run-brief-1')
+    expect(correlationRegion.textContent).toContain('no_later_recurrence')
   })
 
 })
