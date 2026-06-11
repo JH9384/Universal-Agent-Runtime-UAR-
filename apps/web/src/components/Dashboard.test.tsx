@@ -87,8 +87,39 @@ function _missionControlWithRecurrence() {
 
 beforeEach(() => {
   mockUseApiFetch.mockReset()
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+
+    if (url.includes('/api/uar/evidence-pack/')) {
+      return new Response(JSON.stringify({
+        status: 'ok',
+        run_id: 'run-brief-1',
+        evidence_pack: {
+          evidence_pack_id: 'evidence-pack:run-brief-1',
+          run_id: 'run-brief-1',
+        },
+        markdown: '# Evidence Pack v2 — run-brief-1\n\nSignal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(JSON.stringify({}), {
+      status: 404,
+      statusText: 'Not Found',
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }))
   it('renders Evidence Pack markdown from Replay Explorer action', async () => {
     const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
     render(<Dashboard />)
 
     await user.click(screen.getByRole('tab', { name: /Replay/i }))
