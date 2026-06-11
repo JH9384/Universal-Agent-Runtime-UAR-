@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { dashboardApi } from "../../api/dashboard";
 import { RecommendationOutcomeCapture } from "./RecommendationOutcomeCapture";
+import { TrustMovementPreview } from "./TrustMovementPreview";
 import type { RunRecord } from "../../api/dashboard";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -309,6 +310,12 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence, recommendationIds
               </p>
             )}
           </div>
+
+          <TrustMovementPreview
+            recommendationIds={recommendationIds}
+            runId={evidencePackRunId}
+            movements={[]}
+          />
         </section>
       )}
     </section>
