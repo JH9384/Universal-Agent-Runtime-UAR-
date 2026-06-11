@@ -452,3 +452,41 @@ def test_trust_movement_preview_is_read_only_empty_safe():
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["movements"] == []
+
+
+def test_recurrence_correlation_preview_accepts_recommendation_and_run():
+    headers = {"Authorization": "Bearer dev-key-12345"}
+    response = client.post(
+        "/api/uar/recommendations/recurrence-correlation/preview",
+        headers=headers,
+        json={
+            "recommendation_ids": ["rec-1"],
+            "run_id": "run-1",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert isinstance(payload["correlations"], list)
+    assert payload["correlations"][0]["recommendation_id"] == "rec-1"
+    assert payload["correlations"][0]["run_id"] == "run-1"
+    assert payload["correlations"][0]["later_recurrence_count"] == 0
+    assert payload["correlations"][0]["correlation_status"] == "unknown"
+
+
+def test_recurrence_correlation_preview_is_read_only_empty_safe():
+    headers = {"Authorization": "Bearer dev-key-12345"}
+    response = client.post(
+        "/api/uar/recommendations/recurrence-correlation/preview",
+        headers=headers,
+        json={
+            "recommendation_ids": [],
+            "run_id": None,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["correlations"] == []

@@ -29,6 +29,28 @@ security = HTTPBearer(auto_error=False)
 router = APIRouter()
 
 
+
+class RecurrenceCorrelationPreviewRequest(BaseModel):
+    recommendation_ids: list[str] = []
+    run_id: str | None = None
+
+
+class RecurrenceCorrelationPreviewRecord(BaseModel):
+    recommendation_id: str
+    run_id: str | None = None
+    outcome_type: str | None = None
+    evidence_refs: list[str] = []
+    trust_delta: float | None = None
+    later_recurrence_count: int = 0
+    later_recurrence_run_ids: list[str] = []
+    correlation_status: str = "unknown"
+
+
+class RecurrenceCorrelationPreviewResponse(BaseModel):
+    status: str = "ok"
+    correlations: list[RecurrenceCorrelationPreviewRecord] = []
+
+
 class TrustMovementPreviewRequest(BaseModel):
     recommendation_ids: list[str] = []
     run_id: str | None = None
@@ -1513,6 +1535,32 @@ def preview_recommendation_trust_movement(
                 delta=None,
                 outcome_type=None,
                 evidence_refs=[f"run:{body.run_id}"] if body.run_id else [],
+            )
+            for recommendation_id in body.recommendation_ids
+        ],
+    )
+
+
+@router.post("/api/uar/recommendations/recurrence-correlation/preview", response_model=RecurrenceCorrelationPreviewResponse)
+async def preview_recurrence_correlation(
+    body: RecurrenceCorrelationPreviewRequest,
+) -> RecurrenceCorrelationPreviewResponse:
+    """Return a read-only recurrence correlation preview for operator evidence handoff.
+
+    This endpoint does not mutate outcomes, trust, incidents, runs, or evidence.
+    """
+    return RecurrenceCorrelationPreviewResponse(
+        status="ok",
+        correlations=[
+            RecurrenceCorrelationPreviewRecord(
+                recommendation_id=recommendation_id,
+                run_id=body.run_id,
+                outcome_type=None,
+                evidence_refs=[f"run:{body.run_id}"] if body.run_id else [],
+                trust_delta=None,
+                later_recurrence_count=0,
+                later_recurrence_run_ids=[],
+                correlation_status="unknown",
             )
             for recommendation_id in body.recommendation_ids
         ],

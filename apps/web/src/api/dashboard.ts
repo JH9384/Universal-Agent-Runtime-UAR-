@@ -82,6 +82,23 @@ export interface TrustMovementRecord {
   evidence_refs?: string[]
 }
 
+
+export interface RecurrenceCorrelationRecord {
+  recommendation_id: string
+  run_id?: string | null
+  outcome_type?: string | null
+  evidence_refs?: string[]
+  trust_delta?: number | null
+  later_recurrence_count: number
+  later_recurrence_run_ids: string[]
+  correlation_status: 'improved' | 'recurred' | 'unknown'
+}
+
+export interface RecurrenceCorrelationResponse {
+  status: string
+  correlations: RecurrenceCorrelationRecord[]
+}
+
 export interface TrustMovementResponse {
   status: string
   movements: TrustMovementRecord[]
@@ -112,6 +129,17 @@ export const dashboardApi = {
     run_id?: string | null
   }, init?: RequestInit): Promise<TrustMovementResponse> {
     return fetchJson('/api/uar/recommendations/trust-movement/preview', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...init,
+    })
+  },
+
+  recurrenceCorrelationPreview(body: {
+    recommendation_ids: string[]
+    run_id?: string | null
+  }, init?: RequestInit): Promise<RecurrenceCorrelationResponse> {
+    return fetchJson('/api/uar/recommendations/recurrence-correlation/preview', {
       method: 'POST',
       body: JSON.stringify(body),
       ...init,
