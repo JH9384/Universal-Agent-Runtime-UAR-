@@ -46,7 +46,7 @@ function _missionControl(runId = 'run-brief-1') {
         linkage: {
           replay: { run_id: runId, available: true },
           incidents: [],
-          recommendations: [],
+          recommendations: ['rec-1'],
           evidence_refs: [`run:${runId}`],
         },
       },
@@ -214,4 +214,24 @@ describe('Dashboard operator loop', () => {
     expect(preview.textContent).toContain('run-brief-1')
     expect(preview.textContent).toContain('Signal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement')
   })
+  it('carries recommendation IDs from briefing replay into replay outcome handoff', async () => {
+    const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('button', { name: /Replay run-brief/i }))
+    await screen.findByDisplayValue('run-brief-1')
+    await user.click(await screen.findByRole('button', { name: 'Evidence Pack' }))
+
+    expect(await screen.findByText('Outcome handoff')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Recommendation')).toHaveValue('rec-1')
+    expect(screen.getByRole('button', { name: 'Resolved' })).toBeInTheDocument()
+  })
+
 })
