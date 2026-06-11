@@ -17,6 +17,15 @@ vi.mock('../api/dashboard', () => ({
       { run_id: 'run-recur-1', status: 'failed', skills: ['echo'] },
       { run_id: 'run-other', status: 'completed', skills: ['echo'] },
     ]),
+    evidencePack: vi.fn().mockResolvedValue({
+      status: 'ok',
+      run_id: 'run-brief-1',
+      evidence_pack: {
+        evidence_pack_id: 'evidence-pack:run-brief-1',
+        run_id: 'run-brief-1',
+      },
+      markdown: '# Evidence Pack v2 — run-brief-1\n\nSignal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement',
+    }),
   },
 }))
 
@@ -87,53 +96,6 @@ function _missionControlWithRecurrence() {
 
 beforeEach(() => {
   mockUseApiFetch.mockReset()
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input)
-
-    if (url.includes('/api/uar/evidence-pack/')) {
-      return new Response(JSON.stringify({
-        status: 'ok',
-        run_id: 'run-brief-1',
-        evidence_pack: {
-          evidence_pack_id: 'evidence-pack:run-brief-1',
-          run_id: 'run-brief-1',
-        },
-        markdown: '# Evidence Pack v2 — run-brief-1\n\nSignal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement',
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    return new Response(JSON.stringify({}), {
-      status: 404,
-      statusText: 'Not Found',
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }))
-  it('renders Evidence Pack markdown from Replay Explorer action', async () => {
-    const user = userEvent.setup()
-    mockUseApiFetch.mockReturnValue({
-      data: _missionControl('run-brief-1'),
-      loading: false,
-      error: null,
-      refetch: vi.fn(),
-    })
-
-    render(<Dashboard />)
-
-    await user.click(screen.getByRole('tab', { name: /Replay/i }))
-
-    const runButton = await screen.findByText('run-brief-1')
-    await user.click(runButton)
-
-    await user.click(screen.getByRole('button', { name: 'Evidence Pack' }))
-
-    expect(await screen.findByText('Evidence Pack')).toBeInTheDocument()
-    expect(await screen.findByText(/Evidence Pack v2/)).toBeInTheDocument()
-    expect(await screen.findByText(/run-brief-1/)).toBeInTheDocument()
-  })
-
 })
 
 describe('Dashboard operator loop', () => {
@@ -227,5 +189,29 @@ describe('Dashboard operator loop', () => {
 
     expect(screen.getByRole('tab', { name: 'Artifacts' })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByDisplayValue('run:run-brief-1')).toBeInTheDocument()
+  })
+
+  it('renders Evidence Pack markdown from Replay Explorer action', async () => {
+    const user = userEvent.setup()
+    mockUseApiFetch.mockReturnValue({
+      data: _missionControl('run-brief-1'),
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<Dashboard />)
+
+    await user.click(screen.getByRole('button', { name: /Replay run-brief/i }))
+    await screen.findByDisplayValue('run-brief-1')
+    await user.click(await screen.findByRole('button', { name: 'run-brief-1' }))
+    await user.click(await screen.findByRole('button', { name: 'Evidence Pack' }))
+
+    const preview = await screen.findByRole('region', { name: 'Evidence Pack preview' })
+    expect(preview).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Evidence Pack' })).toBeInTheDocument()
+    expect(preview.textContent).toContain('Evidence Pack v2')
+    expect(preview.textContent).toContain('run-brief-1')
+    expect(preview.textContent).toContain('Signal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement')
   })
 })

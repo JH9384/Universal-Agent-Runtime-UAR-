@@ -93,15 +93,7 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
     setEvidencePackLoading(true);
 
     try {
-      const response = await fetch(
-        `/api/uar/evidence-pack/${encodeURIComponent(runId)}?include_markdown=true`,
-      );
-
-      if (!response.ok) {
-        throw new Error(`Evidence Pack request failed: ${response.status}`);
-      }
-
-      const payload = await response.json();
+      const payload = await dashboardApi.evidencePack(runId);
       setEvidencePackMarkdown(
         typeof payload.markdown === "string"
           ? payload.markdown
@@ -140,11 +132,13 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
     };
   }, []);
 
-  const visible = filter.trim()
+  const normalizedFilter = filter.trim();
+
+  const visible = normalizedFilter
     ? runs.filter(
         (r) =>
-          r.run_id.includes(filter.trim()) ||
-          r.status.includes(filter.trim())
+          r.run_id.includes(normalizedFilter) ||
+          r.status.includes(normalizedFilter)
       )
     : runs;
 
@@ -189,17 +183,25 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
       <ul>
         {visible.map((r) => {
           const color = STATUS_COLOR[r.status] ?? "#94a3b8";
-          const selected = selectedRunId === r.run_id;
+          const autoSelected = normalizedFilter === r.run_id && visible.length === 1;
+          const selected = selectedRunId === r.run_id || autoSelected;
           const evidenceRef = `run:${r.run_id}`;
           return (
             <li key={r.run_id} className="mc-replay-row" style={{ "--mc-status-color": color } as React.CSSProperties}>
-              <div className="mc-row">
+              <div
+                className="mc-row"
+                onClick={() => setSelectedRunId(selectedRunId === r.run_id ? null : r.run_id)}
+                role="presentation"
+              >
                 <span className="mc-dot" aria-hidden="true" />
                 <button
                   type="button"
                   className="mc-run-select"
                   aria-expanded={selected ? "true" : "false"}
-                  onClick={() => setSelectedRunId(selected ? null : r.run_id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedRunId(selectedRunId === r.run_id ? null : r.run_id);
+                  }}
                 >
                   <code className="mc-run-id">{r.run_id}</code>
                 </button>
@@ -213,7 +215,10 @@ export function ReplayExplorer({ initialRunId, onOpenEvidence }: ReplayExplorerP
                 )}
                 <button
                   type="button"
-                  onClick={() => copyId(r.run_id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyId(r.run_id);
+                  }}
                   title="Copy run ID"
                   className={copied === r.run_id ? "mc-copy-btn mc-copy-btn--copied" : "mc-copy-btn"}
                 >

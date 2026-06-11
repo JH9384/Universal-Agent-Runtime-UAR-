@@ -65,6 +65,13 @@ export interface CircuitBreakerStates {
   circuits: Record<string, CircuitBreakerInfo>
 }
 
+export interface EvidencePackResponse {
+  status: string
+  run_id: string
+  evidence_pack: Record<string, unknown>
+  markdown: string | null
+}
+
 export const dashboardApi = {
   healthDashboard(init?: RequestInit): Promise<HealthDashboardData> {
     return fetchJson('/api/health/dashboard', init)
@@ -76,6 +83,13 @@ export const dashboardApi = {
 
   compareRuns(a: string, b: string, init?: RequestInit): Promise<RunComparison> {
     return fetchJson(`/api/uar/runs/${encodeURIComponent(a)}/compare/${encodeURIComponent(b)}`, init)
+  },
+
+  evidencePack(runId: string, init?: RequestInit): Promise<EvidencePackResponse> {
+    return fetchJson(
+      `/api/uar/evidence-pack/${encodeURIComponent(runId)}?include_markdown=true`,
+      init
+    )
   },
 
   pingSkill(name: string, init?: RequestInit): Promise<SkillPingResult> {
