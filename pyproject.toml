@@ -31,7 +31,7 @@ dependencies = [
   "astropy>=6.0,<8.0",
   # Additional utilities
   "tenacity>=8.0,<10.0",
-  "rich>=13.0,<14.0",
+  "rich>=13.0,<16.0",
   "typer>=0.9,<1.0",
 ]
 
