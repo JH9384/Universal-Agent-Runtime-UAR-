@@ -89,14 +89,34 @@ def test_compare_evidence_packs_retains_lineage_and_status_vector():
 
     discrepancy = compare_evidence_packs(reference, candidate)
 
-    assert "fleet_signal_evidence/summary/status" in discrepancy.status_mismatches
+    assert (
+        "sections/fleet_signal_evidence/summary/status"
+        in discrepancy.status_mismatches
+    )
     assert discrepancy.availability_mismatches == (
         "recurrence_correlation_evidence",
     )
-    assert "incident:i1" in discrepancy.missing_evidence_refs
-    assert "r2" in discrepancy.missing_run_refs
+    assert any(
+        item.endswith("=incident:i1") for item in discrepancy.missing_evidence_refs
+    )
+    assert any(
+        "later_recurrence_run_ids=r2" in item
+        for item in discrepancy.missing_run_refs
+    )
     assert discrepancy.recurrence_count_abs_error == 1
     assert discrepancy.semantic_distance() > 0.0
+
+
+def test_compare_evidence_packs_detects_duplicate_reference_inflation():
+    reference = _reference_pack()
+    candidate = deepcopy(reference)
+    refs = candidate["sections"][2]["correlations"][0]["evidence_refs"]
+    refs.append("run:r2")
+
+    discrepancy = compare_evidence_packs(reference, candidate)
+
+    assert any(item.endswith("=run:r2") for item in discrepancy.extra_evidence_refs)
+    assert discrepancy.semantic_distance() >= 4.0
 
 
 def test_validation_trial_compares_current_ordinary_and_certificate_arms():
