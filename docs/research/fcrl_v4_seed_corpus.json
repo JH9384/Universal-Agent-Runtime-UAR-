@@ -1,0 +1,221 @@
+{
+  "corpus_id": "fcrl-v4-seed-corpus-1",
+  "provenance": "synthetic-control-only",
+  "evidence_boundary": "This seed validates the corpus machinery. It is not historical operational evidence.",
+  "cases": [
+    {
+      "case_id": "seed-lineage-loss",
+      "reference_name": "adjudicated-reference",
+      "provenance": "synthetic",
+      "notes": [
+        "Current omits the correlation section.",
+        "Ordinary validation retains shape but loses one lineage reference.",
+        "Certificate arm reconstructs the declared reference for this control."
+      ],
+      "reference_pack": {
+        "title": "UAR Evidence Pack v2",
+        "version": "v2",
+        "sections": [
+          {
+            "section": "fleet_signal_evidence",
+            "summary": {
+              "status": "critical",
+              "signals": [
+                {
+                  "linkage": {
+                    "replay": {"run_id": "seed-r2", "available": true},
+                    "evidence_refs": ["run:seed-r2", "incident:seed-i1"]
+                  }
+                }
+              ]
+            },
+            "trust_by_type": {
+              "repair": {"trust_score": 0.8}
+            }
+          },
+          {
+            "section": "incident_intelligence_evidence",
+            "summary": {
+              "status": "active",
+              "patterns": [
+                {
+                  "recurrence_count": 2,
+                  "affected_run_ids": ["seed-r1", "seed-r2"],
+                  "evidence_refs": ["run:seed-r1", "run:seed-r2"]
+                }
+              ]
+            }
+          },
+          {
+            "section": "recurrence_correlation_evidence",
+            "available": true,
+            "correlations": [
+              {
+                "recommendation_id": "seed-rec-1",
+                "run_id": "seed-r1",
+                "correlation_status": "later_recurrence",
+                "later_recurrence_count": 1,
+                "later_recurrence_run_ids": ["seed-r2"],
+                "evidence_refs": ["run:seed-r1", "run:seed-r2"]
+              }
+            ]
+          }
+        ]
+      },
+      "arms": [
+        {
+          "name": "current",
+          "runtime_ms": 2.0,
+          "storage_bytes": 500,
+          "pack": {
+            "title": "UAR Evidence Pack v2",
+            "version": "v2",
+            "sections": [
+              {
+                "section": "fleet_signal_evidence",
+                "summary": {
+                  "status": "critical",
+                  "signals": [
+                    {
+                      "linkage": {
+                        "replay": {"run_id": "seed-r2", "available": true},
+                        "evidence_refs": ["run:seed-r2", "incident:seed-i1"]
+                      }
+                    }
+                  ]
+                },
+                "trust_by_type": {
+                  "repair": {"trust_score": 0.8}
+                }
+              },
+              {
+                "section": "incident_intelligence_evidence",
+                "summary": {
+                  "status": "active",
+                  "patterns": [
+                    {
+                      "recurrence_count": 2,
+                      "affected_run_ids": ["seed-r1", "seed-r2"],
+                      "evidence_refs": ["run:seed-r1", "run:seed-r2"]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "ordinary_validation",
+          "runtime_ms": 2.5,
+          "storage_bytes": 550,
+          "pack": {
+            "title": "UAR Evidence Pack v2",
+            "version": "v2",
+            "sections": [
+              {
+                "section": "fleet_signal_evidence",
+                "summary": {
+                  "status": "critical",
+                  "signals": [
+                    {
+                      "linkage": {
+                        "replay": {"run_id": "seed-r2", "available": true},
+                        "evidence_refs": ["run:seed-r2", "incident:seed-i1"]
+                      }
+                    }
+                  ]
+                },
+                "trust_by_type": {
+                  "repair": {"trust_score": 0.8}
+                }
+              },
+              {
+                "section": "incident_intelligence_evidence",
+                "summary": {
+                  "status": "active",
+                  "patterns": [
+                    {
+                      "recurrence_count": 2,
+                      "affected_run_ids": ["seed-r1", "seed-r2"],
+                      "evidence_refs": ["run:seed-r1", "run:seed-r2"]
+                    }
+                  ]
+                }
+              },
+              {
+                "section": "recurrence_correlation_evidence",
+                "available": true,
+                "correlations": [
+                  {
+                    "recommendation_id": "seed-rec-1",
+                    "run_id": "seed-r1",
+                    "correlation_status": "later_recurrence",
+                    "later_recurrence_count": 1,
+                    "later_recurrence_run_ids": ["seed-r2"],
+                    "evidence_refs": ["run:seed-r1"]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "certificate",
+          "runtime_ms": 4.0,
+          "storage_bytes": 800,
+          "notes": ["Synthetic exact-reference control"],
+          "pack": {
+            "title": "UAR Evidence Pack v2",
+            "version": "v2",
+            "sections": [
+              {
+                "section": "fleet_signal_evidence",
+                "summary": {
+                  "status": "critical",
+                  "signals": [
+                    {
+                      "linkage": {
+                        "replay": {"run_id": "seed-r2", "available": true},
+                        "evidence_refs": ["run:seed-r2", "incident:seed-i1"]
+                      }
+                    }
+                  ]
+                },
+                "trust_by_type": {
+                  "repair": {"trust_score": 0.8}
+                }
+              },
+              {
+                "section": "incident_intelligence_evidence",
+                "summary": {
+                  "status": "active",
+                  "patterns": [
+                    {
+                      "recurrence_count": 2,
+                      "affected_run_ids": ["seed-r1", "seed-r2"],
+                      "evidence_refs": ["run:seed-r1", "run:seed-r2"]
+                    }
+                  ]
+                }
+              },
+              {
+                "section": "recurrence_correlation_evidence",
+                "available": true,
+                "correlations": [
+                  {
+                    "recommendation_id": "seed-rec-1",
+                    "run_id": "seed-r1",
+                    "correlation_status": "later_recurrence",
+                    "later_recurrence_count": 1,
+                    "later_recurrence_run_ids": ["seed-r2"],
+                    "evidence_refs": ["run:seed-r1", "run:seed-r2"]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

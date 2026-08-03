@@ -1,0 +1,70 @@
+name: FCRL v4 validation
+
+on:
+  pull_request:
+    paths:
+      - "uar/core/evidence_pack_validation.py"
+      - "uar/core/evidence_pack_certificate.py"
+      - "uar/core/evidence_pack_validation_corpus.py"
+      - "tests/core/test_evidence_pack_validation.py"
+      - "tests/core/test_evidence_pack_certificate.py"
+      - "tests/core/test_evidence_pack_validation_corpus.py"
+      - "tests/core/test_fcrl_v4_seed_corpus.py"
+      - "docs/research/fcrl_v4_seed_corpus.json"
+      - "scripts/fcrl_v4_evidence_pack_corpus.py"
+      - ".github/workflows/fcrl-v4-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install focused test tools
+        run: python -m pip install pytest pytest-timeout pytest-socket ruff
+
+      - name: Run focused tests
+        run: >-
+          python -m pytest -q
+          --confcutdir=tests/core
+          tests/core/test_evidence_pack_validation.py
+          tests/core/test_evidence_pack_certificate.py
+          tests/core/test_evidence_pack_validation_corpus.py
+          tests/core/test_fcrl_v4_seed_corpus.py
+
+      - name: Run seed corpus
+        run: >-
+          python scripts/fcrl_v4_evidence_pack_corpus.py
+          docs/research/fcrl_v4_seed_corpus.json
+          --json-out /tmp/fcrl-v4-seed-result.json
+          --markdown-out /tmp/fcrl-v4-seed-report.md
+
+      - name: Verify seed outputs
+        run: |
+          test -s /tmp/fcrl-v4-seed-result.json
+          test -s /tmp/fcrl-v4-seed-report.md
+          grep -q 'exact_reference_reconstruction' /tmp/fcrl-v4-seed-result.json
+          grep -q 'Certificate-only obstructions' /tmp/fcrl-v4-seed-report.md
+
+      - name: Lint focused files
+        run: >-
+          ruff check
+          uar/core/evidence_pack_validation.py
+          uar/core/evidence_pack_certificate.py
+          uar/core/evidence_pack_validation_corpus.py
+          tests/core/test_evidence_pack_validation.py
+          tests/core/test_evidence_pack_certificate.py
+          tests/core/test_evidence_pack_validation_corpus.py
+          tests/core/test_fcrl_v4_seed_corpus.py
+          scripts/fcrl_v4_evidence_pack_corpus.py
