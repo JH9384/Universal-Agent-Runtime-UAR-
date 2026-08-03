@@ -7,8 +7,9 @@ materialized packs so historical collection and adjudication stay separate.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 from uar.core.evidence_pack_certificate import (
     EvidencePackAuditComparison,
@@ -104,7 +105,7 @@ class EvidencePackCorpusResult:
 
 def _mapping(value: Any, *, path: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise ValueError(f"{path} must be an object")
+        raise TypeError(f"{path} must be an object")
     return value
 
 
@@ -124,7 +125,7 @@ def corpus_cases_from_document(
     if not isinstance(raw_cases, Sequence) or isinstance(
         raw_cases, (str, bytes, bytearray)
     ):
-        raise ValueError("cases must be a sequence")
+        raise TypeError("cases must be a sequence")
 
     cases: list[EvidencePackCorpusCase] = []
     seen: set[str] = set()
@@ -142,7 +143,7 @@ def corpus_cases_from_document(
         if not isinstance(raw_arms, Sequence) or isinstance(
             raw_arms, (str, bytes, bytearray)
         ):
-            raise ValueError(f"cases/{case_index}/arms must be a sequence")
+            raise TypeError(f"cases/{case_index}/arms must be a sequence")
 
         arms: list[ValidationArm] = []
         arm_names: set[str] = set()
@@ -161,7 +162,7 @@ def corpus_cases_from_document(
             if not isinstance(raw_notes, Sequence) or isinstance(
                 raw_notes, (str, bytes, bytearray)
             ):
-                raise ValueError(
+                raise TypeError(
                     f"cases/{case_index}/arms/{arm_index}/notes must be a sequence"
                 )
             arms.append(
@@ -194,7 +195,7 @@ def corpus_cases_from_document(
         if not isinstance(raw_notes, Sequence) or isinstance(
             raw_notes, (str, bytes, bytearray)
         ):
-            raise ValueError(f"cases/{case_index}/notes must be a sequence")
+            raise TypeError(f"cases/{case_index}/notes must be a sequence")
         cases.append(
             EvidencePackCorpusCase(
                 case_id=case_id,
@@ -256,7 +257,7 @@ def render_evidence_pack_corpus_report(result: EvidencePackCorpusResult) -> str:
         "",
         f"- Cases: `{len(result.cases)}`",
         f"- Classifications: `{result.classification_counts}`",
-        "- Certificate-only obstructions: "
+        f"- Certificate-only obstructions: "
         f"`{result.certificate_only_obstruction_count}`",
         "",
         "| Case | Provenance | Classification | Current | Ordinary | Certificate |",
