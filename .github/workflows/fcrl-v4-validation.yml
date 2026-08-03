@@ -37,6 +37,7 @@ jobs:
       - name: Run focused tests
         run: >-
           python -m pytest -q
+          --confcutdir=tests/core
           tests/core/test_evidence_pack_validation.py
           tests/core/test_evidence_pack_certificate.py
           tests/core/test_evidence_pack_validation_corpus.py
