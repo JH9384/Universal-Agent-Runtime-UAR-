@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Run the read-only FCRL v4 Evidence Pack corpus evaluator."""
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPOSITORY_ROOT))
 
-from uar.core.evidence_pack_validation_corpus import (  # noqa: E402
+from uar.core.evidence_pack_validation_corpus import (
     evaluate_evidence_pack_corpus_document,
     render_evidence_pack_corpus_report,
 )
