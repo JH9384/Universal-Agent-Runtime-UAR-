@@ -1,5 +1,7 @@
+import time
 from copy import deepcopy
 
+from uar.core.evidence_pack_v2 import compose_evidence_pack_v2
 from uar.core.evidence_pack_validation import (
     ValidationArm,
     classify_certificate_leverage,
@@ -163,6 +165,107 @@ def test_validation_trial_compares_current_ordinary_and_certificate_arms():
     assert "# FCRL v4 Evidence Pack Validation" in markdown
     assert "`certificate` | 0.000000 | `True`" in markdown
     assert "Missing evidence refs" in markdown
+
+
+def test_validation_trial_uses_real_evidence_pack_v2_shapes():
+    now = time.time()
+    records = [
+        {
+            "run_id": "run-real-1",
+            "goal_id": "goal-real",
+            "status": "failed",
+            "skills": ["echo"],
+            "metadata": {
+                "service": "svc-real",
+                "incident_id": "inc-real",
+                "recommendation_id": "rec-real",
+            },
+            "created_at": now - 10,
+        },
+        {
+            "run_id": "run-real-2",
+            "goal_id": "goal-real",
+            "status": "failed",
+            "skills": ["echo"],
+            "metadata": {
+                "service": "svc-real",
+                "incident_id": "inc-real",
+                "recommendation_id": "rec-real",
+            },
+            "created_at": now,
+        },
+    ]
+    outcomes = [
+        {
+            "recommendation_id": "rec-real",
+            "outcome_type": "resolved",
+            "recorded_at": now,
+        }
+        for _ in range(5)
+    ]
+    metadata = [
+        {
+            "recommendation_id": "rec-real",
+            "category": "fleet_recovery",
+            "source": "fleet_signal",
+            "title": "Recover svc-real",
+            "confidence": 0.9,
+            "run_id": "run-real-1",
+            "recorded_at": now,
+        }
+    ]
+    correlations = [
+        {
+            "recommendation_id": "rec-real",
+            "run_id": "run-real-1",
+            "outcome_type": "resolved",
+            "later_recurrence_count": 1,
+            "later_recurrence_run_ids": ["run-real-2"],
+            "correlation_status": "later_recurrence",
+            "evidence_refs": ["run:run-real-1", "run:run-real-2"],
+        }
+    ]
+
+    reference = compose_evidence_pack_v2(
+        records,
+        outcomes=outcomes,
+        recommendation_metadata=metadata,
+        correlations=correlations,
+        generated_at=123.0,
+    )
+    current = compose_evidence_pack_v2(
+        records,
+        outcomes=outcomes,
+        recommendation_metadata=metadata,
+        correlations=[],
+        generated_at=123.0,
+    )
+    ordinary = compose_evidence_pack_v2(
+        records,
+        outcomes=outcomes,
+        recommendation_metadata=[],
+        correlations=correlations,
+        generated_at=123.0,
+    )
+
+    result = evaluate_validation_trial(
+        reference_name="adjudicated_composer_output",
+        reference_pack=reference,
+        arms=[
+            ValidationArm("current", current),
+            ValidationArm("ordinary_validation", ordinary),
+            ValidationArm("certificate", deepcopy(reference)),
+        ],
+    )
+
+    by_name = result.by_name()
+    assert (
+        "recurrence_correlation_evidence"
+        in by_name["current"].discrepancy.availability_mismatches
+    )
+    assert by_name["ordinary_validation"].discrepancy.trust_score_abs_error > 0
+    assert by_name["certificate"].discrepancy.exact is True
+    assert classify_certificate_leverage(result) == "exact_reference_reconstruction"
 
 
 def test_certificate_leverage_reports_no_gain_when_tied():
