@@ -2,17 +2,18 @@
 
 FCRL v4 freezes the current certificate calculus and asks whether it provides
 measurable operational leverage over the existing pipeline and ordinary
-validation.  This module supplies the neutral measurement seam.  It does not
+validation. This module supplies the neutral measurement seam. It does not
 change evidence-pack construction, trust, recurrence, certification, or runtime
 state.
 
 The comparator deliberately retains a discrepancy vector before reducing it to
-one weighted score.  A favorable scalar total must not hide lineage loss,
+one weighted score. A favorable scalar total must not hide lineage loss,
 missing evidence references, or status disagreement.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, Mapping, Sequence
 
@@ -52,7 +53,7 @@ class EvidencePackDiscrepancy:
         """Reduce the retained vector to a declared weighted distance.
 
         The defaults intentionally penalize missing lineage and evidence links
-        more strongly than ordinary section-shape differences.  Callers should
+        more strongly than ordinary section-shape differences. Callers should
         publish any non-default policy weights alongside reported results.
         """
 
@@ -151,34 +152,58 @@ def _sections(pack: Mapping[str, Any]) -> Dict[str, Mapping[str, Any]]:
     return result
 
 
-def _walk(value: Any, path: tuple[str, ...] = ()) -> Iterable[tuple[tuple[str, ...], Any]]:
+def _canonical_observable_tree(pack: Mapping[str, Any]) -> Dict[str, Any]:
+    """Replace section-list positions with stable section-name paths."""
+
+    return {"sections": _sections(pack)}
+
+
+def _walk(
+    value: Any, path: tuple[str, ...] = ()
+) -> Iterable[tuple[tuple[str, ...], Any]]:
     yield path, value
     if isinstance(value, Mapping):
         for key, child in value.items():
             yield from _walk(child, path + (str(key),))
-    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+    elif isinstance(value, Sequence) and not isinstance(
+        value, (str, bytes, bytearray)
+    ):
         for index, child in enumerate(value):
             yield from _walk(child, path + (str(index),))
 
 
-def _string_set_for_keys(pack: Mapping[str, Any], keys: set[str]) -> set[str]:
-    values: set[str] = set()
-    for path, value in _walk(pack):
+def _string_occurrence_counts(
+    pack: Mapping[str, Any], keys: set[str]
+) -> Counter[str]:
+    """Count path-specific references so another occurrence cannot mask loss."""
+
+    values: Counter[str] = Counter()
+    tree = _canonical_observable_tree(pack)
+    for path, value in _walk(tree):
         if not path or path[-1] not in keys:
             continue
+        location = "/".join(path)
         if isinstance(value, str):
             if value and value != "unknown":
-                values.add(value)
+                values[f"{location}={value}"] += 1
         elif isinstance(value, Sequence) and not isinstance(
             value, (str, bytes, bytearray)
         ):
-            values.update(str(item) for item in value if item)
+            for item in value:
+                if item:
+                    values[f"{location}={item}"] += 1
     return values
+
+
+def _expanded_counter_difference(
+    left: Counter[str], right: Counter[str]
+) -> tuple[str, ...]:
+    return tuple(sorted((left - right).elements()))
 
 
 def _status_map(pack: Mapping[str, Any]) -> Dict[str, str]:
     statuses: Dict[str, str] = {}
-    for path, value in _walk(pack):
+    for path, value in _walk(_canonical_observable_tree(pack)):
         if not path or path[-1] not in {"status", "correlation_status"}:
             continue
         if isinstance(value, str):
@@ -188,7 +213,7 @@ def _status_map(pack: Mapping[str, Any]) -> Dict[str, str]:
 
 def _numeric_sum_for_keys(pack: Mapping[str, Any], keys: set[str]) -> float:
     total = 0.0
-    for path, value in _walk(pack):
+    for path, value in _walk(_canonical_observable_tree(pack)):
         if path and path[-1] in keys and isinstance(value, (int, float)):
             total += float(value)
     return total
@@ -196,7 +221,7 @@ def _numeric_sum_for_keys(pack: Mapping[str, Any], keys: set[str]) -> float:
 
 def _numeric_map_for_key(pack: Mapping[str, Any], key: str) -> Dict[str, float]:
     values: Dict[str, float] = {}
-    for path, value in _walk(pack):
+    for path, value in _walk(_canonical_observable_tree(pack)):
         if path and path[-1] == key and isinstance(value, (int, float)):
             values["/".join(path)] = float(value)
     return values
@@ -206,7 +231,9 @@ def _absolute_map_error(
     reference: Mapping[str, float], candidate: Mapping[str, float]
 ) -> float:
     keys = set(reference) | set(candidate)
-    return sum(abs(reference.get(key, 0.0) - candidate.get(key, 0.0)) for key in keys)
+    return sum(
+        abs(reference.get(key, 0.0) - candidate.get(key, 0.0)) for key in keys
+    )
 
 
 def compare_evidence_packs(
@@ -239,28 +266,21 @@ def compare_evidence_packs(
         )
     )
 
-    reference_evidence_refs = _string_set_for_keys(reference, {"evidence_refs"})
-    candidate_evidence_refs = _string_set_for_keys(candidate, {"evidence_refs"})
-    reference_run_refs = _string_set_for_keys(
-        reference,
-        {
-            "run_id",
-            "run_ids",
-            "affected_run_ids",
-            "later_recurrence_run_ids",
-            "latest_run_id",
-        },
+    reference_evidence_refs = _string_occurrence_counts(
+        reference, {"evidence_refs"}
     )
-    candidate_run_refs = _string_set_for_keys(
-        candidate,
-        {
-            "run_id",
-            "run_ids",
-            "affected_run_ids",
-            "later_recurrence_run_ids",
-            "latest_run_id",
-        },
+    candidate_evidence_refs = _string_occurrence_counts(
+        candidate, {"evidence_refs"}
     )
+    run_reference_keys = {
+        "run_id",
+        "run_ids",
+        "affected_run_ids",
+        "later_recurrence_run_ids",
+        "latest_run_id",
+    }
+    reference_run_refs = _string_occurrence_counts(reference, run_reference_keys)
+    candidate_run_refs = _string_occurrence_counts(candidate, run_reference_keys)
 
     recurrence_keys = {"recurrence_count", "later_recurrence_count"}
     recurrence_error = int(
@@ -280,14 +300,18 @@ def compare_evidence_packs(
         extra_sections=tuple(sorted(candidate_names - reference_names)),
         availability_mismatches=availability_mismatches,
         status_mismatches=status_mismatches,
-        missing_evidence_refs=tuple(
-            sorted(reference_evidence_refs - candidate_evidence_refs)
+        missing_evidence_refs=_expanded_counter_difference(
+            reference_evidence_refs, candidate_evidence_refs
         ),
-        extra_evidence_refs=tuple(
-            sorted(candidate_evidence_refs - reference_evidence_refs)
+        extra_evidence_refs=_expanded_counter_difference(
+            candidate_evidence_refs, reference_evidence_refs
         ),
-        missing_run_refs=tuple(sorted(reference_run_refs - candidate_run_refs)),
-        extra_run_refs=tuple(sorted(candidate_run_refs - reference_run_refs)),
+        missing_run_refs=_expanded_counter_difference(
+            reference_run_refs, candidate_run_refs
+        ),
+        extra_run_refs=_expanded_counter_difference(
+            candidate_run_refs, reference_run_refs
+        ),
         recurrence_count_abs_error=recurrence_error,
         trust_score_abs_error=trust_error,
     )
