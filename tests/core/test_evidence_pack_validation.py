@@ -284,3 +284,24 @@ def test_certificate_leverage_reports_no_gain_when_tied():
     )
 
     assert classify_certificate_leverage(result) == "no_semantic_leverage"
+
+
+def test_certificate_leverage_reports_negative_when_certificate_is_worse():
+    reference = _reference_pack()
+    current = deepcopy(reference)
+    ordinary = deepcopy(reference)
+    ordinary["sections"] = ordinary["sections"][:2]
+    certificate = deepcopy(ordinary)
+    certificate["sections"][0]["summary"]["status"] = "warning"
+
+    result = evaluate_validation_trial(
+        reference_name="reference",
+        reference_pack=reference,
+        arms=[
+            ValidationArm("current", current),
+            ValidationArm("ordinary_validation", ordinary),
+            ValidationArm("certificate", certificate),
+        ],
+    )
+
+    assert classify_certificate_leverage(result) == "negative_leverage"
