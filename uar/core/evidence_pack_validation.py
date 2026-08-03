@@ -14,8 +14,9 @@ missing evidence references, or status disagreement.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Mapping, Sequence
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -72,7 +73,7 @@ class EvidencePackDiscrepancy:
             + trust_weight * self.trust_score_abs_error
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "missing_sections": list(self.missing_sections),
             "extra_sections": list(self.extra_sections),
@@ -114,7 +115,7 @@ class ValidationArmResult:
     def semantic_distance(self) -> float:
         return self.discrepancy.semantic_distance()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "discrepancy": self.discrepancy.to_dict(),
@@ -131,18 +132,18 @@ class ValidationTrialResult:
     reference_name: str
     arms: tuple[ValidationArmResult, ...] = field(default_factory=tuple)
 
-    def by_name(self) -> Dict[str, ValidationArmResult]:
+    def by_name(self) -> dict[str, ValidationArmResult]:
         return {arm.name: arm for arm in self.arms}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "reference_name": self.reference_name,
             "arms": [arm.to_dict() for arm in self.arms],
         }
 
 
-def _sections(pack: Mapping[str, Any]) -> Dict[str, Mapping[str, Any]]:
-    result: Dict[str, Mapping[str, Any]] = {}
+def _sections(pack: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    result: dict[str, Mapping[str, Any]] = {}
     for section in pack.get("sections") or []:
         if not isinstance(section, Mapping):
             continue
@@ -152,7 +153,7 @@ def _sections(pack: Mapping[str, Any]) -> Dict[str, Mapping[str, Any]]:
     return result
 
 
-def _canonical_observable_tree(pack: Mapping[str, Any]) -> Dict[str, Any]:
+def _canonical_observable_tree(pack: Mapping[str, Any]) -> dict[str, Any]:
     """Replace section-list positions with stable section-name paths."""
 
     return {"sections": _sections(pack)}
@@ -201,8 +202,8 @@ def _expanded_counter_difference(
     return tuple(sorted((left - right).elements()))
 
 
-def _status_map(pack: Mapping[str, Any]) -> Dict[str, str]:
-    statuses: Dict[str, str] = {}
+def _status_map(pack: Mapping[str, Any]) -> dict[str, str]:
+    statuses: dict[str, str] = {}
     for path, value in _walk(_canonical_observable_tree(pack)):
         if not path or path[-1] not in {"status", "correlation_status"}:
             continue
@@ -219,8 +220,8 @@ def _numeric_sum_for_keys(pack: Mapping[str, Any], keys: set[str]) -> float:
     return total
 
 
-def _numeric_map_for_key(pack: Mapping[str, Any], key: str) -> Dict[str, float]:
-    values: Dict[str, float] = {}
+def _numeric_map_for_key(pack: Mapping[str, Any], key: str) -> dict[str, float]:
+    values: dict[str, float] = {}
     for path, value in _walk(_canonical_observable_tree(pack)):
         if path and path[-1] == key and isinstance(value, (int, float)):
             values["/".join(path)] = float(value)
