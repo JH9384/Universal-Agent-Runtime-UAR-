@@ -8,8 +8,9 @@ validation. Neither audit mutates the evidence pack or runtime state.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 _REQUIRED_SECTIONS = {
     "fleet_signal_evidence",
@@ -175,7 +176,9 @@ def audit_evidence_pack_ordinary(pack: Mapping[str, Any]) -> EvidencePackAudit:
                 )
             )
 
-    def walk(value: Any, path: tuple[str, ...] = ()) -> Iterable[tuple[tuple[str, ...], Any]]:
+    def walk(
+        value: Any, path: tuple[str, ...] = ()
+    ) -> Iterable[tuple[tuple[str, ...], Any]]:
         yield path, value
         if isinstance(value, Mapping):
             for key, child in value.items():
@@ -187,15 +190,19 @@ def audit_evidence_pack_ordinary(pack: Mapping[str, Any]) -> EvidencePackAudit:
                 yield from walk(child, path + (str(index),))
 
     for path, value in walk(pack):
-        if path and path[-1] == "trust_score" and isinstance(value, (int, float)):
-            if not 0.0 <= float(value) <= 1.0:
-                issues.append(
-                    _obstruction(
-                        "trust_score_out_of_range",
-                        "/".join(path),
-                        "trust score must be in [0,1]",
-                    )
+        if (
+            path
+            and path[-1] == "trust_score"
+            and isinstance(value, (int, float))
+            and not 0.0 <= float(value) <= 1.0
+        ):
+            issues.append(
+                _obstruction(
+                    "trust_score_out_of_range",
+                    "/".join(path),
+                    "trust score must be in [0,1]",
                 )
+            )
 
     return EvidencePackAudit("ordinary_validation", tuple(issues))
 
@@ -353,7 +360,11 @@ def audit_evidence_pack_certificate(pack: Mapping[str, Any]) -> EvidencePackAudi
                 evidence_refs = _as_string_list(linkage.get("evidence_refs"))
                 if isinstance(replay, Mapping) and replay.get("available") is True:
                     run_id = replay.get("run_id")
-                    required = f"run:{run_id}" if isinstance(run_id, str) and run_id else None
+                    required = (
+                        f"run:{run_id}"
+                        if isinstance(run_id, str) and run_id
+                        else None
+                    )
                     if required and required not in evidence_refs:
                         issues.append(
                             _obstruction(
