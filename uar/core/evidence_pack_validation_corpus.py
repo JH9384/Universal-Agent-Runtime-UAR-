@@ -257,8 +257,7 @@ def render_evidence_pack_corpus_report(result: EvidencePackCorpusResult) -> str:
         "",
         f"- Cases: `{len(result.cases)}`",
         f"- Classifications: `{result.classification_counts}`",
-        f"- Certificate-only obstructions: "
-        f"`{result.certificate_only_obstruction_count}`",
+        f"- Certificate-only obstructions: `{result.certificate_only_obstruction_count}`",
         "",
         "| Case | Provenance | Classification | Current | Ordinary | Certificate |",
         "| --- | --- | --- | ---: | ---: | ---: |",
