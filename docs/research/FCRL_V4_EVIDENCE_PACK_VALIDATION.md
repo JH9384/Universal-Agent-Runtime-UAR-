@@ -37,8 +37,8 @@ For each candidate, `compare_evidence_packs` retains:
 - missing and extra sections;
 - section-availability disagreement;
 - status and correlation-status disagreement;
-- missing and extra evidence references;
-- missing and extra run references;
+- path-specific missing and extra evidence references;
+- path-specific missing and extra run references;
 - aggregate recurrence-count error;
 - aggregate trust-score error.
 
@@ -57,6 +57,34 @@ Default distance:
 ```
 
 The stronger default penalties on evidence and run references reflect the operational importance of lineage and replay. They are a declared policy, not a theorem or universal weighting.
+
+Reference comparison uses path-specific occurrence counts. A reference lost from one semantic relationship cannot be hidden merely because the same identifier occurs elsewhere in the pack.
+
+## Validation disciplines
+
+### Ordinary application validation
+
+`audit_evidence_pack_ordinary` checks:
+
+- Evidence Pack v2 version;
+- required section presence;
+- duplicate section names;
+- section-name and availability types;
+- declared trust-score range.
+
+### Certificate semantic validation
+
+`audit_evidence_pack_certificate` includes the ordinary obligations and adds cross-field checks:
+
+- correlation availability agrees with retained correlation evidence;
+- recurrence counts agree with retained later-run references;
+- recurrence status agrees with later-run references;
+- every correlation run retains its evidence reference;
+- incident affected runs retain lineage;
+- available replay retains its run evidence;
+- duplicate evidence and run references are obstructed.
+
+These are application-level certificate obligations. They are not claimed to be a complete universal semantics of evidence.
 
 ## Overhead fields
 
@@ -130,10 +158,37 @@ The case study supports continued development when the certificate arm repeatedl
 - `classify_certificate_leverage`;
 - `render_validation_report`.
 
-The module is read-only and is not wired into production APIs.
+`uar.core.evidence_pack_certificate` provides:
+
+- `audit_evidence_pack_ordinary`;
+- `audit_evidence_pack_certificate`;
+- `compare_evidence_pack_audits`.
+
+`uar.core.evidence_pack_validation_corpus` provides:
+
+- corpus-document parsing;
+- three-arm case evaluation;
+- aggregate classification counts;
+- certificate-only obstruction counts;
+- structured and markdown reporting.
+
+The command-line runner is `scripts/fcrl_v4_evidence_pack_corpus.py`.
+
+The synthetic control corpus is `docs/research/fcrl_v4_seed_corpus.json`. The blinded historical procedure is `docs/research/FCRL_V4_HISTORICAL_CORPUS_PROTOCOL.md`.
+
+All modules are read-only and are not wired into production APIs.
+
+## Completion boundary
+
+The implementation can establish:
+
+- `instrument_complete`;
+- `seed_control_complete`.
+
+It cannot establish the historical or operational verdict without a real selected corpus and independently frozen references.
 
 ## Evidence boundary
 
-The current tests establish that the measurement harness retains declared discrepancies and distinguishes synthetic current, ordinary-validation, and certificate arms. They do not yet establish practical leverage on historical UAR runs.
+The current tests establish that the measurement harness retains declared discrepancies, distinguishes synthetic current, ordinary-validation, and certificate arms, detects semantic lineage obligations beyond ordinary shape validation, and preserves no-benefit and negative-benefit controls.
 
-The next data gate is a blinded historical corpus with manually adjudicated reference packs.
+They do not establish practical leverage on historical UAR runs. The next data gate remains a blinded historical corpus with manually adjudicated reference packs.
