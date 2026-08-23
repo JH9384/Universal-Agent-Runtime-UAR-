@@ -731,6 +731,20 @@ def test_sqlite_writer_transient_error_does_not_poison():
     assert store._writer_exception is None, (
         "Writer exception should be None after a successful insert"
     )
+    store.close()
+
+
+def test_sqlite_writer_is_ready_before_constructor_returns(tmp_path):
+    """The writer connection must exist before a temporary path can disappear."""
+    from uar.memory.sqlite_store import SqliteRunStore
+
+    store = SqliteRunStore(path=str(tmp_path / "writer_ready.db"))
+    assert store._writer_ready.is_set()
+    assert store._writer_exception is None
+    assert store._writer_thread is not None
+    assert store._writer_thread.is_alive()
+    store.close()
+    assert store._writer_thread is None
 
 
 def test_overflow_paths_is_thread_safe():
