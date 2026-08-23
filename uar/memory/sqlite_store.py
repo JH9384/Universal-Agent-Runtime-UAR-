@@ -66,6 +66,7 @@ class SqliteRunStore:
         )
         self._writer_thread: Optional[threading.Thread] = None
         self._writer_shutdown = threading.Event()
+        self._writer_ready = threading.Event()
         self._writer_exception: Optional[Exception] = None
         self._ensure_table()
         self._init_read_pool()
@@ -101,15 +102,30 @@ class SqliteRunStore:
         if self._writer_thread is not None:
             return
         self._writer_shutdown.clear()
+        self._writer_ready.clear()
         self._writer_exception = None
         self._writer_thread = threading.Thread(
             target=self._writer_loop, daemon=True
         )
         self._writer_thread.start()
+        if not self._writer_ready.wait(timeout=5.0):
+            self._writer_shutdown.set()
+            raise TimeoutError("SQLite writer thread did not initialize within 5s")
+        if self._writer_exception is not None:
+            raise self._writer_exception
 
     def _writer_loop(self) -> None:
         """Background thread that serializes all write operations."""
-        conn = self._connect()
+        try:
+            conn = self._connect()
+        except Exception as exc:
+            # Surface startup failures synchronously from __init__ instead of
+            # leaking an unhandled daemon-thread exception after a temporary
+            # database directory has already been removed.
+            self._writer_exception = exc
+            self._writer_ready.set()
+            return
+        self._writer_ready.set()
         try:
             while not self._writer_shutdown.is_set():
                 try:
@@ -943,6 +959,9 @@ class SqliteRunStore:
             except queue.Full:
                 pass
             self._writer_thread.join(timeout=5.0)
+            if self._writer_thread.is_alive():
+                raise TimeoutError("SQLite writer thread did not stop within 5s")
+        self._writer_thread = None
         # Drain and close all reader pool connections
         with self._read_pool_lock:
             while not self._read_pool.empty():
