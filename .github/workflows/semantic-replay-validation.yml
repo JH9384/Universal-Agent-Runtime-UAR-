@@ -3,14 +3,10 @@ name: Semantic Replay Validation
 on:
   pull_request:
     branches: [ main ]
-    paths:
-      - 'uar/core/semantic_trace.py'
-      - 'uar/core/semantic_statistics.py'
-      - 'tests/test_semantic_*.py'
-      - 'scripts/semantic_*.py'
-      - 'docs/SEMANTIC_REPLAY_VALIDATION.md'
-      - 'docs/MAXWELL_JOLLY_CRUE_REVIEW.md'
-      - '.github/workflows/semantic-replay-validation.yml'
+
+# This workflow intentionally has no path filter. Runtime, scheduler, planner,
+# and event-emitter changes outside the semantic module can violate shadow
+# non-interference or observation completeness and must exercise this gate.
 
 permissions:
   contents: read
@@ -47,7 +43,7 @@ jobs:
         run: |
           set -o pipefail
           python scripts/semantic_replay_stochastic_review.py \
-            --iterations 14000 --seed 2049 | tee semantic-stochastic-report.txt
+            --iterations 14000 --seed 4099 | tee semantic-stochastic-report.txt
 
       - name: Run observation-loss campaign
         run: |
