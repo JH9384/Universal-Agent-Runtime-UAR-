@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""Inject telemetry loss into identical latent semantic executions.
+"""Inject telemetry loss into identical and divergent latent executions.
 
-The experiment checks that observation loss produces INDETERMINATE rather than
-false semantic DIFFERENT judgments. Seed 2049 is reproducibility-only.
+The experiment checks both sides of the observation contract:
+
+* identical latent executions never become falsely DIFFERENT; and
+* divergent latent executions never become falsely EQUIVALENT.
+
+When telemetry erases the evidence needed to discriminate two divergent latent
+executions, the correct result is INDETERMINATE. Seed 2049 is
+reproducibility-only.
 """
 
 from __future__ import annotations
@@ -18,7 +24,12 @@ from uar.core.semantic_trace import (
 )
 
 
-def make_latent_events(stage_count: int = 5, candidates_per_stage: int = 4):
+def make_latent_events(
+    stage_count: int = 5,
+    candidates_per_stage: int = 4,
+    *,
+    divergent_reason: bool = False,
+):
     events = []
     for stage_index in range(stage_count):
         stage_id = f"s{stage_index}"
@@ -55,7 +66,13 @@ def make_latent_events(stage_count: int = 5, candidates_per_stage: int = 4):
                     "payload": {
                         "stage_id": stage_id,
                         "candidate_id": candidate_id,
-                        "reason_code": "latent-fixed-policy",
+                        "reason_code": (
+                            "latent-divergent-policy"
+                            if divergent_reason
+                            and stage_index == stage_count - 1
+                            and candidate_index == 0
+                            else "latent-fixed-policy"
+                        ),
                     },
                 }
             )
@@ -95,22 +112,52 @@ def observe(events, loss_probability: float, rng: random.Random):
 def run(iterations: int, seed: int, probabilities):
     rng = random.Random(seed)
     latent = make_latent_events()
+    divergent_latent = make_latent_events(divergent_reason=True)
     results = {}
 
     for probability in probabilities:
-        counts = Counter()
+        identical_counts = Counter()
+        divergent_counts = Counter()
         for _ in range(iterations):
             left = semantic_trace_from_events(observe(latent, probability, rng))
             right = semantic_trace_from_events(observe(latent, probability, rng))
             report = compare_semantic_traces(left, right)
-            counts[report.outcome.value] += 1
+            identical_counts[report.outcome.value] += 1
+
+            divergent_left = semantic_trace_from_events(
+                observe(latent, probability, rng)
+            )
+            divergent_right = semantic_trace_from_events(
+                observe(divergent_latent, probability, rng)
+            )
+            divergent_report = compare_semantic_traces(
+                divergent_left, divergent_right
+            )
+            divergent_counts[divergent_report.outcome.value] += 1
+
         results[probability] = {
-            "counts": dict(counts),
-            "different_rate": counts[ComparisonOutcome.DIFFERENT.value] / iterations,
-            "indeterminate_rate": counts[ComparisonOutcome.INDETERMINATE.value]
-            / iterations,
-            "equivalent_rate": counts[ComparisonOutcome.EQUIVALENT.value]
-            / iterations,
+            "identical": {
+                "counts": dict(identical_counts),
+                "false_different_rate": identical_counts[
+                    ComparisonOutcome.DIFFERENT.value
+                ]
+                / iterations,
+                "indeterminate_rate": identical_counts[
+                    ComparisonOutcome.INDETERMINATE.value
+                ]
+                / iterations,
+            },
+            "divergent": {
+                "counts": dict(divergent_counts),
+                "false_equivalent_rate": divergent_counts[
+                    ComparisonOutcome.EQUIVALENT.value
+                ]
+                / iterations,
+                "indeterminate_rate": divergent_counts[
+                    ComparisonOutcome.INDETERMINATE.value
+                ]
+                / iterations,
+            },
         }
     return results
 
@@ -133,9 +180,14 @@ def main() -> int:
     for probability, result in results.items():
         print(f"loss={probability}: {result}")
 
-    # Latent traces are identical. Observation loss may make the comparison
-    # indeterminate, but must never create a false semantic-difference verdict.
-    passed = all(result["different_rate"] == 0.0 for result in results.values())
+    # Observation loss may make either comparison indeterminate. It must never
+    # invent a difference for identical latent traces or erase a known latent
+    # difference into an EQUIVALENT verdict.
+    passed = all(
+        result["identical"]["false_different_rate"] == 0.0
+        and result["divergent"]["false_equivalent_rate"] == 0.0
+        for result in results.values()
+    )
     return 0 if passed else 1
 
 
