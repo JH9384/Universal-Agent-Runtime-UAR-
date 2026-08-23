@@ -1,0 +1,73 @@
+name: Semantic Replay Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'uar/core/semantic_trace.py'
+      - 'uar/core/semantic_statistics.py'
+      - 'tests/test_semantic_*.py'
+      - 'scripts/semantic_*.py'
+      - 'docs/SEMANTIC_REPLAY_VALIDATION.md'
+      - 'docs/MAXWELL_JOLLY_CRUE_REVIEW.md'
+      - '.github/workflows/semantic-replay-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Run semantic replay unit tests
+        run: |
+          python -m pytest \
+            tests/test_semantic_trace.py \
+            tests/test_semantic_trace_consensus.py \
+            tests/test_semantic_canonicalization.py \
+            tests/test_semantic_scheduler_diamond.py \
+            tests/test_semantic_statistics.py \
+            -q --tb=short
+
+      - name: Run stratified mutation campaign
+        run: |
+          set -o pipefail
+          python scripts/semantic_replay_validation.py \
+            --iterations 14000 --seed 2049 | tee semantic-mutation-report.txt
+
+      - name: Run stochastic cross-check
+        run: |
+          set -o pipefail
+          python scripts/semantic_replay_stochastic_review.py \
+            --iterations 14000 --seed 2049 | tee semantic-stochastic-report.txt
+
+      - name: Run observation-loss campaign
+        run: |
+          set -o pipefail
+          python scripts/semantic_observation_loss_review.py \
+            --iterations 2000 --seed 2049 | tee semantic-observation-report.txt
+
+      - name: Upload semantic validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-replay-validation-reports
+          path: |
+            semantic-mutation-report.txt
+            semantic-stochastic-report.txt
+            semantic-observation-report.txt
+          retention-days: 14
