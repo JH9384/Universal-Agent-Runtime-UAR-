@@ -1,162 +1,368 @@
 # Ω-7B.S Semantic Replay Validation
 
 Status: Shadow-mode validation proposal  
-Execution impact: None  
+Execution impact: None intended; non-interference is a validation requirement  
 Production scoring impact: None
 
 ## Purpose
 
-UAR replay currently answers whether a recorded run can be reconstructed
-faithfully. Semantic Replay adds an orthogonal question:
+UAR replay answers whether a recorded run can be reconstructed faithfully.
+Semantic Replay adds an orthogonal question:
 
-> Did two executions preserve the same observable decision structure even when
-> they produced the same final result?
+> Did two executions preserve the same observable computational semantics even
+> when they produced the same final result?
 
 This layer does **not** record hidden chain-of-thought. It operates only on
-machine-observable decision artifacts: candidate generation, admissibility
-states, evidence/certificate references, commitments, and declared semantic
-dependencies.
+machine-observable decision artifacts: candidate generation, admissibility,
+constraints/certificates, evidence relations, commitments, observation
+completeness, and declared causal dependencies.
+
+## Semantic object
+
+The minimum validation object is:
+
+```text
+S = (P, Γ, Q, Ω, E, K, M)
+```
+
+- `P`: causal partial order / stage-dependency relation.
+- `Γ`: generated candidate set.
+- `Q`: four-valued admissibility relation.
+- `Ω`: obstruction / constraint / certificate relation.
+- `E`: evidence relation attached to stage and candidate.
+- `K`: commitment relation.
+- `M`: observation mask for generated-but-unobserved candidate decisions.
+
+A runtime sequence is one linearization of this causal structure; wall-clock
+order is not itself semantic order.
 
 ## Execution grammar
 
-The validation model uses the following portable execution grammar:
-
 ```text
 Generate -> Partition -> Evidence -> Commit -> Replay
-   Γ       (S,O,U,C)       η         κ        R
+   Γ       (A,R,D,C)       η         K        R
 ```
 
-The four admissibility states are:
+The four runtime admissibility states are:
 
-- `ADMIT` — candidate is presently executable/admissible.
-- `REJECT` — an explicit obstruction/constraint excludes the candidate.
-- `DEFER` — admissibility cannot yet be established from available evidence.
-- `CONFLICT` — support and obstruction coexist and require resolution/policy.
+- `ADMIT` — support exists and no obstruction is currently established.
+- `REJECT` — obstruction exists and no support sufficient to override it exists.
+- `DEFER` — the runtime explicitly judged that available evidence is insufficient.
+- `CONFLICT` — support and obstruction coexist.
 
-## Semantic trace
-
-Each stage is represented as:
+A useful support/obstruction encoding is:
 
 ```text
-D_t = (Γ_t, S_t, O_t, U_t, C_t, E_t, κ_t)
+DEFER    = (0,0)
+ADMIT    = (1,0)
+REJECT   = (0,1)
+CONFLICT = (1,1)
 ```
 
-A run is a semantic trace:
+Dualization swaps support and obstruction, so ADMIT and REJECT are dual while
+DEFER and CONFLICT are self-dual.
+
+`UNOBSERVED` is deliberately **not** a fifth runtime decision state. It belongs
+to the certifier's observation mask `M` and means the semantic decision event was
+not observed. Therefore `DEFER != UNOBSERVED`.
+
+## Stage conservation / integrity invariants
+
+For a well-formed stage:
 
 ```text
-T(R) = (D_0, D_1, ..., D_n)
+Γ = A ⊔ R ⊔ D ⊔ C ⊔ M
 ```
 
-Stable `stage_id` values are used to compare semantic stages independently of
-wall-clock completion order. `dependencies` carry declared causal structure,
-allowing sequential, greedy, and DAG schedulers to converge on the same
-semantic trace when only independent execution order changes.
+where the classes are pairwise disjoint and:
+
+```text
+M = Γ - dom(Q)
+```
+
+A fully observed stage has `M = ∅`.
+
+Additional invariants:
+
+- every decision candidate must have been generated,
+- duplicate candidate decisions are invalid,
+- commitments must refer to generated candidates,
+- dependency references must resolve,
+- self-dependencies and causal cycles are invalid.
+
+`validate_semantic_trace()` reports these defects explicitly.
+
+## Causal semantics and finality
+
+Finality is derived causally, not from tuple position. Explicit `terminal=True`
+stages take precedence. Otherwise the terminal stage set is the sink set of the
+dependency DAG.
+
+The causal relation is compared using its transitive closure so redundant raw
+edge spelling does not create semantic drift.
+
+For `n` independent stages, valid partial executions form the Boolean lattice
+`2^n`; its Hasse diagram is the hypercube `Q_n`. This is used only as validation
+geometry for scheduler independence, not as production semantics.
+
+For two independent enabled stages `a` and `b`, the local scheduler diamond is:
+
+```text
+I -> I+a -> I+a+b
+I -> I+b -> I+a+b
+```
+
+and the semantic defect is conceptually:
+
+```text
+χ_ab(I) = d_sem(T_b T_a(S_I), T_a T_b(S_I))
+```
+
+A flat diamond has `χ_ab=0`. Under finite termination and appropriate local
+confluence assumptions, local diamond checks are the route toward global
+scheduler semantic equivalence.
+
+## Relational evidence and obstruction
+
+Evidence meaning depends on attachment, not inventory. Therefore comparison
+uses relations of the form:
+
+```text
+E ⊆ Stage × Candidate × Evidence
+```
+
+rather than only a global set of evidence IDs.
+
+Obstruction likewise preserves attachment:
+
+```text
+Ω ⊆ Stage × Candidate × State × Constraint × Certificate/Reason
+```
+
+This detects evidence swaps or obstruction reassignment even when the global
+ID inventory is unchanged.
 
 ## Vector-valued comparison
 
-Semantic comparison intentionally does not collapse immediately to one trust
-score. The first implementation reports:
+Semantic comparison remains vector-valued and is not collapsed into a Trust
+Spine score:
 
 ```text
-D(A,B) = (d_R, d_S, d_O, d_F, d_E)
+D(A,B) = (d_R, d_S, d_O, d_F, d_E, d_P)
 ```
 
-Where:
+- `d_R`: final-result divergence.
+- `d_S`: causal-terminal survivor divergence.
+- `d_O`: relational obstruction divergence.
+- `d_F`: stagewise semantic-filtration divergence.
+- `d_E`: relational evidence/certificate divergence.
+- `d_P`: causal-partial-order divergence.
 
-- `d_R`: final result distance.
-- `d_S`: final admitted/survivor-set distance.
-- `d_O`: accumulated rejected/obstructed-set distance.
-- `d_F`: stagewise filtration / decision-topology distance.
-- `d_E`: evidence and certificate basis distance.
+The implementation also reports maximum local filtration divergence, not only
+the mean, so a single severe local defect is not hidden by averaging.
 
-A later validation phase may add counterfactual distance `d_CF` after a
-controlled perturbation corpus exists.
+These are divergence measures. They are not probabilities and are not yet Trust
+Spine weights.
 
-## First semantic divergence
+## Identity coherence
 
-The certifier locates the earliest observable semantic divergence and classifies
-it into one of four failure families:
+The comparator must never report both:
+
+```text
+D(A,B) == 0
+```
+
+and a non-null semantic divergence. Constraint/reason changes are therefore part
+of stage semantics; evidence attachment is part of `d_E`; causal changes are
+part of `d_P`.
+
+Canonical semantic serialization is exposed through `semantic_trace_hash()`.
+The hash is stage-order invariant when causal-relational semantics are unchanged.
+
+## Divergence families
+
+The expanded observable divergence vocabulary is:
 
 | Code | Meaning |
 | --- | --- |
-| `G-` | Generation divergence: candidate/stage exists on only one side |
-| `A-` | Admissibility divergence: ADMIT/REJECT/DEFER/CONFLICT differs |
-| `E-` | Evidence divergence: evidence/certificate basis differs |
-| `K-` | Commitment divergence: selected outcome differs |
+| `G-` | Generation divergence |
+| `A-` | Admissibility / constraint / reason divergence |
+| `E-` | Evidence or certificate attachment divergence |
+| `K-` | Commitment divergence |
+| `P-` | Causal/dependency or terminal-semantics divergence |
+| `O-` | Observation-domain divergence / missing semantic telemetry |
 
-This lets UAR distinguish, for example, a planner that failed to consider the
-right action from one that considered it and rejected it incorrectly.
+In a DAG there may be multiple causally minimal earliest divergences. The report
+preserves a minimal-divergence set and retains one deterministic
+`first_divergence` value for compatibility.
 
-## Semantic equivalence ladder
+## Comparison outcome
 
-The initial validation ladder is:
-
-| Level | Requirement | Meaning |
-| --- | --- | --- |
-| S0 | Result | Same committed outcome |
-| S1 | Survivor | Same final admitted candidate set |
-| S2 | Obstruction | Same candidates ultimately rejected |
-| S3 | Filtration | Same stagewise decision topology |
-| S4 | Evidence | Equivalent observable evidence/certificate basis |
-| S5 | Counterfactual | Equivalent under approved perturbations (future) |
-| S6 | Behavioral | Equivalent admissible future behavior (future) |
-
-S0 is deliberately weak. A build may be S0-equivalent while materially
-changing how it eliminates alternatives.
-
-## Shadow-mode invariants
-
-Semantic Replay must remain observational during Ω-7B.S validation:
+The certifier reports:
 
 ```text
-κ_shadow = κ_baseline
+EQUIVALENT | DIFFERENT | INDETERMINATE
 ```
+
+`INDETERMINATE` is required when incomplete observation prevents a defensible
+same/different judgment. It is not a runtime DEFER decision.
+
+## Semantic Replay vs Semantic Verification
+
+Semantic Replay compares what the runtime reported. It does not automatically
+prove that a reported reason or certificate is true.
+
+The validation layer therefore exposes a separate certificate-integrity check:
+
+```text
+Q_self = runtime-reported semantics
+Q_ver  = independently verified certificate semantics
+```
+
+`verify_decision_certificates()` reports missing or invalid independent
+certificate verification. Replay equivalence and semantic verification remain
+separate assurance dimensions.
+
+## Directed risk is not semantic distance
+
+Semantic divergence can be symmetric while operational consequence is not.
+For example, a policy may assign much higher consequence to `REJECT -> ADMIT`
+than to `ADMIT -> REJECT`.
+
+The module therefore keeps directional risk policy external to semantic
+distance. `directed_transition_risk()` accepts a caller-supplied risk matrix.
+
+## Shadow-mode non-interference
+
+For deterministic execution, let `π` erase shadow semantic events. The strong
+non-interference target is:
+
+```text
+π(runtime_shadow) = runtime_baseline
+```
+
+not merely equal final output. `project_nonsemantic_events()` provides the
+projection primitive.
+
+For concurrent or stochastic execution, exact path equality may be inappropriate;
+validation should compare output, scheduler, latency, and semantic-trace
+distributions and establish an explicit overhead envelope before production use.
 
 No semantic trace result may alter planning, scheduling, tool execution, trust
-ranking, or certification level during the validation tranche.
+ranking, certification level, or committed outcome during Ω-7B.S.
 
-The existing runtime certification weights remain unchanged.
+The existing Trust Spine weights remain unchanged.
 
-## Mutation campaign
+## Stratified mutation campaign
 
-`scripts/semantic_replay_validation.py` seeds result-equivalent semantic
-mutations and harmless representational reorderings. The default campaign is:
+`scripts/semantic_replay_validation.py` now stratifies the campaign across:
 
-```bash
-python scripts/semantic_replay_validation.py --iterations 10000 --seed 2049
+```text
+G    generation mutation
+A    admissibility mutation
+E    evidence mutation
+K    commitment mutation
+P    causal/dependency mutation
+O    observation-loss mutation
+NULL semantic-null representation change
 ```
 
-`2049` is used only as a reproducibility seed and carries no production or
-theoretical meaning.
+The default campaign is:
 
-The campaign requires:
+```bash
+python scripts/semantic_replay_validation.py --iterations 14000 --seed 2049
+```
 
-1. All seeded result-equivalent semantic mutations are detected.
-2. Every mutation receives a first-divergence class (`G-`, `A-`, `E-`, `K-`).
-3. Stable-stage-id reorderings produce zero filtration false positives.
+This gives approximately equal sampling per family. `2049` is only a
+reproducibility seed and has no production/theoretical meaning.
+
+Expected outcomes are family-specific:
+
+- `G/A/E/K/P` -> `DIFFERENT` while preserving the final result in the seeded cases,
+- `O` -> `INDETERMINATE`,
+- `NULL` -> `EQUIVALENT`.
+
+Report detection/localization per family. A 100% aggregate result must not be
+interpreted as universal proof outside the sampled mutation distribution.
+
+`scripts/semantic_replay_stochastic_review.py` provides an additional compact
+cross-check of the same stratified contract.
+
+## Statistical interpretation
+
+Zero misses in `n` IID trials supports a bound on the sampled mutation law; it
+is not proof over all possible traces. Rare-event validation should therefore
+combine:
+
+- stratified random sampling,
+- adversarial/metamorphic cases,
+- semantic-null controls,
+- scheduler diamond tests,
+- observation-loss injection,
+- real historical replay distributions.
+
+Future stochastic validation may compare semantic trace distributions using
+appropriate distributional measures (for example JS divergence, Wasserstein,
+MMD, or permutation/bootstrap procedures), but no such quantity is currently a
+Trust Spine weight.
+
+A useful future statistic is conditional process drift:
+
+```text
+I(version ; semantic_trace | final_result, task_class)
+```
+
+which asks whether process semantics reveal the running version even after
+controlling for the fact that the final answer stayed the same.
+
+## Equivalence, correctness, and generation completeness
+
+These are separate questions:
+
+```text
+E: are two executions semantically equivalent?
+C: did an execution satisfy the task/specification?
+G: was the generated candidate space adequate?
+```
+
+Semantic Replay can establish `E` under its observation assumptions. It does
+not by itself prove `C` or `G`. Two versions can be perfectly equivalent while
+reproducing the same incomplete or incorrect behavior.
 
 ## Validation exit gate
 
-The proposed Ω-7B.S exit gate is:
+The Ω-7B.S gate now requires:
 
-- 100% detection of seeded causal semantic mutations.
-- 100% first-divergence localization on the seeded corpus.
-- 0 false positives on declared representation-equivalent reorderings.
-- Stable semantic serialization/hash in a subsequent patch.
-- Cross-scheduler equivalence checks for sequential / greedy / DAG runs.
-- Result-equivalent mutation corpus >= 10,000 cases.
-- Distribution of semantic distance measured over real replay history.
-- No execution outcome change with shadow mode enabled.
+- trace integrity/conservation invariants,
+- no zero-distance / non-null-divergence contradiction,
+- causal rather than positional finality,
+- relational evidence and obstruction comparison,
+- causal/dependency comparison,
+- explicit `UNOBSERVED` accounting and `INDETERMINATE` outcome,
+- stable canonical semantic hashing,
+- 100% expected outcome/localization on the stratified seeded corpus,
+- 0 false positives on semantic-null controls,
+- local scheduler-diamond tests and sequential/greedy/DAG evaluation,
+- result-equivalent mutation corpus >= 10,000 cases,
+- observation-loss injection tests,
+- semantic-distance distributions over real replay history,
+- deterministic shadow projection equality where applicable,
+- measured stochastic/concurrent shadow overhead and distributional impact,
+- no Trust Spine weighting change until empirical validation exists.
+
+## Contributor review
+
+The Maxwell + Jolly Crue consensus and each contributor's distinct deliverable
+are captured in `docs/MAXWELL_JOLLY_CRUE_REVIEW.md`.
 
 ## Deliberate exclusions
 
-The following experimental constructs are **not** part of UAR production
-semantics:
+The following experimental constructs remain outside UAR production semantics:
 
-- Nikola Hypercube geometry.
-- 2049/2304 addressing conventions.
-- Matrix payload assumptions.
-- Hidden/free-form reasoning traces.
+- Nikola Hypercube geometry as a production architecture,
+- 2049/2304 addressing conventions,
+- matrix payload assumptions,
+- hidden/free-form reasoning traces.
 
-Those were useful experimental scaffolds. The production candidate is the
-observable semantic execution protocol and its comparison algebra.
+The reusable production candidate is the observable causal-admissibility-
+evidence-commitment protocol and its comparison/verification algebra.
