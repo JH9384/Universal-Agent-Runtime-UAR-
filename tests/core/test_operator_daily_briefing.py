@@ -69,7 +69,8 @@ def test_daily_briefing_from_records_includes_evidence_pack_preview():
     )
 
     assert briefing["evidence_pack"]["available"] is True
-    assert briefing["evidence_pack"]["section_count"] == 2
+    assert briefing["evidence_pack"]["section_count"] == 3
     assert "Fleet Signal Evidence" in briefing["evidence_pack"]["markdown_preview"]
     assert "Incident Intelligence Evidence" in briefing["evidence_pack"]["markdown_preview"]
+    assert "Recurrence Correlation Evidence" in briefing["evidence_pack"]["markdown_preview"]
     assert any(a["id"] == "generate_evidence_pack" for a in briefing["next_actions"])
