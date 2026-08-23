@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Inject telemetry loss into identical and divergent latent executions.
 
 The experiment checks both sides of the observation contract:
