@@ -299,6 +299,8 @@ combine:
 - semantic-null controls,
 - scheduler diamond tests,
 - observation-loss injection,
+- dual observation oracles: no false `DIFFERENT` for identical latent runs and
+  no false `EQUIVALENT` for divergent latent runs,
 - real historical replay distributions.
 
 Future stochastic validation may compare semantic trace distributions using
@@ -345,6 +347,8 @@ The Ω-7B.S gate now requires:
 - local scheduler-diamond tests and sequential/greedy/DAG evaluation,
 - result-equivalent mutation corpus >= 10,000 cases,
 - observation-loss injection tests,
+- bidirectional observation-loss assertions against false `DIFFERENT` and false
+  `EQUIVALENT` verdicts,
 - semantic-distance distributions over real replay history,
 - deterministic shadow projection equality where applicable,
 - measured stochastic/concurrent shadow overhead and distributional impact,
