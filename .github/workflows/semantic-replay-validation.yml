@@ -35,13 +35,7 @@ jobs:
 
       - name: Run semantic replay unit tests
         run: |
-          python -m pytest \
-            tests/test_semantic_trace.py \
-            tests/test_semantic_trace_consensus.py \
-            tests/test_semantic_canonicalization.py \
-            tests/test_semantic_scheduler_diamond.py \
-            tests/test_semantic_statistics.py \
-            -q --tb=short
+          python -m pytest tests/test_semantic_*.py -q --tb=short
 
       - name: Run stratified mutation campaign
         run: |
