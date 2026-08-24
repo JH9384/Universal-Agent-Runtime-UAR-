@@ -62,7 +62,9 @@ def test_snapshot_persist_prunes_to_retention_limit(monkeypatch):
 
 def test_metadata_entity_store_prune_to_limit(monkeypatch):
     """Pruning keeps newest entities and deletes older timestamp records."""
-    from uar.api.routers.operator.helpers.entity_store import MetadataEntityStore
+    from uar.api.routers.operator.helpers.entity_store import (
+        MetadataEntityStore,
+    )
     import uar.api.routers.operator.helpers.entity_store as entity_store
 
     fake_store = MagicMock()
@@ -123,4 +125,3 @@ def test_json_delete_metadata_removes_key(tmp_path):
 
     assert store.get_metadata("operator:snapshot:1") is None
     assert "operator:snapshot:1" not in store.list_meta_keys()
-

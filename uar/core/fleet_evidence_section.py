@@ -92,11 +92,13 @@ def build_fleet_evidence_section(
     ]
 
     if not summary or summary.get("active_signals", 0) == 0:
-        lines.extend([
-            "Fleet status: **nominal**",
-            "",
-            "No fleet signals were detected in the analyzed records.",
-        ])
+        lines.extend(
+            [
+                "Fleet status: **nominal**",
+                "",
+                "No fleet signals were detected in the analyzed records.",
+            ]
+        )
         return {
             "section": "fleet_signal_evidence",
             "generated_at": generated,
@@ -104,13 +106,15 @@ def build_fleet_evidence_section(
             "markdown": "\n".join(lines),
         }
 
-    lines.extend([
-        f"Fleet status: **{summary.get('status')}**",
-        f"Active signals: **{summary.get('active_signals', 0)}**",
-        f"Critical signals: **{summary.get('critical_signals', 0)}**",
-        f"Warning signals: **{summary.get('warning_signals', 0)}**",
-        "",
-    ])
+    lines.extend(
+        [
+            f"Fleet status: **{summary.get('status')}**",
+            f"Active signals: **{summary.get('active_signals', 0)}**",
+            f"Critical signals: **{summary.get('critical_signals', 0)}**",
+            f"Warning signals: **{summary.get('warning_signals', 0)}**",
+            "",
+        ]
+    )
 
     signals = summary.get("signals") or []
     for index, signal in enumerate(signals, start=1):
@@ -120,17 +124,19 @@ def build_fleet_evidence_section(
         incident_ids = linkage.get("incidents") or []
         evidence_refs = linkage.get("evidence_refs") or []
         message = signal.get("message") or "No message provided"
-        lines.extend([
-            f"### {index}. {signal.get('title', 'Fleet signal')}",
-            "",
-            f"- Level: `{signal.get('level')}`",
-            f"- Scope: `{signal.get('scope')}`",
-            f"- Message: {message}",
-            f"- Latest replay run: `{replay.get('run_id') or 'none'}`",
-            f"- Replay available: `{replay.get('available', False)}`",
-            f"- Incidents: `{', '.join(incident_ids) if incident_ids else 'none'}`",
-            f"- Evidence refs: `{', '.join(evidence_refs) if evidence_refs else 'none'}`",
-        ])
+        lines.extend(
+            [
+                f"### {index}. {signal.get('title', 'Fleet signal')}",
+                "",
+                f"- Level: `{signal.get('level')}`",
+                f"- Scope: `{signal.get('scope')}`",
+                f"- Message: {message}",
+                f"- Latest replay run: `{replay.get('run_id') or 'none'}`",
+                f"- Replay available: `{replay.get('available', False)}`",
+                f"- Incidents: `{', '.join(incident_ids) or 'none'}`",
+                f"- Evidence refs: `{', '.join(evidence_refs) or 'none'}`",
+            ]
+        )
 
         if rec_ids:
             lines.append("- Recommendation outcomes:")
@@ -142,7 +148,8 @@ def build_fleet_evidence_section(
                 trust = trust_types.get(category)
                 trust_text = (
                     f"trust={trust.get('trust_score')}"
-                    if trust else "trust=unavailable"
+                    if trust
+                    else "trust=unavailable"
                 )
                 lines.append(
                     "  - "

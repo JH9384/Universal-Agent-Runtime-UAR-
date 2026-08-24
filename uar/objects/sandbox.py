@@ -97,13 +97,12 @@ ALLOWED_AST_NODES: tuple[type, ...] = (
 )
 
 
-# Use fork on POSIX so child processes inherit the parent interpreter
-# (including ad-hoc test-loaded modules). macOS defaults to spawn which
-# breaks importlib-based test fixtures.
-try:
-    _MP_CTX: Any = mp.get_context("fork")
-except ValueError:  # pragma: no cover - platforms without fork
-    _MP_CTX = mp.get_context()
+# A UOR request is commonly executed from a TestClient or ASGI worker thread.
+# Forking a multithreaded interpreter can inherit locks without their owning
+# threads and leave the child hung until the request timeout. ``spawn`` avoids
+# cloning live thread state and does not require the forkserver's AF_UNIX
+# control socket (which hardened deployments may disable).
+_MP_CTX: Any = mp.get_context("spawn")
 
 
 def validate_code(code: str) -> None:

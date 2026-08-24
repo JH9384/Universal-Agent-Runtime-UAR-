@@ -75,7 +75,9 @@ def _build_tool(name: str, fn: Callable[..., Any]) -> Dict[str, Any]:
     this helper remains for older unit tests and callers that introspect the
     historical server module surface.
     """
-    description = (getattr(fn, "__doc__", None) or f"UAR skill: {name}").strip()
+    description = (
+        getattr(fn, "__doc__", None) or f"UAR skill: {name}"
+    ).strip()
     if "." in description:
         description = description.split(".", 1)[0].strip() + "."
     if len(description) > 200:
@@ -106,7 +108,9 @@ def _handle_tools_list() -> list[Dict[str, Any]]:
     try:
         import uar.skills  # noqa: F401
     except Exception:
-        logger.exception("Failed to import built-in UAR skills for MCP listing")
+        logger.exception(
+            "Failed to import built-in UAR skills for MCP listing"
+        )
 
     tools: list[Dict[str, Any]] = []
     seen: set[str] = set()
@@ -119,12 +123,14 @@ def _handle_tools_list() -> list[Dict[str, Any]]:
         input_schema.setdefault("type", "object")
         input_schema.setdefault("required", ["metadata"])
 
-        tools.append({
-            "type": "tool",
-            "name": tool.name,
-            "description": tool.description,
-            "inputSchema": input_schema,
-        })
+        tools.append(
+            {
+                "type": "tool",
+                "name": tool.name,
+                "description": tool.description,
+                "inputSchema": input_schema,
+            }
+        )
         seen.add(tool.name)
 
     for name in registry.list():
@@ -138,7 +144,9 @@ def _handle_tools_list() -> list[Dict[str, Any]]:
     return tools
 
 
-def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, Any]:
+def _handle_legacy_skill_call(
+    name: str, args: Mapping[str, Any]
+) -> Dict[str, Any]:
     """Compatibility path for older tests/callers that patch registry.get.
 
     The JSON-RPC production path uses the read-only MCP allowlist in
@@ -155,7 +163,9 @@ def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, A
         }
 
     try:
-        metadata = args.get("metadata", {}) if isinstance(args, Mapping) else {}
+        metadata = (
+            args.get("metadata", {}) if isinstance(args, Mapping) else {}
+        )
         if not isinstance(metadata, dict):
             metadata = {}
         goal = GoalSpec(
@@ -171,15 +181,16 @@ def _handle_legacy_skill_call(name: str, args: Mapping[str, Any]) -> Dict[str, A
             "isError": True,
         }
 
-    is_error = (
-        isinstance(result, dict)
-        and str(result.get("status", "")).lower() in {"error", "failed"}
-    )
+    is_error = isinstance(result, dict) and str(
+        result.get("status", "")
+    ).lower() in {"error", "failed"}
     return {
         "content": [
             {
                 "type": "text",
-                "text": json.dumps(result, indent=2, sort_keys=True, default=str),
+                "text": json.dumps(
+                    result, indent=2, sort_keys=True, default=str
+                ),
             }
         ],
         "isError": is_error,
@@ -200,7 +211,10 @@ def _handle_tool_call(
             "content": [
                 {
                     "type": "text",
-                    "text": "Execution error: tools/call arguments must be an object",
+                    "text": (
+                        "Execution error: tools/call arguments must be an "
+                        "object"
+                    ),
                 }
             ],
             "isError": True,
@@ -210,7 +224,10 @@ def _handle_tool_call(
     if not isinstance(name, str):
         return {
             "content": [
-                {"type": "text", "text": "Skill error: tools/call requires a string name"}
+                {
+                    "type": "text",
+                    "text": "Skill error: tools/call requires a string name",
+                }
             ],
             "isError": True,
         }
@@ -218,7 +235,11 @@ def _handle_tool_call(
         result = call_tool(name, args)
     except Exception as exc:
         lowered = str(exc).lower()
-        prefix = "Skill error" if "not" in lowered or "unknown" in lowered else "Execution error"
+        prefix = (
+            "Skill error"
+            if "not" in lowered or "unknown" in lowered
+            else "Execution error"
+        )
         return {
             "content": [{"type": "text", "text": f"{prefix}: {exc}"}],
             "isError": True,
@@ -228,7 +249,9 @@ def _handle_tool_call(
         "content": [
             {
                 "type": "text",
-                "text": json.dumps(result, indent=2, sort_keys=True, default=str),
+                "text": json.dumps(
+                    result, indent=2, sort_keys=True, default=str
+                ),
             }
         ],
         "isError": False,
@@ -237,7 +260,9 @@ def _handle_tool_call(
 
 def main() -> None:
     """Run the MCP stdio server loop."""
-    logging.basicConfig(level=logging.WARNING, handlers=[logging.StreamHandler(sys.stderr)])
+    logging.basicConfig(
+        level=logging.WARNING, handlers=[logging.StreamHandler(sys.stderr)]
+    )
     initialized = False
 
     while True:
@@ -264,7 +289,13 @@ def main() -> None:
 
         if method == "initialize":
             initialized = True
-            _send({"jsonrpc": JSONRPC_VERSION, "id": msg_id, "result": _handle_initialize(params)})
+            _send(
+                {
+                    "jsonrpc": JSONRPC_VERSION,
+                    "id": msg_id,
+                    "result": _handle_initialize(params),
+                }
+            )
             continue
 
         if not initialized:
@@ -272,11 +303,13 @@ def main() -> None:
             continue
 
         if method == "tools/list":
-            _send({
-                "jsonrpc": JSONRPC_VERSION,
-                "id": msg_id,
-                "result": {"tools": _handle_tools_list()},
-            })
+            _send(
+                {
+                    "jsonrpc": JSONRPC_VERSION,
+                    "id": msg_id,
+                    "result": {"tools": _handle_tools_list()},
+                }
+            )
             continue
 
         if method == "tools/call":

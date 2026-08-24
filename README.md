@@ -554,7 +554,8 @@ UAR implements defense-in-depth at multiple layers:
 - **SSRF prevention**: URL scheme and host validation on external requests
 - **Resource limits**: 100MB total file size cap, max file count limits in document ingestion
 - **Secret management**: All secrets via environment variables (no hardcoded keys)
-- **Zero npm CVEs**: `vite` 7.3.3 + `vitest` 3.2.4 (esbuild CORS CVE GHSA-67mh-4wv8-2f99 resolved)
+- **Audited npm workspaces**: React web, Svelte web, and operator dashboard
+  lockfiles are checked with `npm audit`
 
 ## Development
 
@@ -563,7 +564,7 @@ UAR implements defense-in-depth at multiple layers:
 pytest
 
 # Lint and type check
-ruff check .
+ruff check uar/ tests/ --select=E,W,F
 mypy .
 
 # Build web interface

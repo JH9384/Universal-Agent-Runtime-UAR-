@@ -78,9 +78,7 @@ class MetadataEntityStore:
             if raw:
                 return self._decode(raw)
         except Exception as exc:
-            logger.warning(
-                "%s load_by_id failed: %s", self._namespace, exc
-            )
+            logger.warning("%s load_by_id failed: %s", self._namespace, exc)
         return None
 
     def load_all(self) -> List[Dict[str, Any]]:
@@ -121,9 +119,7 @@ class MetadataEntityStore:
                     seen.add(eid)
                     entities.append(entity)
         except Exception as exc:
-            logger.warning(
-                "%s index scan failed: %s", self._namespace, exc
-            )
+            logger.warning("%s index scan failed: %s", self._namespace, exc)
 
         return sorted(
             entities,
@@ -146,7 +142,9 @@ class MetadataEntityStore:
                 store.delete_meta(key)
                 return True
         except Exception as exc:
-            logger.warning("%s delete failed for %s: %s", self._namespace, key, exc)
+            logger.warning(
+                "%s delete failed for %s: %s", self._namespace, key, exc
+            )
         return False
 
     def prune_to_limit(self, limit: int) -> int:
@@ -180,7 +178,9 @@ class MetadataEntityStore:
                 seen.add(eid_s)
                 entities.append(entity)
         except Exception as exc:
-            logger.warning("%s retention scan failed: %s", self._namespace, exc)
+            logger.warning(
+                "%s retention scan failed: %s", self._namespace, exc
+            )
             return 0
 
         entities.sort(

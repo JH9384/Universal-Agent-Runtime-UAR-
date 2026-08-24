@@ -10,7 +10,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/react')) {
+          if (id.includes('node_modules/reactflow')) {
+            return 'vendor-reactflow'
+          }
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) {
             return 'vendor-react'
           }
           if (id.includes('node_modules/@react-three/drei')) {

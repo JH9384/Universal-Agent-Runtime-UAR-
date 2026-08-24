@@ -38,7 +38,8 @@ REPORT_DIRS = {
 def _extract_timestamp(filename: str) -> str:
     """Pull YYYYMMDD or YYYYMMDD_HHMMSS from filename."""
     import re
-    m = re.search(r'(\d{8})(?:_\d{6})?', filename)
+
+    m = re.search(r"(\d{8})(?:_\d{6})?", filename)
     return m.group(1) if m else "unknown"
 
 
@@ -93,24 +94,26 @@ def scan_reports() -> Dict[str, List[Dict[str, Any]]]:
                     except Exception:
                         pass
 
-                    entries.append({
-                        "file": str(path),
-                        "size_bytes": path.stat().st_size,
-                        "timestamp": _extract_timestamp(path.name),
-                        "summary": summary,
-                    })
+                    entries.append(
+                        {
+                            "file": str(path),
+                            "size_bytes": path.stat().st_size,
+                            "timestamp": _extract_timestamp(path.name),
+                            "summary": summary,
+                        }
+                    )
         findings[category] = entries
 
     return findings
 
 
-def build_manifest(findings: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
+def build_manifest(
+    findings: Dict[str, List[Dict[str, Any]]],
+) -> Dict[str, Any]:
     """Build the top-level archive manifest."""
     total_files = sum(len(v) for v in findings.values())
     total_size = sum(
-        e["size_bytes"]
-        for entries in findings.values()
-        for e in entries
+        e["size_bytes"] for entries in findings.values() for e in entries
     )
 
     return {
@@ -121,9 +124,7 @@ def build_manifest(findings: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
         "categories": {
             cat: {
                 "file_count": len(entries),
-                "size_bytes": sum(
-                    e["size_bytes"] for e in entries
-                ),
+                "size_bytes": sum(e["size_bytes"] for e in entries),
                 "entries": entries,
             }
             for cat, entries in findings.items()
@@ -136,9 +137,7 @@ def print_summary(manifest: Dict[str, Any]) -> None:
     print("Evidence Archive Summary")
     print(f"Generated: {manifest['generated_at']}")
     print(f"Total files: {manifest['total_files']}")
-    print(
-        f"Total size: {manifest['total_size_bytes'] / 1024:.1f} KB"
-    )
+    print(f"Total size: {manifest['total_size_bytes'] / 1024:.1f} KB")
     print()
 
     for cat, data in manifest["categories"].items():
@@ -172,9 +171,7 @@ def main() -> int:
         print("Scanning report directories…")
         findings = scan_reports()
         manifest = build_manifest(findings)
-        Path(args.output).write_text(
-            json.dumps(manifest, indent=2) + "\n"
-        )
+        Path(args.output).write_text(json.dumps(manifest, indent=2) + "\n")
         print(f"Manifest written to {args.output}")
         print()
         print_summary(manifest)

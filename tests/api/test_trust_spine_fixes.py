@@ -2803,6 +2803,7 @@ def test_batch_pool_shutdown_creates_new_pool(monkeypatch):
     import uar.uor.batch_operations as _bo
 
     old_pool = _bo._batch_pool
+    new_pool = None
     try:
         _bo._shutdown_batch_pool()
         new_pool = _bo._get_batch_pool()
@@ -2814,8 +2815,33 @@ def test_batch_pool_shutdown_creates_new_pool(monkeypatch):
             "_batch_pool_shutdown flag was not reset on new pool creation"
         )
     finally:
-        _bo._batch_pool = old_pool
+        # _shutdown_batch_pool() permanently closes old_pool. Restoring that
+        # object while clearing the shutdown flag poisons every later
+        # BatchProcessor in this interpreter. Leave the module in a clean lazy
+        # state instead, and close the replacement created by this test.
+        if new_pool is not None:
+            new_pool.shutdown(wait=True)
+        _bo._batch_pool = None
         _bo._batch_pool_shutdown = False
+
+
+def test_batch_pool_shutdown_regression_does_not_poison_later_processor():
+    """A shutdown/recreate validation cycle must leave later users healthy."""
+    import uar.uor.batch_operations as _bo
+
+    first = _bo._get_batch_pool()
+    _bo._shutdown_batch_pool()
+    replacement = _bo._get_batch_pool()
+    assert replacement is not first
+    replacement.submit(lambda: "ok").result(timeout=1.0)
+
+    replacement.shutdown(wait=True)
+    _bo._batch_pool = None
+    _bo._batch_pool_shutdown = False
+
+    processor = _bo.BatchProcessor(max_workers=1)
+    result = processor.batch_compute_digests([{"healthy": True}])
+    assert result.successful == 1
 
 
 # ---------------------------------------------------------------------------

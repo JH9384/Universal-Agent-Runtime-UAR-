@@ -71,5 +71,7 @@ def test_entity_integrity_detects_missing_sort_field(monkeypatch):
 def test_entity_integrity_endpoint_route_exists():
     from uar.api.routers.operator import time_machine
 
-    paths = {getattr(route, "path", "") for route in time_machine.router.routes}
+    paths = {
+        getattr(route, "path", "") for route in time_machine.router.routes
+    }
     assert "/api/uar/operator/entity-integrity" in paths

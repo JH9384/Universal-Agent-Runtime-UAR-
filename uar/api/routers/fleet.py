@@ -135,12 +135,8 @@ async def post_fleet_heartbeat(
         cert_level=str(payload.get("cert_level", "Experimental")),
         active_runs=int(payload.get("active_runs", 0)),
         skills_total=int(payload.get("skills_total", 0)),
-        skills_available=int(
-            payload.get("skills_available", 0)
-        ),
-        circuit_breakers_open=int(
-            payload.get("circuit_breakers_open", 0)
-        ),
+        skills_available=int(payload.get("skills_available", 0)),
+        circuit_breakers_open=int(payload.get("circuit_breakers_open", 0)),
         reported_at=time.time(),
     )
 
@@ -152,7 +148,11 @@ async def post_fleet_heartbeat(
         )
 
     await run_in_threadpool(_update_node, node)
-    return {"status": "ok", "node_id": node_id, "fleet_ttl_seconds": _FLEET_TTL_SECONDS}
+    return {
+        "status": "ok",
+        "node_id": node_id,
+        "fleet_ttl_seconds": _FLEET_TTL_SECONDS,
+    }
 
 
 def _update_node(node: FleetNode) -> None:
@@ -181,11 +181,7 @@ def _load_failures() -> Dict[str, List[Dict[str, Any]]]:
         if gm is not None and callable(gm):
             raw = store.get_metadata(_FLEET_FAILURES_KEY)
             if raw is not None and isinstance(raw, dict):
-                return {
-                    k: v
-                    for k, v in raw.items()
-                    if isinstance(v, list)
-                }
+                return {k: v for k, v in raw.items() if isinstance(v, list)}
     except Exception:
         pass
     return {}
@@ -265,13 +261,19 @@ async def get_fleet_health(
         }
 
     online = [n for n in nodes if n.is_online()]
-    avg_health = int(sum(n.health_score for n in online) / len(online)) if online else 0
+    avg_health = (
+        int(sum(n.health_score for n in online) / len(online)) if online else 0
+    )
 
     cert_dist: Dict[str, int] = {}
     for n in online:
         cert_dist[n.cert_level] = cert_dist.get(n.cert_level, 0) + 1
 
-    critical = [n.to_dict() for n in online if n.health_score < 50 or n.circuit_breakers_open > 0]
+    critical = [
+        n.to_dict()
+        for n in online
+        if n.health_score < 50 or n.circuit_breakers_open > 0
+    ]
 
     return {
         "fleet_health_score": avg_health,
@@ -284,9 +286,7 @@ async def get_fleet_health(
 
 @router.get("/api/uar/fleet/failures")
 async def get_fleet_failures(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Aggregate failure clusters across the fleet.
 
@@ -315,9 +315,7 @@ def _correlate_failures() -> Dict[str, Any]:
         nodes = dict(_fleet_registry)
 
     # Build online node set
-    online_ids = {
-        nid for nid, n in nodes.items() if n.is_online()
-    }
+    online_ids = {nid for nid, n in nodes.items() if n.is_online()}
 
     # Aggregate: skill -> list of (node_id, count, error)
     skill_map: Dict[str, List[Dict[str, Any]]] = {}
@@ -353,9 +351,7 @@ def _correlate_failures() -> Dict[str, Any]:
     return {
         "hotspots": hotspots,
         "correlated_skills": list(skill_map.keys()),
-        "nodes_reporting": len(
-            [n for n in online_ids if n in failures]
-        ),
+        "nodes_reporting": len([n for n in online_ids if n in failures]),
     }
 
 
@@ -363,9 +359,7 @@ def _correlate_failures() -> Dict[str, Any]:
 async def get_fleet_routing(
     skill: Optional[str] = Query(None),
     goal: Optional[str] = Query(None),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Rank fleet nodes for executing a given skill or goal.
 

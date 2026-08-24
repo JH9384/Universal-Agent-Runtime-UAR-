@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uar.dev/schemas/semantic/history-review.schema.json",
+  "title": "UAR Semantic History Review",
+  "type": "object",
+  "required": ["schema", "evidence_plane", "eligible_for_release_gate", "attestation_valid", "gate_passes", "verdict", "thresholds", "run_count", "integrity_issues", "strata"],
+  "properties": {
+    "schema": {"const": "uar.semantic-history-review.v1"},
+    "evidence_plane": {"enum": ["observed_operational", "probability_or_ineligible"]},
+    "eligible_for_release_gate": {"type": "boolean"},
+    "attestation_valid": {"type": "boolean"},
+    "gate_passes": {"type": "boolean"},
+    "verdict": {"enum": ["PASS", "HOLD", "FAIL"]},
+    "thresholds": {"type": "object"},
+    "run_count": {"type": "integer", "minimum": 0},
+    "duplicate_run_ids": {"type": "array", "items": {"type": "string"}},
+    "eligibility_reasons": {"type": "array", "items": {"type": "string"}},
+    "integrity_issues": {"type": "array", "items": {"type": "object"}},
+    "strata": {"type": "array", "items": {"type": "object"}}
+  }
+}

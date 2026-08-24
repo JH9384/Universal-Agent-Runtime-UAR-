@@ -3,8 +3,8 @@
 Reuse-first evidence pack composition for D4C and later operator flows.
 
 This module is intentionally thin: it composes existing section builders and
-returns structured data plus markdown.  It creates no new durable store and can
-be used by scripts, APIs, or report viewers as the canonical evidence-pack seam.
+returns structured data plus markdown. It creates no new durable store and can
+serve scripts, APIs, or report viewers as the canonical evidence-pack seam.
 """
 
 from __future__ import annotations
@@ -14,7 +14,9 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from uar.core.fleet_evidence_section import build_fleet_evidence_section
 from uar.core.incident_evidence_section import build_incident_evidence_section
-from uar.core.evidence_pack_correlation_section import build_correlation_evidence_section
+from uar.core.evidence_pack_correlation_section import (
+    build_correlation_evidence_section,
+)
 
 
 def compose_evidence_pack_v2(

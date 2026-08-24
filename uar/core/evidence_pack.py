@@ -157,7 +157,9 @@ def build_evidence_pack(
         outcome=(
             available_section("outcome", outcome)
             if outcome is not None
-            else unavailable_section("outcome", "operator outcome not provided")
+            else unavailable_section(
+                "outcome", "operator outcome not provided"
+            )
         ),
         closure=(
             available_section("closure", closure)
@@ -177,7 +179,8 @@ def render_evidence_pack_markdown(pack: EvidencePack) -> str:
         "## Canonical Operator Path",
         "",
         "```text",
-        "Signal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement",
+        "Signal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> "
+        "Trust Movement",
         "```",
         "",
         "## Metadata",
@@ -206,7 +209,8 @@ def render_evidence_pack_markdown(pack: EvidencePack) -> str:
         section = data[key]
         missing = ", ".join(section["missing"]) if section["missing"] else "-"
         lines.append(
-            f"| `{key}` | `{section['available']}` | `{section['source']}` | {missing} |"
+            f"| `{key}` | `{section['available']}` | "
+            f"`{section['source']}` | {missing} |"
         )
 
     lines.append("")

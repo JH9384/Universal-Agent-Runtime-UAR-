@@ -31,17 +31,22 @@ from uar.core.replay import run_record_from_events, certify_replay
 # Helpers
 # ------------------------------------------------------------------
 
+
 def _make_valid_stream(run_id: str = "fi-test") -> List[Dict[str, Any]]:
     """Create a canonical valid event stream."""
     return [
         make_executor_event(
-            "start", run_id, "g1",
+            "start",
+            run_id,
+            "g1",
             payload={"skills": ["a", "b"]},
         ),
         make_executor_event("skill_complete", run_id, "g1", skill="a"),
         make_executor_event("skill_complete", run_id, "g1", skill="b"),
         make_executor_event(
-            "complete", run_id, "g1",
+            "complete",
+            run_id,
+            "g1",
             payload={
                 "status": "completed",
                 "outputs": [{"ok": True}],
@@ -56,6 +61,7 @@ def _make_run_dicts(count: int) -> List[Dict[str, Any]]:
     """Build simple run dicts for snapshot exercises."""
     import dataclasses
     import random
+
     random.seed(42)
     runs: List[Dict[str, Any]] = []
     for i in range(count):
@@ -69,6 +75,7 @@ def _make_run_dicts(count: int) -> List[Dict[str, Any]]:
 # FI-1: Replay Corruption
 # ------------------------------------------------------------------
 
+
 class TestFI1ReplayCorruption:
     """Inject corruption into event streams. certify_replay must fail
     without crashing the runtime."""
@@ -79,6 +86,7 @@ class TestFI1ReplayCorruption:
         structural violations, not content tampering.
         """
         from uar.core.replay import hash_record
+
         original = run_record_from_events(_make_valid_stream())
         original_hash = hash_record(original)
 
@@ -104,7 +112,9 @@ class TestFI1ReplayCorruption:
         record = run_record_from_events(_make_valid_stream())
         record.events.append(
             make_executor_event(
-                "complete", "fi-test", "g1",
+                "complete",
+                "fi-test",
+                "g1",
                 payload={"status": "completed"},
             )
         )
@@ -116,8 +126,7 @@ class TestFI1ReplayCorruption:
         assert cert["fidelity_score"] == 0.0
         assert cert["reconstruction_success"] is False
         print(
-            f"\n[Ω-3B FI-1b] Duplicate terminal detected: "
-            f"{detection_ms:.2f}ms"
+            f"\n[Ω-3B FI-1b] Duplicate terminal detected: {detection_ms:.2f}ms"
         )
         assert detection_ms < 100
 
@@ -127,6 +136,7 @@ class TestFI1ReplayCorruption:
         payload tampering unless it breaks the event contract.
         """
         from uar.core.replay import hash_record
+
         original = run_record_from_events(_make_valid_stream())
         original_hash = hash_record(original)
 
@@ -162,6 +172,7 @@ class TestFI1ReplayCorruption:
 # FI-2: Cache Destruction
 # ------------------------------------------------------------------
 
+
 class TestFI2CacheDestruction:
     """Destroy cache mid-operation. Measure rebuild and continuation."""
 
@@ -172,7 +183,11 @@ class TestFI2CacheDestruction:
 
         # Warm cache
         cache.set(
-            "failure-clusters", "alice", False, 24, 50000,
+            "failure-clusters",
+            "alice",
+            False,
+            24,
+            50000,
             {"warm": True},
         )
         assert cache.stats()["entries"] == 1
@@ -188,14 +203,19 @@ class TestFI2CacheDestruction:
         t0 = time.perf_counter()
         snap = build_analytics_snapshot(runs, "alice", False, 24, 50000)
         cache.set(
-            "failure-clusters", "alice", False, 24, 50000,
+            "failure-clusters",
+            "alice",
+            False,
+            24,
+            50000,
             extract_failure_clusters(snap, top=50),
         )
         rebuild_ms = (time.perf_counter() - t0) * 1000
 
         total_recovery_ms = invalidate_ms + rebuild_ms
         print(
-            f"\n[Ω-3B FI-2a] Cache recovery: invalidate={invalidate_ms:.2f}ms, "
+            "\n[Ω-3B FI-2a] Cache recovery: "
+            f"invalidate={invalidate_ms:.2f}ms, "
             f"rebuild={rebuild_ms:.2f}ms, total={total_recovery_ms:.2f}ms"
         )
         assert total_recovery_ms < 30000  # SLO-R1
@@ -205,7 +225,11 @@ class TestFI2CacheDestruction:
         cache = AnalyticsCache(ttl_seconds=60)
         for _ in range(10):
             cache.set(
-                "failure-clusters", "alice", False, 24, 50000,
+                "failure-clusters",
+                "alice",
+                False,
+                24,
+                50000,
                 {"data": "x"},
             )
             cache.invalidate()
@@ -216,19 +240,26 @@ class TestFI2CacheDestruction:
 # FI-3: Interrupted Run
 # ------------------------------------------------------------------
 
+
 class TestFI3InterruptedRun:
     """Terminate RUNNING before COMPLETED."""
 
     def test_fi3a_no_terminal_event(self):
         """Stream ends without 'complete' — explicit contract error."""
         from uar.core.contracts import RunRecord
+
         corrupted_events = [
             make_executor_event(
-                "start", "fi-interrupt", "g1",
+                "start",
+                "fi-interrupt",
+                "g1",
                 payload={"skills": ["a"]},
             ),
             make_executor_event(
-                "skill_complete", "fi-interrupt", "g1", skill="a",
+                "skill_complete",
+                "fi-interrupt",
+                "g1",
+                skill="a",
             ),
             # No complete event
         ]
@@ -246,22 +277,25 @@ class TestFI3InterruptedRun:
 
         assert cert["fidelity_score"] == 0.0
         assert cert["reconstruction_success"] is False
-        print(
-            f"\n[Ω-3B FI-3a] Interrupted run detected: "
-            f"{detection_ms:.2f}ms"
-        )
+        print(f"\n[Ω-3B FI-3a] Interrupted run detected: {detection_ms:.2f}ms")
         assert detection_ms < 100
 
     def test_fi3b_partial_replay_no_corruption(self):
         """Partial stream must not produce a seemingly-valid record."""
         from uar.core.contracts import RunRecord
+
         corrupted_events = [
             make_executor_event(
-                "start", "fi-partial", "g1",
+                "start",
+                "fi-partial",
+                "g1",
                 payload={"skills": ["a", "b", "c"]},
             ),
             make_executor_event(
-                "skill_complete", "fi-partial", "g1", skill="a",
+                "skill_complete",
+                "fi-partial",
+                "g1",
+                skill="a",
             ),
             # Stops here — no b, no c, no complete
         ]
@@ -283,6 +317,7 @@ class TestFI3InterruptedRun:
 # ------------------------------------------------------------------
 # FI-4: Analytics Snapshot Corruption
 # ------------------------------------------------------------------
+
 
 class TestFI4SnapshotCorruption:
     """Force invalid snapshot state. Verify fail-safe behavior."""
@@ -317,6 +352,7 @@ class TestFI4SnapshotCorruption:
 # FI-5: Websocket Disconnect (Simulated)
 # ------------------------------------------------------------------
 
+
 class TestFI5WebsocketDisconnect:
     """Simulate websocket state loss and reconnect."""
 
@@ -329,7 +365,11 @@ class TestFI5WebsocketDisconnect:
         cache = AnalyticsCache(ttl_seconds=60)
         snap = build_analytics_snapshot(runs, "alice", False, 24, 50000)
         cache.set(
-            "mission-control", "alice", False, 24, 50000,
+            "mission-control",
+            "alice",
+            False,
+            24,
+            50000,
             {"snapshot": snap},
         )
 
@@ -361,6 +401,7 @@ class TestFI5WebsocketDisconnect:
 # FI-6: Mission Control During Failure
 # ------------------------------------------------------------------
 
+
 class TestFI6MissionControlDuringFailure:
     """Evidence must remain navigable while recovery occurs."""
 
@@ -389,7 +430,11 @@ class TestFI6MissionControlDuringFailure:
         # Simulate: cache is invalidated mid-investigation
         cache = AnalyticsCache(ttl_seconds=60)
         cache.set(
-            "failure-clusters", "alice", False, 24, 50000,
+            "failure-clusters",
+            "alice",
+            False,
+            24,
+            50000,
             {"cluster": "timeout"},
         )
         cache.invalidate()
@@ -423,6 +468,7 @@ class TestFI6MissionControlDuringFailure:
 # Operational Metrics Summary
 # ------------------------------------------------------------------
 
+
 class TestOmega3BOperationalMetrics:
     """Aggregate recovery metrics across all FI tests."""
 
@@ -436,7 +482,9 @@ class TestOmega3BOperationalMetrics:
         record = run_record_from_events(_make_valid_stream())
         record.events.append(
             make_executor_event(
-                "complete", "fi-test", "g1",
+                "complete",
+                "fi-test",
+                "g1",
                 payload={"status": "completed"},
             )
         )
@@ -454,11 +502,14 @@ class TestOmega3BOperationalMetrics:
         # FI-3: Interrupted run
         injections += 1
         from uar.core.contracts import RunRecord
+
         evs = _make_valid_stream()
         evs.pop()  # Remove complete
         record = RunRecord(
-            run_id="fi-orphan", goal_id="g1",
-            skills=["a", "b"], events=evs,
+            run_id="fi-orphan",
+            goal_id="g1",
+            skills=["a", "b"],
+            events=evs,
         )
         cert = certify_replay(record)
         if cert["fidelity_score"] == 0.0:
@@ -476,6 +527,8 @@ class TestOmega3BOperationalMetrics:
 # Local import helper (avoid top-level for optional extractor)
 # ------------------------------------------------------------------
 
+
 def extract_failure_clusters(snap: AnalyticsSnapshot, top: int) -> dict:
     from uar.core.analytics_snapshot import extract_failure_clusters as _ef
+
     return _ef(snap, top=top)

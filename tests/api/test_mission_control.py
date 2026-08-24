@@ -55,9 +55,7 @@ def test_snapshot_certification_has_level(tmp_path):
     )
     assert snap.certification is not None
     assert "level" in snap.certification
-    assert snap.certification["level"] in (
-        "Experimental", "Silver", "Gold"
-    )
+    assert snap.certification["level"] in ("Experimental", "Silver", "Gold")
 
 
 def test_snapshot_active_runs_is_zero_empty_store(tmp_path):
@@ -202,7 +200,9 @@ def test_snapshot_includes_fleet_summary_from_existing_runs(tmp_path):
     assert snap.fleet_summary["top_signal"]["scope"] == "service"
 
 
-def test_snapshot_fleet_summary_includes_replay_incident_and_recommendation_linkage(tmp_path):
+def test_snapshot_fleet_summary_includes_replay_and_incident_linkage(
+    tmp_path,
+):
     store = _make_store(tmp_path)
     store.append(
         RunRecord(
@@ -305,16 +305,21 @@ def test_mission_control_route_includes_entity_retention(monkeypatch):
             }
 
     monkeypatch.setattr(mc_router, "store", MagicMock())
-    monkeypatch.setattr(mc_router, "auth_middleware", lambda _credentials: {"user": "test"})
-    monkeypatch.setattr(mc_router, "build_runtime_snapshot", lambda _store: FakeSnapshot())
-    monkeypatch.setattr(mc_router, "build_snapshot", lambda *_a, **_kw: FakeMissionSnapshot())
+    monkeypatch.setattr(
+        mc_router, "auth_middleware", lambda _credentials: {"user": "test"}
+    )
+    monkeypatch.setattr(
+        mc_router, "build_runtime_snapshot", lambda _store: FakeSnapshot()
+    )
+    monkeypatch.setattr(
+        mc_router, "build_snapshot", lambda *_a, **_kw: FakeMissionSnapshot()
+    )
 
     result = asyncio.run(mc_router.get_mission_control(credentials=None))
 
     assert "entity_retention" in result
     assert "metadata_backend" in result["entity_retention"]
     assert "entities" in result["entity_retention"]
-
 
 
 def test_mission_control_route_includes_entity_integrity(monkeypatch):
@@ -336,10 +341,16 @@ def test_mission_control_route_includes_entity_integrity(monkeypatch):
                 "active_runs": 0,
             }
 
-    monkeypatch.setattr(mc_router, "auth_middleware", lambda _credentials: {"sub": "tester"})
+    monkeypatch.setattr(
+        mc_router, "auth_middleware", lambda _credentials: {"sub": "tester"}
+    )
     monkeypatch.setattr(mc_router, "store", MagicMock())
-    monkeypatch.setattr(mc_router, "build_runtime_snapshot", lambda _store: FakeSnapshot())
-    monkeypatch.setattr(mc_router, "build_snapshot", lambda *_a, **_kw: FakeMissionSnapshot())
+    monkeypatch.setattr(
+        mc_router, "build_runtime_snapshot", lambda _store: FakeSnapshot()
+    )
+    monkeypatch.setattr(
+        mc_router, "build_snapshot", lambda *_a, **_kw: FakeMissionSnapshot()
+    )
 
     result = asyncio.run(mc_router.get_mission_control(credentials=None))
 

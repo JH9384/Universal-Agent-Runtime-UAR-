@@ -108,11 +108,7 @@ def _incident_ids(record: Dict[str, Any]) -> List[str]:
 
 def _recommendation_ids(record: Dict[str, Any]) -> List[str]:
     meta = _metadata(record)
-    raw = (
-        meta.get("recommendation_ids")
-        or meta.get("recommendation_id")
-        or []
-    )
+    raw = meta.get("recommendation_ids") or meta.get("recommendation_id") or []
     if isinstance(raw, str):
         return [raw]
     if isinstance(raw, list):
@@ -183,7 +179,9 @@ def build_fleet_signals(
         ]
         latest_run_id = affected_run_ids[0] if affected_run_ids else None
         failure_rate = failures / total if total else 0.0
-        level = "critical" if failures >= 3 or failure_rate >= 0.75 else "warning"
+        level = (
+            "critical" if failures >= 3 or failure_rate >= 0.75 else "warning"
+        )
         if failures == 0 and warnings > 0:
             level = "warning"
 
@@ -201,8 +199,7 @@ def build_fleet_signals(
                 evidence_refs.append(f"run:{rec['run_id']}")
 
         replay_confidence = (
-            sum(replay_scores) / len(replay_scores)
-            if replay_scores else None
+            sum(replay_scores) / len(replay_scores) if replay_scores else None
         )
         clean_incidents = list(dict.fromkeys(linked_incidents))
         clean_recommendations = list(dict.fromkeys(linked_recommendations))
@@ -210,7 +207,9 @@ def build_fleet_signals(
 
         title = f"Fleet signal: {scope_value}"
         if scope_key != "fleet":
-            title = f"{scope_key.replace('_', ' ').title()} signal: {scope_value}"
+            title = (
+                f"{scope_key.replace('_', ' ').title()} signal: {scope_value}"
+            )
 
         message = (
             f"{failures} failure(s), {warnings} warning(s) across "

@@ -9,6 +9,7 @@ const kib = (bytes) => bytes / 1024
 const budgets = [
   { match: /^index-.*\.js$/, limitKiB: 460 },
   { match: /^vendor-react-.*\.js$/, limitKiB: 330 },
+  { match: /^vendor-reactflow-.*\.js$/, limitKiB: 200 },
   { match: /^vendor-three-core-.*\.js$/, limitKiB: 800 },
   { match: /^vendor-three-fiber-.*\.js$/, limitKiB: 180 },
   { match: /^vendor-three-drei-.*\.js$/, limitKiB: 20 },

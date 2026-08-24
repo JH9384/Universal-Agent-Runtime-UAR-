@@ -95,6 +95,7 @@ class BurnInReport:
 # System resource probe
 # ---------------------------------------------------------------------------
 
+
 def get_memory_info() -> tuple[float, float, float]:
     """Return (rss_mb, vms_mb, cpu_percent) for the current process."""
     proc = psutil.Process(os.getpid())
@@ -106,6 +107,7 @@ def get_memory_info() -> tuple[float, float, float]:
 # ---------------------------------------------------------------------------
 # Individual observation probes (each returns a partial dict)
 # ---------------------------------------------------------------------------
+
 
 def _get(
     session: requests.Session,
@@ -124,9 +126,7 @@ def _get(
         return None, (time.time() - t0) * 1000
 
 
-def probe_recommendations(
-    session: requests.Session, api_url: str
-) -> dict:
+def probe_recommendations(session: requests.Session, api_url: str) -> dict:
     data, latency = _get(
         session,
         f"{api_url}/api/uar/recommendations?hours=24&limit=100",
@@ -148,9 +148,7 @@ def probe_runs(session: requests.Session, api_url: str) -> dict:
     }
 
 
-def probe_cache_consistency(
-    session: requests.Session, api_url: str
-) -> dict:
+def probe_cache_consistency(session: requests.Session, api_url: str) -> dict:
     """Sample trust score from three independent endpoints and compare.
 
     Endpoints sampled:
@@ -161,9 +159,7 @@ def probe_cache_consistency(
     readings. None if either endpoint is unavailable.
     cache_consistency_ok: True when diff <= _CACHE_CONSISTENCY_TOLERANCE.
     """
-    trust_data, _ = _get(
-        session, f"{api_url}/api/uar/recommendations/trust"
-    )
+    trust_data, _ = _get(session, f"{api_url}/api/uar/recommendations/trust")
     mc_data, _ = _get(session, f"{api_url}/api/uar/mission-control")
 
     trust_score: Optional[float] = None
@@ -196,9 +192,7 @@ def probe_cache_consistency(
     }
 
 
-def probe_metadata_growth(
-    session: requests.Session, api_url: str
-) -> dict:
+def probe_metadata_growth(session: requests.Session, api_url: str) -> dict:
     """Measure metadata key count via the admin diagnostics endpoint.
 
     Falls back to probing /api/uar/incidents list length as a proxy
@@ -215,9 +209,7 @@ def probe_metadata_growth(
 
     # Fallback: count incidents as a metadata proxy
     if key_count is None:
-        inc_data, _ = _get(
-            session, f"{api_url}/api/uar/incidents"
-        )
+        inc_data, _ = _get(session, f"{api_url}/api/uar/incidents")
         if inc_data is not None and isinstance(inc_data, list):
             key_count = len(inc_data)
 
@@ -254,9 +246,7 @@ def probe_snapshot_accumulation(
     }
 
 
-def probe_report_timing(
-    session: requests.Session, api_url: str
-) -> dict:
+def probe_report_timing(session: requests.Session, api_url: str) -> dict:
     """Measure how long the trust-validation and burn-in reports take."""
     t0 = time.time()
     _get(session, f"{api_url}/api/uar/reports/trust-validation")
@@ -328,9 +318,7 @@ def probe_graph_growth(
             "graph_edge_count": None,
             "graph_generation_time_ms": None,
         }
-    data, latency = _get(
-        session, f"{api_url}/api/uar/graph/{sample_run_id}"
-    )
+    data, latency = _get(session, f"{api_url}/api/uar/graph/{sample_run_id}")
     gen_time = round(latency, 1)
     nodes: Optional[int] = None
     edges: Optional[int] = None
@@ -348,9 +336,8 @@ def probe_graph_growth(
 # Main burn-in loop
 # ---------------------------------------------------------------------------
 
-def _resolve_sample_run_id(
-    session: requests.Session, api_url: str
-) -> str:
+
+def _resolve_sample_run_id(session: requests.Session, api_url: str) -> str:
     """Return the most recent run_id for graph probing, or empty string."""
     try:
         data, _ = _get(session, f"{api_url}/api/uar/runs?limit=1")
@@ -427,11 +414,12 @@ def run_burnin(
 
         elapsed = time.time() - start_ts
         consistency_flag = (
-            "✓" if sample.cache_consistency_ok
+            "✓"
+            if sample.cache_consistency_ok
             else ("✗" if sample.cache_consistency_ok is False else "?")
         )
         print(
-            f"[{elapsed/3600:.1f}h/{duration_hours}h] "
+            f"[{elapsed / 3600:.1f}h/{duration_hours}h] "
             f"RSS:{sample.rss_mb:.0f}MB "
             f"CPU:{sample.cpu_percent:.0f}% "
             f"Rec:{sample.recommendation_count}"
@@ -454,6 +442,7 @@ def run_burnin(
     # Summary
     # ------------------------------------------------------------------
     if samples:
+
         def _vals(attr: str) -> List[float]:
             return [
                 getattr(s, attr)
@@ -482,17 +471,16 @@ def run_burnin(
         graph_times = _vals("graph_generation_time_ms")
 
         cache_violations = sum(
-            1 for s in samples
-            if s.cache_consistency_ok is False
+            1 for s in samples if s.cache_consistency_ok is False
         )
 
         summary: Dict[str, object] = {
             # Memory
             "rss_start_mb": rss_vals[0] if rss_vals else None,
             "rss_end_mb": rss_vals[-1] if rss_vals else None,
-            "rss_growth_mb": round(
-                rss_vals[-1] - rss_vals[0], 1
-            ) if len(rss_vals) >= 2 else None,
+            "rss_growth_mb": round(rss_vals[-1] - rss_vals[0], 1)
+            if len(rss_vals) >= 2
+            else None,
             "rss_peak_mb": _max(rss_vals),
             "avg_cpu_percent": _avg(_vals("cpu_percent")),
             # Recommendations
@@ -507,7 +495,9 @@ def run_burnin(
             "cache_consistency_violations": cache_violations,
             "cache_consistency_violation_rate": round(
                 cache_violations / len(samples), 4
-            ) if samples else None,
+            )
+            if samples
+            else None,
             "avg_cache_consistency_score": _avg(consistency_vals),
             "max_cache_consistency_score": _max(consistency_vals),
             # 2. Metadata growth
@@ -519,7 +509,8 @@ def run_burnin(
             ),
             "metadata_key_growth": (
                 int(meta_counts[-1] - meta_counts[0])
-                if len(meta_counts) >= 2 else None
+                if len(meta_counts) >= 2
+                else None
             ),
             "avg_metadata_scan_latency_ms": _avg(meta_lats),
             "max_metadata_scan_latency_ms": _max(meta_lats),
@@ -532,7 +523,8 @@ def run_burnin(
             ),
             "snapshot_growth": (
                 int(snap_counts[-1] - snap_counts[0])
-                if len(snap_counts) >= 2 else None
+                if len(snap_counts) >= 2
+                else None
             ),
             "expected_snapshots": duration_hours,
             "avg_snapshot_retrieval_latency_ms": _avg(snap_lats),
@@ -542,14 +534,18 @@ def run_burnin(
                 sum(1 for s in samples if s.entity_retention_capable is True)
                 / len(samples),
                 4,
-            ) if samples else None,
+            )
+            if samples
+            else None,
             "entity_retention_snapshot_count_start": (
                 samples[0].entity_retention_snapshot_count
             ),
             "entity_retention_snapshot_count_end": (
                 samples[-1].entity_retention_snapshot_count
             ),
-            "entity_integrity_status_final": samples[-1].entity_integrity_status,
+            "entity_integrity_status_final": samples[
+                -1
+            ].entity_integrity_status,
             "entity_integrity_issue_count_start": (
                 samples[0].entity_integrity_issue_count
             ),

@@ -1,7 +1,8 @@
 """Read-only Evidence Pack correlation section builder.
 
-D9C enriches Evidence Pack output with existing recurrence-correlation context.
-It does not create outcomes, mutate trust, change recurrence, or persist derived state.
+D9C enriches Evidence Pack output with existing recurrence-correlation
+context. It does not create outcomes, mutate trust, change recurrence, or
+persist derived state.
 """
 
 from __future__ import annotations
@@ -24,7 +25,8 @@ def build_correlation_evidence_section(
     lines = [
         "## Recurrence Correlation Evidence",
         "",
-        "Read-only view of whether outcome capture and trust movement were followed by later recurrence.",
+        "Read-only view of whether outcome capture and trust movement were "
+        "followed by later recurrence.",
         "",
     ]
 
@@ -47,21 +49,30 @@ def build_correlation_evidence_section(
             "trust_before": item.get("trust_before"),
             "trust_after": item.get("trust_after"),
             "trust_delta": item.get("trust_delta"),
-            "later_recurrence_count": int(item.get("later_recurrence_count") or 0),
-            "later_recurrence_run_ids": list(item.get("later_recurrence_run_ids") or []),
+            "later_recurrence_count": int(
+                item.get("later_recurrence_count") or 0
+            ),
+            "later_recurrence_run_ids": list(
+                item.get("later_recurrence_run_ids") or []
+            ),
             "correlation_status": _value(item.get("correlation_status")),
             "evidence_refs": list(item.get("evidence_refs") or []),
         }
         normalized.append(record)
-        lines.extend([
-            f"- Recommendation: `{record['recommendation_id']}`",
-            f"  - Run: `{record['run_id']}`",
-            f"  - Outcome: `{record['outcome_type']}`",
-            f"  - Correlation: `{record['correlation_status']}`",
-            f"  - Later recurrence count: `{record['later_recurrence_count']}`",
-            f"  - Later recurrence runs: `{', '.join(record['later_recurrence_run_ids']) if record['later_recurrence_run_ids'] else 'none'}`",
-            f"  - Evidence refs: `{', '.join(record['evidence_refs']) if record['evidence_refs'] else 'none'}`",
-        ])
+        lines.extend(
+            [
+                f"- Recommendation: `{record['recommendation_id']}`",
+                f"  - Run: `{record['run_id']}`",
+                f"  - Outcome: `{record['outcome_type']}`",
+                f"  - Correlation: `{record['correlation_status']}`",
+                "  - Later recurrence count: "
+                f"`{record['later_recurrence_count']}`",
+                "  - Later recurrence runs: "
+                f"`{', '.join(record['later_recurrence_run_ids']) or 'none'}`",
+                "  - Evidence refs: "
+                f"`{', '.join(record['evidence_refs']) or 'none'}`",
+            ]
+        )
 
     return {
         "section": "recurrence_correlation_evidence",

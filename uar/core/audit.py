@@ -50,6 +50,10 @@ class AuditLogger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock_file = self.path.parent / ".uar_audit_lock"
         self._thread_lock = threading.Lock()
+        self._last_hash: Optional[str] = None
+        self._last_file_signature: Optional[Tuple[int, int, int, int, int]] = (
+            None
+        )
         # Optional external sinks
         self._s3_bucket = os.getenv("UAR_AUDIT_S3_BUCKET", "").strip()
         self._cw_group = os.getenv("UAR_AUDIT_CLOUDWATCH_GROUP", "").strip()
@@ -82,7 +86,18 @@ class AuditLogger:
             return None
 
     def _get_last_hash(self) -> str:
-        """Return the hash of the last record in the file, or '' if empty."""
+        """Return the last hash, rescanning only when the file changed.
+
+        ``write()`` calls this while holding both the process-local and file
+        locks.  The file signature invalidates the cache when another logger
+        process appends to, replaces, or rewrites the audit log.
+        """
+        signature = self._file_signature()
+        if (
+            self._last_hash is not None
+            and signature == self._last_file_signature
+        ):
+            return self._last_hash
         if not self.path.exists():
             return ""
         last_line = ""
@@ -98,6 +113,20 @@ class AuditLogger:
             return rec.get("hash", "")
         except json.JSONDecodeError:
             return ""
+
+    def _file_signature(self) -> Optional[Tuple[int, int, int, int, int]]:
+        """Return identity and change metadata for cache invalidation."""
+        try:
+            stat = self.path.stat()
+        except FileNotFoundError:
+            return None
+        return (
+            stat.st_dev,
+            stat.st_ino,
+            stat.st_size,
+            stat.st_mtime_ns,
+            stat.st_ctime_ns,
+        )
 
     # ------------------------------------------------------------------
     # External sinks (soft dependencies)
@@ -195,41 +224,47 @@ class AuditLogger:
             request_id: Correlation/request ID
             client_ip: Source IP address
         """
-        prev_hash = self._get_last_hash()
-        record: Dict[str, Any] = {
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "unix_time": time.time(),
-            "event_type": event_type,
-            "actor": actor,
-            "action": action,
-            "resource": resource,
-            "outcome": outcome,
-            "prev_hash": prev_hash,
-        }
-        if details:
-            record["details"] = details
-        if request_id:
-            record["request_id"] = request_id
-        if client_ip:
-            record["client_ip"] = client_ip
-
-        # Compute own hash after all fields are set
-        record["hash"] = self._compute_hash(record)
-
-        # UOR canonical digest (portable content address)
-        uor_digest = self._compute_uor_digest(record)
-        if uor_digest:
-            record["uor_digest"] = uor_digest
-
-        line = json.dumps(record, sort_keys=True) + "\n"
-
         with self._thread_lock:
             with self._acquire_lock():
+                # Resolve the chain head inside the same cross-process lock as
+                # the append.  This prevents concurrent writers from linking
+                # two records to the same predecessor.
+                prev_hash = self._get_last_hash()
+                record: Dict[str, Any] = {
+                    "timestamp": time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                    ),
+                    "unix_time": time.time(),
+                    "event_type": event_type,
+                    "actor": actor,
+                    "action": action,
+                    "resource": resource,
+                    "outcome": outcome,
+                    "prev_hash": prev_hash,
+                }
+                if details:
+                    record["details"] = details
+                if request_id:
+                    record["request_id"] = request_id
+                if client_ip:
+                    record["client_ip"] = client_ip
+
+                # Compute own hash after all fields are set.
+                record["hash"] = self._compute_hash(record)
+
+                # UOR canonical digest (portable content address).
+                uor_digest = self._compute_uor_digest(record)
+                if uor_digest:
+                    record["uor_digest"] = uor_digest
+
+                line = json.dumps(record, sort_keys=True) + "\n"
                 self._maybe_rotate()
                 with self.path.open("a", encoding="utf-8") as f:
                     f.write(line)
                     f.flush()
                     os.fsync(f.fileno())
+                self._last_hash = record["hash"]
+                self._last_file_signature = self._file_signature()
 
         # Ship to external sinks outside the file lock
         self._ship_to_s3(line)

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uar.dev/schemas/semantic/history-export-manifest.schema.json",
+  "title": "UAR Semantic History Export Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "provenance", "pairs"],
+  "properties": {
+    "schema": {"const": "uar.semantic-history-export-manifest.v1"},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capture_window", "cohort_revisions", "reviewed_by"],
+      "properties": {
+        "capture_window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {"type": "string", "format": "date-time"},
+            "end": {"type": "string", "format": "date-time"}
+          }
+        },
+        "cohort_revisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baseline", "candidate"],
+          "properties": {
+            "baseline": {"type": "string", "minLength": 1},
+            "candidate": {"type": "string", "minLength": 1}
+          }
+        },
+        "reviewed_by": {"type": "string", "minLength": 1}
+      }
+    },
+    "pairs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pair_id", "split", "task_class", "final_result_class", "baseline_run_id", "candidate_run_id"],
+        "properties": {
+          "pair_id": {"type": "string", "minLength": 1},
+          "split": {"enum": ["calibration", "holdout"]},
+          "task_class": {"type": "string", "minLength": 1},
+          "final_result_class": {"type": "string", "minLength": 1},
+          "baseline_run_id": {"type": "string", "minLength": 1},
+          "candidate_run_id": {"type": "string", "minLength": 1},
+          "case_id": {"type": ["string", "null"]},
+          "seed": {"type": ["integer", "string", "null"]}
+        }
+      }
+    }
+  }
+}

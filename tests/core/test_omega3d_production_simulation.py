@@ -26,6 +26,8 @@ import time
 from collections import Counter
 from typing import Any, Dict, List
 
+import pytest
+
 from uar.core.analytics_cache import AnalyticsCache
 from uar.core.analytics_snapshot import (
     build_analytics_snapshot,
@@ -422,6 +424,7 @@ class TestOmega3D3LongObservation:
         print(f"  Top pair frequency: {top_pairs[0][1] if top_pairs else 0}")
         assert len(top_pairs) >= 0  # Always true; observation only
 
+    @pytest.mark.performance
     def test_d3_replay_fidelity_drift(self):
         """Does replay fidelity degrade over extended operation?"""
         random.seed(42)
@@ -443,6 +446,7 @@ class TestOmega3D3LongObservation:
         )
         assert all_100, "Fidelity must never degrade over time"
 
+    @pytest.mark.performance
     def test_d3_snapshot_build_latency_trend(self):
         """Does snapshot build time grow with accumulated history?"""
         random.seed(42)

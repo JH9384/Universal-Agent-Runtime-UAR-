@@ -29,7 +29,6 @@ security = HTTPBearer(auto_error=False)
 router = APIRouter()
 
 
-
 class RecurrenceCorrelationPreviewRequest(BaseModel):
     recommendation_ids: list[str] = []
     run_id: str | None = None
@@ -74,14 +73,15 @@ class TrustMovementPreviewResponse(BaseModel):
 _ANALYTICS_CACHE = None
 
 
-
 def _mission_control_registry():
     """Return active skill registry, tolerating legacy module shapes."""
     try:
         from uar.core.registry import registry
+
         return registry
     except ImportError:
         from uar.core.registry import SkillRegistry
+
         return SkillRegistry()
 
 
@@ -89,6 +89,7 @@ def _analytics_cache():
     global _ANALYTICS_CACHE
     if _ANALYTICS_CACHE is None:
         from uar.core.analytics_cache import ANALYTICS_CACHE
+
         _ANALYTICS_CACHE = ANALYTICS_CACHE
     return _ANALYTICS_CACHE
 
@@ -104,9 +105,8 @@ def _append_history(snapshot: dict) -> None:
     """Append a snapshot to the in-memory history buffer."""
     global _MC_HISTORY
     # Deduplicate: skip if last entry has same timestamp
-    if (
-        _MC_HISTORY
-        and _MC_HISTORY[-1].get("timestamp") == snapshot.get("timestamp")
+    if _MC_HISTORY and _MC_HISTORY[-1].get("timestamp") == snapshot.get(
+        "timestamp"
     ):
         return
     _MC_HISTORY.append(snapshot)
@@ -116,9 +116,7 @@ def _append_history(snapshot: dict) -> None:
 
 @router.get("/api/uar/mission-control")
 async def get_mission_control(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return a Mission Control snapshot aggregating T1, T2, and T4."""
     user_info = auth_middleware(credentials)
@@ -160,7 +158,9 @@ async def get_mission_control(
 
         snapshot_dict["entity_retention"] = _entity_retention_health()
     except Exception as exc:
-        logger.warning("Mission Control entity retention health failed: %s", exc)
+        logger.warning(
+            "Mission Control entity retention health failed: %s", exc
+        )
         snapshot_dict["entity_retention"] = {
             "metadata_backend": {
                 "list_meta_keys": False,
@@ -176,9 +176,7 @@ async def get_mission_control(
 @router.get("/api/uar/mission-control/history")
 async def get_mission_control_history(
     hours: int = Query(24, ge=1, le=168),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return historical Mission Control snapshots for trend analysis.
 
@@ -197,6 +195,7 @@ async def get_mission_control_history(
         )
 
     import time
+
     cutoff = time.time() - (hours * 3600)
     filtered = [s for s in _MC_HISTORY if s.get("timestamp", 0) >= cutoff]
     return {
@@ -210,9 +209,7 @@ async def get_mission_control_history(
 async def get_confidence_drift(
     hours: int = Query(24, ge=1, le=168),
     limit: int = Query(50000, ge=1, le=50000),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Diagnose confidence drift and its root contributors.
 
@@ -250,9 +247,9 @@ async def get_confidence_drift(
         user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
-        r for r in all_runs
-        if r.get("created_at", 0) >= cutoff
-        or r.get("timestamp", 0) >= cutoff
+        r
+        for r in all_runs
+        if r.get("created_at", 0) >= cutoff or r.get("timestamp", 0) >= cutoff
     ]
 
     from uar.core.analytics_snapshot import (
@@ -282,9 +279,7 @@ async def get_confidence_drift(
 async def get_alerts_summary(
     hours: int = Query(24, ge=1, le=168),
     limit: int = Query(50000, ge=1, le=50000),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return a prioritized alert summary for the operator banner.
 
@@ -345,9 +340,9 @@ async def get_alerts_summary(
         user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
-        r for r in all_runs
-        if r.get("created_at", 0) >= cutoff
-        or r.get("timestamp", 0) >= cutoff
+        r
+        for r in all_runs
+        if r.get("created_at", 0) >= cutoff or r.get("timestamp", 0) >= cutoff
     ]
     snap = await run_in_threadpool(
         build_analytics_snapshot, recent_runs, user, is_admin, hours, limit
@@ -373,13 +368,15 @@ async def get_alerts_summary(
     if cert_score is not None and cert_score < 50:
         cert_issues.append(f"score collapsed to {cert_score}")
     if cert_issues:
-        alerts.append({
-            "level": "critical",
-            "source": "certification",
-            "message": f"Certification {'; '.join(cert_issues)}",
-            "detail": cert.get("violations", []),
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "critical",
+                "source": "certification",
+                "message": f"Certification {'; '.join(cert_issues)}",
+                "detail": cert.get("violations", []),
+                "tab": "health",
+            }
+        )
     confidence_issues = []
     if cd.get("state") == "degrading":
         if cd.get("delta", 0) < -10:
@@ -392,27 +389,29 @@ async def get_alerts_summary(
             )
     if confidence_issues:
         level = (
-            "critical"
-            if "collapsing" in confidence_issues[0]
-            else "warning"
+            "critical" if "collapsing" in confidence_issues[0] else "warning"
         )
-        alerts.append({
-            "level": level,
-            "source": "confidence",
-            "message": f"Confidence {'; '.join(confidence_issues)}",
-            "tab": "trends",
-        })
+        alerts.append(
+            {
+                "level": level,
+                "source": "confidence",
+                "message": f"Confidence {'; '.join(confidence_issues)}",
+                "tab": "trends",
+            }
+        )
     for node in hs.get("nodes", []):
         if node.get("severity") == "critical":
-            alerts.append({
-                "level": "critical",
-                "source": "hotspot",
-                "message": (
-                    f"Critical hotspot: {node['skill']}"
-                    f" ({node['failure_rate'] * 100:.0f}% failure)"
-                ),
-                "tab": "failures",
-            })
+            alerts.append(
+                {
+                    "level": "critical",
+                    "source": "hotspot",
+                    "message": (
+                        f"Critical hotspot: {node['skill']}"
+                        f" ({node['failure_rate'] * 100:.0f}% failure)"
+                    ),
+                    "tab": "failures",
+                }
+            )
 
     # ---- Entity pressure alerts ----
     entity_integrity = mc.get("entity_integrity") or {}
@@ -426,101 +425,126 @@ async def get_alerts_summary(
         issue_count = len(integrity_issues)
 
     if integrity_status == "fail":
-        alerts.append({
-            "level": "critical",
-            "source": "entity_pressure",
-            "message": (
-                f"Operator entity integrity failed"
-                f" ({issue_count or 0} issue(s))"
-            ),
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "critical",
+                "source": "entity_pressure",
+                "message": (
+                    f"Operator entity integrity failed"
+                    f" ({issue_count or 0} issue(s))"
+                ),
+                "tab": "health",
+            }
+        )
     elif integrity_status == "warn" or (issue_count or 0) > 0:
-        alerts.append({
-            "level": "warning",
-            "source": "entity_pressure",
-            "message": (
-                f"Operator entity integrity warning"
-                f" ({issue_count or 0} issue(s))"
-            ),
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "warning",
+                "source": "entity_pressure",
+                "message": (
+                    f"Operator entity integrity warning"
+                    f" ({issue_count or 0} issue(s))"
+                ),
+                "tab": "health",
+            }
+        )
 
     entities = entity_retention.get("entities") or {}
     snapshot_entity = entities.get("snapshots") or {}
     if snapshot_entity.get("retention_capable") is False:
-        alerts.append({
-            "level": "warning",
-            "source": "entity_pressure",
-            "message": "Operator snapshot retention is not fully enforceable",
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "warning",
+                "source": "entity_pressure",
+                "message": (
+                    "Operator snapshot retention is not fully enforceable"
+                ),
+                "tab": "health",
+            }
+        )
 
     # ---- Warning alerts ----
     if burnin_passed is not None and not burnin_passed:
-        alerts.append({
-            "level": "warning",
-            "source": "burnin",
-            "message": "Burn-In not passed",
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "warning",
+                "source": "burnin",
+                "message": "Burn-In not passed",
+                "tab": "health",
+            }
+        )
     for node in hs.get("nodes", []):
         if node.get("severity") == "warning":
-            alerts.append({
-                "level": "warning",
-                "source": "hotspot",
-                "message": (
-                    f"Warning hotspot: {node['skill']}"
-                    f" ({node['failure_rate'] * 100:.0f}% failure)"
-                ),
-                "tab": "failures",
-            })
+            alerts.append(
+                {
+                    "level": "warning",
+                    "source": "hotspot",
+                    "message": (
+                        f"Warning hotspot: {node['skill']}"
+                        f" ({node['failure_rate'] * 100:.0f}% failure)"
+                    ),
+                    "tab": "failures",
+                }
+            )
     if recent_warnings:
-        alerts.append({
-            "level": "warning",
-            "source": "mission_control",
-            "message": recent_warnings[0],
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "warning",
+                "source": "mission_control",
+                "message": recent_warnings[0],
+                "tab": "health",
+            }
+        )
 
     # ---- Informational alerts ----
     if cd.get("state") == "improving":
-        alerts.append({
-            "level": "info",
-            "source": "confidence",
-            "message": (
-                f"Confidence improving: {cd.get('current_score')}"
-                f" (Δ +{cd.get('delta')})"
-            ),
-            "tab": "trends",
-        })
-    recommended = [r for r in ri.get("recipes", [])
-                   if r.get("classification") == "recommended"]
+        alerts.append(
+            {
+                "level": "info",
+                "source": "confidence",
+                "message": (
+                    f"Confidence improving: {cd.get('current_score')}"
+                    f" (Δ +{cd.get('delta')})"
+                ),
+                "tab": "trends",
+            }
+        )
+    recommended = [
+        r
+        for r in ri.get("recipes", [])
+        if r.get("classification") == "recommended"
+    ]
     if recommended:
-        alerts.append({
-            "level": "info",
-            "source": "recipe",
-            "message": (
-                f"New recommended recipe: {recommended[0]['recipe']}"
-            ),
-            "tab": "intelligence",
-        })
+        alerts.append(
+            {
+                "level": "info",
+                "source": "recipe",
+                "message": (
+                    f"New recommended recipe: {recommended[0]['recipe']}"
+                ),
+                "tab": "intelligence",
+            }
+        )
     if burnin_passed is not None and burnin_passed:
-        alerts.append({
-            "level": "info",
-            "source": "burnin",
-            "message": "Burn-In passed",
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "info",
+                "source": "burnin",
+                "message": "Burn-In passed",
+                "tab": "health",
+            }
+        )
 
     # No alerts → healthy state
     if not alerts:
-        alerts.append({
-            "level": "info",
-            "source": "system",
-            "message": "All systems nominal",
-            "tab": "health",
-        })
+        alerts.append(
+            {
+                "level": "info",
+                "source": "system",
+                "message": "All systems nominal",
+                "tab": "health",
+            }
+        )
 
     priority = {"critical": 0, "warning": 1, "info": 2}
     alerts.sort(key=lambda a: priority.get(a["level"], 2))
@@ -544,9 +568,7 @@ async def get_alerts_summary(
 async def get_recommendations(
     hours: int = Query(24, ge=1, le=168),
     limit: int = Query(50000, ge=1, le=50000),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return operational recommendations derived from accumulated history.
 
@@ -589,9 +611,9 @@ async def get_recommendations(
         user_id=None if is_admin else user, limit=limit
     )
     recent_runs = [
-        r for r in all_runs
-        if r.get("created_at", 0) >= cutoff
-        or r.get("timestamp", 0) >= cutoff
+        r
+        for r in all_runs
+        if r.get("created_at", 0) >= cutoff or r.get("timestamp", 0) >= cutoff
     ]
 
     from uar.core.analytics_snapshot import (
@@ -638,13 +660,9 @@ async def get_recommendations(
 
     # Governance summaries: derive from analytics snapshot
     total_runs = snap.runs_analyzed
-    failure_rate = (
-        snap.total_failures / total_runs if total_runs else 0.0
-    )
+    failure_rate = snap.total_failures / total_runs if total_runs else 0.0
     cert_rate = (
-        (total_runs - snap.total_failures) / total_runs
-        if total_runs
-        else 1.0
+        (total_runs - snap.total_failures) / total_runs if total_runs else 1.0
     )
     gov_summaries = [
         {
@@ -671,6 +689,7 @@ async def get_recommendations(
             build_quality_stats,
             compute_modifier,
         )
+
         quality = await run_in_threadpool(build_quality_stats, shown, feedback)
         for rec in recommendations:
             try:
@@ -707,6 +726,7 @@ async def get_recommendations(
             attach_trust_to_recommendations,
             sort_by_blend,
         )
+
         trust_result = await run_in_threadpool(
             compute_trust,
             store.get_outcomes(limit=50000),
@@ -810,8 +830,7 @@ async def get_recommendations(
                 title=rec.title,
                 confidence=rec.confidence,
                 run_id=(
-                    ",".join(rec.affected_runs)
-                    if rec.affected_runs else ""
+                    ",".join(rec.affected_runs) if rec.affected_runs else ""
                 ),
             )
         except Exception as _exc:
@@ -825,9 +844,7 @@ async def get_recommendations(
 
 @router.get("/api/uar/recommendations/quality")
 async def get_recommendation_quality(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Recommendation quality metrics.
 
@@ -960,9 +977,7 @@ async def get_recommendation_quality(
 
 @router.get("/api/uar/recommendations/effectiveness")
 async def get_recommendation_effectiveness(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Recommendation effectiveness rankings.
 
@@ -989,9 +1004,7 @@ async def get_recommendation_effectiveness(
 
 @router.get("/api/uar/recommendations/calibration")
 async def get_recommendation_calibration(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Recommendation calibration metrics.
 
@@ -1019,9 +1032,7 @@ async def get_recommendation_calibration(
 @router.get("/api/uar/recommendations/evidence")
 async def get_recommendation_evidence(
     recommendation_id: Optional[str] = None,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Replay Intelligence — Evidence linkage.
 
@@ -1064,9 +1075,7 @@ async def get_recommendation_evidence(
 
 @router.get("/api/uar/recommendations/trust")
 async def get_recommendation_trust(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Adaptive Trust Scores.
 
@@ -1095,9 +1104,7 @@ async def get_recommendation_trust(
 @router.post("/api/uar/recommendations/feedback")
 async def post_recommendation_feedback(
     body: dict,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Record operator feedback on a recommendation.
 
@@ -1145,9 +1152,7 @@ async def post_recommendation_feedback(
 @router.post("/api/uar/recommendations/outcome")
 async def post_recommendation_outcome(
     body: dict,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Record an outcome for a previously accepted recommendation.
 
@@ -1175,9 +1180,7 @@ async def post_recommendation_outcome(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "error": "missing_field",
-                "message": (
-                    "recommendation_id and outcome_type are required"
-                ),
+                "message": ("recommendation_id and outcome_type are required"),
             },
         )
     if outcome_type not in ("resolved", "recurred", "unknown"):
@@ -1201,9 +1204,7 @@ async def post_recommendation_outcome(
 @router.post("/api/uar/recommendations/outcome/bulk")
 async def bulk_record_outcome(
     body: dict,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Bulk record outcomes for multiple recommendations.
 
@@ -1288,9 +1289,7 @@ async def bulk_record_outcome(
 
 @router.get("/api/uar/recommendations/trust/export")
 async def export_trust_csv(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Export trust scores as CSV for stakeholder review."""
     user_info = auth_middleware(credentials)
@@ -1346,9 +1345,7 @@ async def export_trust_csv(
         content=output.getvalue(),
         media_type="text/csv",
         headers={
-            "Content-Disposition": (
-                "attachment; filename=trust_export.csv"
-            )
+            "Content-Disposition": ("attachment; filename=trust_export.csv")
         },
     )
 
@@ -1356,9 +1353,7 @@ async def export_trust_csv(
 @router.get("/api/uar/recommendations/audit")
 async def get_recommendation_audit(
     recommendation_id: str = Query(..., description="Recommendation ID"),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return unified audit trail for a recommendation.
 
@@ -1432,9 +1427,7 @@ async def get_recommendation_audit(
             }
         )
 
-    events.sort(
-        key=lambda x: (x.get("timestamp") or 0), reverse=True
-    )
+    events.sort(key=lambda x: x.get("timestamp") or 0, reverse=True)
 
     return {
         "recommendation_id": recommendation_id,
@@ -1446,9 +1439,7 @@ async def get_recommendation_audit(
 @router.get("/api/uar/alerts/accuracy")
 async def get_alert_accuracy(
     hours: int = Query(168, ge=1, le=720),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Return alert accuracy metrics for the given time window."""
     user_info = auth_middleware(credentials)
@@ -1471,9 +1462,7 @@ async def get_alert_accuracy(
 async def record_alert_action(
     alert_id: str,
     body: dict,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
-        security
-    ),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Record that an alert was acted upon or ignored.
 
@@ -1515,14 +1504,18 @@ async def record_alert_action(
     return {"ok": True, "alert_id": alert_id, "status": status_value}
 
 
-@router.post("/api/uar/recommendations/trust-movement/preview", response_model=TrustMovementPreviewResponse)
+@router.post(
+    "/api/uar/recommendations/trust-movement/preview",
+    response_model=TrustMovementPreviewResponse,
+)
 def preview_recommendation_trust_movement(
     body: TrustMovementPreviewRequest,
 ) -> TrustMovementPreviewResponse:
     """Return a read-only trust movement preview for operator evidence handoff.
 
-    This endpoint does not record outcomes, recompute trust, or mutate runtime state.
-    It provides the UI a stable read model while persisted trust movement history matures.
+    This endpoint does not record outcomes, recompute trust, or mutate runtime
+    state. It provides the UI a stable read model while persisted trust
+    movement history matures.
     """
     return TrustMovementPreviewResponse(
         status="ok",
@@ -1541,13 +1534,16 @@ def preview_recommendation_trust_movement(
     )
 
 
-@router.post("/api/uar/recommendations/recurrence-correlation/preview", response_model=RecurrenceCorrelationPreviewResponse)
+@router.post(
+    "/api/uar/recommendations/recurrence-correlation/preview",
+    response_model=RecurrenceCorrelationPreviewResponse,
+)
 async def preview_recurrence_correlation(
     body: RecurrenceCorrelationPreviewRequest,
 ) -> RecurrenceCorrelationPreviewResponse:
-    """Return a read-only recurrence correlation preview for operator evidence handoff.
+    """Return a read-only recurrence-correlation preview.
 
-    This endpoint does not mutate outcomes, trust, incidents, runs, or evidence.
+    It does not mutate outcomes, trust, incidents, runs, or evidence.
     """
     return RecurrenceCorrelationPreviewResponse(
         status="ok",
@@ -1565,4 +1561,3 @@ async def preview_recurrence_correlation(
             for recommendation_id in body.recommendation_ids
         ],
     )
-

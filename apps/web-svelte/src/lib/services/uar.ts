@@ -25,6 +25,13 @@ export class UARService {
     this.token = token;
   }
 
+  private endpoint(path: string): string {
+    const apiBase = this.baseUrl.endsWith('/api')
+      ? this.baseUrl
+      : `${this.baseUrl}/api`;
+    return `${apiBase}${path}`;
+  }
+
   private headers(body?: BodyInit | null): Record<string, string> {
     const h: Record<string, string> = {};
     if (body != null) {
@@ -44,7 +51,7 @@ export class UARService {
     onError?: (err: string) => void,
     signal?: AbortSignal
   ): Promise<void> {
-    const url = `${this.baseUrl}/api/uar/stream`;
+    const url = this.endpoint('/uar/stream');
     const body = JSON.stringify({ goal, skills } as RunRequest);
     const resp = await fetch(url, {
       method: 'POST',
@@ -112,7 +119,7 @@ export class UARService {
 
   /** Fetch registered skills. */
   async getSkills(): Promise<string[]> {
-    const resp = await fetch(`${this.baseUrl}/api/uar/skills`, {
+    const resp = await fetch(this.endpoint('/uar/skills'), {
       headers: this.headers(),
     });
     const body = await resp.json();
@@ -123,7 +130,7 @@ export class UARService {
   async getRecipes(): Promise<
     Array<{ id: string; label: string; skills: string[]; hint: string }>
   > {
-    const resp = await fetch(`${this.baseUrl}/api/uar/recipes`, {
+    const resp = await fetch(this.endpoint('/uar/recipes'), {
       headers: this.headers(),
     });
     const body = await resp.json();

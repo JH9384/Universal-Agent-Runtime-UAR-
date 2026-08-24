@@ -8,7 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from uar.api.middleware import auth_middleware
-from uar.core.evidence_pack import build_evidence_pack, render_evidence_pack_markdown
+from uar.core.evidence_pack import (
+    build_evidence_pack,
+    render_evidence_pack_markdown,
+)
 
 router = APIRouter(prefix="/api/uar/evidence-pack", tags=["evidence-pack"])
 security = HTTPBearer(auto_error=False)
@@ -51,7 +54,9 @@ def get_evidence_pack(
 
     signal = {"signal_id": signal_id} if signal_id else None
     outcome = {"outcome_id": outcome_id} if outcome_id else None
-    trust = {"recommendation_id": recommendation_id} if recommendation_id else None
+    trust = (
+        {"recommendation_id": recommendation_id} if recommendation_id else None
+    )
 
     pack = build_evidence_pack(
         run_id=normalized_run_id,
@@ -74,7 +79,9 @@ def get_evidence_pack(
         "status": "ok",
         "run_id": normalized_run_id,
         "evidence_pack": pack_data,
-        "markdown": render_evidence_pack_markdown(pack) if include_markdown else None,
+        "markdown": render_evidence_pack_markdown(pack)
+        if include_markdown
+        else None,
     }
 
 

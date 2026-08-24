@@ -124,7 +124,9 @@ def _entity_retention_health() -> Dict[str, Any]:
         "investigations": _investigation_store,
     }
     has_list = hasattr(store, "list_meta_keys")
-    has_delete = hasattr(store, "delete_metadata") or hasattr(store, "delete_meta")
+    has_delete = hasattr(store, "delete_metadata") or hasattr(
+        store, "delete_meta"
+    )
     result: Dict[str, Any] = {
         "metadata_backend": {
             "list_meta_keys": has_list,
@@ -138,12 +140,18 @@ def _entity_retention_health() -> Dict[str, Any]:
             result["entities"][name] = {
                 "namespace": entity_store._namespace,
                 "count": len(items),
-                "discovery": "list_meta_keys" if entity_store._use_list_meta_keys and has_list else "bounded_index_scan",
-                "retention_capable": entity_store._use_list_meta_keys and has_list and has_delete,
+                "discovery": "list_meta_keys"
+                if entity_store._use_list_meta_keys and has_list
+                else "bounded_index_scan",
+                "retention_capable": entity_store._use_list_meta_keys
+                and has_list
+                and has_delete,
                 "sort_field": entity_store._sort_field,
             }
         except Exception as exc:
-            logger.warning("entity retention health failed for %s: %s", name, exc)
+            logger.warning(
+                "entity retention health failed for %s: %s", name, exc
+            )
             result["entities"][name] = {
                 "namespace": entity_store._namespace,
                 "count": None,

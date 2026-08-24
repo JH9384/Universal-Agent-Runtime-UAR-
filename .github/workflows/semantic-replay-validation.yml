@@ -1,0 +1,92 @@
+name: Semantic Replay Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+
+# This workflow intentionally has no path filter. Runtime, scheduler, planner,
+# and event-emitter changes outside the semantic module can violate shadow
+# non-interference or observation completeness and must exercise this gate.
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Run semantic replay unit tests
+        run: |
+          python -m pytest tests/test_semantic_*.py -q --tb=short
+
+      - name: Lint Semantic Replay gate surface
+        run: |
+          python -m ruff check \
+            uar/core/semantic_*.py scripts/semantic_*.py \
+            tests/test_semantic_*.py --select=E,W,F
+
+      - name: Run stratified mutation campaign
+        run: |
+          set -o pipefail
+          python scripts/semantic_replay_validation.py \
+            --iterations 14000 --seed 2049 | tee semantic-mutation-report.txt
+
+      - name: Run stochastic cross-check
+        run: |
+          set -o pipefail
+          python scripts/semantic_replay_stochastic_review.py \
+            --iterations 14000 --seed 4099 | tee semantic-stochastic-report.txt
+
+      - name: Run observation-loss campaign
+        run: |
+          set -o pipefail
+          python scripts/semantic_observation_loss_review.py \
+            --iterations 2000 --seed 2049 | tee semantic-observation-report.txt
+
+      - name: Run runtime shadow corpus and overhead envelope
+        run: |
+          set -o pipefail
+          python scripts/semantic_runtime_shadow_review.py \
+            --iterations 250 | tee semantic-runtime-shadow-report.json
+
+      - name: Run confirmatory concurrent shadow gate
+        run: |
+          set -o pipefail
+          python scripts/semantic_concurrent_shadow_review.py \
+            --mode confirmatory --samples-per-stratum 200 --seed 8191 \
+            --concurrency 1,4,16,32 \
+            | tee semantic-concurrent-shadow-report.json
+
+      - name: Verify signed semantic decision certificate
+        run: |
+          set -o pipefail
+          python scripts/semantic_certificate_review.py \
+            | tee semantic-certificate-report.json
+
+      - name: Upload semantic validation reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: semantic-replay-validation-reports
+          path: |
+            semantic-mutation-report.txt
+            semantic-stochastic-report.txt
+            semantic-observation-report.txt
+            semantic-runtime-shadow-report.json
+            semantic-concurrent-shadow-report.json
+            semantic-certificate-report.json
+          retention-days: 14

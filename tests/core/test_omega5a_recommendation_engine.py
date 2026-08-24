@@ -26,6 +26,7 @@ from uar.core.operational_learning import (
 # Ω-5A Tests
 # ------------------------------------------------------------------
 
+
 class TestOmega5ARecurringFailureRecommendations:
     """Recommendations from recurring failure patterns."""
 
@@ -45,21 +46,29 @@ class TestOmega5ARecurringFailureRecommendations:
         assert recs[0].category == "remediate"
         assert recs[0].source == "recurrence_engine"
         assert "timeout::a+b" in recs[0].title
-        print(f"\n[Ω-5A] Recurring: {recs[0].title}, priority={recs[0].priority}")
+        print(
+            f"\n[Ω-5A] Recurring: {recs[0].title}, priority={recs[0].priority}"
+        )
 
     def test_priority_scales_with_frequency(self):
         """More frequent patterns get higher priority."""
         patterns = [
             FailurePattern(
-                pattern_id="fp-low", signature="err::a", occurrences=3,
+                pattern_id="fp-low",
+                signature="err::a",
+                occurrences=3,
                 affected_runs=["r1"],
             ),
             FailurePattern(
-                pattern_id="fp-med", signature="err::b", occurrences=6,
+                pattern_id="fp-med",
+                signature="err::b",
+                occurrences=6,
                 affected_runs=["r1"],
             ),
             FailurePattern(
-                pattern_id="fp-high", signature="err::c", occurrences=12,
+                pattern_id="fp-high",
+                signature="err::c",
+                occurrences=12,
                 affected_runs=["r1"],
             ),
         ]
@@ -77,11 +86,15 @@ class TestOmega5ARecurringFailureRecommendations:
         """Confidence increases with more occurrences."""
         patterns = [
             FailurePattern(
-                pattern_id="fp-1", signature="err::a", occurrences=3,
+                pattern_id="fp-1",
+                signature="err::a",
+                occurrences=3,
                 affected_runs=["r1"],
             ),
             FailurePattern(
-                pattern_id="fp-2", signature="err::b", occurrences=10,
+                pattern_id="fp-2",
+                signature="err::b",
+                occurrences=10,
                 affected_runs=["r1"],
             ),
         ]
@@ -98,7 +111,9 @@ class TestOmega5ARecurringFailureRecommendations:
         """Patterns below min_occurrences should be ignored."""
         patterns = [
             FailurePattern(
-                pattern_id="fp-1", signature="err::a", occurrences=1,
+                pattern_id="fp-1",
+                signature="err::a",
+                occurrences=1,
                 affected_runs=["r1"],
             ),
         ]
@@ -126,7 +141,10 @@ class TestOmega5ARecoveryAtlasRecommendations:
         assert recs[0].category == "remediate"
         assert recs[0].confidence == 0.85
         assert "retry" in recs[0].description
-        print(f"\n[Ω-5A] Recovery: {recs[0].title}, confidence={recs[0].confidence:.0%}")
+        print(
+            f"\n[Ω-5A] Recovery: {recs[0].title}, "
+            f"confidence={recs[0].confidence:.0%}"
+        )
 
     def test_only_successful_paths_recommended(self):
         """Failed recovery paths should not be recommended."""
@@ -174,10 +192,14 @@ class TestOmega5ATopologyRecommendations:
         """Node growth >= 2x should trigger investigation."""
         points = [
             TopologyEvolutionPoint(
-                timestamp=0.0, total_nodes=10, total_edges=20,
+                timestamp=0.0,
+                total_nodes=10,
+                total_edges=20,
             ),
             TopologyEvolutionPoint(
-                timestamp=1.0, total_nodes=25, total_edges=50,
+                timestamp=1.0,
+                total_nodes=25,
+                total_edges=50,
             ),
         ]
         recs = recommend_from_topology_evolution(points)
@@ -190,10 +212,14 @@ class TestOmega5ATopologyRecommendations:
         """Edge/node ratio > 20 should trigger optimization."""
         points = [
             TopologyEvolutionPoint(
-                timestamp=0.0, total_nodes=10, total_edges=20,
+                timestamp=0.0,
+                total_nodes=10,
+                total_edges=20,
             ),
             TopologyEvolutionPoint(
-                timestamp=1.0, total_nodes=10, total_edges=250,
+                timestamp=1.0,
+                total_nodes=10,
+                total_edges=250,
             ),
         ]
         recs = recommend_from_topology_evolution(points)
@@ -204,15 +230,21 @@ class TestOmega5ATopologyRecommendations:
         """Same hot region for 3+ periods should trigger optimization."""
         points = [
             TopologyEvolutionPoint(
-                timestamp=0.0, total_nodes=10, total_edges=20,
+                timestamp=0.0,
+                total_nodes=10,
+                total_edges=20,
                 hot_region="skill_x",
             ),
             TopologyEvolutionPoint(
-                timestamp=1.0, total_nodes=10, total_edges=20,
+                timestamp=1.0,
+                total_nodes=10,
+                total_edges=20,
                 hot_region="skill_x",
             ),
             TopologyEvolutionPoint(
-                timestamp=2.0, total_nodes=10, total_edges=20,
+                timestamp=2.0,
+                total_nodes=10,
+                total_edges=20,
                 hot_region="skill_x",
             ),
         ]
@@ -240,7 +272,10 @@ class TestOmega5AGovernanceTrendRecommendations:
 
         assert len(recs) >= 1
         assert any("Approval rate declining" in r.title for r in recs)
-        print(f"\n[Ω-5A] Governance: {recs[0].title}, priority={recs[0].priority}")
+        print(
+            f"\n[Ω-5A] Governance: {recs[0].title}, "
+            f"priority={recs[0].priority}"
+        )
 
     def test_tampered_rate_elevated_detected(self):
         """Tampered rate > 10% and rising should trigger critical alert."""
@@ -258,11 +293,13 @@ class TestOmega5AGovernanceTrendRecommendations:
         """Certification rate dropping below 95% should trigger alert."""
         summaries = [
             {
-                "certification_rate": 0.98, "approval_rate": 1.0,
+                "certification_rate": 0.98,
+                "approval_rate": 1.0,
                 "total_records": 100,
             },
             {
-                "certification_rate": 0.92, "approval_rate": 1.0,
+                "certification_rate": 0.92,
+                "approval_rate": 1.0,
                 "total_records": 100,
             },
         ]
@@ -285,11 +322,15 @@ class TestOmega5AUnifiedRecommendations:
         """Critical recommendations should appear first."""
         patterns = [
             FailurePattern(
-                pattern_id="fp-1", signature="err::a", occurrences=12,
+                pattern_id="fp-1",
+                signature="err::a",
+                occurrences=12,
                 affected_runs=["r1"],
             ),
             FailurePattern(
-                pattern_id="fp-2", signature="err::b", occurrences=3,
+                pattern_id="fp-2",
+                signature="err::b",
+                occurrences=3,
                 affected_runs=["r1"],
             ),
         ]
@@ -302,7 +343,9 @@ class TestOmega5AUnifiedRecommendations:
         """Multiple sources should all contribute to output."""
         patterns = [
             FailurePattern(
-                pattern_id="fp-1", signature="err::a", occurrences=5,
+                pattern_id="fp-1",
+                signature="err::a",
+                occurrences=5,
                 affected_runs=["r1"],
             ),
         ]
@@ -317,10 +360,14 @@ class TestOmega5AUnifiedRecommendations:
         ]
         points = [
             TopologyEvolutionPoint(
-                timestamp=0.0, total_nodes=10, total_edges=20,
+                timestamp=0.0,
+                total_nodes=10,
+                total_edges=20,
             ),
             TopologyEvolutionPoint(
-                timestamp=1.0, total_nodes=10, total_edges=250,
+                timestamp=1.0,
+                total_nodes=10,
+                total_edges=250,
             ),
         ]
         summaries = [
@@ -341,15 +388,16 @@ class TestOmega5AUnifiedRecommendations:
         assert "topology_evolution" in sources
         assert "governance_insights" in sources
         print(
-            f"\n[Ω-5A] Unified: {len(recs)} recs "
-            f"from {len(sources)} sources"
+            f"\n[Ω-5A] Unified: {len(recs)} recs from {len(sources)} sources"
         )
 
     def test_recommendation_structure(self):
         """All recommendations should have required fields."""
         patterns = [
             FailurePattern(
-                pattern_id="fp-1", signature="err::a", occurrences=5,
+                pattern_id="fp-1",
+                signature="err::a",
+                occurrences=5,
                 affected_runs=["r1"],
             ),
         ]
@@ -373,7 +421,8 @@ class TestOmega5AUnifiedRecommendations:
         """
         patterns = [
             FailurePattern(
-                pattern_id="fp-1", signature="timeout::a+b",
+                pattern_id="fp-1",
+                signature="timeout::a+b",
                 occurrences=8,
                 affected_runs=[f"r{i}" for i in range(8)],
             ),

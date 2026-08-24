@@ -59,7 +59,9 @@ def build_snapshot(
         warnings.extend(rh_report.warnings)
     except Exception as exc:
         warnings.append(f"runtime_health: {exc}")
-        rh_report = RuntimeHealthReport(score=0, tier="Critical", components={})
+        rh_report = RuntimeHealthReport(
+            score=0, tier="Critical", components={}
+        )
 
     replay_confidence_dict = None
     replay_score = None
@@ -70,11 +72,13 @@ def build_snapshot(
             replay_score = rc.score
             replay_confidence_dict = rc.to_dict().get("confidence")
             warnings.extend(
-                w.message for w in rc.warnings
+                w.message
+                for w in rc.warnings
                 if w.severity in ("error", "warning")
             )
     except Exception as exc:
         import logging as _logging
+
         _logging.getLogger(__name__).exception(
             "Mission Control replay confidence scoring failed"
         )
@@ -89,11 +93,13 @@ def build_snapshot(
         warnings.extend(cert.violations)
     except Exception as exc:
         import logging as _logging
+
         _logging.getLogger(__name__).exception(
             "Mission Control certification scoring failed"
         )
         warnings.append(f"certification: {exc}")
         from uar.core.certification import CertificationReport
+
         cert = CertificationReport(
             score=0,
             level="Experimental",
@@ -106,6 +112,7 @@ def build_snapshot(
     trust_summary = None
     try:
         from uar.core.trust_engine import compute_trust
+
         outcomes = store.get_outcomes(limit=50000)
         metadata = store.get_recommendation_metadata(limit=50000)
         trust_result = compute_trust(outcomes, metadata)
@@ -126,6 +133,7 @@ def build_snapshot(
         }
     except Exception as exc:
         import logging as _logging
+
         _logging.getLogger(__name__).exception("Trust summary failed")
         warnings.append(f"trust_summary: {exc}")
 
@@ -134,12 +142,17 @@ def build_snapshot(
     fleet_summary = None
     try:
         from uar.core.fleet_linkage import attach_linkage_to_fleet_summary
-        from uar.core.fleet_signals import build_fleet_signals, build_fleet_summary
+        from uar.core.fleet_signals import (
+            build_fleet_signals,
+            build_fleet_summary,
+        )
+
         fleet_summary = attach_linkage_to_fleet_summary(
             build_fleet_summary(build_fleet_signals(records))
         )
     except Exception as exc:
         import logging as _logging
+
         _logging.getLogger(__name__).exception("Fleet summary failed")
         warnings.append(f"fleet_summary: {exc}")
 
@@ -148,6 +161,7 @@ def build_snapshot(
         from uar.core.incident_intelligence import (
             build_incident_intelligence_summary,
         )
+
         incident_summary = build_incident_intelligence_summary(
             records,
             outcomes=outcomes,
@@ -155,6 +169,7 @@ def build_snapshot(
         )
     except Exception as exc:
         import logging as _logging
+
         _logging.getLogger(__name__).exception("Incident summary failed")
         warnings.append(f"incident_summary: {exc}")
 
@@ -170,15 +185,18 @@ def build_snapshot(
                     skills_available += 1
                 except Exception as _exc:
                     import logging as _logging
+
                     _logging.getLogger(__name__).debug(
                         "Skill %s listed but not gettable: %s", name, _exc
                     )
-        from uar.core.circuit_breaker_decorator import get_circuit_breaker_details
+        from uar.core.circuit_breaker_decorator import (
+            get_circuit_breaker_details,
+        )
         from uar.core.async_utils import run_sync_safe
+
         cb_details = run_sync_safe(get_circuit_breaker_details())
         circuit_breakers = [
-            {"name": name, **info}
-            for name, info in cb_details.items()
+            {"name": name, **info} for name, info in cb_details.items()
         ]
     except Exception as exc:
         warnings.append(f"registry_health: {exc}")

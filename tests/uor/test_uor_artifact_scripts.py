@@ -21,6 +21,7 @@ from scripts.fetch_uor_artifacts import (
 from scripts.validate_uor_alignment import (
     _ensure_cache_dir,
     _sample_event,
+    validate_shacl,
 )
 
 
@@ -61,17 +62,13 @@ class TestEnsureTagMatchesVersion:
     def test_matching_version(self, tmp_path):
         version_path = tmp_path / "VERSION"
         version_path.write_text("v1.0.0")
-        with patch(
-            "scripts.fetch_uor_artifacts.VERSION_PATH", version_path
-        ):
+        with patch("scripts.fetch_uor_artifacts.VERSION_PATH", version_path):
             ensure_tag_matches_version("v1.0.0")
 
     def test_mismatch_version(self, tmp_path):
         version_path = tmp_path / "VERSION"
         version_path.write_text("v2.0.0")
-        with patch(
-            "scripts.fetch_uor_artifacts.VERSION_PATH", version_path
-        ):
+        with patch("scripts.fetch_uor_artifacts.VERSION_PATH", version_path):
             with pytest.raises(SystemExit):
                 ensure_tag_matches_version("v1.0.0")
 
@@ -81,12 +78,8 @@ class TestDownload:
         with patch("scripts.fetch_uor_artifacts.urlopen") as mock_urlopen:
             mock_resp = MagicMock()
             mock_resp.read.return_value = b"test data"
-            mock_urlopen.return_value.__enter__ = (
-                lambda s: s
-            )
-            mock_urlopen.return_value.__exit__ = (
-                lambda s, *a: None
-            )
+            mock_urlopen.return_value.__enter__ = lambda s: s
+            mock_urlopen.return_value.__exit__ = lambda s, *a: None
             mock_urlopen.return_value.read = mock_resp.read
             result = download("https://example.com/file")
             assert result == b"test data"
@@ -98,8 +91,7 @@ class TestDownload:
 class TestSha256:
     def test_basic(self):
         assert sha256(b"hello") == (
-            "2cf24dba5fb0a30e26e83b2ac5b9e29e"
-            "1b161e5c1fa7425e73043362938b9824"
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
         )
 
 
@@ -115,3 +107,33 @@ class TestEnsureCacheDir:
     def test_missing_cache(self, tmp_path):
         with pytest.raises(SystemExit):
             _ensure_cache_dir("v999.0.0")
+
+
+class TestValidateShacl:
+    @staticmethod
+    def _write_graphs(tmp_path, property_path="ex:name"):
+        (tmp_path / "uor.foundation.ttl").write_text(
+            """@prefix ex: <https://example.test/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+ex:Thing a owl:Class .
+ex:name a owl:DatatypeProperty .
+"""
+        )
+        (tmp_path / "uor.shapes.ttl").write_text(
+            f"""@prefix ex: <https://example.test/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:ThingShape a sh:NodeShape ;
+    sh:targetClass ex:Thing ;
+    sh:property [ sh:path {property_path} ; sh:datatype xsd:string ] .
+"""
+        )
+
+    def test_well_formed_shapes_resolve_against_ontology(self, tmp_path):
+        self._write_graphs(tmp_path)
+        validate_shacl(tmp_path)
+
+    def test_missing_ontology_property_fails(self, tmp_path):
+        self._write_graphs(tmp_path, property_path="ex:missing")
+        with pytest.raises(SystemExit, match="missing property paths"):
+            validate_shacl(tmp_path)

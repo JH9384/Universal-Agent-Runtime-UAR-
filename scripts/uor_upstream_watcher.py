@@ -6,7 +6,8 @@ and can optionally auto-refresh the pinned artifacts when a new release
 is detected.
 
 Usage:
-    python scripts/uor_upstream_watcher.py [--interval SECONDS] [--auto-refresh]
+    python scripts/uor_upstream_watcher.py [--interval SECONDS]
+        [--auto-refresh]
     python scripts/uor_upstream_watcher.py check [--tag v0.5.2]
     python scripts/uor_upstream_watcher.py refresh [--tag v0.5.3] [--sign]
 
@@ -15,6 +16,7 @@ Environment:
     UOR_AUTO_REFRESH: Enable auto-refresh on new releases (default: false)
     GITHUB_TOKEN: GitHub API token for higher rate limits (optional)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,7 +32,7 @@ from urllib.request import Request, urlopen
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -53,7 +55,7 @@ def make_api_request(url: str) -> Dict[str, Any]:
     """Make authenticated API request if token available."""
     headers = {
         "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "UAR-Upstream-Watcher/1.0"
+        "User-Agent": "UAR-Upstream-Watcher/1.0",
     }
     token = get_github_token()
     if token:
@@ -152,6 +154,7 @@ def refresh_artifacts(tag: str, sign: bool = False) -> bool:
         return False
 
     import subprocess
+
     try:
         result = subprocess.run(
             [sys.executable, str(fetch_script), "--tag", tag],
@@ -179,6 +182,7 @@ def run_validation(tag: str) -> bool:
         return False
 
     import subprocess
+
     try:
         result = subprocess.run(
             [sys.executable, str(validate_script), "--tag", tag],
@@ -247,22 +251,30 @@ def cmd_watch(args: argparse.Namespace) -> int:
         "UOR_AUTO_REFRESH", ""
     ).lower() in ("true", "1", "yes")
 
-    logger.info(f"Starting watcher (interval={interval}s, auto_refresh={auto_refresh})")
+    logger.info(
+        f"Starting watcher (interval={interval}s, auto_refresh={auto_refresh})"
+    )
 
     while True:
         try:
             update = check_for_update()
             if update:
-                logger.info(f"Update detected: {update['from']} -> {update['to']}")
+                logger.info(
+                    f"Update detected: {update['from']} -> {update['to']}"
+                )
 
                 if auto_refresh:
                     logger.info("Auto-refresh enabled - refreshing artifacts")
                     if refresh_artifacts(update["to"]):
                         run_validation(update["to"])
                     else:
-                        logger.error("Auto-refresh failed - manual intervention needed")
+                        logger.error(
+                            "Auto-refresh failed - manual intervention needed"
+                        )
                 else:
-                    logger.info("Auto-refresh disabled - manual refresh required")
+                    logger.info(
+                        "Auto-refresh disabled - manual refresh required"
+                    )
 
             time.sleep(interval)
         except KeyboardInterrupt:
@@ -299,12 +311,15 @@ def main() -> int:
         "--tag", help="Tag to refresh to (default: latest)"
     )
     refresh_parser.add_argument(
-        "--sign", action="store_true",
-        help="Generate signed manifest (placeholder)"
+        "--sign",
+        action="store_true",
+        help="Generate signed manifest (placeholder)",
     )
     refresh_parser.add_argument(
-        "--validate", action="store_true", default=True,
-        help="Run validation after refresh (default: true)"
+        "--validate",
+        action="store_true",
+        default=True,
+        help="Run validation after refresh (default: true)",
     )
     refresh_parser.set_defaults(func=cmd_refresh)
 
@@ -313,12 +328,14 @@ def main() -> int:
         "watch", help="Continuously monitor for updates"
     )
     watch_parser.add_argument(
-        "--interval", type=int,
-        help="Polling interval in seconds (default: 3600)"
+        "--interval",
+        type=int,
+        help="Polling interval in seconds (default: 3600)",
     )
     watch_parser.add_argument(
-        "--auto-refresh", action="store_true",
-        help="Automatically refresh on new releases"
+        "--auto-refresh",
+        action="store_true",
+        help="Automatically refresh on new releases",
     )
     watch_parser.set_defaults(func=cmd_watch)
 
