@@ -44,33 +44,3 @@ def reset_rate_limiter():
 
     reset_rate_limiter()
     yield
-
-
-@pytest.fixture(autouse=True)
-def close_sqlite_stores(monkeypatch):
-    """Close every SQLite store created by a test before the next test.
-
-    The store owns a background writer and a reader pool.  Tests often pass a
-    short-lived store directly into the unit under test, so relying on
-    ``__del__`` leaves those resources alive because the writer thread holds a
-    bound-method reference to the store.
-    """
-    from uar.memory.sqlite_store import SqliteRunStore
-
-    created = []
-    original_init = SqliteRunStore.__init__
-
-    def tracked_init(store, *args, **kwargs):
-        original_init(store, *args, **kwargs)
-        created.append(store)
-
-    monkeypatch.setattr(SqliteRunStore, "__init__", tracked_init)
-    yield
-
-    for store in reversed(created):
-        try:
-            store.close()
-        except Exception:
-            # A few negative-path tests deliberately poison internals.  Their
-            # assertions remain authoritative; cleanup is best effort.
-            pass
