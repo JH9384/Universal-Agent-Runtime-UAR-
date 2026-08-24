@@ -51,6 +51,12 @@ jobs:
           python scripts/semantic_observation_loss_review.py \
             --iterations 2000 --seed 2049 | tee semantic-observation-report.txt
 
+      - name: Run runtime shadow corpus and overhead envelope
+        run: |
+          set -o pipefail
+          python scripts/semantic_runtime_shadow_review.py \
+            --iterations 250 | tee semantic-runtime-shadow-report.json
+
       - name: Upload semantic validation reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -60,4 +66,5 @@ jobs:
             semantic-mutation-report.txt
             semantic-stochastic-report.txt
             semantic-observation-report.txt
+            semantic-runtime-shadow-report.json
           retention-days: 14
