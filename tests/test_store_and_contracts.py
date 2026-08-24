@@ -13,6 +13,7 @@ import io
 import json
 import os
 import pathlib
+import queue
 import sys
 import tempfile
 import threading
@@ -22,9 +23,8 @@ import pytest
 
 import uar.core.contracts as _contracts
 from uar.core.async_utils import run_sync_safe
-from uar.core.contracts import GoalSpec, PipelineContext
+from uar.core.contracts import GoalSpec, PipelineContext, RunRecord
 from uar.memory.postgres_store import PostgresRunStore
-
 
 # ---------------------------------------------------------------------------
 # Postgres Store: Field Mapping
@@ -735,7 +735,7 @@ def test_sqlite_writer_transient_error_does_not_poison():
 
 
 def test_sqlite_writer_is_ready_before_constructor_returns(tmp_path):
-    """The writer connection must exist before a temporary path can disappear."""
+    """The writer connection must exist when construction returns."""
     from uar.memory.sqlite_store import SqliteRunStore
 
     store = SqliteRunStore(path=str(tmp_path / "writer_ready.db"))
@@ -745,6 +745,74 @@ def test_sqlite_writer_is_ready_before_constructor_returns(tmp_path):
     assert store._writer_thread.is_alive()
     store.close()
     assert store._writer_thread is None
+
+
+def test_sqlite_flush_waits_for_dequeued_write(tmp_path, monkeypatch):
+    """An empty queue must not make flush return while a write is in flight."""
+    from uar.core.runtime_health import build_runtime_snapshot
+    from uar.memory.sqlite_store import SqliteRunStore
+
+    original_get = queue.Queue.get
+    write_dequeued = threading.Event()
+    release_write = threading.Event()
+    flush_started = threading.Event()
+    flush_done = threading.Event()
+    flush_errors: list[BaseException] = []
+    intercepted = False
+
+    def _block_dequeued_insert(queue_instance, *args, **kwargs):
+        nonlocal intercepted
+        item = original_get(queue_instance, *args, **kwargs)
+        if (
+            not intercepted
+            and item is not None
+            and len(item) == 2
+            and item[0] == "insert"
+        ):
+            intercepted = True
+            write_dequeued.set()
+            release_write.wait(timeout=2.0)
+        return item
+
+    def _flush():
+        flush_started.set()
+        try:
+            store.flush()
+        except BaseException as exc:  # noqa: BLE001
+            flush_errors.append(exc)
+        finally:
+            flush_done.set()
+
+    monkeypatch.setattr(queue.Queue, "get", _block_dequeued_insert)
+    store = SqliteRunStore(path=str(tmp_path / "flush_barrier.db"))
+    record = RunRecord(
+        run_id="flush-barrier-run",
+        goal_id="g1",
+        skills=["echo"],
+        status="success",
+        outputs=["ok"],
+        events=[],
+        final_context={},
+    )
+
+    try:
+        store.append(record)
+        assert write_dequeued.wait(timeout=2.0)
+        flush_thread = threading.Thread(target=_flush)
+        flush_thread.start()
+        assert flush_started.wait(timeout=1.0)
+        assert not flush_done.wait(timeout=0.05)
+
+        release_write.set()
+        flush_thread.join(timeout=2.0)
+        assert not flush_thread.is_alive()
+        assert flush_errors == []
+        snapshot = build_runtime_snapshot(store)
+        assert snapshot.latest_record is not None
+        assert snapshot.latest_record["run_id"] == record.run_id
+    finally:
+        release_write.set()
+        store.close()
 
 
 def test_overflow_paths_is_thread_safe():
@@ -889,6 +957,7 @@ def test_batch_pool_shutdown_is_locked():
     outside the lock, creating a TOCTOU race with _get_batch_pool().
     """
     import inspect
+
     import uar.uor.batch_operations as _bo
 
     src = inspect.getsource(_bo._shutdown_batch_pool)
@@ -901,6 +970,7 @@ def test_recipes_cache_is_thread_safe():
     """Concurrent get_recipe_skills calls must not corrupt cache state."""
     import os
     import tempfile
+
     from uar.core.recipes import (
         clear_recipes_cache,
         get_recipe_skills,
@@ -964,6 +1034,7 @@ def test_recipes_cache_detects_sub_second_changes():
     """
     import os
     import tempfile
+
     from uar.core.recipes import (
         clear_recipes_cache,
         get_recipe_skills,
@@ -1119,6 +1190,7 @@ def test_env_var_race_no_longer_exists_in_executor_source():
     narrow mutation window.
     """
     import inspect
+
     import uar.core.executor as _exec
 
     src = inspect.getsource(_exec)
@@ -1137,6 +1209,7 @@ def test_env_var_race_no_longer_exists_in_executor_source():
 def test_executor_parallel_group_uses_explicit_overflow_disable():
     """executor.py parallel group must pass _enable_disk_overflow=False."""
     import inspect
+
     import uar.core.executor as _exec
 
     src = inspect.getsource(_exec.Executor.iter_events)
