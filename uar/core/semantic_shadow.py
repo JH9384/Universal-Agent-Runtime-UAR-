@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import time
 from collections import defaultdict, deque
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -23,6 +25,9 @@ from uar.core.semantic_trace import (
 )
 
 RuntimeEvent = Mapping[str, Any]
+
+MAX_OBSERVER_P95_MICROSECONDS_PER_EVENT = 250.0
+MAX_SHADOW_EVENT_EXPANSION = 6.0
 
 
 def _stable_id(prefix: str, value: Any) -> str:
@@ -46,13 +51,15 @@ def observe_runtime_semantics(
     """Add a semantic shadow to a completed runtime event stream.
 
     Stage identity follows observed skill-start order. Concurrent starts share
-    the same last completed predecessor, so harmless completion ordering is not
-    invented as a causal dependency.
+    the same causal frontier, so harmless completion ordering is not invented
+    as a dependency and later stages join all completed branches.
     """
 
     shadow = []
-    pending: dict[str, deque[tuple[str, str]]] = defaultdict(deque)
-    last_completed_stage: str | None = None
+    pending: dict[str, deque[tuple[str, str, tuple[str, ...]]]] = defaultdict(
+        deque
+    )
+    causal_frontier: set[str] = set()
     stage_index = 0
 
     for event in events:
@@ -67,15 +74,13 @@ def observe_runtime_semantics(
             stage_id = f"runtime:{stage_index:04d}:{skill}"
             candidate_id = skill
             stage_index += 1
-            dependencies = (
-                [last_completed_stage] if last_completed_stage is not None else []
-            )
-            pending[skill].append((stage_id, candidate_id))
+            dependencies = tuple(sorted(causal_frontier))
+            pending[skill].append((stage_id, candidate_id, dependencies))
             shadow.append(
                 _semantic_event(
                     "semantic_stage",
                     stage_id=stage_id,
-                    dependencies=dependencies,
+                    dependencies=list(dependencies),
                 )
             )
             shadow.append(
@@ -87,22 +92,34 @@ def observe_runtime_semantics(
             )
             continue
 
+        if event_type == "skill_retry" and skill and pending[skill]:
+            stage_id, candidate_id, _ = pending[skill][0]
+            attempt = int(payload.get("attempt", 0))
+            shadow.append(
+                _semantic_event(
+                    "evidence_acquired",
+                    stage_id=stage_id,
+                    candidate_id=candidate_id,
+                    evidence_id=_stable_id(
+                        "runtime-retry",
+                        {"stage_id": stage_id, "attempt": attempt},
+                    ),
+                )
+            )
+            continue
+
         if event_type in {"skill_complete", "skill_failed"} and skill:
             if not pending[skill]:
                 # A cached parallel completion may not expose skill_start.
                 stage_id = f"runtime:{stage_index:04d}:{skill}"
                 candidate_id = skill
                 stage_index += 1
-                dependencies = (
-                    [last_completed_stage]
-                    if last_completed_stage is not None
-                    else []
-                )
+                dependencies = tuple(sorted(causal_frontier))
                 shadow.append(
                     _semantic_event(
                         "semantic_stage",
                         stage_id=stage_id,
-                        dependencies=dependencies,
+                        dependencies=list(dependencies),
                     )
                 )
                 shadow.append(
@@ -113,7 +130,7 @@ def observe_runtime_semantics(
                     )
                 )
             else:
-                stage_id, candidate_id = pending[skill].popleft()
+                stage_id, candidate_id, dependencies = pending[skill].popleft()
 
             if event_type == "skill_complete":
                 evidence_id = _stable_id("runtime-output", payload.get("result"))
@@ -154,7 +171,8 @@ def observe_runtime_semantics(
                         reason_code="runtime_skill_failed",
                     )
                 )
-            last_completed_stage = stage_id
+            causal_frontier.difference_update(dependencies)
+            causal_frontier.add(stage_id)
             continue
 
         if event_type == "complete":
@@ -190,6 +208,60 @@ class RuntimeShadowPair:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ShadowObserverOverhead:
+    iterations: int
+    baseline_events: int
+    shadow_events: int
+    mean_microseconds_per_event: float
+    p95_microseconds_per_event: float
+    event_expansion: float
+
+    @property
+    def within_envelope(self) -> bool:
+        return (
+            self.p95_microseconds_per_event
+            <= MAX_OBSERVER_P95_MICROSECONDS_PER_EVENT
+            and self.event_expansion <= MAX_SHADOW_EVENT_EXPANSION
+        )
+
+
+def _p95(values: list[float]) -> float:
+    ordered = sorted(values)
+    index = max(0, math.ceil(0.95 * len(ordered)) - 1)
+    return ordered[index]
+
+
+def measure_shadow_observer_overhead(
+    events: Iterable[RuntimeEvent], *, iterations: int = 200
+) -> ShadowObserverOverhead:
+    """Measure observer-only cost against a declared validation envelope."""
+
+    if iterations < 1:
+        raise ValueError("iterations must be at least 1")
+    baseline = tuple(events)
+    if not baseline:
+        raise ValueError("events must not be empty")
+
+    samples = []
+    shadow_event_count = 0
+    for _ in range(iterations):
+        started = time.perf_counter()
+        shadow = observe_runtime_semantics(baseline)
+        elapsed = time.perf_counter() - started
+        shadow_event_count = len(shadow)
+        samples.append((elapsed * 1_000_000) / len(baseline))
+
+    return ShadowObserverOverhead(
+        iterations=iterations,
+        baseline_events=len(baseline),
+        shadow_events=shadow_event_count,
+        mean_microseconds_per_event=sum(samples) / len(samples),
+        p95_microseconds_per_event=_p95(samples),
+        event_expansion=shadow_event_count / len(baseline),
+    )
+
+
 def pair_runtime_with_shadow(
     execute: Callable[[], Iterable[RuntimeEvent]],
 ) -> RuntimeShadowPair:
@@ -207,7 +279,11 @@ def pair_runtime_with_shadow(
 
 
 __all__ = [
+    "MAX_OBSERVER_P95_MICROSECONDS_PER_EVENT",
+    "MAX_SHADOW_EVENT_EXPANSION",
     "RuntimeShadowPair",
+    "ShadowObserverOverhead",
+    "measure_shadow_observer_overhead",
     "observe_runtime_semantics",
     "pair_runtime_with_shadow",
 ]
