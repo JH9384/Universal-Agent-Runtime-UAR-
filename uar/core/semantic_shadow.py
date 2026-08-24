@@ -45,6 +45,14 @@ def _semantic_event(event_type: str, **payload: Any) -> RuntimeEvent:
     return {"type": event_type, "payload": payload}
 
 
+def _semantic_annotation(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    result = payload.get("result")
+    if not isinstance(result, Mapping):
+        return {}
+    annotation = result.get("_uar_semantic")
+    return annotation if isinstance(annotation, Mapping) else {}
+
+
 def observe_runtime_semantics(
     events: Iterable[RuntimeEvent],
 ) -> tuple[RuntimeEvent, ...]:
@@ -108,7 +116,11 @@ def observe_runtime_semantics(
             )
             continue
 
-        if event_type in {"skill_complete", "skill_failed"} and skill:
+        if event_type in {
+            "skill_complete",
+            "skill_failed",
+            "skill_cancelled",
+        } and skill:
             if not pending[skill]:
                 # A cached parallel completion may not expose skill_start.
                 stage_id = f"runtime:{stage_index:04d}:{skill}"
@@ -133,42 +145,74 @@ def observe_runtime_semantics(
                 stage_id, candidate_id, dependencies = pending[skill].popleft()
 
             if event_type == "skill_complete":
+                annotation = _semantic_annotation(payload)
                 evidence_id = _stable_id("runtime-output", payload.get("result"))
-                certificate_id = _stable_id(
-                    "runtime-decision",
-                    {"stage_id": stage_id, "evidence_id": evidence_id},
-                )
-                shadow.append(
-                    _semantic_event(
-                        "evidence_acquired",
-                        stage_id=stage_id,
-                        candidate_id=candidate_id,
-                        evidence_id=evidence_id,
+                evidence_refs = {evidence_id}
+                raw_refs = annotation.get("evidence_refs", [])
+                if isinstance(raw_refs, (list, tuple, set, frozenset)):
+                    evidence_refs.update(str(ref) for ref in raw_refs)
+                raw_tool_calls = annotation.get("tool_calls", [])
+                if not isinstance(raw_tool_calls, (list, tuple)):
+                    raw_tool_calls = []
+                for tool_call in raw_tool_calls:
+                    if isinstance(tool_call, Mapping):
+                        evidence_refs.add(_stable_id("tool-call", tool_call))
+                for ref in sorted(evidence_refs):
+                    shadow.append(
+                        _semantic_event(
+                            "evidence_acquired",
+                            stage_id=stage_id,
+                            candidate_id=candidate_id,
+                            evidence_id=ref,
+                        )
                     )
-                )
+
+                state = str(annotation.get("state", "admit")).lower()
+                decision_event = {
+                    "admit": "candidate_admitted",
+                    "reject": "candidate_rejected",
+                    "defer": "candidate_deferred",
+                    "conflict": "candidate_conflicted",
+                }.get(state, "candidate_admitted")
+                certificate_id = annotation.get("certificate_id")
+                if certificate_id is None and decision_event == "candidate_admitted":
+                    certificate_id = _stable_id(
+                        "runtime-decision",
+                        {"stage_id": stage_id, "evidence_id": evidence_id},
+                    )
                 shadow.append(
                     _semantic_event(
-                        "candidate_admitted",
+                        decision_event,
                         stage_id=stage_id,
                         candidate_id=candidate_id,
+                        constraint_id=annotation.get("constraint_id"),
                         certificate_id=certificate_id,
-                        evidence_refs=[evidence_id],
+                        evidence_refs=sorted(evidence_refs),
+                        reason_code=annotation.get("reason_code"),
                     )
                 )
-                shadow.append(
-                    _semantic_event(
-                        "candidate_committed",
-                        stage_id=stage_id,
-                        candidate_id=candidate_id,
+                if decision_event == "candidate_admitted" and annotation.get(
+                    "committed", True
+                ):
+                    shadow.append(
+                        _semantic_event(
+                            "candidate_committed",
+                            stage_id=stage_id,
+                            candidate_id=candidate_id,
+                        )
                     )
-                )
             else:
+                reason_code = (
+                    "runtime_cancelled"
+                    if event_type == "skill_cancelled"
+                    else "runtime_skill_failed"
+                )
                 shadow.append(
                     _semantic_event(
                         "candidate_rejected",
                         stage_id=stage_id,
                         candidate_id=candidate_id,
-                        reason_code="runtime_skill_failed",
+                        reason_code=reason_code,
                     )
                 )
             causal_frontier.difference_update(dependencies)
@@ -206,6 +250,88 @@ class RuntimeShadowPair:
             == self.baseline_events
             and self.baseline_projection_hash == self.shadow_projection_hash
         )
+
+
+RUNTIME_ENVELOPE_FIELDS = frozenset(
+    {"timestamp", "uor_address", "uor_witness"}
+)
+RUNTIME_METRIC_ENVELOPE_FIELDS = frozenset(
+    {"total_time_sec", "skill_times_ms"}
+)
+
+
+def normalize_runtime_envelope(
+    events: Iterable[RuntimeEvent],
+) -> tuple[RuntimeEvent, ...]:
+    """Erase explicitly nonsemantic per-execution timing/address fields."""
+
+    normalized = []
+    for source in events:
+        event = {
+            key: value
+            for key, value in source.items()
+            if key not in RUNTIME_ENVELOPE_FIELDS
+        }
+        payload = event.get("payload")
+        if event.get("type") == "metrics" and isinstance(payload, Mapping):
+            event["payload"] = {
+                key: value
+                for key, value in payload.items()
+                if key not in RUNTIME_METRIC_ENVELOPE_FIELDS
+            }
+        normalized.append(event)
+    return tuple(normalized)
+
+
+def _runtime_projection_hash(events: Iterable[RuntimeEvent]) -> str:
+    payload = json.dumps(
+        normalize_runtime_envelope(events),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class IndependentRuntimeShadowPair:
+    baseline_events: tuple[RuntimeEvent, ...]
+    candidate_events: tuple[RuntimeEvent, ...]
+    shadow_events: tuple[RuntimeEvent, ...]
+    baseline_projection_hash: str
+    shadow_projection_hash: str
+
+    @property
+    def projected_events_equal(self) -> bool:
+        baseline = normalize_runtime_envelope(self.baseline_events)
+        candidate = normalize_runtime_envelope(
+            project_nonsemantic_events(self.shadow_events)
+        )
+        return (
+            baseline == candidate
+            and self.baseline_projection_hash == self.shadow_projection_hash
+        )
+
+
+def pair_independent_runtime_with_shadow(
+    execute_baseline: Callable[[], Iterable[RuntimeEvent]],
+    execute_candidate: Callable[[], Iterable[RuntimeEvent]],
+) -> IndependentRuntimeShadowPair:
+    """Run baseline and shadow candidates independently, then compare them."""
+
+    baseline = tuple(execute_baseline())
+    candidate = tuple(execute_candidate())
+    shadow = observe_runtime_semantics(candidate)
+    return IndependentRuntimeShadowPair(
+        baseline_events=baseline,
+        candidate_events=candidate,
+        shadow_events=shadow,
+        baseline_projection_hash=_runtime_projection_hash(baseline),
+        shadow_projection_hash=_runtime_projection_hash(
+            project_nonsemantic_events(shadow)
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,9 +407,14 @@ def pair_runtime_with_shadow(
 __all__ = [
     "MAX_OBSERVER_P95_MICROSECONDS_PER_EVENT",
     "MAX_SHADOW_EVENT_EXPANSION",
+    "RUNTIME_ENVELOPE_FIELDS",
+    "RUNTIME_METRIC_ENVELOPE_FIELDS",
+    "IndependentRuntimeShadowPair",
     "RuntimeShadowPair",
     "ShadowObserverOverhead",
     "measure_shadow_observer_overhead",
+    "normalize_runtime_envelope",
     "observe_runtime_semantics",
+    "pair_independent_runtime_with_shadow",
     "pair_runtime_with_shadow",
 ]
