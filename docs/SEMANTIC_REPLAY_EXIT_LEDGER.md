@@ -29,7 +29,7 @@ green synthetic campaign does not close a real-runtime or stochastic criterion.
 | Semantic-distance distributions over real history | OPEN | distributional review harness exists | Populate and execute real replay corpus |
 | Deterministic projected shadow equality | PASS | Seven real `Executor` scenarios cover sequential, DAG/parallel, retry, rejection, timeout, cancellation, and annotated MCP tool/defer/conflict paths. Same-stream projection is exact, and two independently executed clean-state runs produce identical normalized projection hashes. Normalization removes only timestamps, UOR envelope fields, and timing metrics; a non-envelope result mutation is detected. | Retain the independent-pair and drift-negative tests as permanent gates |
 | Concurrent/stochastic overhead envelope | PASS | Seed `8191`: 800 paired runs across greedy-wide and DAG-diamond workloads at concurrency 1/4/16/32. Zero projection/result/integrity drift; worst p95 ratio 1.0096, p99 ratio 1.0046, throughput retention 0.9971, order JSD 0.0024 bits, and order TV 0.0167. | Retain the 100-sample-per-stratum confirmatory workflow gate |
-| Independent certificate verification | PARTIAL | verifier hook and separation from replay verdict | Exercise a real certificate family |
+| Independent certificate verification | PASS | A real `Executor` decision carries an Ed25519 certificate reference. A public-key-only verifier checks both signature authenticity and exact semantic attachment; tampered-claim and wrong-key controls are rejected. | Retain the signed certificate workflow gate and both negative controls |
 | No Trust Spine weighting change | HOLD | PR introduces no weighting changes | Remain on hold until empirical validation closes |
 
 ## Runtime preconditions
@@ -62,6 +62,9 @@ Current lifecycle evidence:
 - the frozen concurrent confirmatory gate passed all eight strata on seed
   `8191`; observer cost is paired on each candidate run, while independent
   executions measure result, scheduler-order, and semantic distributions.
+- the Ed25519 decision-certificate campaign verifies one real `Executor`
+  decision with public key material only and rejects tampered-claim and
+  wrong-key duals.
 
 ## Next evidence tranche
 
@@ -71,4 +74,3 @@ Current lifecycle evidence:
    the synthetic greedy/DAG concurrent gate does not substitute for them.
 3. Continue requiring exact projected-event equality for deterministic pairs,
    with shared runtime state explicitly isolated between executions.
-4. Exercise at least one independently verifiable certificate family.
