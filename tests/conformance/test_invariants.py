@@ -123,6 +123,27 @@ def test_execution_produces_output_and_execution_record(uor):
     assert store.get_object(body["output"])["content"] == {"result": 30}
 
 
+def test_execution_sandbox_avoids_multithreaded_fork_deadlock(uor):
+    """Repeated ASGI-thread execution must not fork the live test process."""
+    from uar.objects import sandbox
+
+    assert sandbox._MP_CTX.get_start_method() != "fork"
+
+    _, client = uor
+    value = create_object(client, 7)
+    for _ in range(3):
+        response = client.post(
+            "/agents/execution/run",
+            json={
+                "runtimeName": "identity_value",
+                "inputs": [value["digest"]],
+                "parameters": {"timeout_seconds": CI_STABLE_TIMEOUT},
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["result"] == 7
+
+
 def test_lineage_records_execution_event(uor):
     _, client = uor
     a = create_object(client, 1)
