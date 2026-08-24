@@ -110,7 +110,9 @@ class SqliteRunStore:
         self._writer_thread.start()
         if not self._writer_ready.wait(timeout=5.0):
             self._writer_shutdown.set()
-            raise TimeoutError("SQLite writer thread did not initialize within 5s")
+            raise TimeoutError(
+                "SQLite writer thread did not initialize within 5s"
+            )
         if self._writer_exception is not None:
             raise self._writer_exception
 
@@ -945,9 +947,16 @@ class SqliteRunStore:
         return getattr(self, "_writer_transient_errors", 0)
 
     def flush(self) -> None:
-        """Drain the writer queue and checkpoint WAL."""
-        self._drain_writer()
-        self._enqueue_write("checkpoint", None)
+        """Wait for all prior writes, then checkpoint WAL synchronously.
+
+        Queue emptiness is not a completion barrier: the writer can dequeue an
+        item before SQLite has finished it.  A synchronous checkpoint placed
+        behind existing items provides the FIFO acknowledgement callers expect
+        from ``flush()``.
+        """
+        result = self._enqueue_write_sync("checkpoint", None)
+        if isinstance(result, Exception):
+            raise result
 
     def close(self) -> None:
         """Signal writer thread to stop, drain queue, close connections."""
@@ -960,7 +969,9 @@ class SqliteRunStore:
                 pass
             self._writer_thread.join(timeout=5.0)
             if self._writer_thread.is_alive():
-                raise TimeoutError("SQLite writer thread did not stop within 5s")
+                raise TimeoutError(
+                    "SQLite writer thread did not stop within 5s"
+                )
         self._writer_thread = None
         # Drain and close all reader pool connections
         with self._read_pool_lock:
