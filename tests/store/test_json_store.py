@@ -175,11 +175,10 @@ class TestJsonRunStoreBufferFlush:
 
 class TestJsonRunStoreRotation:
     def test_rotation_creates_backup(self, fresh_store, monkeypatch):
-        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 1)
-        # Write enough data to exceed 1MB
+        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 0.001)
+        # Exercise the byte threshold without thousands of fsync operations.
         big_record = _make_record("big")
-        # Each record is ~150 bytes; need ~7000 to exceed 1MB
-        for i in range(8000):
+        for _ in range(100):
             fresh_store.append(big_record)
         fresh_store.flush()
         assert fresh_store.path.exists()
@@ -187,12 +186,12 @@ class TestJsonRunStoreRotation:
         assert backup.exists()
 
     def test_rotation_respects_max_backups(self, fresh_store, monkeypatch):
-        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 1)
+        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 0.001)
         monkeypatch.setattr(fresh_store, "_MAX_BACKUPS", 2)
         big_record = _make_record("big")
         # Trigger rotation multiple times
         for _ in range(3):
-            for i in range(8000):
+            for _ in range(100):
                 fresh_store.append(big_record)
             fresh_store.flush()
         # Should only have .1 and .2, not .3
@@ -210,9 +209,9 @@ class TestJsonRunStoreRotation:
     def test_records_still_readable_after_rotation(
         self, fresh_store, monkeypatch
     ):
-        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 1)
+        monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 0.001)
         record = _make_record("rotated")
-        for i in range(8000):
+        for _ in range(100):
             fresh_store.append(record)
         fresh_store.flush()
         # Records should be in the new file or backup; list reads current file
