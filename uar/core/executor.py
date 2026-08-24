@@ -1521,6 +1521,10 @@ class Executor:
                                 skip_to_recipe_end = active_recipe_stack[-1]
                             else:
                                 execution_broken = True
+                            # Generic exceptions are non-retryable. Continuing
+                            # this loop emitted duplicate skill_failed events
+                            # without the required skill_retry transition.
+                            break
                         finally:
                             _release_coalesce_lock(_coalesce_key)
             else:
