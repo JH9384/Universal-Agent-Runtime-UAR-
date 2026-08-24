@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 from dataclasses import asdict
 from typing import Any
@@ -14,9 +15,11 @@ from uar.core.executor import Executor
 from uar.core.registry import registry
 from uar.core.semantic_shadow import (
     measure_shadow_observer_overhead,
+    pair_independent_runtime_with_shadow,
     pair_runtime_with_shadow,
 )
 from uar.core.semantic_trace import validate_semantic_trace
+from uar.mcp.server import _handle_tool_call
 
 
 def _register(name: str, function) -> None:
@@ -54,6 +57,11 @@ def _scenario_report(name: str, pair, iterations: int) -> dict[str, Any]:
         "baseline_events": len(pair.baseline_events),
         "shadow_events": len(pair.shadow_events),
         "semantic_stages": len(pair.semantic_trace.stages),
+        "decision_states": [
+            decision.state.value
+            for stage in pair.semantic_trace.stages
+            for decision in stage.decisions
+        ],
         "projected_events_equal": pair.projected_events_equal,
         "integrity_issues": [asdict(issue) for issue in issues],
         "overhead": asdict(overhead),
@@ -67,12 +75,51 @@ def build_report(iterations: int) -> dict[str, Any]:
     _register("omega_shadow_left", lambda _: {"branch": "left"})
     _register("omega_shadow_right", lambda _: {"branch": "right"})
     _register("omega_shadow_join", lambda _: {"joined": True})
+    def call_runtime_tool(_):
+        result = _handle_tool_call("omega_shadow_identity", {"metadata": {}})
+        return {
+            "tool_result": result,
+            "_uar_semantic": {
+                "tool_calls": [
+                    {
+                        "call_id": "runtime-review-call-1",
+                        "tool": "omega_shadow_identity",
+                        "status": "error" if result.get("isError") else "completed",
+                    }
+                ]
+            },
+        }
+
+    _register("omega_shadow_tool", call_runtime_tool)
+    _register(
+        "omega_shadow_defer",
+        lambda _: {
+            "_uar_semantic": {
+                "state": "defer",
+                "constraint_id": "await-human",
+                "reason_code": "insufficient_authority",
+            }
+        },
+    )
+    _register(
+        "omega_shadow_conflict",
+        lambda _: {
+            "_uar_semantic": {
+                "state": "conflict",
+                "constraint_id": "policy-dual",
+                "reason_code": "evidence_collision",
+            }
+        },
+    )
 
     def reject(_):
         raise RuntimeError("rejected by validation corpus")
 
     def timeout(_):
         raise TimeoutError(0.01)
+
+    def cancel(_):
+        raise asyncio.CancelledError
 
     retry_attempt = {"value": 0}
 
@@ -87,6 +134,7 @@ def build_report(iterations: int) -> dict[str, Any]:
     _register("omega_shadow_reject", reject)
     _register("omega_shadow_timeout", timeout)
     _register("omega_shadow_retry", retry)
+    _register("omega_shadow_cancel", cancel)
 
     scenarios = []
     sequential_goal = _goal("sequential")
@@ -103,6 +151,25 @@ def build_report(iterations: int) -> dict[str, Any]:
                     ],
                 ),
                 sequential_goal,
+            ),
+        )
+    )
+
+    decision_goal = _goal("decision-duals")
+    scenarios.append(
+        (
+            "tool_defer_conflict",
+            _pair(
+                "decision-duals",
+                StrategySpec(
+                    goal_id=decision_goal.id,
+                    ordered_skills=[
+                        "omega_shadow_tool",
+                        "omega_shadow_defer",
+                        "omega_shadow_conflict",
+                    ],
+                ),
+                decision_goal,
             ),
         )
     )
@@ -138,7 +205,7 @@ def build_report(iterations: int) -> dict[str, Any]:
         }
     )
     try:
-        for name in ("reject", "timeout", "retry"):
+        for name in ("reject", "timeout", "retry", "cancel"):
             goal = _goal(name)
             scenarios.append(
                 (
@@ -160,16 +227,44 @@ def build_report(iterations: int) -> dict[str, Any]:
     reports = [
         _scenario_report(name, pair, iterations) for name, pair in scenarios
     ]
+    independent_goal = _goal("independent")
+    independent_strategy = StrategySpec(
+        goal_id=independent_goal.id,
+        ordered_skills=["omega_shadow_identity", "omega_shadow_double"],
+    )
+
+    def execute_independently():
+        with executor_module._coalesce_meta_lock:
+            executor_module._coalesce_results.clear()
+            executor_module._coalesce_lru.clear()
+        return Executor().iter_events(
+            independent_strategy,
+            independent_goal,
+            timeout_seconds=1.0,
+            _run_id="semantic-shadow-independent",
+        )
+
+    independent = pair_independent_runtime_with_shadow(
+        execute_independently, execute_independently
+    )
     passed = all(
         item["projected_events_equal"]
         and not item["integrity_issues"]
         and item["within_overhead_envelope"]
         for item in reports
-    )
+    ) and independent.projected_events_equal
     return {
         "schema": "uar.semantic-shadow-runtime-review.v1",
         "iterations_per_scenario": iterations,
         "passed": passed,
+        "independent_pair": {
+            "baseline_events": len(independent.baseline_events),
+            "candidate_events": len(independent.candidate_events),
+            "projected_events_equal": independent.projected_events_equal,
+            "baseline_projection_hash": independent.baseline_projection_hash,
+            "shadow_projection_hash": independent.shadow_projection_hash,
+            "shared_state_reset_between_sides": True,
+        },
         "scenarios": reports,
     }
 
