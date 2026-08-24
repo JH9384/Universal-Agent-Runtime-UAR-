@@ -12,18 +12,29 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
+from enum import Enum
 from typing import Any
 
 from uar.core.semantic_shadow import observe_runtime_semantics
 from uar.core.semantic_statistics import compare_semantic_distributions
 from uar.core.semantic_trace import (
     SEMANTIC_EVENT_TYPES,
+    ComparisonOutcome,
+    compare_semantic_traces,
+    project_nonsemantic_events,
+    projected_event_hash,
     semantic_trace_from_events,
     validate_semantic_trace,
 )
 
 CORPUS_SCHEMA = "uar.semantic-history-corpus.v1"
 ELIGIBLE_SOURCE_KIND = "observed_operational"
+
+
+class HistoryGateVerdict(str, Enum):
+    PASS = "PASS"
+    HOLD = "HOLD"
+    FAIL = "FAIL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,19 +44,40 @@ class HistoryGateThresholds:
     max_total_variation: float = 0.05
     max_telemetry_loss_rate: float = 0.01
     max_telemetry_loss_delta: float = 0.005
+    max_paired_different_rate: float = 0.0
+    max_paired_indeterminate_rate: float = 0.0
 
 
 DEFAULT_HISTORY_GATE_THRESHOLDS = HistoryGateThresholds()
 
 
-def _trace(events: Sequence[Mapping[str, Any]]):
+def _trace(
+    events: Sequence[Mapping[str, Any]],
+    *,
+    event_mode: str,
+    expected_projection_hash: str | None = None,
+):
     has_semantic_events = any(
         str(event.get("type", "")) in SEMANTIC_EVENT_TYPES
         for event in events
     )
     source = tuple(events)
-    if not has_semantic_events:
+    if event_mode == "raw_runtime":
+        if has_semantic_events:
+            raise ValueError("raw_runtime_contains_semantic_events")
         source = observe_runtime_semantics(source)
+    elif event_mode == "preshadowed":
+        if not has_semantic_events:
+            raise ValueError("preshadowed_missing_semantic_events")
+        runtime_projection = project_nonsemantic_events(source)
+        if not runtime_projection:
+            raise ValueError("preshadowed_missing_runtime_projection")
+        if not expected_projection_hash:
+            raise ValueError("preshadowed_missing_projection_hash")
+        if projected_event_hash(runtime_projection) != expected_projection_hash:
+            raise ValueError("preshadowed_projection_hash_mismatch")
+    else:
+        raise ValueError("invalid_event_mode")
     return semantic_trace_from_events(source)
 
 
@@ -94,6 +126,9 @@ def review_semantic_history(
     groups: dict[tuple[str, str, str], dict[str, list[Any]]] = defaultdict(
         lambda: {"baseline": [], "candidate": []}
     )
+    pairs: dict[
+        tuple[str, str, str, str], dict[str, Any]
+    ] = defaultdict(dict)
     integrity_issues = []
     duplicate_ids = []
     seen_ids = set()
@@ -113,6 +148,8 @@ def review_semantic_history(
         cohort = str(run.get("cohort", ""))
         task_class = str(run.get("task_class", ""))
         result_class = str(run.get("final_result_class", ""))
+        pair_id = str(run.get("pair_id", ""))
+        event_mode = str(run.get("event_mode", ""))
         if split not in {"calibration", "holdout"}:
             integrity_issues.append({"run_id": run_id, "code": "invalid_split"})
             continue
@@ -122,12 +159,23 @@ def review_semantic_history(
         if not task_class or not result_class:
             integrity_issues.append({"run_id": run_id, "code": "missing_stratum"})
             continue
+        if not pair_id:
+            integrity_issues.append({"run_id": run_id, "code": "missing_pair_id"})
+            continue
         events = run.get("events")
         if not isinstance(events, list) or not events:
             integrity_issues.append({"run_id": run_id, "code": "missing_events"})
             continue
 
-        trace = _trace(events)
+        try:
+            trace = _trace(
+                events,
+                event_mode=event_mode,
+                expected_projection_hash=run.get("runtime_projection_hash"),
+            )
+        except ValueError as exc:
+            integrity_issues.append({"run_id": run_id, "code": str(exc)})
+            continue
         issues = validate_semantic_trace(trace)
         for issue in issues:
             integrity_issues.append(
@@ -138,6 +186,13 @@ def review_semantic_history(
                 }
             )
         groups[(split, task_class, result_class)][cohort].append(trace)
+        pair_key = (split, task_class, result_class, pair_id)
+        if cohort in pairs[pair_key]:
+            integrity_issues.append(
+                {"run_id": run_id, "code": "duplicate_pair_cohort"}
+            )
+        else:
+            pairs[pair_key][cohort] = trace
 
     if duplicate_ids:
         eligibility_reasons.append("duplicate_run_ids")
@@ -146,6 +201,7 @@ def review_semantic_history(
 
     strata = []
     holdout_passes = []
+    hard_failures = bool(integrity_issues)
     for (split, task_class, result_class), cohorts in sorted(groups.items()):
         baseline = cohorts["baseline"]
         candidate = cohorts["candidate"]
@@ -178,9 +234,56 @@ def review_semantic_history(
             report.js_divergence_bits <= thresholds.max_js_divergence_bits
             and report.total_variation <= thresholds.max_total_variation
         )
-        stratum_passes = enough_samples and telemetry_ok and distribution_ok
+        stratum_pairs = [
+            value
+            for (pair_split, pair_task, pair_result, _), value in pairs.items()
+            if (pair_split, pair_task, pair_result)
+            == (split, task_class, result_class)
+        ]
+        complete_pairs = [
+            value
+            for value in stratum_pairs
+            if set(value) == {"baseline", "candidate"}
+        ]
+        incomplete_pair_count = len(stratum_pairs) - len(complete_pairs)
+        paired_reports = [
+            compare_semantic_traces(value["baseline"], value["candidate"])
+            for value in complete_pairs
+        ]
+        paired_different = sum(
+            report.outcome is ComparisonOutcome.DIFFERENT
+            for report in paired_reports
+        )
+        paired_indeterminate = sum(
+            report.outcome is ComparisonOutcome.INDETERMINATE
+            for report in paired_reports
+        )
+        paired_count = len(paired_reports)
+        paired_different_rate = (
+            paired_different / paired_count if paired_count else None
+        )
+        paired_indeterminate_rate = (
+            paired_indeterminate / paired_count if paired_count else None
+        )
+        coupling_ok = (
+            incomplete_pair_count == 0
+            and paired_count >= thresholds.min_samples_per_cohort
+            and paired_different_rate is not None
+            and paired_indeterminate_rate is not None
+            and paired_different_rate
+            <= thresholds.max_paired_different_rate
+            and paired_indeterminate_rate
+            <= thresholds.max_paired_indeterminate_rate
+        )
+        stratum_passes = (
+            enough_samples and telemetry_ok and distribution_ok and coupling_ok
+        )
         if split == "holdout":
             holdout_passes.append(stratum_passes)
+            if enough_samples and (
+                not telemetry_ok or not distribution_ok or not coupling_ok
+            ):
+                hard_failures = True
         strata.append(
             {
                 "split": split,
@@ -195,6 +298,11 @@ def review_semantic_history(
                 "enough_samples": enough_samples,
                 "telemetry_ok": telemetry_ok,
                 "distribution_ok": distribution_ok,
+                "paired_samples": paired_count,
+                "incomplete_pair_count": incomplete_pair_count,
+                "paired_different_rate": paired_different_rate,
+                "paired_indeterminate_rate": paired_indeterminate_rate,
+                "coupling_ok": coupling_ok,
                 "passes": stratum_passes,
             }
         )
@@ -208,6 +316,12 @@ def review_semantic_history(
 
     eligible = not eligibility_reasons
     gate_passes = eligible and bool(holdout_passes) and all(holdout_passes)
+    if gate_passes:
+        verdict = HistoryGateVerdict.PASS
+    elif hard_failures:
+        verdict = HistoryGateVerdict.FAIL
+    else:
+        verdict = HistoryGateVerdict.HOLD
     return {
         "schema": "uar.semantic-history-review.v1",
         "evidence_plane": (
@@ -216,6 +330,7 @@ def review_semantic_history(
         "eligible_for_release_gate": eligible,
         "eligibility_reasons": sorted(set(eligibility_reasons)),
         "gate_passes": gate_passes,
+        "verdict": verdict.value,
         "thresholds": asdict(thresholds),
         "run_count": len(runs),
         "duplicate_run_ids": sorted(set(duplicate_ids)),
@@ -228,5 +343,6 @@ __all__ = [
     "CORPUS_SCHEMA",
     "ELIGIBLE_SOURCE_KIND",
     "HistoryGateThresholds",
+    "HistoryGateVerdict",
     "review_semantic_history",
 ]
