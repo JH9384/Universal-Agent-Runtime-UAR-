@@ -17,6 +17,7 @@ uar.sqlite3
 node_modules/
 dist/
 build/
+.vite/
 
 # Copilot cache
 .copilot-specs-cache/
