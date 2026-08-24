@@ -1,3 +1,4 @@
+import asyncio
 import atexit
 import collections
 import concurrent.futures
@@ -702,7 +703,6 @@ def _run_with_timeout(fn, ctx, timeout_seconds):
     termination. Skills should periodically check for cancellation if
     they support it.
     """
-    import asyncio
     import inspect
 
     # Validate timeout to prevent negative or zero values
@@ -1454,6 +1454,20 @@ class Executor:
                                     "attempt": attempt + 1,
                                 },
                             )
+                            break
+                        except (
+                            asyncio.CancelledError,
+                            concurrent.futures.CancelledError,
+                        ):
+                            _release_coalesce_lock(_coalesce_key)
+                            yield _ev(
+                                "skill_cancelled",
+                                skill=skill_name,
+                                error="Skill execution cancelled",
+                                payload={"attempt": attempt + 1},
+                            )
+                            _add_error("Skill execution cancelled")
+                            execution_broken = True
                             break
                         except (TimeoutError, SkillExecutionError) as exc:
                             last_error = exc
