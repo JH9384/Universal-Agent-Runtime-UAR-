@@ -20,7 +20,18 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Hashable, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import (
+    Any,
+    Dict,
+    Hashable,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+)
 
 
 class DecisionState(str, Enum):
@@ -89,7 +100,9 @@ class SemanticStage:
         return {decision.candidate_id: decision for decision in self.decisions}
 
     def partition(self) -> Dict[DecisionState, frozenset[str]]:
-        out: Dict[DecisionState, Set[str]] = {state: set() for state in DecisionState}
+        out: Dict[DecisionState, Set[str]] = {
+            state: set() for state in DecisionState
+        }
         for decision in self.decisions:
             out[decision.state].add(decision.candidate_id)
         return {state: frozenset(values) for state, values in out.items()}
@@ -113,7 +126,9 @@ class SemanticStage:
         out: Set[Tuple[str, str, str]] = set()
         for decision in self.decisions:
             for ref in decision.evidence_refs:
-                out.add((self.stage_id, decision.candidate_id, f"evidence:{ref}"))
+                out.add(
+                    (self.stage_id, decision.candidate_id, f"evidence:{ref}")
+                )
             if decision.certificate_id:
                 out.add(
                     (
@@ -124,10 +139,15 @@ class SemanticStage:
                 )
         return frozenset(out)
 
-    def relational_obstruction(self) -> frozenset[Tuple[str, str, str, str, str]]:
+    def relational_obstruction(
+        self,
+    ) -> frozenset[Tuple[str, str, str, str, str]]:
         out: Set[Tuple[str, str, str, str, str]] = set()
         for decision in self.decisions:
-            if decision.state not in {DecisionState.REJECT, DecisionState.CONFLICT}:
+            if decision.state not in {
+                DecisionState.REJECT,
+                DecisionState.CONFLICT,
+            }:
                 continue
             out.add(
                 (
@@ -187,13 +207,19 @@ class SemanticTrace:
                 if expanded != reach[src]:
                     reach[src] = expanded
                     changed = True
-        return frozenset((src, dst) for src, values in reach.items() for dst in values)
+        return frozenset(
+            (src, dst) for src, values in reach.items() for dst in values
+        )
 
     def causal_predecessors(self, stage_id: str) -> frozenset[str]:
-        return frozenset(src for src, dst in self.causal_closure() if dst == stage_id)
+        return frozenset(
+            src for src, dst in self.causal_closure() if dst == stage_id
+        )
 
     def terminal_stage_ids(self) -> frozenset[str]:
-        explicit = frozenset(stage.stage_id for stage in self.stages if stage.terminal)
+        explicit = frozenset(
+            stage.stage_id for stage in self.stages if stage.terminal
+        )
         if explicit:
             return explicit
         ids = set(self.stage_map())
@@ -217,7 +243,8 @@ class SemanticTrace:
         if generated == 0:
             return 1.0
         observed = sum(
-            len(set(stage.decision_map()) & set(stage.generated)) for stage in self.stages
+            len(set(stage.decision_map()) & set(stage.generated))
+            for stage in self.stages
         )
         return observed / generated
 
@@ -289,7 +316,9 @@ class IntegrityReport:
         return not self.missing_certificates and not self.invalid_certificates
 
 
-def _jaccard_distance(left: Iterable[Hashable], right: Iterable[Hashable]) -> float:
+def _jaccard_distance(
+    left: Iterable[Hashable], right: Iterable[Hashable]
+) -> float:
     a = set(left)
     b = set(right)
     union = a | b
@@ -298,11 +327,15 @@ def _jaccard_distance(left: Iterable[Hashable], right: Iterable[Hashable]) -> fl
     return 1.0 - (len(a & b) / len(union))
 
 
-def validate_semantic_trace(trace: SemanticTrace) -> Tuple[TraceValidationIssue, ...]:
+def validate_semantic_trace(
+    trace: SemanticTrace,
+) -> Tuple[TraceValidationIssue, ...]:
     """Validate conservation, identity, and causal integrity constraints."""
     issues: List[TraceValidationIssue] = []
     stage_ids = [stage.stage_id for stage in trace.stages]
-    duplicates = sorted({stage_id for stage_id in stage_ids if stage_ids.count(stage_id) > 1})
+    duplicates = sorted(
+        {stage_id for stage_id in stage_ids if stage_ids.count(stage_id) > 1}
+    )
     for stage_id in duplicates:
         issues.append(TraceValidationIssue(stage_id, "duplicate_stage_id"))
 
@@ -310,7 +343,11 @@ def validate_semantic_trace(trace: SemanticTrace) -> Tuple[TraceValidationIssue,
     for stage in trace.stages:
         decision_ids = [decision.candidate_id for decision in stage.decisions]
         duplicate_decisions = sorted(
-            {candidate_id for candidate_id in decision_ids if decision_ids.count(candidate_id) > 1}
+            {
+                candidate_id
+                for candidate_id in decision_ids
+                if decision_ids.count(candidate_id) > 1
+            }
         )
         if duplicate_decisions:
             issues.append(
@@ -329,7 +366,10 @@ def validate_semantic_trace(trace: SemanticTrace) -> Tuple[TraceValidationIssue,
                     {"candidate_ids": outside},
                 )
             )
-        if stage.committed is not None and stage.committed not in stage.generated:
+        if (
+            stage.committed is not None
+            and stage.committed not in stage.generated
+        ):
             issues.append(
                 TraceValidationIssue(
                     stage.stage_id,
@@ -347,7 +387,9 @@ def validate_semantic_trace(trace: SemanticTrace) -> Tuple[TraceValidationIssue,
                 )
             )
         if stage.stage_id in stage.dependencies:
-            issues.append(TraceValidationIssue(stage.stage_id, "self_dependency"))
+            issues.append(
+                TraceValidationIssue(stage.stage_id, "self_dependency")
+            )
 
     closure = trace.causal_closure()
     for stage_id in known:
@@ -363,29 +405,46 @@ def _align_stages(
     left_map = left.stage_map()
     right_map = right.stage_map()
     ordered_ids = sorted(set(left_map) | set(right_map))
-    return [(stage_id, left_map.get(stage_id), right_map.get(stage_id)) for stage_id in ordered_ids]
+    return [
+        (stage_id, left_map.get(stage_id), right_map.get(stage_id))
+        for stage_id in ordered_ids
+    ]
 
 
 def _stage_distance(left: SemanticStage, right: SemanticStage) -> float:
     generated = _jaccard_distance(left.generated, right.generated)
-    decisions = _jaccard_distance(left.decision_relation(), right.decision_relation())
+    decisions = _jaccard_distance(
+        left.decision_relation(), right.decision_relation()
+    )
     committed = 0.0 if left.committed == right.committed else 1.0
     return (generated + decisions + committed) / 3.0
 
 
-def _evidence_relation(trace: SemanticTrace) -> frozenset[Tuple[str, str, str]]:
-    return frozenset(item for stage in trace.stages for item in stage.relational_evidence())
+def _evidence_relation(
+    trace: SemanticTrace,
+) -> frozenset[Tuple[str, str, str]]:
+    return frozenset(
+        item for stage in trace.stages for item in stage.relational_evidence()
+    )
 
 
-def _obstruction_relation(trace: SemanticTrace) -> frozenset[Tuple[str, str, str, str, str]]:
-    return frozenset(item for stage in trace.stages for item in stage.relational_obstruction())
+def _obstruction_relation(
+    trace: SemanticTrace,
+) -> frozenset[Tuple[str, str, str, str, str]]:
+    return frozenset(
+        item
+        for stage in trace.stages
+        for item in stage.relational_obstruction()
+    )
 
 
 def _causal_signature(trace: SemanticTrace) -> frozenset[Tuple[str, str, str]]:
     tagged: Set[Tuple[str, str, str]] = {
         ("edge", src, dst) for src, dst in trace.causal_closure()
     }
-    tagged.update(("terminal", stage_id, "") for stage_id in trace.terminal_stage_ids())
+    tagged.update(
+        ("terminal", stage_id, "") for stage_id in trace.terminal_stage_ids()
+    )
     return frozenset(tagged)
 
 
@@ -455,11 +514,9 @@ def _stage_divergence(
                     "right_reason": r_decision.reason_code,
                 },
             )
-        if (
-            l_decision.certificate_id != r_decision.certificate_id
-            or tuple(sorted(l_decision.evidence_refs))
-            != tuple(sorted(r_decision.evidence_refs))
-        ):
+        if l_decision.certificate_id != r_decision.certificate_id or tuple(
+            sorted(l_decision.evidence_refs)
+        ) != tuple(sorted(r_decision.evidence_refs)):
             return SemanticDivergence(
                 stage_id,
                 "E-",
@@ -470,7 +527,10 @@ def _stage_divergence(
         return SemanticDivergence(
             stage_id,
             "K-",
-            {"left_committed": left.committed, "right_committed": right.committed},
+            {
+                "left_committed": left.committed,
+                "right_committed": right.committed,
+            },
         )
 
     left_terminal = stage_id in left_trace.terminal_stage_ids()
@@ -516,7 +576,12 @@ def _minimal_divergences(
         )
         if not has_divergent_predecessor:
             minimal.append(divergence)
-    return tuple(sorted(minimal, key=lambda item: (item.stage_id or "", item.category or "")))
+    return tuple(
+        sorted(
+            minimal,
+            key=lambda item: (item.stage_id or "", item.category or ""),
+        )
+    )
 
 
 def compare_semantic_traces(
@@ -534,7 +599,9 @@ def compare_semantic_traces(
     evidence_distance = _jaccard_distance(
         _evidence_relation(left), _evidence_relation(right)
     )
-    causal_distance = _jaccard_distance(_causal_signature(left), _causal_signature(right))
+    causal_distance = _jaccard_distance(
+        _causal_signature(left), _causal_signature(right)
+    )
 
     stage_distances: List[float] = []
     for _, left_stage, right_stage in _align_stages(left, right):
@@ -559,12 +626,18 @@ def compare_semantic_traces(
 
     minimal = _minimal_divergences(left, right)
     first = minimal[0] if minimal else SemanticDivergence(None, None, {})
-    observation_complete = left.observation_complete() and right.observation_complete()
+    observation_complete = (
+        left.observation_complete() and right.observation_complete()
+    )
 
-    hard_categories = {div.category for div in minimal if div.category not in {None, "O-"}}
+    hard_categories = {
+        div.category for div in minimal if div.category not in {None, "O-"}
+    }
     if hard_categories or result_distance > 0.0 or causal_distance > 0.0:
         outcome = ComparisonOutcome.DIFFERENT
-    elif not observation_complete or any(div.category == "O-" for div in minimal):
+    elif not observation_complete or any(
+        div.category == "O-" for div in minimal
+    ):
         outcome = ComparisonOutcome.INDETERMINATE
     else:
         outcome = ComparisonOutcome.EQUIVALENT
@@ -607,10 +680,14 @@ def _canonical_trace_payload(trace: SemanticTrace) -> Mapping[str, Any]:
                         "evidence_refs": sorted(decision.evidence_refs),
                         "reason_code": decision.reason_code,
                     }
-                    for decision in sorted(stage.decisions, key=lambda item: item.candidate_id)
+                    for decision in sorted(
+                        stage.decisions, key=lambda item: item.candidate_id
+                    )
                 ],
                 "committed": stage.committed,
-                "causal_predecessors": sorted(trace.causal_predecessors(stage.stage_id)),
+                "causal_predecessors": sorted(
+                    trace.causal_predecessors(stage.stage_id)
+                ),
                 "terminal": stage.stage_id in terminal_ids,
                 "unobserved": sorted(stage.unobserved()),
             }
@@ -618,7 +695,9 @@ def _canonical_trace_payload(trace: SemanticTrace) -> Mapping[str, Any]:
     return {
         "schema": "uar.semantic.v1",
         "stages": stage_payload,
-        "causal_closure": [list(edge) for edge in sorted(trace.causal_closure())],
+        "causal_closure": [
+            list(edge) for edge in sorted(trace.causal_closure())
+        ],
         "terminal_stage_ids": sorted(terminal_ids),
         "final_result": trace.final_result,
     }
@@ -652,9 +731,11 @@ SEMANTIC_EVENT_TYPES = frozenset(
 def project_nonsemantic_events(
     events: Sequence[Mapping[str, Any]],
 ) -> Tuple[Mapping[str, Any], ...]:
-    """Erase shadow semantic events for deterministic non-interference checks."""
+    """Erase shadow events for deterministic non-interference checks."""
     return tuple(
-        event for event in events if str(event.get("type", "")) not in SEMANTIC_EVENT_TYPES
+        event
+        for event in events
+        if str(event.get("type", "")) not in SEMANTIC_EVENT_TYPES
     )
 
 
@@ -668,8 +749,10 @@ def projected_event_hash(events: Sequence[Mapping[str, Any]]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def semantic_trace_from_events(events: Sequence[Mapping[str, Any]]) -> SemanticTrace:
-    """Reconstruct semantic structure independent of harmless event arrival order."""
+def semantic_trace_from_events(
+    events: Sequence[Mapping[str, Any]],
+) -> SemanticTrace:
+    """Reconstruct semantics independent of harmless event arrival order."""
 
     stage_order: List[str] = []
     generated: Dict[str, Set[str]] = {}
@@ -736,7 +819,9 @@ def semantic_trace_from_events(events: Sequence[Mapping[str, Any]]) -> SemanticT
             continue
 
         if event_type in state_by_type:
-            refs = set(str(ref) for ref in (payload.get("evidence_refs") or []))
+            refs = set(
+                str(ref) for ref in (payload.get("evidence_refs") or [])
+            )
             refs.update(evidence.get(key, set()))
             decisions[stage_id][candidate_id] = CandidateDecision(
                 candidate_id=candidate_id,
@@ -797,7 +882,7 @@ def verify_decision_certificates(
     trace: SemanticTrace,
     verified_certificates: Mapping[str, bool],
 ) -> IntegrityReport:
-    """Compare runtime-reported certificate claims to independent verification."""
+    """Compare reported certificate claims to independent verification."""
 
     missing: List[Tuple[str, str]] = []
     invalid: List[Tuple[str, str, str]] = []
@@ -811,7 +896,11 @@ def verify_decision_certificates(
                 missing.append((stage.stage_id, decision.candidate_id))
             elif not verified_certificates[decision.certificate_id]:
                 invalid.append(
-                    (stage.stage_id, decision.candidate_id, decision.certificate_id)
+                    (
+                        stage.stage_id,
+                        decision.candidate_id,
+                        decision.certificate_id,
+                    )
                 )
     return IntegrityReport(
         checked_certificates=checked,
@@ -824,7 +913,7 @@ def local_diamond_report(
     left_linearization: SemanticTrace,
     right_linearization: SemanticTrace,
 ) -> SemanticEquivalenceReport:
-    """Compare two declared scheduler linearizations of the same local diamond."""
+    """Compare declared scheduler linearizations of one local diamond."""
     return compare_semantic_traces(left_linearization, right_linearization)
 
 
@@ -833,7 +922,7 @@ def directed_transition_risk(
     after: DecisionState,
     risk_matrix: Mapping[Tuple[DecisionState, DecisionState], float],
 ) -> float:
-    """Return policy-provided directional consequence separately from distance."""
+    """Return policy-provided directional risk separately from distance."""
     return float(risk_matrix.get((before, after), 0.0))
 
 
@@ -861,7 +950,9 @@ def remap_semantic_trace(
         stages.append(
             SemanticStage(
                 stage_id=map_stage(stage.stage_id),
-                generated=frozenset(map_candidate(value) for value in stage.generated),
+                generated=frozenset(
+                    map_candidate(value) for value in stage.generated
+                ),
                 decisions=tuple(
                     CandidateDecision(
                         candidate_id=map_candidate(decision.candidate_id),
@@ -869,23 +960,32 @@ def remap_semantic_trace(
                         constraint_id=decision.constraint_id,
                         certificate_id=decision.certificate_id,
                         evidence_refs=tuple(
-                            sorted(evidence_ids.get(ref, ref) for ref in decision.evidence_refs)
+                            sorted(
+                                evidence_ids.get(ref, ref)
+                                for ref in decision.evidence_refs
+                            )
                         ),
                         reason_code=decision.reason_code,
                     )
                     for decision in stage.decisions
                 ),
                 committed=(
-                    map_candidate(stage.committed) if stage.committed is not None else None
+                    map_candidate(stage.committed)
+                    if stage.committed is not None
+                    else None
                 ),
-                dependencies=tuple(sorted(map_stage(dep) for dep in stage.dependencies)),
+                dependencies=tuple(
+                    sorted(map_stage(dep) for dep in stage.dependencies)
+                ),
                 terminal=stage.terminal,
             )
         )
     return SemanticTrace(
         stages=tuple(stages),
         final_result=(
-            map_candidate(trace.final_result) if trace.final_result is not None else None
+            map_candidate(trace.final_result)
+            if trace.final_result is not None
+            else None
         ),
         metadata=trace.metadata,
     )
