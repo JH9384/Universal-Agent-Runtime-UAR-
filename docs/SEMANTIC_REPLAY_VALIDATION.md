@@ -308,6 +308,42 @@ appropriate distributional measures (for example JS divergence, Wasserstein,
 MMD, or permutation/bootstrap procedures), but no such quantity is currently a
 Trust Spine weight.
 
+### Real-history evidence planes
+
+`scripts/semantic_real_history_review.py` prevents experimental probability
+artifacts from being mistaken for operational replay evidence. Its input uses
+`uar.semantic-history-corpus.v1` and declares:
+
+- `provenance.source_kind = observed_operational`;
+- `provenance.model_generated = false`;
+- a completed sanitization record with method, reviewer, and source snapshot;
+- unique run IDs;
+- a pre-declared `calibration` or `holdout` split for every run;
+- `baseline` or `candidate` cohort, task class, final-result class, and runtime
+  events for every run.
+
+The calibration split can inform investigation. Only the untouched holdout can
+close the release gate. By default, every holdout stratum requires at least 20
+runs per cohort, JS divergence no greater than 0.02 bits, total variation no
+greater than 0.05, telemetry loss no greater than 1% in either cohort, and a
+cohort telemetry-loss difference no greater than 0.5 percentage points.
+
+Telemetry loss is measured from `M = Γ - dom(Q)` after the shadow observer has
+projected stored runtime events into the frozen semantic object. A corpus with
+no holdout, duplicate IDs, invalid traces, incomplete provenance, synthetic
+origin, or model-generated origin is reportable as probability-plane evidence
+but is not release-gate eligible.
+
+Example:
+
+```bash
+python scripts/semantic_real_history_review.py sanitized-history.json \
+  --output semantic-real-history-report.json
+```
+
+The aggregate report is suitable for retention. Raw operational history is not
+required in the repository or CI artifact.
+
 A useful future statistic is conditional process drift:
 
 ```text
