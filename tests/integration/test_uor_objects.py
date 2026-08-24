@@ -9,16 +9,13 @@ from fastapi.testclient import TestClient
 from uar.api.server import app, require_auth
 from uar.objects import get_default_store
 
-app.dependency_overrides[require_auth] = lambda: {
-    "user": "test",
-    "tier": "authenticated",
-}
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
 def setup_api_keys():
-    """Set up test API keys and auth override for UOR endpoints."""
+    """Set up and fully restore the shared app's auth override."""
+    previous_override = app.dependency_overrides.get(require_auth)
     with patch.dict(
         "uar.api.middleware.API_KEYS",
         {"dev-key-12345": {"user": "developer", "tier": "authenticated"}},
@@ -30,7 +27,10 @@ def setup_api_keys():
             "tier": "authenticated",
         }
         yield
-        app.dependency_overrides.pop(require_auth, None)
+        if previous_override is None:
+            app.dependency_overrides.pop(require_auth, None)
+        else:
+            app.dependency_overrides[require_auth] = previous_override
 
 
 def _create_test_object(unique: str = "") -> str:
