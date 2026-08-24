@@ -1,6 +1,8 @@
 import asyncio
 from unittest.mock import Mock, patch
 
+import pytest
+
 import uar.core.executor as executor_module
 from uar.core.contracts import GoalSpec, StrategySpec
 from uar.core.exceptions import SkillExecutionError
@@ -177,6 +179,7 @@ def test_parallel_output_arrival_order_does_not_change_semantic_result():
     def trace(outputs):
         events = (
             {"type": "start", "payload": {}},
+            {"type": "parallel_start", "payload": {}},
             {
                 "type": "complete",
                 "payload": {
@@ -205,6 +208,45 @@ def test_parallel_output_arrival_order_does_not_change_semantic_result():
     assert semantic_trace_hash(left_then_right) != semantic_trace_hash(
         changed_output
     )
+
+
+def test_sequential_output_order_remains_semantic():
+    def trace(outputs):
+        events = (
+            {"type": "start", "payload": {}},
+            {
+                "type": "complete",
+                "payload": {
+                    "status": "completed",
+                    "outputs": outputs,
+                    "final_context": {},
+                },
+            },
+        )
+        return semantic_trace_from_events(observe_runtime_semantics(events))
+
+    assert semantic_trace_hash(trace([1, 2])) != semantic_trace_hash(
+        trace([2, 1])
+    )
+
+
+def test_malformed_semantic_annotation_fails_closed():
+    events = (
+        {"type": "skill_start", "skill": "decide", "payload": {}},
+        {
+            "type": "skill_complete",
+            "skill": "decide",
+            "payload": {
+                "result": {
+                    "answer": 1,
+                    "_uar_semantic": {"state": "adimt"},
+                }
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="invalid_semantic_state"):
+        observe_runtime_semantics(events)
 
 
 @patch("uar.core.executor.time.sleep", return_value=None)
@@ -416,6 +458,12 @@ def test_independent_pair_detects_non_envelope_runtime_drift():
     def execute(value):
         return (
             {"type": "start", "run_id": "r", "payload": {}},
+            {
+                "type": "skill_start",
+                "run_id": "r",
+                "skill": "stable",
+                "payload": {},
+            },
             {
                 "type": "skill_complete",
                 "run_id": "r",

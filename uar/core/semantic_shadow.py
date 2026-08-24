@@ -66,8 +66,30 @@ def _semantic_annotation(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     result = payload.get("result")
     if not isinstance(result, Mapping):
         return {}
+    if "_uar_semantic" not in result:
+        return {}
     annotation = result.get("_uar_semantic")
-    return annotation if isinstance(annotation, Mapping) else {}
+    if not isinstance(annotation, Mapping):
+        raise ValueError("invalid_semantic_annotation")  # noqa: TRY004
+    state = annotation.get("state")
+    if state is not None and str(state).lower() not in {
+        "admit",
+        "reject",
+        "defer",
+        "conflict",
+    }:
+        raise ValueError("invalid_semantic_state")
+    if "committed" in annotation and not isinstance(
+        annotation["committed"], bool
+    ):
+        raise ValueError("invalid_semantic_committed")
+    for key in ("evidence_refs", "tool_calls"):
+        value = annotation.get(key)
+        if value is not None and not isinstance(
+            value, (list, tuple, set, frozenset)
+        ):
+            raise ValueError(f"invalid_semantic_{key}")
+    return annotation
 
 
 def observe_runtime_semantics(
@@ -86,6 +108,7 @@ def observe_runtime_semantics(
     )
     causal_frontier: set[str] = set()
     stage_index = 0
+    parallel_execution_seen = False
 
     for event in events:
         shadow.append(event)
@@ -94,6 +117,9 @@ def observe_runtime_semantics(
         skill = str(skill_value) if skill_value is not None else ""
         payload = event.get("payload")
         payload = payload if isinstance(payload, Mapping) else {}
+
+        if event_type in {"parallel_start", "parallel_wave"}:
+            parallel_execution_seen = True
 
         if event_type == "skill_start" and skill:
             stage_id = f"runtime:{stage_index:04d}:{skill}"
@@ -144,6 +170,12 @@ def observe_runtime_semantics(
         ):
             if not pending[skill]:
                 # A cached parallel completion may not expose skill_start.
+                if not (
+                    event_type == "skill_complete"
+                    and payload.get("cached") is True
+                    and parallel_execution_seen
+                ):
+                    raise ValueError("orphan_skill_terminal_event")
                 stage_id = f"runtime:{stage_index:04d}:{skill}"
                 candidate_id = skill
                 stage_index += 1
@@ -246,11 +278,15 @@ def observe_runtime_semantics(
             continue
 
         if event_type == "complete":
+            outputs = payload.get("outputs", [])
+            if (
+                parallel_execution_seen
+                or payload.get("outputs_commutative") is True
+            ):
+                outputs = _canonical_parallel_outputs(outputs)
             result_payload = {
                 "status": payload.get("status"),
-                "outputs": _canonical_parallel_outputs(
-                    payload.get("outputs", [])
-                ),
+                "outputs": outputs,
                 "final_context": payload.get("final_context", {}),
             }
             shadow.append(

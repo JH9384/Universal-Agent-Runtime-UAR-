@@ -45,6 +45,48 @@ def test_unobserved_is_not_defer_and_yields_indeterminate():
     assert report.outcome is ComparisonOutcome.INDETERMINATE
 
 
+def test_observation_gap_cannot_hide_observed_downstream_difference():
+    left = SemanticTrace(
+        stages=(
+            SemanticStage("s1", frozenset({"x"})),
+            SemanticStage(
+                "s2",
+                frozenset({"y"}),
+                decisions=(CandidateDecision("y", DecisionState.ADMIT),),
+                dependencies=("s1",),
+            ),
+        ),
+        final_result="same",
+    )
+    right = SemanticTrace(
+        stages=(
+            SemanticStage(
+                "s1",
+                frozenset({"x"}),
+                decisions=(CandidateDecision("x", DecisionState.ADMIT),),
+            ),
+            SemanticStage(
+                "s2",
+                frozenset({"y"}),
+                decisions=(
+                    CandidateDecision(
+                        "y",
+                        DecisionState.REJECT,
+                        reason_code="blocked",
+                    ),
+                ),
+                dependencies=("s1",),
+            ),
+        ),
+        final_result="same",
+    )
+
+    report = compare_semantic_traces(left, right)
+
+    assert report.minimal_divergences[0].category == "O-"
+    assert report.outcome is ComparisonOutcome.DIFFERENT
+
+
 def test_reason_change_cannot_be_zero_distance_and_divergent():
     left = SemanticTrace(
         stages=(
@@ -52,7 +94,9 @@ def test_reason_change_cannot_be_zero_distance_and_divergent():
                 "s",
                 frozenset({"A"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, reason_code="r1"),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, reason_code="r1"
+                    ),
                 ),
                 terminal=True,
             ),
@@ -64,7 +108,9 @@ def test_reason_change_cannot_be_zero_distance_and_divergent():
                 "s",
                 frozenset({"A"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, reason_code="r2"),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, reason_code="r2"
+                    ),
                 ),
                 terminal=True,
             ),
@@ -86,8 +132,12 @@ def test_evidence_attachment_is_relational_not_global_inventory():
                 "s",
                 frozenset({"A", "B"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, evidence_refs=("e1",)),
-                    CandidateDecision("B", DecisionState.ADMIT, evidence_refs=("e2",)),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, evidence_refs=("e1",)
+                    ),
+                    CandidateDecision(
+                        "B", DecisionState.ADMIT, evidence_refs=("e2",)
+                    ),
                 ),
                 terminal=True,
             ),
@@ -99,8 +149,12 @@ def test_evidence_attachment_is_relational_not_global_inventory():
                 "s",
                 frozenset({"A", "B"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, evidence_refs=("e2",)),
-                    CandidateDecision("B", DecisionState.ADMIT, evidence_refs=("e1",)),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, evidence_refs=("e2",)
+                    ),
+                    CandidateDecision(
+                        "B", DecisionState.ADMIT, evidence_refs=("e1",)
+                    ),
                 ),
                 terminal=True,
             ),
@@ -198,7 +252,10 @@ def test_evidence_reconstruction_is_arrival_order_invariant():
     after = semantic_trace_from_events((generated, decision, evidence))
 
     assert semantic_trace_hash(before) == semantic_trace_hash(after)
-    assert compare_semantic_traces(before, after).outcome is ComparisonOutcome.EQUIVALENT
+    assert (
+        compare_semantic_traces(before, after).outcome
+        is ComparisonOutcome.EQUIVALENT
+    )
 
 
 def test_trace_validation_detects_conservation_and_causal_defects():
@@ -226,7 +283,7 @@ def test_trace_validation_detects_conservation_and_causal_defects():
     assert "causal_cycle" in codes
 
 
-def test_semantic_hash_is_stage_order_invariant_when_causal_structure_matches():
+def test_semantic_hash_ignores_stage_order_when_causal_structure_matches():
     s0 = SemanticStage("s0", frozenset(), dependencies=())
     s1 = SemanticStage("s1", frozenset(), dependencies=("s0",))
     left = SemanticTrace(stages=(s0, s1))
@@ -238,7 +295,10 @@ def test_semantic_hash_is_stage_order_invariant_when_causal_structure_matches():
 def test_shadow_projection_removes_only_semantic_events():
     events = (
         {"type": "start", "payload": {}},
-        {"type": "candidate_generated", "payload": {"stage_id": "s", "candidate_id": "A"}},
+        {
+            "type": "candidate_generated",
+            "payload": {"stage_id": "s", "candidate_id": "A"},
+        },
         {"type": "complete", "payload": {}},
     )
 
@@ -254,8 +314,12 @@ def test_certificate_integrity_is_separate_from_replay_equivalence():
                 "s",
                 frozenset({"A", "B"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, certificate_id="good"),
-                    CandidateDecision("B", DecisionState.REJECT, certificate_id="bad"),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, certificate_id="good"
+                    ),
+                    CandidateDecision(
+                        "B", DecisionState.REJECT, certificate_id="bad"
+                    ),
                 ),
                 terminal=True,
             ),

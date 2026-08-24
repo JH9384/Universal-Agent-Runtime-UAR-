@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, Hashable, Iterable, Mapping, Sequence, Tuple
+from typing import Dict, Hashable, Iterable, Mapping, Sequence
 
 from uar.core.semantic_trace import SemanticTrace, semantic_trace_hash
 
@@ -30,7 +30,9 @@ class DistributionalSemanticReport:
         return self.js_divergence_bits == 0.0 and self.total_variation == 0.0
 
 
-def empirical_distribution(values: Iterable[Hashable]) -> Dict[Hashable, float]:
+def empirical_distribution(
+    values: Iterable[Hashable],
+) -> Dict[Hashable, float]:
     counts: Dict[Hashable, int] = {}
     total = 0
     for value in values:
@@ -71,7 +73,10 @@ def jensen_shannon_divergence_bits(
     """Symmetric finite divergence in bits, in [0, 1] for two distributions."""
 
     keys = set(left) | set(right)
-    mixture = {key: 0.5 * left.get(key, 0.0) + 0.5 * right.get(key, 0.0) for key in keys}
+    mixture = {
+        key: 0.5 * left.get(key, 0.0) + 0.5 * right.get(key, 0.0)
+        for key in keys
+    }
     if not keys:
         return 0.0
     return 0.5 * _kl_bits(left, mixture) + 0.5 * _kl_bits(right, mixture)
@@ -82,11 +87,17 @@ def total_variation_distance(
     right: Mapping[Hashable, float],
 ) -> float:
     keys = set(left) | set(right)
-    return 0.5 * sum(abs(left.get(key, 0.0) - right.get(key, 0.0)) for key in keys)
+    return 0.5 * sum(
+        abs(left.get(key, 0.0) - right.get(key, 0.0)) for key in keys
+    )
 
 
-def semantic_hash_distribution(traces: Iterable[SemanticTrace]) -> Dict[str, float]:
-    return empirical_distribution(semantic_trace_hash(trace) for trace in traces)
+def semantic_hash_distribution(
+    traces: Iterable[SemanticTrace],
+) -> Dict[str, float]:
+    return empirical_distribution(
+        semantic_trace_hash(trace) for trace in traces
+    )
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -148,12 +159,12 @@ def version_information_bits(
     baseline_traces: Sequence[SemanticTrace],
     candidate_traces: Sequence[SemanticTrace],
 ) -> float:
-    """Information about an equal-prior version label carried by trace identity.
+    """Information an equal-prior version label carries via trace identity.
 
     For two equally likely versions this equals the Jensen-Shannon divergence
     between their semantic-trace distributions. Callers can approximate
-    I(version; trace | result, task_class) by filtering to a result/task stratum
-    before calling.
+    I(version; trace | result, task_class) by filtering to a result/task
+    stratum before calling.
     """
 
     return compare_semantic_distributions(

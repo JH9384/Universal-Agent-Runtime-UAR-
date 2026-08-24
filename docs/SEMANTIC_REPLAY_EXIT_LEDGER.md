@@ -26,10 +26,10 @@ green synthetic campaign does not close a real-runtime or stochastic criterion.
 | Scheduler diamonds and evaluation strategies | PASS | flat/non-flat local diamonds plus real greedy-wide and DAG-diamond `Executor` shadow pairs at concurrency 1/4/16/32; parallel branches join through the full causal frontier | Retain both scheduler shapes in the confirmatory gate |
 | At least 10,000 result-equivalent semantic mutations | PASS | 14,000-case campaign with result-equivalent semantic families | None for synthetic gate |
 | Observation-loss injection and measured indeterminacy | PASS | identical and divergent latent-pair campaign | Real telemetry-loss rate remains open |
-| Semantic-distance distributions over real history | OPEN | `semantic_real_history_review.py` now enforces observed-operational provenance, a recorded sanitization review, calibration/untouched-holdout separation, unique run and pair IDs, explicit raw/preshadowed event authority, minimum cohort sizes, trace integrity, marginal distribution thresholds, coupled per-case semantic outcomes, measured telemetry-loss limits, and `PASS/HOLD/FAIL` verdicts. Probability experiments are explicitly ineligible to close this row. | Add signed corpus/census attestation, then supply the sanitized operational corpus and execute the untouched holdout |
+| Semantic-distance distributions over real history | OPEN | `semantic_real_history_review.py` enforces observed-operational provenance, sanitization review, calibration/untouched-holdout separation, unique run and pair IDs, raw/preshadowed event authority, minimum cohort sizes, trace integrity, marginal thresholds, coupled per-case outcomes, telemetry-loss limits, and `PASS/HOLD/FAIL` verdicts. A trusted Ed25519 attestation now binds the source snapshot/window, code revision, review policy, complete run census, pairing/split/cohort/strata, and event/projection digests. Probability experiments and unsigned or tampered corpora are ineligible. | Supply the signed sanitized operational corpus and execute the untouched holdout |
 | Deterministic projected shadow equality | PASS | Seven real `Executor` scenarios cover sequential, DAG/parallel, retry, rejection, timeout, cancellation, and annotated MCP tool/defer/conflict paths. Same-stream projection is exact, and two independently executed clean-state runs produce identical normalized projection hashes. Normalization removes only timestamps, UOR envelope fields, and timing metrics; a non-envelope result mutation is detected. | Retain the independent-pair and drift-negative tests as permanent gates |
-| Concurrent/stochastic overhead envelope | PASS | Seed `8191`: 800 paired runs across greedy-wide and DAG-diamond workloads at concurrency 1/4/16/32. Zero projection/result/integrity drift; worst p95 ratio 1.0096, p99 ratio 1.0046, throughput retention 0.9971, order JSD 0.0024 bits, and order TV 0.0167. | Retain the 100-sample-per-stratum confirmatory workflow gate |
-| Independent certificate verification | PASS | A real `Executor` decision carries an Ed25519 certificate reference. A public-key-only verifier checks both signature authenticity and exact semantic attachment; tampered-claim and wrong-key controls are rejected. | Retain the signed certificate workflow gate and both negative controls |
+| Concurrent/stochastic overhead envelope | PASS | Latest seed `8191` rerun: 800 paired runs across greedy-wide and DAG-diamond workloads at concurrency 1/4/16/32. Zero projection/result/integrity drift; worst p95 ratio 1.0016, p99 ratio 1.0283, throughput retention 0.9970, order JSD 0.0017 bits, and order TV 0.0250. | Retain the 100-sample-per-stratum confirmatory workflow gate |
+| Independent certificate verification | PASS | A real `Executor` decision carries an Ed25519 certificate reference. A public-key-only verifier requires an Ed25519 key and binds signature authenticity to the constraint, reason, evidence, commitment, causal stage context, final result, and full semantic-trace hash. Tampered-claim, causal-context, and wrong-key/algorithm controls are rejected. | Retain the signed certificate workflow gate and negative controls |
 | No Trust Spine weighting change | HOLD | PR introduces no weighting changes | Remain on hold until empirical validation closes |
 
 ## Runtime preconditions
@@ -57,6 +57,9 @@ Current lifecycle evidence:
   than silently repeating failures without `skill_retry` transitions;
 - cancellations now emit a schema-valid `skill_cancelled` runtime event and
   project to a semantic `REJECT` with reason `runtime_cancelled`;
+- raw and preshadowed evidence now fails closed on incomplete lifecycle grammar,
+  orphan terminal events, malformed semantic annotations, non-object events,
+  forged/duplicated semantic derivations, and sequential output reordering;
 - the focused lifecycle/conformance/runtime-shadow slice passed 150/150 across
   random seeds `1`, `2`, `3`, `7`, and `42`.
 - the frozen concurrent confirmatory gate passed all eight strata on seed
@@ -65,15 +68,21 @@ Current lifecycle evidence:
 - the Ed25519 decision-certificate campaign verifies one real `Executor`
   decision with public key material only and rejects tampered-claim and
   wrong-key duals.
+- the Semantic Replay workflow now lints its complete implementation, script,
+  and test surface. PR-attributable `E/W/F` findings are zero; the repository
+  remains at the same 136 baseline findings as `main`.
 
 ## Next evidence tranche
 
 1. Export a sanitized operational corpus using
    `uar.semantic-history-corpus.v1`, preserving the pre-declared calibration
-   and untouched-holdout split.
-2. Run `scripts/semantic_real_history_review.py` on that corpus and retain only
-   the aggregate report; do not publish raw operational events.
-3. Obtain an external review of the frozen semantic model, observer, and gate
+   and untouched-holdout split, source window, code revision, and stable case
+   coupling.
+2. Sign the generated census manifest with the designated Ed25519 attestor.
+   The reviewer must receive the public key through a separate trusted channel.
+3. Run `scripts/semantic_real_history_review.py` with the trusted key ID and
+   public-key path. Retain only the aggregate report; do not publish raw events.
+4. Obtain an external review of the frozen semantic model, observer, and gate
    evidence before the merge/no-merge decision.
 
 The current evidence inventory contains canonical fixtures, API audit entries,

@@ -13,9 +13,10 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
-from uar.core.semantic_trace import SemanticTrace
+from uar.core.semantic_trace import SemanticTrace, semantic_trace_hash
 
 CERTIFICATE_SCHEMA = "uar.semantic-decision-certificate.v1"
 
@@ -28,8 +29,14 @@ class SemanticDecisionCertificate:
     stage_id: str
     candidate_id: str
     decision_state: str
+    constraint_id: str | None
+    reason_code: str | None
     evidence_refs: tuple[str, ...]
+    committed_candidate_id: str | None
+    stage_dependencies: tuple[str, ...]
+    stage_terminal: bool
     final_result: str | None
+    semantic_trace_hash: str
     issuer: str
     issued_at: str
     schema: str = CERTIFICATE_SCHEMA
@@ -37,6 +44,7 @@ class SemanticDecisionCertificate:
     def payload(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["evidence_refs"] = sorted(self.evidence_refs)
+        payload["stage_dependencies"] = sorted(self.stage_dependencies)
         return payload
 
     def canonical_bytes(self) -> bytes:
@@ -65,6 +73,8 @@ def verify_ed25519_signature(
 
     try:
         public_key = load_pem_public_key(public_key_pem)
+        if not isinstance(public_key, Ed25519PublicKey):
+            return False
         signature_bytes = base64.b64decode(signature, validate=True)
         public_key.verify(signature_bytes, certificate.canonical_bytes())
     except (
@@ -89,15 +99,27 @@ def certificate_claim_matches_trace(
         return False
     if certificate.final_result != trace.final_result:
         return False
+    if certificate.semantic_trace_hash != semantic_trace_hash(trace):
+        return False
     for stage in trace.stages:
         if stage.stage_id != certificate.stage_id:
             continue
+        if certificate.committed_candidate_id != stage.committed:
+            return False
+        if tuple(sorted(certificate.stage_dependencies)) != tuple(
+            sorted(stage.dependencies)
+        ):
+            return False
+        if certificate.stage_terminal is not stage.terminal:
+            return False
         for decision in stage.decisions:
             if decision.candidate_id != certificate.candidate_id:
                 continue
             return (
                 decision.certificate_id == certificate.certificate_id
                 and decision.state.value == certificate.decision_state
+                and decision.constraint_id == certificate.constraint_id
+                and decision.reason_code == certificate.reason_code
                 and tuple(sorted(decision.evidence_refs))
                 == tuple(sorted(certificate.evidence_refs))
             )

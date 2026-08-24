@@ -45,7 +45,9 @@ def test_declared_identifier_isomorphism_can_normalize_coordinate_changes():
                 "s",
                 frozenset({"A"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, evidence_refs=("e1",)),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, evidence_refs=("e1",)
+                    ),
                 ),
                 committed="A",
                 terminal=True,
@@ -59,7 +61,9 @@ def test_declared_identifier_isomorphism_can_normalize_coordinate_changes():
                 "x",
                 frozenset({"Z"}),
                 decisions=(
-                    CandidateDecision("Z", DecisionState.ADMIT, evidence_refs=("q1",)),
+                    CandidateDecision(
+                        "Z", DecisionState.ADMIT, evidence_refs=("q1",)
+                    ),
                 ),
                 committed="Z",
                 terminal=True,
@@ -75,7 +79,10 @@ def test_declared_identifier_isomorphism_can_normalize_coordinate_changes():
         evidence_ids={"q1": "e1"},
     )
 
-    assert compare_semantic_traces(left, normalized).outcome is ComparisonOutcome.EQUIVALENT
+    assert (
+        compare_semantic_traces(left, normalized).outcome
+        is ComparisonOutcome.EQUIVALENT
+    )
     assert semantic_trace_hash(left) == semantic_trace_hash(normalized)
 
 
@@ -86,8 +93,14 @@ def test_projected_event_hash_ignores_shadow_semantic_events():
     )
     shadow = (
         {"type": "start", "payload": {"run": "1"}},
-        {"type": "candidate_generated", "payload": {"stage_id": "s", "candidate_id": "A"}},
-        {"type": "candidate_admitted", "payload": {"stage_id": "s", "candidate_id": "A"}},
+        {
+            "type": "candidate_generated",
+            "payload": {"stage_id": "s", "candidate_id": "A"},
+        },
+        {
+            "type": "candidate_admitted",
+            "payload": {"stage_id": "s", "candidate_id": "A"},
+        },
         {"type": "complete", "payload": {"result_id": "A"}},
     )
 

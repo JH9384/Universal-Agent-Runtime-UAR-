@@ -26,6 +26,7 @@ from uar.core.semantic_certificates import (
 )
 from uar.core.semantic_shadow import observe_runtime_semantics
 from uar.core.semantic_trace import (
+    semantic_trace_hash,
     semantic_trace_from_events,
     verify_decision_certificates,
 )
@@ -75,8 +76,14 @@ def build_report() -> dict:
         stage_id=stage.stage_id,
         candidate_id=decision.candidate_id,
         decision_state=decision.state.value,
+        constraint_id=decision.constraint_id,
+        reason_code=decision.reason_code,
         evidence_refs=decision.evidence_refs,
+        committed_candidate_id=stage.committed,
+        stage_dependencies=stage.dependencies,
+        stage_terminal=stage.terminal,
         final_result=trace.final_result,
+        semantic_trace_hash=semantic_trace_hash(trace),
         issuer="uar-omega-7b-validation",
         issued_at=datetime.now(timezone.utc).isoformat(),
     )

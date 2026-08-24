@@ -33,6 +33,12 @@ jobs:
         run: |
           python -m pytest tests/test_semantic_*.py -q --tb=short
 
+      - name: Lint Semantic Replay gate surface
+        run: |
+          python -m ruff check \
+            uar/core/semantic_*.py scripts/semantic_*.py \
+            tests/test_semantic_*.py --select=E,W,F
+
       - name: Run stratified mutation campaign
         run: |
           set -o pipefail

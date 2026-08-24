@@ -9,7 +9,8 @@ Input JSON shape:
 }
 
 Callers should pre-stratify by task class and, when useful, final result. This
-script reports validation statistics only; it does not modify Trust Spine scores.
+script reports validation statistics only; it does not modify Trust Spine
+scores.
 """
 
 from __future__ import annotations
@@ -49,17 +50,23 @@ def main() -> int:
         candidate_latencies=candidate_latencies,
     )
 
-    print(json.dumps({
-        "baseline_samples": report.baseline_samples,
-        "candidate_samples": report.candidate_samples,
-        "js_divergence_bits": report.js_divergence_bits,
-        "total_variation": report.total_variation,
-        "baseline_entropy_bits": report.baseline_entropy_bits,
-        "candidate_entropy_bits": report.candidate_entropy_bits,
-        "mean_latency_delta": report.mean_latency_delta,
-        "p95_latency_delta": report.p95_latency_delta,
-        "distribution_equivalent": report.distribution_equivalent,
-    }, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "baseline_samples": report.baseline_samples,
+                "candidate_samples": report.candidate_samples,
+                "js_divergence_bits": report.js_divergence_bits,
+                "total_variation": report.total_variation,
+                "baseline_entropy_bits": report.baseline_entropy_bits,
+                "candidate_entropy_bits": report.candidate_entropy_bits,
+                "mean_latency_delta": report.mean_latency_delta,
+                "p95_latency_delta": report.p95_latency_delta,
+                "distribution_equivalent": report.distribution_equivalent,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

@@ -102,7 +102,10 @@ def observe(events, loss_probability: float, rng: random.Random):
     }
     out = []
     for event in events:
-        if event.get("type") in decision_types and rng.random() < loss_probability:
+        if (
+            event.get("type") in decision_types
+            and rng.random() < loss_probability
+        ):
             continue
         out.append(event)
     return tuple(out)
@@ -118,8 +121,12 @@ def run(iterations: int, seed: int, probabilities):
         identical_counts = Counter()
         divergent_counts = Counter()
         for _ in range(iterations):
-            left = semantic_trace_from_events(observe(latent, probability, rng))
-            right = semantic_trace_from_events(observe(latent, probability, rng))
+            left = semantic_trace_from_events(
+                observe(latent, probability, rng)
+            )
+            right = semantic_trace_from_events(
+                observe(latent, probability, rng)
+            )
             report = compare_semantic_traces(left, right)
             identical_counts[report.outcome.value] += 1
 

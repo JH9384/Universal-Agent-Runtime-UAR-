@@ -317,6 +317,7 @@ artifacts from being mistaken for operational replay evidence. Its input uses
 - `provenance.source_kind = observed_operational`;
 - `provenance.model_generated = false`;
 - a completed sanitization record with method, reviewer, and source snapshot;
+- a capture window and the reviewed runtime code revision;
 - unique run IDs;
 - a stable `pair_id` binding the corresponding baseline and candidate case;
 - an explicit `event_mode` of `raw_runtime` or `preshadowed`;
@@ -326,6 +327,15 @@ artifacts from being mistaken for operational replay evidence. Its input uses
 - `baseline` or `candidate` cohort, task class, final-result class, and runtime
   events for every run.
 
+Release-eligible corpora also carry
+`uar.semantic-history-attestation.v1`. The signed manifest binds the trusted
+key ID, source snapshot and capture window, code revision, complete run census,
+case/seed and pair assignments, split/cohort/stratum labels, event-stream and
+runtime-projection digests, and the exact review-policy digest. Trust anchors
+are supplied by the reviewer; a public key embedded only in the corpus is not
+accepted. Relabeling pairs, changing events, or relaxing thresholds after
+collection invalidates the attestation.
+
 The calibration split can inform investigation. Only the untouched holdout can
 close the release gate. By default, every holdout stratum requires at least 20
 runs per cohort, JS divergence no greater than 0.02 bits, total variation no
@@ -334,9 +344,9 @@ cohort telemetry-loss difference no greater than 0.5 percentage points.
 
 Telemetry loss is measured from `M = Γ - dom(Q)` after the shadow observer has
 projected stored runtime events into the frozen semantic object. A corpus with
-no holdout, duplicate IDs, invalid traces, incomplete provenance, synthetic
-origin, or model-generated origin is reportable as probability-plane evidence
-but is not release-gate eligible.
+no holdout, duplicate IDs, invalid traces, incomplete provenance,
+synthetic/model-generated origin, missing attestation, or an untrusted or
+tampered attestation cannot pass the release gate.
 
 Marginal equality is not sufficient. If `κ` is the declared case coupling, the
 reviewer also evaluates each `(baseline, candidate)` pair. A corpus may have
@@ -355,8 +365,15 @@ Example:
 
 ```bash
 python scripts/semantic_real_history_review.py sanitized-history.json \
+  --trusted-key-id release-history-2026-08 \
+  --trusted-public-key release-history-ed25519.pub.pem \
   --output semantic-real-history-report.json
 ```
+
+The reviewer rejects non-finite, negative, or out-of-domain gate thresholds.
+Structural contradictions, witnessed paired semantic differences, duplicate
+identities, invalid attestations, and threshold defects are `FAIL`; missing or
+underpowered evidence remains `HOLD`.
 
 The aggregate report is suitable for retention. Raw operational history is not
 required in the repository or CI artifact.

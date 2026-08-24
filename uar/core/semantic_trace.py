@@ -584,6 +584,40 @@ def _minimal_divergences(
     )
 
 
+def _has_observed_hard_difference(
+    left: SemanticTrace, right: SemanticTrace
+) -> bool:
+    """Return true when shared observations directly witness a difference.
+
+    An earlier observation-domain defect still controls earliest-divergence
+    localization, but it must not hide a later decision that both traces
+    actually observed and reported differently.
+    """
+
+    for _, left_stage, right_stage in _align_stages(left, right):
+        if left_stage is None or right_stage is None:
+            return True
+        if left_stage.generated != right_stage.generated:
+            return True
+        left_decisions = left_stage.decision_map()
+        right_decisions = right_stage.decision_map()
+        for candidate_id in set(left_decisions) & set(right_decisions):
+            if left_decisions[candidate_id] != right_decisions[candidate_id]:
+                return True
+        if left_stage.committed != right_stage.committed and (
+            left_stage.committed is not None
+            and right_stage.committed is not None
+        ):
+            return True
+        if (
+            left_stage.stage_id in left.terminal_stage_ids()
+        ) != (
+            right_stage.stage_id in right.terminal_stage_ids()
+        ):
+            return True
+    return False
+
+
 def compare_semantic_traces(
     left: SemanticTrace, right: SemanticTrace
 ) -> SemanticEquivalenceReport:
@@ -633,7 +667,12 @@ def compare_semantic_traces(
     hard_categories = {
         div.category for div in minimal if div.category not in {None, "O-"}
     }
-    if hard_categories or result_distance > 0.0 or causal_distance > 0.0:
+    if (
+        hard_categories
+        or result_distance > 0.0
+        or causal_distance > 0.0
+        or _has_observed_hard_difference(left, right)
+    ):
         outcome = ComparisonOutcome.DIFFERENT
     elif not observation_complete or any(
         div.category == "O-" for div in minimal

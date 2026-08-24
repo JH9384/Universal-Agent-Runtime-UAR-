@@ -6,7 +6,12 @@ from uar.core.semantic_statistics import (
     total_variation_distance,
     version_information_bits,
 )
-from uar.core.semantic_trace import CandidateDecision, DecisionState, SemanticStage, SemanticTrace
+from uar.core.semantic_trace import (
+    CandidateDecision,
+    DecisionState,
+    SemanticStage,
+    SemanticTrace,
+)
 
 
 def _trace(label: str, result: str = "A") -> SemanticTrace:
@@ -48,7 +53,10 @@ def test_same_output_can_have_nonzero_process_distribution_drift():
     assert all(trace.final_result == "A" for trace in baseline + candidate)
     assert report.js_divergence_bits > 0.0
     assert report.total_variation > 0.0
-    assert version_information_bits(baseline, candidate) == report.js_divergence_bits
+    assert (
+        version_information_bits(baseline, candidate)
+        == report.js_divergence_bits
+    )
 
 
 def test_shadow_latency_delta_is_reported_separately_from_semantic_drift():

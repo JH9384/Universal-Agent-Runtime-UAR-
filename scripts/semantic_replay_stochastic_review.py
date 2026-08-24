@@ -32,9 +32,15 @@ def baseline_trace() -> SemanticTrace:
                 stage_id="s0",
                 generated=frozenset({"A", "B", "C"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, evidence_refs=("eA",)),
-                    CandidateDecision("B", DecisionState.ADMIT, evidence_refs=("eB",)),
-                    CandidateDecision("C", DecisionState.REJECT, constraint_id="policy-C"),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, evidence_refs=("eA",)
+                    ),
+                    CandidateDecision(
+                        "B", DecisionState.ADMIT, evidence_refs=("eB",)
+                    ),
+                    CandidateDecision(
+                        "C", DecisionState.REJECT, constraint_id="policy-C"
+                    ),
                 ),
                 dependencies=(),
             ),
@@ -42,8 +48,12 @@ def baseline_trace() -> SemanticTrace:
                 stage_id="s1",
                 generated=frozenset({"A", "B"}),
                 decisions=(
-                    CandidateDecision("A", DecisionState.ADMIT, evidence_refs=("eA",)),
-                    CandidateDecision("B", DecisionState.REJECT, constraint_id="policy-B"),
+                    CandidateDecision(
+                        "A", DecisionState.ADMIT, evidence_refs=("eA",)
+                    ),
+                    CandidateDecision(
+                        "B", DecisionState.REJECT, constraint_id="policy-B"
+                    ),
                 ),
                 committed="A",
                 dependencies=("s0",),
@@ -54,7 +64,9 @@ def baseline_trace() -> SemanticTrace:
     )
 
 
-def mutate(trace: SemanticTrace, family: str, rng: random.Random) -> SemanticTrace:
+def mutate(
+    trace: SemanticTrace, family: str, rng: random.Random
+) -> SemanticTrace:
     stages = list(trace.stages)
     if family == "G":
         s = stages[0]
@@ -62,7 +74,8 @@ def mutate(trace: SemanticTrace, family: str, rng: random.Random) -> SemanticTra
         stages[0] = replace(
             s,
             generated=frozenset(set(s.generated) | {phantom}),
-            decisions=s.decisions + (CandidateDecision(phantom, DecisionState.REJECT),),
+            decisions=s.decisions
+            + (CandidateDecision(phantom, DecisionState.REJECT),),
         )
     elif family == "A":
         s = stages[0]

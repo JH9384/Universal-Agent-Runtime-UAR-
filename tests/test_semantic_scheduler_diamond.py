@@ -8,7 +8,12 @@ from uar.core.semantic_trace import (
 )
 
 
-def _stage(stage_id: str, candidate: str, state: DecisionState, reason: str | None = None):
+def _stage(
+    stage_id: str,
+    candidate: str,
+    state: DecisionState,
+    reason: str | None = None,
+):
     return SemanticStage(
         stage_id=stage_id,
         generated=frozenset({candidate}),
@@ -28,7 +33,7 @@ def test_flat_independent_diamond_is_invariant_to_linearization_order():
     assert report.distance.identical is True
 
 
-def test_nonflat_diamond_detects_declared_independence_that_changes_semantics():
+def test_nonflat_diamond_detects_semantic_change_from_independence():
     a = _stage("a", "A", DecisionState.ADMIT)
     b_left = _stage("b", "B", DecisionState.ADMIT, reason="after-a")
     b_right = _stage("b", "B", DecisionState.REJECT, reason="before-a")
