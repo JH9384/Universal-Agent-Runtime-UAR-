@@ -27,8 +27,8 @@ green synthetic campaign does not close a real-runtime or stochastic criterion.
 | At least 10,000 result-equivalent semantic mutations | PASS | 14,000-case campaign with result-equivalent semantic families | None for synthetic gate |
 | Observation-loss injection and measured indeterminacy | PASS | identical and divergent latent-pair campaign | Real telemetry-loss rate remains open |
 | Semantic-distance distributions over real history | OPEN | distributional review harness exists | Populate and execute real replay corpus |
-| Deterministic projected shadow equality | PARTIAL | Real sequential, DAG/parallel, retry, rejection, and timeout `Executor` streams require exact baseline recovery after semantic-event erasure | Add cancellation, defer/conflict, tool-use, and independently executed baseline/shadow pairs |
-| Concurrent/stochastic overhead envelope | PARTIAL | Observer envelope is declared at p95 <= 250 microseconds per baseline event and <= 6x event expansion; five real runtime scenarios pass | Measure end-to-end latency and scheduler distributions under sustained concurrent/stochastic load |
+| Deterministic projected shadow equality | PASS | Seven real `Executor` scenarios cover sequential, DAG/parallel, retry, rejection, timeout, cancellation, and annotated MCP tool/defer/conflict paths. Same-stream projection is exact, and two independently executed clean-state runs produce identical normalized projection hashes. Normalization removes only timestamps, UOR envelope fields, and timing metrics; a non-envelope result mutation is detected. | Retain the independent-pair and drift-negative tests as permanent gates |
+| Concurrent/stochastic overhead envelope | PARTIAL | Observer envelope is declared at p95 <= 250 microseconds per baseline event and <= 6x event expansion; seven real runtime scenarios pass | Measure end-to-end latency and scheduler distributions under sustained concurrent/stochastic load |
 | Independent certificate verification | PARTIAL | verifier hook and separation from replay verdict | Exercise a real certificate family |
 | No Trust Spine weighting change | HOLD | PR introduces no weighting changes | Remain on hold until empirical validation closes |
 
@@ -53,15 +53,18 @@ Current lifecycle evidence:
   prior shared-app state;
 - non-retryable exceptions now terminate after one `skill_failed` event rather
   than silently repeating failures without `skill_retry` transitions;
-- the focused lifecycle/conformance/runtime-shadow slice passed 110/110 across
+- cancellations now emit a schema-valid `skill_cancelled` runtime event and
+  project to a semantic `REJECT` with reason `runtime_cancelled`;
+- the focused lifecycle/conformance/runtime-shadow slice passed 140/140 across
   random seeds `1`, `2`, `3`, `7`, and `42`.
 
 ## Next evidence tranche
 
 1. Re-run the full ordering-stress workflow after the sandbox/auth repairs.
-2. Expand the paired real-runtime corpus with tool-use, defer, conflict, and
-   cancellation paths, plus independently executed baseline/shadow pairs.
-3. Continue requiring exact projected-event equality for deterministic pairs.
+2. Run the real-runtime corpus against broader production DAG histories,
+   including the greedy scheduler and sustained parallel execution.
+3. Continue requiring exact projected-event equality for deterministic pairs,
+   with shared runtime state explicitly isolated between executions.
 4. Measure end-to-end latency, scheduler, result, and semantic-trace
    distribution thresholds for stochastic/concurrent pairs.
 5. Exercise at least one independently verifiable certificate family.
