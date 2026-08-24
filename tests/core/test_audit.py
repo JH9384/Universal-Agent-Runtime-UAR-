@@ -99,6 +99,53 @@ class TestAuditLoggerWrite:
                 )
             mock_fsync.assert_called_once()
 
+    def test_interleaved_loggers_preserve_hash_chain(self):
+        """The cached chain head must notice writes from another instance."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            first = AuditLogger(path=path)
+            second = AuditLogger(path=path)
+
+            first.write(
+                event_type="test", actor="first", action="write",
+                resource="/", outcome="success",
+            )
+            second.write(
+                event_type="test", actor="second", action="write",
+                resource="/", outcome="success",
+            )
+            first.write(
+                event_type="test", actor="first", action="write-again",
+                resource="/", outcome="success",
+            )
+
+            ok, failures = first.verify_chain()
+            assert ok is True
+            assert failures == []
+
+    def test_external_rewrite_invalidates_cached_hash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "audit.jsonl")
+            logger = AuditLogger(path=path)
+            logger.write(
+                event_type="test", actor="first", action="write",
+                resource="/", outcome="success",
+            )
+
+            record = json.loads(logger.path.read_text())
+            record["actor"] = "other"
+            record.pop("hash")
+            record.pop("uor_digest", None)
+            record["hash"] = logger._compute_hash(record)
+            logger.path.write_text(json.dumps(record, sort_keys=True) + "\n")
+
+            logger.write(
+                event_type="test", actor="second", action="write",
+                resource="/", outcome="success",
+            )
+            records = logger.list_records()
+            assert records[1]["prev_hash"] == records[0]["hash"]
+
 
 class TestAuditLoggerList:
     """Reading audit records."""
@@ -227,9 +274,10 @@ class TestAuditLoggerRotation:
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "audit.jsonl")
             logger = AuditLogger(path=path)
-            monkeypatch.setattr(logger, "_MAX_FILE_SIZE_MB", 1)
-            # Write enough data to exceed 1MB (~150 bytes per record * 7000)
-            for _ in range(8000):
+            monkeypatch.setattr(logger, "_MAX_FILE_SIZE_MB", 0.001)
+            # Keep the test below the per-test timeout while exercising the
+            # same byte-threshold rotation path as a production-sized log.
+            for _ in range(100):
                 logger.write(
                     event_type="test", actor="a", action="GET",
                     resource="/", outcome="success",
@@ -242,10 +290,10 @@ class TestAuditLoggerRotation:
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "audit.jsonl")
             logger = AuditLogger(path=path)
-            monkeypatch.setattr(logger, "_MAX_FILE_SIZE_MB", 1)
+            monkeypatch.setattr(logger, "_MAX_FILE_SIZE_MB", 0.001)
             monkeypatch.setattr(logger, "_MAX_BACKUPS", 2)
             for _ in range(3):
-                for _ in range(8000):
+                for _ in range(100):
                     logger.write(
                         event_type="test", actor="a", action="GET",
                         resource="/", outcome="success",
