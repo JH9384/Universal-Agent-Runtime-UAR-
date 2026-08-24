@@ -65,6 +65,12 @@ jobs:
             --concurrency 1,4,16,32 \
             | tee semantic-concurrent-shadow-report.json
 
+      - name: Verify signed semantic decision certificate
+        run: |
+          set -o pipefail
+          python scripts/semantic_certificate_review.py \
+            | tee semantic-certificate-report.json
+
       - name: Upload semantic validation reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -76,4 +82,5 @@ jobs:
             semantic-observation-report.txt
             semantic-runtime-shadow-report.json
             semantic-concurrent-shadow-report.json
+            semantic-certificate-report.json
           retention-days: 14
