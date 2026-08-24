@@ -23,12 +23,12 @@ green synthetic campaign does not close a real-runtime or stochastic criterion.
 | Stratified `G/A/E/K/P/O/NULL` mutation campaign | PASS | 14,000-case seeded workflow campaign | Continue reporting per family |
 | Expected outcome and localization accuracy | PASS | 100% per family on seeded corpus | Claim remains limited to sampled corpus |
 | Semantic-null false-positive control | PASS | `NULL` family: zero false positives | Continue as permanent regression gate |
-| Scheduler diamonds and evaluation strategies | PARTIAL | flat/non-flat local diamonds plus real sequential and DAG/parallel `Executor` shadow pairs; parallel branches join through the full causal frontier | Add the greedy scheduler and broader production DAG histories |
+| Scheduler diamonds and evaluation strategies | PASS | flat/non-flat local diamonds plus real greedy-wide and DAG-diamond `Executor` shadow pairs at concurrency 1/4/16/32; parallel branches join through the full causal frontier | Retain both scheduler shapes in the confirmatory gate |
 | At least 10,000 result-equivalent semantic mutations | PASS | 14,000-case campaign with result-equivalent semantic families | None for synthetic gate |
 | Observation-loss injection and measured indeterminacy | PASS | identical and divergent latent-pair campaign | Real telemetry-loss rate remains open |
 | Semantic-distance distributions over real history | OPEN | distributional review harness exists | Populate and execute real replay corpus |
 | Deterministic projected shadow equality | PASS | Seven real `Executor` scenarios cover sequential, DAG/parallel, retry, rejection, timeout, cancellation, and annotated MCP tool/defer/conflict paths. Same-stream projection is exact, and two independently executed clean-state runs produce identical normalized projection hashes. Normalization removes only timestamps, UOR envelope fields, and timing metrics; a non-envelope result mutation is detected. | Retain the independent-pair and drift-negative tests as permanent gates |
-| Concurrent/stochastic overhead envelope | PARTIAL | Observer envelope is declared at p95 <= 250 microseconds per baseline event and <= 6x event expansion; seven real runtime scenarios pass | Measure end-to-end latency and scheduler distributions under sustained concurrent/stochastic load |
+| Concurrent/stochastic overhead envelope | PASS | Seed `8191`: 800 paired runs across greedy-wide and DAG-diamond workloads at concurrency 1/4/16/32. Zero projection/result/integrity drift; worst p95 ratio 1.0096, p99 ratio 1.0046, throughput retention 0.9971, order JSD 0.0024 bits, and order TV 0.0167. | Retain the 100-sample-per-stratum confirmatory workflow gate |
 | Independent certificate verification | PARTIAL | verifier hook and separation from replay verdict | Exercise a real certificate family |
 | No Trust Spine weighting change | HOLD | PR introduces no weighting changes | Remain on hold until empirical validation closes |
 
@@ -59,15 +59,16 @@ Current lifecycle evidence:
   project to a semantic `REJECT` with reason `runtime_cancelled`;
 - the focused lifecycle/conformance/runtime-shadow slice passed 150/150 across
   random seeds `1`, `2`, `3`, `7`, and `42`.
+- the frozen concurrent confirmatory gate passed all eight strata on seed
+  `8191`; observer cost is paired on each candidate run, while independent
+  executions measure result, scheduler-order, and semantic distributions.
 
 ## Next evidence tranche
 
 1. Re-run the full ordering-stress workflow after the sandbox/auth/SQLite
    lifecycle repairs.
-2. Run the real-runtime corpus against broader production DAG histories,
-   including the greedy scheduler and sustained parallel execution.
+2. Populate and run replay distributions from broader production histories;
+   the synthetic greedy/DAG concurrent gate does not substitute for them.
 3. Continue requiring exact projected-event equality for deterministic pairs,
    with shared runtime state explicitly isolated between executions.
-4. Measure end-to-end latency, scheduler, result, and semantic-trace
-   distribution thresholds for stochastic/concurrent pairs.
-5. Exercise at least one independently verifiable certificate family.
+4. Exercise at least one independently verifiable certificate family.
