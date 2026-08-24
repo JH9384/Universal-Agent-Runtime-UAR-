@@ -644,6 +644,7 @@ SEMANTIC_EVENT_TYPES = frozenset(
         "candidate_conflicted",
         "evidence_acquired",
         "candidate_committed",
+        "semantic_result",
     }
 )
 
@@ -700,7 +701,7 @@ def semantic_trace_from_events(events: Sequence[Mapping[str, Any]]) -> SemanticT
         if not isinstance(payload, Mapping):
             continue
 
-        if event_type == "complete":
+        if event_type in {"complete", "semantic_result"}:
             result = payload.get("semantic_result", payload.get("result_id"))
             if result is not None:
                 final_result = str(result)
