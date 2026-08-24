@@ -116,11 +116,15 @@ def observe_runtime_semantics(
             )
             continue
 
-        if event_type in {
-            "skill_complete",
-            "skill_failed",
-            "skill_cancelled",
-        } and skill:
+        if (
+            event_type
+            in {
+                "skill_complete",
+                "skill_failed",
+                "skill_cancelled",
+            }
+            and skill
+        ):
             if not pending[skill]:
                 # A cached parallel completion may not expose skill_start.
                 stage_id = f"runtime:{stage_index:04d}:{skill}"
@@ -146,7 +150,9 @@ def observe_runtime_semantics(
 
             if event_type == "skill_complete":
                 annotation = _semantic_annotation(payload)
-                evidence_id = _stable_id("runtime-output", payload.get("result"))
+                evidence_id = _stable_id(
+                    "runtime-output", payload.get("result")
+                )
                 evidence_refs = {evidence_id}
                 raw_refs = annotation.get("evidence_refs", [])
                 if isinstance(raw_refs, (list, tuple, set, frozenset)):
@@ -175,7 +181,10 @@ def observe_runtime_semantics(
                     "conflict": "candidate_conflicted",
                 }.get(state, "candidate_admitted")
                 certificate_id = annotation.get("certificate_id")
-                if certificate_id is None and decision_event == "candidate_admitted":
+                if (
+                    certificate_id is None
+                    and decision_event == "candidate_admitted"
+                ):
                     certificate_id = _stable_id(
                         "runtime-decision",
                         {"stage_id": stage_id, "evidence_id": evidence_id},
