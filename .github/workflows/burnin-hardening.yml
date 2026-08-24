@@ -19,10 +19,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -40,8 +40,13 @@ jobs:
           for seed in 1 2 3 7 42; do
             echo "=== Randomly seed=$seed ==="
             .venv/bin/pytest tests/ --ignore=tests/conformance/test_invariants.py \
-              -q --tb=line --timeout=60 --randomly-seed=$seed || exit 1
+              -q --tb=line --timeout=60 -m 'not performance' \
+              --randomly-seed=$seed || exit 1
           done
+
+      - name: Run performance tests without coverage instrumentation
+        run: |
+          make test-performance PYTHON=python
 
       - name: Run gate target
         run: |
@@ -56,7 +61,7 @@ jobs:
 
       - name: Upload burn-in artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: burnin-artifacts
           path: artifacts/hardening

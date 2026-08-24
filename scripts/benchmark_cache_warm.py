@@ -19,7 +19,16 @@ from uar.api.state import set_service_container
 from uar.container import ServiceContainer
 from uar.memory.sqlite_store import SqliteRunStore
 
-SKILLS = ["math", "graph", "verilog", "riscv", "autonomi", "molecule", "quantum", "physics"]
+SKILLS = [
+    "math",
+    "graph",
+    "verilog",
+    "riscv",
+    "autonomi",
+    "molecule",
+    "quantum",
+    "physics",
+]
 RECIPES = ["math_graph", "hardware_suite", "science_bundle"]
 STATUSES = ["success", "failed", "partial"]
 
@@ -30,24 +39,37 @@ def _synthetic_run(run_id: str, idx: int, now: float) -> dict:
     has_fail = random.random() < 0.15
     for i in range(num_events):
         ev = {
-            "type": random.choice(["skill_start", "skill_end", "heartbeat", "error"]),
+            "type": random.choice(
+                ["skill_start", "skill_end", "heartbeat", "error"]
+            ),
             "skill": random.choice(SKILLS),
             "timestamp": now - (num_events - i) * 60,
         }
         if has_fail and random.random() < 0.3:
-            ev["error"] = random.choice([
-                "timeout", "connection refused", "assertion failed",
-                "index out of range", "schema mismatch"
-            ])
+            ev["error"] = random.choice(
+                [
+                    "timeout",
+                    "connection refused",
+                    "assertion failed",
+                    "index out of range",
+                    "schema mismatch",
+                ]
+            )
             ev["type"] = "error"
         events.append(ev)
 
     skills_used = list({e["skill"] for e in events if e.get("skill")})
-    status = "failed" if has_fail else random.choice(["success", "success", "partial"])
+    status = (
+        "failed"
+        if has_fail
+        else random.choice(["success", "success", "partial"])
+    )
 
     exec_order = []
     if random.random() < 0.4:
-        exec_order.append({"type": "recipe", "content": random.choice(RECIPES)})
+        exec_order.append(
+            {"type": "recipe", "content": random.choice(RECIPES)}
+        )
     for s in skills_used:
         exec_order.append({"type": "skill", "content": s})
 
@@ -80,10 +102,17 @@ def _seed_store(store: SqliteRunStore, n: int) -> None:
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    run["run_id"], run["goal_id"], run["user_id"],
-                    run["status"], run["skills"], run["events"],
-                    run["outputs"], run["metadata"],
-                    run["uor_address"], run["uor_witness"], run["created_at"],
+                    run["run_id"],
+                    run["goal_id"],
+                    run["user_id"],
+                    run["status"],
+                    run["skills"],
+                    run["events"],
+                    run["outputs"],
+                    run["metadata"],
+                    run["uor_address"],
+                    run["uor_witness"],
+                    run["created_at"],
                 ),
             )
         conn.commit()
@@ -104,10 +133,12 @@ def main():
         set_service_container(container)
 
         from uar.api.server import app
+
         client = TestClient(app)
 
         # Inject auth key
         import uar.api.middleware as _mw
+
         _mw.API_KEYS["bench-key"] = {"user": "benchmark_user", "tier": "admin"}
         headers = {"Authorization": "Bearer bench-key"}
 
@@ -116,8 +147,14 @@ def main():
             ("/api/uar/alerts/summary", "AlertsSummary"),
             ("/api/uar/recommendations", "Recommendations"),
             ("/api/uar/runs/failure-clusters", "FailureClusters"),
-            ("/api/uar/topology/analytics?mode=success", "TopologyAnalyticsSuccess"),
-            ("/api/uar/topology/analytics?mode=failure", "TopologyAnalyticsFailure"),
+            (
+                "/api/uar/topology/analytics?mode=success",
+                "TopologyAnalyticsSuccess",
+            ),
+            (
+                "/api/uar/topology/analytics?mode=failure",
+                "TopologyAnalyticsFailure",
+            ),
             ("/api/uar/recipes/intelligence", "RecipeIntelligence"),
         ]
 
@@ -140,7 +177,11 @@ def main():
             times.sort()
             median = times[len(times) // 2]
             status = "PASS" if median < 10 else "FAIL"
-            print(f"  {label:20s}  median={median:8.2f}ms  {status}  (all: {', '.join(f'{t:.1f}' for t in times)})ms")
+            all_times = ", ".join(f"{duration:.1f}" for duration in times)
+            print(
+                f"  {label:20s}  median={median:8.2f}ms  {status}  "
+                f"(all: {all_times})ms"
+            )
 
         print("\nD4A-1 target: median < 10 ms at 10,000 runs (cache warm)")
 

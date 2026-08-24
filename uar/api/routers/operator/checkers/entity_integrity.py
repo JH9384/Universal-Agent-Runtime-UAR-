@@ -154,7 +154,13 @@ def check_operator_entity_integrity() -> Dict[str, Any]:
         results[name] = check_metadata_namespace(**cfg)
 
     statuses = {v.get("status") for v in results.values()}
-    overall = "fail" if "fail" in statuses else "warn" if "warn" in statuses else "ok"
+    overall = (
+        "fail"
+        if "fail" in statuses
+        else "warn"
+        if "warn" in statuses
+        else "ok"
+    )
 
     return {
         "status": overall,

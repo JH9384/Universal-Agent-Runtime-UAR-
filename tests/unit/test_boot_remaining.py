@@ -27,7 +27,7 @@ from uar.boot import (
 
 
 class _ClosedMockTask:
-    """Awaitable task-like object for tests that intercept asyncio.create_task."""
+    """Awaitable stand-in for intercepted asyncio tasks."""
 
     def __init__(self, coro=None):
         if inspect.iscoroutine(coro):
@@ -57,7 +57,7 @@ def _close_asyncio_run_coro(coro):
 
 
 def _closed_mock_task(coro):
-    """Return an awaitable task-like mock while closing unscheduled coroutines."""
+    """Return an awaitable mock and close unscheduled coroutines."""
     return _ClosedMockTask(coro)
 
 
@@ -164,7 +164,9 @@ class TestCreateLifespan:
         with patch("uar.api.tracing.setup_fastapi_tracing"):
             with patch("uar.config.config") as mock_cfg:
                 mock_cfg.run_retention_days = 7
-                with patch("asyncio.create_task", side_effect=_closed_mock_task):
+                with patch(
+                    "asyncio.create_task", side_effect=_closed_mock_task
+                ):
                     with patch("uar.boot.SHUTDOWN_SLEEP", 0.001):
                         async with lifespan(app):
                             pass
@@ -176,6 +178,7 @@ class TestServiceSupervisorStart:
 
     def test_start_with_cwd(self, tmp_path):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 123
@@ -187,39 +190,36 @@ class TestServiceSupervisorStart:
 
     def test_start_with_env(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 456
         mock_proc.poll.return_value = None
         with patch("subprocess.Popen", return_value=mock_proc) as popen:
-            pid = supervisor.start(
-                "svc", ["echo", "hi"], env={"EXTRA": "val"}
-            )
+            pid = supervisor.start("svc", ["echo", "hi"], env={"EXTRA": "val"})
             assert pid == 456
             assert popen.call_args[1]["env"]["EXTRA"] == "val"
 
     def test_start_with_log_path(self, tmp_path):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 789
         mock_proc.poll.return_value = None
         log_file = tmp_path / "svc.log"
         with patch("subprocess.Popen", return_value=mock_proc) as popen:
-            pid = supervisor.start(
-                "svc", ["echo", "hi"], log_path=log_file
-            )
+            pid = supervisor.start("svc", ["echo", "hi"], log_path=log_file)
             assert pid == 789
             assert "stdout" in popen.call_args[1]
         supervisor.stop_all()  # close log file
 
     def test_start_failure_closes_log(self, tmp_path):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         log_file = tmp_path / "svc.log"
-        with patch(
-            "subprocess.Popen", side_effect=OSError("exec failed")
-        ):
+        with patch("subprocess.Popen", side_effect=OSError("exec failed")):
             with pytest.raises(OSError):
                 supervisor.start("svc", ["false"], log_path=log_file)
 
@@ -229,6 +229,7 @@ class TestServiceSupervisorStop:
 
     def test_stop_all_timeout_then_kill(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -246,6 +247,7 @@ class TestServiceSupervisorStop:
 
     def test_stop_all_kill_timeout_expired(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -261,6 +263,7 @@ class TestServiceSupervisorStop:
 
     def test_stop_all_stdout_close_error(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -273,6 +276,7 @@ class TestServiceSupervisorStop:
 
     def test_stop_all_log_fp_close(self, tmp_path):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -291,13 +295,17 @@ class TestValidatePrerequisites:
     def test_python_version_too_old(self):
         import sys
         from collections import namedtuple
+
         VInfo = namedtuple(
             "VInfo",
             ["major", "minor", "micro", "releaselevel", "serial"],
         )
         fake_vinfo = VInfo(
-            major=3, minor=9, micro=0,
-            releaselevel="final", serial=0,
+            major=3,
+            minor=9,
+            micro=0,
+            releaselevel="final",
+            serial=0,
         )
         with patch.object(sys, "version_info", fake_vinfo):
             missing = validate_prerequisites()
@@ -319,6 +327,7 @@ class TestBootFullStack:
     @pytest.mark.asyncio
     async def test_missing_prerequisites(self):
         from uar.boot import boot_full_stack
+
         with patch("uar.boot.validate_prerequisites", return_value=["node"]):
             with pytest.raises(RuntimeError, match="prerequisite"):
                 await boot_full_stack()
@@ -451,6 +460,7 @@ class TestProductionChecks:
         monkeypatch.setenv("SECURITY_HEADERS", "enabled")
         import importlib
         from uar import boot as boot_mod
+
         importlib.reload(boot_mod)
         with caplog.at_level("WARNING", logger="uar.boot"):
             boot_mod._production_checks()
@@ -462,6 +472,7 @@ class TestProductionChecks:
         monkeypatch.setenv("SECURITY_HEADERS", "")
         import importlib
         from uar import boot as boot_mod
+
         importlib.reload(boot_mod)
         with caplog.at_level("WARNING", logger="uar.boot"):
             boot_mod._production_checks()
@@ -473,15 +484,18 @@ class TestValidateEnvironment:
 
     def test_passes_when_no_issues(self):
         with patch("uar.config.validate_environment", return_value=[]):
-            with patch("uar.config.validate_docker_environment",
-                       return_value=[]):
+            with patch(
+                "uar.config.validate_docker_environment", return_value=[]
+            ):
                 _validate_environment()  # must not raise
 
     def test_raises_when_issues_found(self):
-        with patch("uar.config.validate_environment",
-                   return_value=["missing env"]):
-            with patch("uar.config.validate_docker_environment",
-                       return_value=[]):
+        with patch(
+            "uar.config.validate_environment", return_value=["missing env"]
+        ):
+            with patch(
+                "uar.config.validate_docker_environment", return_value=[]
+            ):
                 with pytest.raises(RuntimeError, match="startup validation"):
                     _validate_environment()
 
@@ -490,14 +504,17 @@ class TestValidateAdvancedConfig:
     """_validate_advanced_config non-fatal."""
 
     def test_normal_path(self):
-        with patch("uar.config_advanced.validate_advanced_config",
-                   return_value={}):
+        with patch(
+            "uar.config_advanced.validate_advanced_config", return_value={}
+        ):
             with patch("uar.config_advanced.log_validation_results"):
                 _validate_advanced_config()  # must not raise
 
     def test_exception_is_logged(self):
-        with patch("uar.config_advanced.validate_advanced_config",
-                   side_effect=ImportError("missing")):
+        with patch(
+            "uar.config_advanced.validate_advanced_config",
+            side_effect=ImportError("missing"),
+        ):
             _validate_advanced_config()  # must not raise
 
 
@@ -505,8 +522,10 @@ class TestSeedUorRuntimes:
     """_seed_uor_runtimes exception handling."""
 
     def test_exception_is_logged(self):
-        with patch("uar.objects.seed_standard_runtimes",
-                   side_effect=RuntimeError("fail")):
+        with patch(
+            "uar.objects.seed_standard_runtimes",
+            side_effect=RuntimeError("fail"),
+        ):
             _seed_uor_runtimes()  # must not raise
 
 
@@ -514,8 +533,10 @@ class TestLoadPlugins:
     """_load_plugins exception handling."""
 
     def test_exception_returns_empty(self):
-        with patch("uar.skills.plugin.load_plugins",
-                   side_effect=ImportError("missing")):
+        with patch(
+            "uar.skills.plugin.load_plugins",
+            side_effect=ImportError("missing"),
+        ):
             result = _load_plugins()
             assert result == {}
 
@@ -568,7 +589,8 @@ class TestOpenBrowser:
                 open_browser("http://localhost:3000")
                 mock_run.assert_called_once_with(
                     ["start", "http://localhost:3000"],
-                    shell=True, check=False,
+                    shell=True,
+                    check=False,
                 )
 
     def test_exception_is_logged(self):
@@ -583,19 +605,18 @@ class TestBootSequence:
     def test_boot_returns_context(self):
         import importlib
         from uar import boot as boot_mod
+
         importlib.reload(boot_mod)
         with patch.object(boot_mod, "_configure_logging"):
             with patch.object(boot_mod, "_boot_message"):
                 with patch.object(boot_mod, "_register_skills"):
                     with patch.object(boot_mod, "_validate_recipes"):
                         with patch.object(
-                            boot_mod, "_cleanup_temp_files",
-                            return_value=0
+                            boot_mod, "_cleanup_temp_files", return_value=0
                         ):
                             with patch.object(boot_mod, "_seed_uor_runtimes"):
                                 with patch.object(
-                                    boot_mod, "_load_plugins",
-                                    return_value={}
+                                    boot_mod, "_load_plugins", return_value={}
                                 ):
                                     with patch.object(
                                         boot_mod, "_production_checks"
@@ -605,15 +626,19 @@ class TestBootSequence:
                                         ):
                                             with patch.object(
                                                 boot_mod,
-                                                "_validate_advanced_config"
+                                                "_validate_advanced_config",
                                             ):
                                                 ctx = boot_mod.boot()
-                                                assert type(ctx).__name__ == \
-                                                    "BootContext"
-                                                assert hasattr(ctx,
-                                                               "purge_task")
-                                                assert hasattr(ctx,
-                                                               "started_at")
+                                                assert (
+                                                    type(ctx).__name__
+                                                    == "BootContext"
+                                                )
+                                                assert hasattr(
+                                                    ctx, "purge_task"
+                                                )
+                                                assert hasattr(
+                                                    ctx, "started_at"
+                                                )
 
 
 class TestProductionChecksNonProd:
@@ -623,6 +648,7 @@ class TestProductionChecksNonProd:
         monkeypatch.setenv("ENVIRONMENT", "development")
         import importlib
         from uar import boot as boot_mod
+
         importlib.reload(boot_mod)
         with caplog.at_level("WARNING", logger="uar.boot"):
             boot_mod._production_checks()
@@ -715,6 +741,7 @@ class TestFindFreePortInUse:
     @pytest.mark.allow_hosts("127.0.0.1")
     def test_increments_when_port_in_use(self):
         import socket
+
         # Bind a real port
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("127.0.0.1", 0))
@@ -733,6 +760,7 @@ class TestValidatePrerequisitesNpm:
             if cmd == "npm":
                 return None
             return "/usr/bin/node"
+
         with patch("shutil.which", side_effect=_fake_which):
             missing = validate_prerequisites()
             assert any("npm" in m for m in missing)
@@ -743,13 +771,12 @@ class TestServiceSupervisorStartLogCloseFail:
 
     def test_exception_closes_log_despite_error(self, tmp_path):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         log_file = tmp_path / "svc.log"
         # Create the file so open() succeeds
         log_file.write_text("")
-        with patch(
-            "subprocess.Popen", side_effect=OSError("exec failed")
-        ):
+        with patch("subprocess.Popen", side_effect=OSError("exec failed")):
             with pytest.raises(OSError):
                 supervisor.start("svc", ["false"], log_path=log_file)
 
@@ -760,6 +787,7 @@ class TestHealthCheckSuccessAndFailure:
     @pytest.mark.asyncio
     async def test_health_check_success(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.poll.return_value = None
@@ -771,6 +799,7 @@ class TestHealthCheckSuccessAndFailure:
     @pytest.mark.asyncio
     async def test_health_check_failure(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.poll.return_value = None
@@ -785,6 +814,7 @@ class TestStopAllSuccessAndException:
 
     def test_stop_all_successful_terminate(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -799,6 +829,7 @@ class TestStopAllSuccessAndException:
 
     def test_stop_all_terminate_raises_exception(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -811,6 +842,7 @@ class TestStopAllSuccessAndException:
 
     def test_stop_all_log_fp_already_closed(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -831,14 +863,13 @@ class TestBootFullStackHealthFail:
     @pytest.mark.asyncio
     async def test_api_health_fail_raises(self):
         from uar.boot import boot_full_stack
+
         with patch("uar.boot.validate_prerequisites", return_value=[]):
             with patch("uar.boot.find_free_port", return_value=9999):
                 with patch("uar.boot.ServiceSupervisor") as mock_sv:
                     supervisor = MagicMock()
                     supervisor.start = MagicMock()
-                    supervisor.health_check = AsyncMock(
-                        return_value=False
-                    )
+                    supervisor.health_check = AsyncMock(return_value=False)
                     supervisor.stop_all = MagicMock()
                     mock_sv.return_value = supervisor
                     with pytest.raises(RuntimeError, match="health check"):
@@ -856,6 +887,7 @@ class TestBootFullStackWebNotFound:
     @pytest.mark.asyncio
     async def test_web_dir_not_found_warns(self, caplog):
         from uar.boot import boot_full_stack
+
         with patch("uar.boot.validate_prerequisites", return_value=[]):
             with patch("uar.boot.find_free_port", return_value=9999):
                 with patch("uar.boot.ServiceSupervisor") as mock_sv:
@@ -880,6 +912,7 @@ class TestBootFullStackDashboardNotFound:
     @pytest.mark.asyncio
     async def test_dashboard_dir_not_found_warns(self, caplog):
         from uar.boot import boot_full_stack
+
         with patch("uar.boot.validate_prerequisites", return_value=[]):
             with patch("uar.boot.find_free_port", return_value=9999):
                 with patch("uar.boot.ServiceSupervisor") as mock_sv:
@@ -904,6 +937,7 @@ class TestBootCliMonitor:
     def test_monitor_keyboard_interrupt(self):
         import asyncio
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.poll.return_value = None
@@ -943,6 +977,7 @@ class TestValidatePrerequisitesNode:
             if cmd == "node":
                 return None
             return "/usr/bin/npm"
+
         with patch("shutil.which", side_effect=_fake_which):
             missing = validate_prerequisites()
             assert any("node" in m for m in missing)
@@ -953,6 +988,7 @@ class TestServiceSupervisorStartLogCloseException:
 
     def test_exception_and_fp_close_fails(self, tmp_path):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         log_file = tmp_path / "svc.log"
 
@@ -961,9 +997,7 @@ class TestServiceSupervisorStartLogCloseException:
                 raise OSError("bad close")
 
         with patch("builtins.open", return_value=_BadFile()):
-            with patch(
-                "subprocess.Popen", side_effect=OSError("exec failed")
-            ):
+            with patch("subprocess.Popen", side_effect=OSError("exec failed")):
                 with pytest.raises(OSError):
                     supervisor.start("svc", ["false"], log_path=log_file)
 
@@ -973,6 +1007,7 @@ class TestServiceSupervisorStopAllTerminateException:
 
     def test_terminate_raises_permission_error(self):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         mock_proc = MagicMock()
         mock_proc.pid = 1
@@ -989,6 +1024,7 @@ class TestServiceSupervisorStopAllLogFpAlreadyClosed:
 
     def test_log_fp_same_as_stdout_not_closed_twice(self, tmp_path):
         from uar.boot import ServiceSupervisor
+
         supervisor = ServiceSupervisor()
         log_file = tmp_path / "svc.log"
         shared_fp = MagicMock()
@@ -1010,19 +1046,16 @@ class TestBootFullStackWebExists:
     @pytest.mark.asyncio
     async def test_web_dir_exists(self):
         from uar.boot import boot_full_stack
+
         with patch("uar.boot.validate_prerequisites", return_value=[]):
             with patch("uar.boot.find_free_port", return_value=9999):
                 with patch("uar.boot.ServiceSupervisor") as mock_sv:
                     supervisor = MagicMock()
                     supervisor.start = MagicMock()
-                    supervisor.health_check = AsyncMock(
-                        return_value=True
-                    )
+                    supervisor.health_check = AsyncMock(return_value=True)
                     supervisor.stop_all = MagicMock()
                     mock_sv.return_value = supervisor
-                    with patch.object(
-                        Path, "exists", return_value=True
-                    ):
+                    with patch.object(Path, "exists", return_value=True):
                         with patch("uar.boot.open_browser"):
                             await boot_full_stack(
                                 api_port=9999,
@@ -1038,19 +1071,16 @@ class TestBootFullStackDashboardExists:
     @pytest.mark.asyncio
     async def test_dashboard_dir_exists(self):
         from uar.boot import boot_full_stack
+
         with patch("uar.boot.validate_prerequisites", return_value=[]):
             with patch("uar.boot.find_free_port", return_value=9999):
                 with patch("uar.boot.ServiceSupervisor") as mock_sv:
                     supervisor = MagicMock()
                     supervisor.start = MagicMock()
-                    supervisor.health_check = AsyncMock(
-                        return_value=True
-                    )
+                    supervisor.health_check = AsyncMock(return_value=True)
                     supervisor.stop_all = MagicMock()
                     mock_sv.return_value = supervisor
-                    with patch.object(
-                        Path, "exists", return_value=True
-                    ):
+                    with patch.object(Path, "exists", return_value=True):
                         with patch("uar.boot.open_browser"):
                             await boot_full_stack(
                                 api_port=9999,
@@ -1068,14 +1098,15 @@ class TestBootCliFullStackRun:
     def test_monitor_exits_when_no_procs(self):
         with patch("sys.argv", ["uar.boot", "--services", "api,web"]):
             with patch("asyncio.sleep", return_value=None):
+
                 async def _fake_boot(**kwargs):
                     from uar.boot import ServiceSupervisor
+
                     supervisor = ServiceSupervisor()
                     mock_proc = MagicMock()
                     mock_proc.poll.return_value = 0  # exited
                     supervisor._procs["api"] = mock_proc
                     return supervisor
-                with patch(
-                    "uar.boot.boot_full_stack", side_effect=_fake_boot
-                ):
+
+                with patch("uar.boot.boot_full_stack", side_effect=_fake_boot):
                     boot_cli()

@@ -45,7 +45,7 @@ skip_covered = false
 CI addition (`.github/workflows/ci.yml`):
 ```yaml
 - name: Upload coverage
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@v7
   with:
     name: coverage-report-py${{ matrix.python-version }}
     path: htmlcov/
@@ -120,8 +120,8 @@ Add CI job:
 schemathesis-fuzz:
   runs-on: ubuntu-latest
   steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    - uses: actions/checkout@v7
+    - uses: actions/setup-python@v7
       with:
         python-version: '3.12'
     - run: |
@@ -200,7 +200,7 @@ Update CI to always upload test results:
   if: always()
 
 - name: Upload Test Results
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@v7
   if: always()
   with:
     name: test-results-py${{ matrix.python-version }}

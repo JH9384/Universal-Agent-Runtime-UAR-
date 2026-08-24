@@ -4,6 +4,9 @@ __pycache__/
 .env
 .DS_Store
 .pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
 .vscode/settings.json
 
 # UAR runtime artifacts
@@ -17,6 +20,8 @@ uar.sqlite3
 node_modules/
 dist/
 build/
+.svelte-kit/
+.vite/
 
 # Copilot cache
 .copilot-specs-cache/
@@ -34,6 +39,9 @@ overview_architecture.puml
 # Coverage artifacts
 .coverage
 .coverage.*
+htmlcov/
+test-results.xml
+benchmark_results.json
 
 # Generated evidence packs
 reports/

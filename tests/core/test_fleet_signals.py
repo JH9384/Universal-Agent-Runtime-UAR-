@@ -58,7 +58,7 @@ def test_build_fleet_signals_uses_skill_fallback_without_metadata():
     assert signals[0].latest_run_id == "r1"
 
 
-def test_build_fleet_signals_carries_incident_recommendation_and_evidence_refs():
+def test_fleet_signals_carry_incident_recommendation_and_evidence_refs():
     records = [
         {
             "run_id": "r1",

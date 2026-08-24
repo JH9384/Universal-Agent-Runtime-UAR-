@@ -6,7 +6,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from uar.runtime.hardening.pressure_metrics import PressureLedger, PressureSnapshot
+from uar.runtime.hardening.pressure_metrics import (
+    PressureLedger,
+    PressureSnapshot,
+)
 from uar.runtime.hardening.replay_score import ReplayScore
 
 

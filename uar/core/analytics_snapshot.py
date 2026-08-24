@@ -218,9 +218,10 @@ def build_analytics_snapshot(
             ev_ts = ev.get("timestamp", ts)
 
             # Skill cluster
-            sc = snapshot.skill_clusters.setdefault(
-                skill, SkillFailureCluster(skill=skill)
-            )
+            sc = snapshot.skill_clusters.get(skill)
+            if sc is None:
+                sc = SkillFailureCluster(skill=skill)
+                snapshot.skill_clusters[skill] = sc
             sc.count += 1
             sc.runs.add(run_id)
             if ev_ts > sc.latest:
@@ -229,9 +230,10 @@ def build_analytics_snapshot(
                 sc.latest_run_id = run_id
 
             # Error cluster
-            ec = snapshot.error_clusters.setdefault(
-                err_key, ErrorFailureCluster(error=err_key)
-            )
+            ec = snapshot.error_clusters.get(err_key)
+            if ec is None:
+                ec = ErrorFailureCluster(error=err_key)
+                snapshot.error_clusters[err_key] = ec
             ec.count += 1
             ec.runs.add(run_id)
             ec.skills.add(skill)
@@ -253,9 +255,10 @@ def build_analytics_snapshot(
 
         # ---- Topology hot-paths ----
         for skill in skills:
-            node = snapshot.topology_nodes.setdefault(
-                skill, TopologyNode(skill=skill)
-            )
+            node = snapshot.topology_nodes.get(skill)
+            if node is None:
+                node = TopologyNode(skill=skill)
+                snapshot.topology_nodes[skill] = node
             node.invocations += 1
             if status_ok:
                 node.successes += 1
@@ -266,9 +269,10 @@ def build_analytics_snapshot(
             src = skills[i]
             dst = skills[i + 1]
             key = f"{src}\u2192{dst}"
-            edge = snapshot.topology_edges.setdefault(
-                key, TopologyEdge(source=src, target=dst)
-            )
+            edge = snapshot.topology_edges.get(key)
+            if edge is None:
+                edge = TopologyEdge(source=src, target=dst)
+                snapshot.topology_edges[key] = edge
             edge.transitions += 1
             if not status_ok:
                 edge.failures += 1
@@ -276,9 +280,10 @@ def build_analytics_snapshot(
         for item in exec_order:
             if isinstance(item, dict) and item.get("type") == "recipe":
                 rid = item.get("content", item.get("id", "unknown"))
-                rec = snapshot.topology_recipes.setdefault(
-                    rid, RecipeStat(recipe=rid)
-                )
+                rec = snapshot.topology_recipes.get(rid)
+                if rec is None:
+                    rec = RecipeStat(recipe=rid)
+                    snapshot.topology_recipes[rid] = rec
                 rec.executions += 1
                 if status_ok:
                     rec.successes += 1
@@ -297,9 +302,10 @@ def build_analytics_snapshot(
         # ---- Failure hotspots ----
         snapshot.hotspot_total_failures += len(failed_skills)
         for skill in skills:
-            hn = snapshot.hotspot_nodes.setdefault(
-                skill, HotspotNode(skill=skill)
-            )
+            hn = snapshot.hotspot_nodes.get(skill)
+            if hn is None:
+                hn = HotspotNode(skill=skill)
+                snapshot.hotspot_nodes[skill] = hn
             hn.invocations += 1
             if skill in failed_skills:
                 hn.failures += 1
@@ -310,9 +316,10 @@ def build_analytics_snapshot(
             src = skills[i]
             dst = skills[i + 1]
             key = f"{src}\u2192{dst}"
-            he = snapshot.hotspot_edges.setdefault(
-                key, HotspotEdge(source=src, target=dst)
-            )
+            he = snapshot.hotspot_edges.get(key)
+            if he is None:
+                he = HotspotEdge(source=src, target=dst)
+                snapshot.hotspot_edges[key] = he
             he.transitions += 1
             if src in failed_skills or dst in failed_skills:
                 he.failures += 1

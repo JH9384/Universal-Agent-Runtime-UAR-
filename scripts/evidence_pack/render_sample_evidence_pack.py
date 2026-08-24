@@ -11,12 +11,19 @@ import argparse
 import json
 from pathlib import Path
 
-from uar.core.evidence_pack import build_evidence_pack, render_evidence_pack_markdown
+from uar.core.evidence_pack import (
+    build_evidence_pack,
+    render_evidence_pack_markdown,
+)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Render sample Evidence Pack v2 artifacts")
-    parser.add_argument("--run-id", default="sample-run", help="Run ID for the evidence pack")
+    parser = argparse.ArgumentParser(
+        description="Render sample Evidence Pack v2 artifacts"
+    )
+    parser.add_argument(
+        "--run-id", default="sample-run", help="Run ID for the evidence pack"
+    )
     parser.add_argument(
         "--output-dir",
         default="reports/evidence_pack",
@@ -45,15 +52,23 @@ def main() -> int:
     json_path = output_dir / f"{args.run_id}_evidence_pack.json"
     markdown_path = output_dir / f"{args.run_id}_evidence_pack.md"
 
-    json_path.write_text(json.dumps(pack.to_dict(), indent=2, sort_keys=True) + "\n")
+    json_path.write_text(
+        json.dumps(pack.to_dict(), indent=2, sort_keys=True) + "\n"
+    )
     markdown_path.write_text(render_evidence_pack_markdown(pack) + "\n")
 
-    print(json.dumps({
-        "status": "PASS",
-        "run_id": args.run_id,
-        "json": str(json_path),
-        "markdown": str(markdown_path),
-    }, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "run_id": args.run_id,
+                "json": str(json_path),
+                "markdown": str(markdown_path),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
     return 0
 

@@ -207,7 +207,9 @@ class TestJsonRunStoreRotation:
         backup = fresh_store.path.with_suffix(".jsonl.1")
         assert not backup.exists()
 
-    def test_records_still_readable_after_rotation(self, fresh_store, monkeypatch):
+    def test_records_still_readable_after_rotation(
+        self, fresh_store, monkeypatch
+    ):
         monkeypatch.setattr(fresh_store, "_MAX_FILE_SIZE_MB", 1)
         record = _make_record("rotated")
         for i in range(8000):

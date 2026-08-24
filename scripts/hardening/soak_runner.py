@@ -8,7 +8,10 @@ import time
 from pathlib import Path
 
 from uar.runtime.hardening.oscillation import OscillationScore
-from uar.runtime.hardening.pressure_metrics import PressureLedger, PressureSnapshot
+from uar.runtime.hardening.pressure_metrics import (
+    PressureLedger,
+    PressureSnapshot,
+)
 
 
 def main() -> int:

@@ -2,14 +2,17 @@
 
 ## Status
 
-D4I checklist tracks CI hardening after D4H release validation consolidation.
+D4I implementation is complete locally and awaits fresh CI closure evidence.
 
 ## Current Known CI Hygiene Items
 
-1. GitHub Actions Node 20 deprecation warnings are present.
+1. GitHub Actions use the Node 24 runtime line; fresh runs must confirm the old
+   deprecation warning is absent.
 2. CI Python remains pinned to `3.12` because UAR package metadata requires `<3.13,>=3.10`.
 3. `httpx2.py` compatibility shim is required for Starlette TestClient warning-clean collection.
 4. Docker smoke remains deferred where Docker daemon is unavailable.
+5. Performance tests are isolated from coverage and random-order instrumentation.
+6. React, Svelte, and operator-dashboard lockfiles must pass `npm audit`.
 
 ## Current Authoritative Workflows
 
@@ -26,7 +29,7 @@ D4I checklist tracks CI hardening after D4H release validation consolidation.
 
 ```bash
 make d4e-runtime-smoke
-ruff check .
+ruff check uar/ tests/ --select=E,W,F
 ulimit -n 8192
 ```
 
@@ -43,6 +46,11 @@ Relax only when package metadata and dependencies support the newer runtime.
 ### Docker Deferral
 
 Close only when Docker daemon availability is confirmed and Docker smoke passes.
+
+### Action Runtime
+
+Regress only with explicit evidence that the replacement action supports the
+same permissions, cache, and artifact behavior.
 
 ## Guardrails
 

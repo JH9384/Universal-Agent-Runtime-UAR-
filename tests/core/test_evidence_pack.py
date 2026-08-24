@@ -86,7 +86,10 @@ def test_render_evidence_pack_markdown_includes_d5b_path():
 
     markdown = render_evidence_pack_markdown(pack)
 
-    assert "Signal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> Trust Movement" in markdown
+    assert (
+        "Signal -> Mission Control -> Replay -> Evidence Pack -> Outcome -> "
+        "Trust Movement" in markdown
+    )
     assert "Evidence Pack v2" in markdown
     assert "`run-3`" in markdown
     assert "| `replay` | `True` | `replay` | - |" in markdown

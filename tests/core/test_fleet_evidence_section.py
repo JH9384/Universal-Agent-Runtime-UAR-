@@ -84,7 +84,9 @@ def test_fleet_evidence_section_includes_linked_outcomes_and_trust():
     assert "fleet_recovery" in section["trust_by_type"]
     assert section["trust_by_type"]["fleet_recovery"]["trust_score"] > 0
     assert "Incidents: `inc-1`" in section["markdown"]
-    assert "`rec-1` category=`fleet_recovery` resolved=5" in section["markdown"]
+    assert (
+        "`rec-1` category=`fleet_recovery` resolved=5" in section["markdown"]
+    )
     assert "trust=" in section["markdown"]
 
 

@@ -441,6 +441,7 @@ def test_runtime_retry_is_evidence_not_a_second_stage(
     assert pair.projected_events_equal is True
 
 
+@pytest.mark.performance
 def test_shadow_observer_overhead_stays_inside_predeclared_envelope():
     baseline = (
         {"type": "start", "payload": {"goal": "x"}},

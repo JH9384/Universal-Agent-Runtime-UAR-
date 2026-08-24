@@ -28,7 +28,8 @@ ulimit -n 8192
 ## Known Non-Blocking Items
 
 - Docker smoke is deferred when Docker daemon is unavailable.
-- GitHub Actions currently reports Node 20 action deprecation warnings.
+- The historical Node 20 action warning is addressed on the maintained
+  workflows; confirm its absence in the next release run.
 - CI uses Python `3.12` because package metadata requires `<3.13,>=3.10`.
 
 ## Tag Authority

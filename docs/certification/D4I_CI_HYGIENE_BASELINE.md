@@ -2,7 +2,9 @@
 
 ## Status
 
-D4I CI hygiene baseline is recorded after CI hygiene documentation and shim documentation were committed.
+D4I's original baseline is retained below. The current branch adds an action
+runtime, lint, frontend dependency, and performance-gate hygiene delta that
+requires fresh GitHub Actions evidence before certification is advanced.
 
 ## Date
 
@@ -20,6 +22,14 @@ D4I CI hygiene baseline is recorded after CI hygiene documentation and shim docu
 - D4I CI hygiene checklist exists.
 - HTTPX2 compatibility shim is documented.
 - D4G regression gates remain active after D4I documentation updates.
+
+## Current Hygiene Delta
+
+- Node 24 action/runtime line across maintained workflows and frontend jobs.
+- Explicit Ruff E/W/F selection with zero current violations.
+- Coverage excludes wall-clock performance tests; a dedicated performance job
+  remains blocking.
+- Frontend dependency installs, tests, builds, and audits are independently gated.
 
 ## Authoritative Tags
 

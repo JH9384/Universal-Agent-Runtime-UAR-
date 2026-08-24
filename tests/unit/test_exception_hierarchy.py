@@ -1,7 +1,12 @@
 """Tests verifying all UAR custom exceptions inherit from UARError."""
 
 from uar.core.exceptions import UARError, ErrorCode
-from uar.core.safe_eval import SafeEvalError, SafeEvalNodeError, SafeEvalNameError, SafeEvalAttrError
+from uar.core.safe_eval import (
+    SafeEvalError,
+    SafeEvalNodeError,
+    SafeEvalNameError,
+    SafeEvalAttrError,
+)
 from uar.core.crewai_real import CrewAIRealError
 from uar.objects.sandbox import SandboxError
 from uar.core.circuit_breaker import CircuitBreakerOpenError
@@ -9,7 +14,7 @@ from uar.compat.uor_address import UORAddressError
 
 
 class TestExceptionHierarchy:
-    """All custom exceptions must inherit from UARError for consistent handling."""
+    """Require custom exceptions to inherit from UARError."""
 
     def test_safe_eval_error_is_uar_error(self):
         exc = SafeEvalError("bad expr")

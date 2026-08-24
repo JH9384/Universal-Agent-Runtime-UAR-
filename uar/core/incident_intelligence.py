@@ -81,7 +81,9 @@ def _scope_for(record: Dict[str, Any]) -> Tuple[str, str]:
     return "fleet", "default"
 
 
-def _ids_from_meta(record: Dict[str, Any], singular: str, plural: str) -> List[str]:
+def _ids_from_meta(
+    record: Dict[str, Any], singular: str, plural: str
+) -> List[str]:
     meta = _metadata(record)
     raw = meta.get(plural) or meta.get(singular) or []
     if isinstance(raw, str):
@@ -91,20 +93,26 @@ def _ids_from_meta(record: Dict[str, Any], singular: str, plural: str) -> List[s
     return []
 
 
-def _outcomes_by_recommendation(outcomes: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, int]]:
+def _outcomes_by_recommendation(
+    outcomes: Iterable[Dict[str, Any]],
+) -> Dict[str, Dict[str, int]]:
     result: Dict[str, Dict[str, int]] = {}
     for outcome in outcomes:
         rec_id = outcome.get("recommendation_id")
         outcome_type = outcome.get("outcome_type")
         if not rec_id or not outcome_type:
             continue
-        bucket = result.setdefault(str(rec_id), {"resolved": 0, "recurred": 0, "unknown": 0})
+        bucket = result.setdefault(
+            str(rec_id), {"resolved": 0, "recurred": 0, "unknown": 0}
+        )
         if outcome_type in bucket:
             bucket[str(outcome_type)] += 1
     return result
 
 
-def _metadata_by_recommendation(metadata: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def _metadata_by_recommendation(
+    metadata: Iterable[Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
     result = {}
     for row in metadata:
         rec_id = row.get("recommendation_id")
@@ -113,7 +121,9 @@ def _metadata_by_recommendation(metadata: Iterable[Dict[str, Any]]) -> Dict[str,
     return result
 
 
-def _trust_by_type(outcomes: List[Dict[str, Any]], metadata: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def _trust_by_type(
+    outcomes: List[Dict[str, Any]], metadata: List[Dict[str, Any]]
+) -> Dict[str, Dict[str, Any]]:
     try:
         trust = compute_trust(outcomes, metadata)
     except Exception:
@@ -155,11 +165,22 @@ def build_incident_intelligence_summary(
         rec_ids: List[str] = []
         incident_ids: List[str] = []
         for record in ordered:
-            rec_ids.extend(_ids_from_meta(record, "recommendation_id", "recommendation_ids"))
-            incident_ids.extend(_ids_from_meta(record, "incident_id", "incident_ids"))
+            rec_ids.extend(
+                _ids_from_meta(
+                    record, "recommendation_id", "recommendation_ids"
+                )
+            )
+            incident_ids.extend(
+                _ids_from_meta(record, "incident_id", "incident_ids")
+            )
         rec_ids = list(dict.fromkeys(rec_ids))
         incident_ids = list(dict.fromkeys(incident_ids))
-        item_outcomes = {rec_id: outcome_counts.get(rec_id, {"resolved": 0, "recurred": 0, "unknown": 0}) for rec_id in rec_ids}
+        item_outcomes = {
+            rec_id: outcome_counts.get(
+                rec_id, {"resolved": 0, "recurred": 0, "unknown": 0}
+            )
+            for rec_id in rec_ids
+        }
         item_trust: Dict[str, Dict[str, Any]] = {}
         for rec_id in rec_ids:
             category = rec_meta.get(rec_id, {}).get("category")
@@ -181,7 +202,9 @@ def build_incident_intelligence_summary(
             )
         )
 
-    items.sort(key=lambda item: (-item.recurrence_count, item.scope, item.value))
+    items.sort(
+        key=lambda item: (-item.recurrence_count, item.scope, item.value)
+    )
     fleet_signals = build_fleet_signals(record_list)
     return {
         "status": "active" if items else "nominal",

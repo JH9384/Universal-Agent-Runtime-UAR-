@@ -9,7 +9,9 @@ def test_incident_evidence_section_nominal_without_patterns():
     assert section["section"] == "incident_intelligence_evidence"
     assert section["summary"]["status"] == "nominal"
     assert "Incident Intelligence Evidence" in section["markdown"]
-    assert "No recurring incident patterns were detected." in section["markdown"]
+    assert (
+        "No recurring incident patterns were detected." in section["markdown"]
+    )
 
 
 def test_incident_evidence_section_includes_recurring_pattern():

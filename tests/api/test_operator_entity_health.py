@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 def test_entity_retention_health_reports_backend_capabilities(monkeypatch):
     import uar.api.routers.operator.common as common
+
     fake_store = MagicMock()
     fake_store.list_meta_keys.return_value = []
     fake_store.delete_metadata = MagicMock()
@@ -18,5 +19,8 @@ def test_entity_retention_health_reports_backend_capabilities(monkeypatch):
 
 def test_entity_retention_health_endpoint_route_exists():
     from uar.api.routers.operator import time_machine
-    paths = {getattr(route, "path", "") for route in time_machine.router.routes}
+
+    paths = {
+        getattr(route, "path", "") for route in time_machine.router.routes
+    }
     assert "/api/uar/operator/entity-health" in paths

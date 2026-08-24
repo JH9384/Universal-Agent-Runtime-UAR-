@@ -160,9 +160,7 @@ class PropagationChecker:
             if trust_type or rec_type == "any":
                 checks["trust_updated"] = True
             else:
-                checks["errors"].append(
-                    "Trust: recommendation type not found"
-                )
+                checks["errors"].append("Trust: recommendation type not found")
         except requests.RequestException as e:
             checks["errors"].append(f"Trust check failed: {e}")
 
@@ -218,7 +216,9 @@ def main() -> int:
         print(f"Baseline capture failed: {e}")
         return 1
 
-    print(f"  Trust types: {len(initial_trust.get('recommendation_types', []))}")
+    print(
+        f"  Trust types: {len(initial_trust.get('recommendation_types', []))}"
+    )
     print(f"  MC trust_summary: {initial_mc.get('trust_summary') is not None}")
     print()
 
@@ -264,6 +264,7 @@ def main() -> int:
         print(payload)
     else:
         from pathlib import Path
+
         Path(args.output).write_text(payload + "\n")
         print(f"Report written to {args.output}")
 

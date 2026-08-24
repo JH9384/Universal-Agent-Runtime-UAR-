@@ -188,9 +188,19 @@ class TestEdgeCases:
 
     def test_missing_timestamp_fallback(self):
         evs = [
-            make_executor_event("start", "r1", "g1"),
-            make_executor_event("skill_start", "r1", "g1", skill="a"),
-            make_executor_event("skill_complete", "r1", "g1", skill="a"),
+            {"type": "start", "run_id": "r1", "goal_id": "g1"},
+            {
+                "type": "skill_start",
+                "run_id": "r1",
+                "goal_id": "g1",
+                "skill": "a",
+            },
+            {
+                "type": "skill_complete",
+                "run_id": "r1",
+                "goal_id": "g1",
+                "skill": "a",
+            },
         ]
         result = project_timeline(evs)
         assert result["total_duration_sec"] == 0.0

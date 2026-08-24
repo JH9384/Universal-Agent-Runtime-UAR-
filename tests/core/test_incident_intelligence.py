@@ -6,14 +6,16 @@ from uar.core.incident_intelligence import build_incident_intelligence_summary
 
 
 def test_incident_intelligence_nominal_without_recurrence():
-    summary = build_incident_intelligence_summary([
-        {
-            "run_id": "r1",
-            "status": "failed",
-            "skills": ["echo"],
-            "metadata": {"service": "svc-a"},
-        }
-    ])
+    summary = build_incident_intelligence_summary(
+        [
+            {
+                "run_id": "r1",
+                "status": "failed",
+                "skills": ["echo"],
+                "metadata": {"service": "svc-a"},
+            }
+        ]
+    )
 
     assert summary["status"] == "nominal"
     assert summary["recurring_patterns"] == 0
@@ -52,7 +54,7 @@ def test_incident_intelligence_detects_recurrence_by_service():
     assert top["evidence_refs"] == ["run:r2", "run:r1"]
 
 
-def test_incident_intelligence_carries_incidents_recommendations_and_outcomes():
+def test_incident_intelligence_carries_links_and_outcomes():
     now = time.time()
     records = [
         {
@@ -79,9 +81,21 @@ def test_incident_intelligence_carries_incidents_recommendations_and_outcomes():
         },
     ]
     outcomes = [
-        {"recommendation_id": "rec-1", "outcome_type": "resolved", "recorded_at": now},
-        {"recommendation_id": "rec-1", "outcome_type": "recurred", "recorded_at": now},
-        {"recommendation_id": "rec-2", "outcome_type": "unknown", "recorded_at": now},
+        {
+            "recommendation_id": "rec-1",
+            "outcome_type": "resolved",
+            "recorded_at": now,
+        },
+        {
+            "recommendation_id": "rec-1",
+            "outcome_type": "recurred",
+            "recorded_at": now,
+        },
+        {
+            "recommendation_id": "rec-2",
+            "outcome_type": "unknown",
+            "recorded_at": now,
+        },
     ]
 
     summary = build_incident_intelligence_summary(records, outcomes=outcomes)
@@ -89,8 +103,16 @@ def test_incident_intelligence_carries_incidents_recommendations_and_outcomes():
 
     assert top["linked_incident_ids"] == ["inc-1", "inc-2"]
     assert top["linked_recommendation_ids"] == ["rec-1", "rec-2"]
-    assert top["outcome_counts"]["rec-1"] == {"resolved": 1, "recurred": 1, "unknown": 0}
-    assert top["outcome_counts"]["rec-2"] == {"resolved": 0, "recurred": 0, "unknown": 1}
+    assert top["outcome_counts"]["rec-1"] == {
+        "resolved": 1,
+        "recurred": 1,
+        "unknown": 0,
+    }
+    assert top["outcome_counts"]["rec-2"] == {
+        "resolved": 0,
+        "recurred": 0,
+        "unknown": 1,
+    }
 
 
 def test_incident_intelligence_reuses_existing_trust_engine_by_category():
@@ -112,7 +134,11 @@ def test_incident_intelligence_reuses_existing_trust_engine_by_category():
         },
     ]
     outcomes = [
-        {"recommendation_id": "rec-1", "outcome_type": "resolved", "recorded_at": now}
+        {
+            "recommendation_id": "rec-1",
+            "outcome_type": "resolved",
+            "recorded_at": now,
+        }
         for _ in range(5)
     ]
     metadata = [
@@ -135,7 +161,7 @@ def test_incident_intelligence_reuses_existing_trust_engine_by_category():
     assert top["trust_by_type"]["fleet_recovery"]["trust_score"] > 0
 
 
-def test_incident_intelligence_uses_skill_fallback_and_handles_missing_optional_data():
+def test_incident_intelligence_handles_fallback_and_missing_data():
     records = [
         {
             "run_id": "r1",

@@ -2,7 +2,15 @@ from uar.core.contracts import RunRecord
 from uar.core.replay_confidence import confidence_tier, score_replay
 
 
-def _event(event_type: str, run_id: str = "run-1", goal_id: str = "goal-1", skill: str | None = None, timestamp: float = 1.0, payload: dict | None = None, error: str | None = None) -> dict:
+def _event(
+    event_type: str,
+    run_id: str = "run-1",
+    goal_id: str = "goal-1",
+    skill: str | None = None,
+    timestamp: float = 1.0,
+    payload: dict | None = None,
+    error: str | None = None,
+) -> dict:
     return {
         "schema_version": "uar.event.v1",
         "type": event_type,
@@ -20,7 +28,16 @@ def _verified_record() -> RunRecord:
         _event("start", timestamp=1.0, payload={"skills": ["alpha"]}),
         _event("skill_start", skill="alpha", timestamp=2.0),
         _event("skill_complete", skill="alpha", timestamp=3.0),
-        _event("complete", timestamp=4.0, payload={"status": "success", "outputs": ["ok"], "errors": [], "final_context": {"done": True}}),
+        _event(
+            "complete",
+            timestamp=4.0,
+            payload={
+                "status": "success",
+                "outputs": ["ok"],
+                "errors": [],
+                "final_context": {"done": True},
+            },
+        ),
     ]
     return RunRecord(
         run_id="run-1",
@@ -69,7 +86,10 @@ def test_legacy_event_shape_degrades_gracefully():
         outputs=["ok"],
         events=[
             {"type": "start", "payload": {"skills": ["legacy"]}},
-            {"type": "complete", "payload": {"status": "success", "outputs": ["ok"]}},
+            {
+                "type": "complete",
+                "payload": {"status": "success", "outputs": ["ok"]},
+            },
         ],
     )
     report = score_replay(record)
@@ -103,8 +123,12 @@ def test_missing_run_id_generates_store_record_missing_warning():
         outputs=["ok"],
         events=[
             _event("start", run_id="", timestamp=1.0),
-            _event("complete", run_id="", timestamp=2.0,
-                   payload={"status": "success"}),
+            _event(
+                "complete",
+                run_id="",
+                timestamp=2.0,
+                payload={"status": "success"},
+            ),
         ],
     )
     report = score_replay(record)
@@ -122,8 +146,12 @@ def test_no_artifacts_generates_artifact_missing_warning():
         uor_address=None,
         uor_witness=None,
         events=[
-            _event("start", run_id="run-no-artifacts", timestamp=1.0,
-                   payload={"skills": ["alpha"]}),
+            _event(
+                "start",
+                run_id="run-no-artifacts",
+                timestamp=1.0,
+                payload={"skills": ["alpha"]},
+            ),
             _event(
                 "complete",
                 run_id="run-no-artifacts",

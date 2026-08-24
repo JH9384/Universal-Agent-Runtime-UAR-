@@ -36,7 +36,9 @@ The validation stack now has:
 ## Known Non-Blocking Items
 
 - Docker smoke remains deferred where Docker daemon is unavailable.
-- GitHub Actions Node 20 deprecation warnings remain tracked under D4I.
+- GitHub Actions Node 20 deprecation warnings were tracked under D4I; the
+  maintained workflows now use the Node 24 action runtime line and await fresh
+  closure evidence.
 - CI Python remains pinned to `3.12` while package metadata requires `<3.13,>=3.10`.
 - `httpx2.py` remains an intentional warning-clean TestClient compatibility shim.
 

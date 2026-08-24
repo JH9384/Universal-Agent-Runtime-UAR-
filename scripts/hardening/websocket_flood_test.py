@@ -103,19 +103,19 @@ async def _connect_and_echo(
                 # Echo loop
                 while time.time() < deadline:
                     t0 = time.time()
-                    msg = json.dumps({
-                        "type": "heartbeat",
-                        "seq": sent,
-                        "ts": t0,
-                    })
+                    msg = json.dumps(
+                        {
+                            "type": "heartbeat",
+                            "seq": sent,
+                            "ts": t0,
+                        }
+                    )
                     await ws.send(msg)
                     sent += 1
 
                     # Wait for any response (or timeout)
                     try:
-                        await asyncio.wait_for(
-                            ws.recv(), timeout=5.0
-                        )
+                        await asyncio.wait_for(ws.recv(), timeout=5.0)
                         received += 1
                         latencies.append((time.time() - t0) * 1000)
                     except asyncio.TimeoutError:
@@ -180,9 +180,7 @@ async def run_flood(
         total_recv = sum(r.get("received", 0) for r in results.values())
         total_recon = sum(r.get("reconnects", 0) for r in results.values())
         all_lat = [
-            lat
-            for r in results.values()
-            for lat in r.get("latencies", [])
+            lat for r in results.values() for lat in r.get("latencies", [])
         ]
         avg_lat = sum(all_lat) / len(all_lat) if all_lat else 0.0
 
@@ -215,9 +213,7 @@ async def run_flood(
     total_sent = sum(r.get("sent", 0) for r in results.values())
     total_recv = sum(r.get("received", 0) for r in results.values())
     total_recon = sum(r.get("reconnects", 0) for r in results.values())
-    all_lat = [
-        lat for r in results.values() for lat in r.get("latencies", [])
-    ]
+    all_lat = [lat for r in results.values() for lat in r.get("latencies", [])]
 
     if samples:
         rss_values = [s.rss_mb for s in samples]
@@ -225,12 +221,12 @@ async def run_flood(
             "total_sent": total_sent,
             "total_received": total_recv,
             "total_reconnects": total_recon,
-            "drop_rate": round(
-                1 - (total_recv / total_sent), 4
-            ) if total_sent else 0.0,
-            "avg_latency_ms": round(
-                sum(all_lat) / len(all_lat), 1
-            ) if all_lat else None,
+            "drop_rate": round(1 - (total_recv / total_sent), 4)
+            if total_sent
+            else 0.0,
+            "avg_latency_ms": round(sum(all_lat) / len(all_lat), 1)
+            if all_lat
+            else None,
             "max_latency_ms": round(max(all_lat), 1) if all_lat else None,
             "rss_start_mb": rss_values[0],
             "rss_end_mb": rss_values[-1],
@@ -247,8 +243,12 @@ async def run_flood(
         scale=scale,
         duration_seconds=duration_seconds,
         concurrent_connections=concurrent,
-        start_time=datetime.fromtimestamp(start_ts, tz=timezone.utc).isoformat(),
-        end_time=datetime.fromtimestamp(time.time(), tz=timezone.utc).isoformat(),
+        start_time=datetime.fromtimestamp(
+            start_ts, tz=timezone.utc
+        ).isoformat(),
+        end_time=datetime.fromtimestamp(
+            time.time(), tz=timezone.utc
+        ).isoformat(),
         samples=[asdict(s) for s in samples],
         summary=summary,
     )
@@ -314,9 +314,7 @@ def main() -> int:
         print("\nFlood test interrupted.")
         return 130
 
-    Path(output_file).write_text(
-        json.dumps(report.to_dict(), indent=2) + "\n"
-    )
+    Path(output_file).write_text(json.dumps(report.to_dict(), indent=2) + "\n")
     print(f"Report written to {output_file}")
     return 0
 

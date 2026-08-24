@@ -11,7 +11,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from uar.core.evidence_pack import build_evidence_pack, render_evidence_pack_markdown
+from uar.core.evidence_pack import (
+    build_evidence_pack,
+    render_evidence_pack_markdown,
+)
 
 
 def _load_json(path: str | None) -> dict[str, Any] | None:
@@ -30,10 +33,16 @@ def _load_json(path: str | None) -> dict[str, Any] | None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build Evidence Pack v2 artifacts")
-    parser.add_argument("--run-id", required=True, help="Run ID for the evidence pack")
+    parser = argparse.ArgumentParser(
+        description="Build Evidence Pack v2 artifacts"
+    )
+    parser.add_argument(
+        "--run-id", required=True, help="Run ID for the evidence pack"
+    )
     parser.add_argument("--output-dir", default="reports/evidence_pack")
-    parser.add_argument("--authority-tag", default="v1.2.19-d5e-evidence-pack-builder")
+    parser.add_argument(
+        "--authority-tag", default="v1.2.19-d5e-evidence-pack-builder"
+    )
 
     parser.add_argument("--signal-json")
     parser.add_argument("--mission-control-json")
@@ -68,7 +77,9 @@ def main() -> int:
     json_path = output_dir / f"{args.run_id}_evidence_pack.json"
     markdown_path = output_dir / f"{args.run_id}_evidence_pack.md"
 
-    json_path.write_text(json.dumps(pack.to_dict(), indent=2, sort_keys=True) + "\n")
+    json_path.write_text(
+        json.dumps(pack.to_dict(), indent=2, sort_keys=True) + "\n"
+    )
     markdown_path.write_text(render_evidence_pack_markdown(pack) + "\n")
 
     print(

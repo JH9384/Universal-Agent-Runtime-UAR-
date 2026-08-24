@@ -130,7 +130,10 @@ class SyntheticProbe:
             with urlopen(req, timeout=scenario.timeout) as resp:
                 latency = (time.time() - t0) * 1000
                 body = resp.read().decode("utf-8", errors="replace")
-                if scenario.body_contains and scenario.body_contains not in body:
+                if (
+                    scenario.body_contains
+                    and scenario.body_contains not in body
+                ):
                     return ProbeResult(
                         scenario=scenario.name,
                         passed=False,
@@ -171,8 +174,10 @@ class SyntheticProbe:
             return
 
         self._failure_counts[name] = self._failure_counts.get(name, 0) + 1
-        if (self._failure_counts[name] >= self.consecutive
-                and name not in self._alerted):
+        if (
+            self._failure_counts[name] >= self.consecutive
+            and name not in self._alerted
+        ):
             self._alerted.add(name)
             self._notify_trigger(result)
 

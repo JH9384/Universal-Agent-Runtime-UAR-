@@ -59,16 +59,19 @@ def build_incident_evidence_section(
         evidence_refs = pattern.get("evidence_refs") or []
         outcome_counts = pattern.get("outcome_counts") or {}
         trust_by_type = pattern.get("trust_by_type") or {}
-        lines.extend([
-            f"### {index}. {pattern.get('scope')}:{pattern.get('value')}",
-            "",
-            f"- Recurrence count: `{pattern.get('recurrence_count')}`",
-            f"- Latest run: `{pattern.get('latest_run_id') or 'none'}`",
-            f"- Affected runs: `{', '.join(pattern.get('affected_run_ids') or []) or 'none'}`",
-            f"- Incident IDs: `{', '.join(incident_ids) if incident_ids else 'none'}`",
-            f"- Recommendation IDs: `{', '.join(rec_ids) if rec_ids else 'none'}`",
-            f"- Evidence refs: `{', '.join(evidence_refs) if evidence_refs else 'none'}`",
-        ])
+        affected_runs = ", ".join(pattern.get("affected_run_ids") or [])
+        lines.extend(
+            [
+                f"### {index}. {pattern.get('scope')}:{pattern.get('value')}",
+                "",
+                f"- Recurrence count: `{pattern.get('recurrence_count')}`",
+                f"- Latest run: `{pattern.get('latest_run_id') or 'none'}`",
+                f"- Affected runs: `{affected_runs or 'none'}`",
+                f"- Incident IDs: `{', '.join(incident_ids) or 'none'}`",
+                f"- Recommendation IDs: `{', '.join(rec_ids) or 'none'}`",
+                f"- Evidence refs: `{', '.join(evidence_refs) or 'none'}`",
+            ]
+        )
         if outcome_counts:
             lines.append("- Outcome counts:")
             for rec_id, counts in outcome_counts.items():

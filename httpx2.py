@@ -1,6 +1,9 @@
-"""Compatibility shim for Starlette TestClient on environments expecting httpx2.
+"""Compatibility shim for environments expecting httpx2.
 
-Starlette may try to import `httpx2` before falling back to `httpx` with a deprecation warning. UAR still uses FastAPI/Starlette TestClient in tests, so this shim keeps warning-clean CI collection stable while preserving the existing httpx behavior.
+Starlette may try to import ``httpx2`` before falling back to ``httpx`` with a
+deprecation warning. UAR still uses FastAPI/Starlette TestClient in tests, so
+this shim keeps warning-clean CI collection stable while preserving existing
+httpx behavior.
 """
 
 import httpx as _httpx

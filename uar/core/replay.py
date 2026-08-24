@@ -218,12 +218,14 @@ def reconstruct_with_checkpoints(
         state_hash = _uor_digest_or_fallback(partial_state)
         event_hash = _uor_digest_or_fallback(ev)
 
-        checkpoints.append({
-            "index": idx,
-            "event_type": ev_type,
-            "event_hash": event_hash,
-            "accumulated_state_hash": state_hash,
-        })
+        checkpoints.append(
+            {
+                "index": idx,
+                "event_type": ev_type,
+                "event_hash": event_hash,
+                "accumulated_state_hash": state_hash,
+            }
+        )
 
     return checkpoints
 
@@ -294,12 +296,10 @@ def certify_replay(record: RunRecord) -> Dict[str, Any]:
 
     duration_ms = round((time.time() - start_ts) * 1000, 2)
 
-    # Fidelity score: 100% when deterministic replay and checkpoint replay pass.
+    # Fidelity is 100% when deterministic and checkpoint replay pass.
     # Provenance validity is surfaced but does not collapse replay fidelity.
     fidelity_score = (
-        100.0
-        if (state_hash_matches and checkpoint_matches)
-        else 0.0
+        100.0 if (state_hash_matches and checkpoint_matches) else 0.0
     )
 
     return {
