@@ -1,15 +1,20 @@
+import asyncio
 from unittest.mock import Mock, patch
 
+import uar.core.executor as executor_module
 from uar.core.contracts import GoalSpec, StrategySpec
 from uar.core.exceptions import SkillExecutionError
 from uar.core.executor import Executor
+from uar.core.schema import validate_event
 from uar.core.semantic_shadow import (
     MAX_OBSERVER_P95_MICROSECONDS_PER_EVENT,
     measure_shadow_observer_overhead,
+    pair_independent_runtime_with_shadow,
     pair_runtime_with_shadow,
 )
 from uar.core.semantic_trace import (
     SEMANTIC_EVENT_TYPES,
+    DecisionState,
     validate_semantic_trace,
 )
 
@@ -212,3 +217,160 @@ def test_shadow_observer_overhead_stays_inside_predeclared_envelope():
         <= MAX_OBSERVER_P95_MICROSECONDS_PER_EVENT
     )
     assert report.shadow_events > report.baseline_events
+
+
+@patch("uar.core.executor.registry")
+def test_runtime_annotations_cover_tool_defer_and_conflict_duals(mock_registry):
+    skills = {
+        "tool": lambda _: {
+            "answer": 42,
+            "_uar_semantic": {
+                "tool_calls": [
+                    {
+                        "call_id": "call-1",
+                        "tool": "calculator",
+                        "status": "completed",
+                    }
+                ]
+            },
+        },
+        "defer": lambda _: {
+            "_uar_semantic": {
+                "state": "defer",
+                "constraint_id": "await-human",
+                "reason_code": "insufficient_authority",
+            }
+        },
+        "conflict": lambda _: {
+            "_uar_semantic": {
+                "state": "conflict",
+                "constraint_id": "policy-dual",
+                "reason_code": "evidence_collision",
+            }
+        },
+    }
+    mock_registry.is_registered.return_value = True
+    mock_registry.get.side_effect = skills.__getitem__
+    goal = GoalSpec(
+        id="shadow-decision-duals",
+        user_intent="exercise decision duals",
+        objective="observe tool, defer, and conflict",
+        metadata={"enable_cache": False, "enable_parallel": False},
+    )
+    strategy = StrategySpec(
+        goal_id=goal.id,
+        ordered_skills=["tool", "defer", "conflict"],
+    )
+
+    pair = pair_runtime_with_shadow(
+        lambda: Executor().iter_events(
+            strategy,
+            goal,
+            timeout_seconds=1.0,
+            _run_id="shadow-decision-duals-fixed-run",
+        )
+    )
+
+    tool, deferred, conflicted = pair.semantic_trace.stages
+    assert tool.decisions[0].state is DecisionState.ADMIT
+    assert any(
+        ref.startswith("tool-call:") for ref in tool.decisions[0].evidence_refs
+    )
+    assert deferred.decisions[0].state is DecisionState.DEFER
+    assert deferred.committed is None
+    assert conflicted.decisions[0].state is DecisionState.CONFLICT
+    assert conflicted.committed is None
+    assert pair.projected_events_equal is True
+    assert validate_semantic_trace(pair.semantic_trace) == ()
+
+
+@patch("uar.core.executor.registry")
+def test_runtime_cancellation_emits_observable_rejection(mock_registry):
+    def cancel(_):
+        raise asyncio.CancelledError
+
+    mock_registry.is_registered.return_value = True
+    mock_registry.get.return_value = cancel
+    goal = GoalSpec(
+        id="shadow-cancel",
+        user_intent="cancel work",
+        objective="observe cancellation",
+        metadata={"enable_cache": False, "enable_parallel": False},
+    )
+    strategy = StrategySpec(goal_id=goal.id, ordered_skills=["cancel"])
+
+    pair = pair_runtime_with_shadow(
+        lambda: Executor().iter_events(
+            strategy,
+            goal,
+            timeout_seconds=1.0,
+            _run_id="shadow-cancel-fixed-run",
+        )
+    )
+
+    cancelled = next(
+        event
+        for event in pair.baseline_events
+        if event["type"] == "skill_cancelled"
+    )
+    assert validate_event(cancelled) == []
+    decision = pair.semantic_trace.stages[0].decisions[0]
+    assert decision.state is DecisionState.REJECT
+    assert decision.reason_code == "runtime_cancelled"
+    assert pair.projected_events_equal is True
+
+
+@patch("uar.core.executor.registry")
+def test_independent_deterministic_runtime_pairs_match_after_envelope_erasure(
+    mock_registry,
+):
+    mock_registry.is_registered.return_value = True
+    mock_registry.get.return_value = lambda _: {"answer": 42}
+    goal = GoalSpec(
+        id="independent-shadow",
+        user_intent="compare independent executions",
+        objective="produce stable output",
+        metadata={"enable_cache": False, "enable_parallel": False},
+    )
+    strategy = StrategySpec(goal_id=goal.id, ordered_skills=["stable"])
+
+    def execute():
+        with executor_module._coalesce_meta_lock:
+            executor_module._coalesce_results.clear()
+            executor_module._coalesce_lru.clear()
+        return Executor().iter_events(
+            strategy,
+            goal,
+            timeout_seconds=1.0,
+            _run_id="independent-shadow-fixed-run",
+        )
+
+    pair = pair_independent_runtime_with_shadow(execute, execute)
+
+    assert pair.projected_events_equal is True
+    assert pair.baseline_projection_hash == pair.shadow_projection_hash
+
+
+def test_independent_pair_detects_non_envelope_runtime_drift():
+    def execute(value):
+        return (
+            {"type": "start", "run_id": "r", "payload": {}},
+            {
+                "type": "skill_complete",
+                "run_id": "r",
+                "skill": "stable",
+                "payload": {"result": value},
+            },
+            {
+                "type": "complete",
+                "run_id": "r",
+                "payload": {"status": "completed", "outputs": [value]},
+            },
+        )
+
+    pair = pair_independent_runtime_with_shadow(
+        lambda: execute(1), lambda: execute(2)
+    )
+
+    assert pair.projected_events_equal is False
+    assert pair.baseline_projection_hash != pair.shadow_projection_hash
