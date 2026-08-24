@@ -30,6 +30,10 @@ EVENT_SCHEMAS: Dict[str, List[str]] = {
         "schema_version", "type", "run_id", "goal_id", "timestamp",
         "skill", "error",
     ],
+    "skill_cancelled": [
+        "schema_version", "type", "run_id", "goal_id", "timestamp",
+        "skill", "error", "payload",
+    ],
     "recipe_start": [
         "schema_version", "type", "run_id", "goal_id", "timestamp",
         "payload",
