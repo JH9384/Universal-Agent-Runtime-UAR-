@@ -367,6 +367,12 @@ The history verdict is three-valued:
 Example:
 
 ```bash
+python scripts/semantic_history_export.py export-manifest.json \
+  --baseline-store /read-only/baseline/uar_runs.db \
+  --candidate-store /read-only/candidate/uar_runs.db \
+  --sanitization-key /collector-only/semantic-export.hmac \
+  --output sanitized-history.json
+
 python scripts/semantic_history_prepare.py sanitized-history.json \
   --key-id release-history-2026-08 \
   --private-key release-history-ed25519.private.pem \
@@ -380,6 +386,21 @@ python scripts/semantic_real_history_review.py signed-history.json \
 
 The private signing key stays with the collector. The reviewer receives only
 the signed corpus and the independently distributed public trust anchor.
+
+The export manifest uses `uar.semantic-history-export-manifest.v1`. Each pair
+must predeclare `pair_id`, `split`, `task_class`, `final_result_class`, and the
+baseline/candidate run IDs, together with the capture window, both code
+revisions, and the sanitization reviewer. The exporter opens JSONL directly or
+SQLite in read-only mode; it refuses missing, reused, out-of-window, incomplete,
+or already-shadowed source runs. It does not infer pairs or split assignments.
+
+The collector supplies at least 32 bytes of independently managed HMAC key
+material. The allowlist retains lifecycle shape and the inputs needed to
+derive `S = (P, Γ, Q, Ω, E, K, M)` while replacing run, pair, case, skill,
+invocation, result, context, evidence, and annotation identifiers with stable
+HMAC-SHA256 tokens. The key is not embedded in the corpus. Source provenance
+binds canonical decoded selected rows, including records visible through a
+SQLite WAL, rather than relying on a possibly stale main-file digest.
 
 ### Runtime invocation identity
 

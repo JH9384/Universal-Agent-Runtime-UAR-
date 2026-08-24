@@ -9,6 +9,7 @@ SCHEMA_DIR = Path("schemas/semantic")
 def test_semantic_exchange_schemas_are_valid_draft_2020_12():
     names = {
         "history-corpus.schema.json",
+        "history-export-manifest.schema.json",
         "history-attestation.schema.json",
         "history-review.schema.json",
         "decision-certificate.schema.json",

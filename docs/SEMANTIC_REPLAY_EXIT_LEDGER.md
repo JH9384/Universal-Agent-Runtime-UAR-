@@ -75,10 +75,11 @@ Current lifecycle evidence:
 
 ## Next evidence tranche
 
-1. Export a sanitized operational corpus using
-   `uar.semantic-history-corpus.v1`, preserving the pre-declared calibration
-   and untouched-holdout split, source window, code revision, and stable case
-   coupling.
+1. Predeclare pair/run assignments in
+   `uar.semantic-history-export-manifest.v1`, then run the read-only
+   `scripts/semantic_history_export.py` collector to produce
+   `uar.semantic-history-corpus.v1`. Preserve the calibration and untouched
+   holdout split, source window, both code revisions, and stable case coupling.
 2. Run `scripts/semantic_history_prepare.py` to freeze the policy and sign the
    generated census manifest with the designated Ed25519 attestor.
    The reviewer must receive the public key through a separate trusted channel.
