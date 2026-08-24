@@ -48,6 +48,8 @@ Current lifecycle evidence:
 
 - the shared batch-pool replacement no longer restores a closed executor;
 - SQLite writer construction now waits for observable startup and closure;
+- SQLite `flush()` now uses a synchronous FIFO checkpoint barrier, so a
+  dequeued-but-in-flight write cannot be mistaken for a completed write;
 - UOR sandbox execution uses `spawn`, avoiding multithreaded `fork` deadlocks;
 - the module-level UOR auth override was removed and its fixture now restores
   prior shared-app state;
@@ -55,12 +57,13 @@ Current lifecycle evidence:
   than silently repeating failures without `skill_retry` transitions;
 - cancellations now emit a schema-valid `skill_cancelled` runtime event and
   project to a semantic `REJECT` with reason `runtime_cancelled`;
-- the focused lifecycle/conformance/runtime-shadow slice passed 140/140 across
+- the focused lifecycle/conformance/runtime-shadow slice passed 150/150 across
   random seeds `1`, `2`, `3`, `7`, and `42`.
 
 ## Next evidence tranche
 
-1. Re-run the full ordering-stress workflow after the sandbox/auth repairs.
+1. Re-run the full ordering-stress workflow after the sandbox/auth/SQLite
+   lifecycle repairs.
 2. Run the real-runtime corpus against broader production DAG histories,
    including the greedy scheduler and sustained parallel execution.
 3. Continue requiring exact projected-event equality for deterministic pairs,
