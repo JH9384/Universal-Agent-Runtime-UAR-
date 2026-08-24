@@ -318,6 +318,10 @@ artifacts from being mistaken for operational replay evidence. Its input uses
 - `provenance.model_generated = false`;
 - a completed sanitization record with method, reviewer, and source snapshot;
 - unique run IDs;
+- a stable `pair_id` binding the corresponding baseline and candidate case;
+- an explicit `event_mode` of `raw_runtime` or `preshadowed`;
+- for preshadowed streams, a committed runtime-projection hash that must match
+  semantic-event erasure;
 - a pre-declared `calibration` or `holdout` split for every run;
 - `baseline` or `candidate` cohort, task class, final-result class, and runtime
   events for every run.
@@ -333,6 +337,19 @@ projected stored runtime events into the frozen semantic object. A corpus with
 no holdout, duplicate IDs, invalid traces, incomplete provenance, synthetic
 origin, or model-generated origin is reportable as probability-plane evidence
 but is not release-gate eligible.
+
+Marginal equality is not sufficient. If `κ` is the declared case coupling, the
+reviewer also evaluates each `(baseline, candidate)` pair. A corpus may have
+identical trace-hash marginals while every paired case changes semantics; such
+semantic reassignment fails the coupled gate even when JS divergence and total
+variation are both zero.
+
+The history verdict is three-valued:
+
+- `PASS`: all required evidence and holdout limits are verified;
+- `FAIL`: a witnessed integrity defect, semantic difference, or limit violation
+  exists;
+- `HOLD`: required evidence is absent, unverifiable, or underpowered.
 
 Example:
 
