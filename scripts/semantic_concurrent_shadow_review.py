@@ -29,7 +29,7 @@ from uar.core.semantic_trace import (
     validate_semantic_trace,
 )
 
-MIN_CONFIRMATORY_SAMPLES_PER_STRATUM = 100
+MIN_CONFIRMATORY_SAMPLES_PER_STRATUM = 200
 MAX_P95_LATENCY_RATIO = 1.10
 MAX_P99_LATENCY_RATIO = 1.15
 MIN_THROUGHPUT_RATIO = 0.90
@@ -534,7 +534,7 @@ def main() -> int:
     parser.add_argument(
         "--mode", choices=("pilot", "confirmatory"), default="confirmatory"
     )
-    parser.add_argument("--samples-per-stratum", type=int, default=100)
+    parser.add_argument("--samples-per-stratum", type=int, default=200)
     parser.add_argument("--seed", type=int, default=8191)
     parser.add_argument(
         "--concurrency",

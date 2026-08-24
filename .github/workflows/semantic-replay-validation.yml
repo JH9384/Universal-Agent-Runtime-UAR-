@@ -67,7 +67,7 @@ jobs:
         run: |
           set -o pipefail
           python scripts/semantic_concurrent_shadow_review.py \
-            --mode confirmatory --samples-per-stratum 100 --seed 8191 \
+            --mode confirmatory --samples-per-stratum 200 --seed 8191 \
             --concurrency 1,4,16,32 \
             | tee semantic-concurrent-shadow-report.json
 
