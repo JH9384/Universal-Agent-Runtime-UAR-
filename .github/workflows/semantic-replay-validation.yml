@@ -57,6 +57,14 @@ jobs:
           python scripts/semantic_runtime_shadow_review.py \
             --iterations 250 | tee semantic-runtime-shadow-report.json
 
+      - name: Run confirmatory concurrent shadow gate
+        run: |
+          set -o pipefail
+          python scripts/semantic_concurrent_shadow_review.py \
+            --mode confirmatory --samples-per-stratum 100 --seed 8191 \
+            --concurrency 1,4,16,32 \
+            | tee semantic-concurrent-shadow-report.json
+
       - name: Upload semantic validation reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,4 +75,5 @@ jobs:
             semantic-stochastic-report.txt
             semantic-observation-report.txt
             semantic-runtime-shadow-report.json
+            semantic-concurrent-shadow-report.json
           retention-days: 14
