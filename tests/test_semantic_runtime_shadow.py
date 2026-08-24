@@ -9,12 +9,15 @@ from uar.core.schema import validate_event
 from uar.core.semantic_shadow import (
     MAX_OBSERVER_P95_MICROSECONDS_PER_EVENT,
     measure_shadow_observer_overhead,
+    observe_runtime_semantics,
     pair_independent_runtime_with_shadow,
     pair_runtime_with_shadow,
 )
 from uar.core.semantic_trace import (
     SEMANTIC_EVENT_TYPES,
     DecisionState,
+    semantic_trace_from_events,
+    semantic_trace_hash,
     validate_semantic_trace,
 )
 
@@ -155,6 +158,53 @@ def test_parallel_runtime_stages_join_the_full_causal_frontier(mock_registry):
     }
     assert pair.projected_events_equal is True
     assert validate_semantic_trace(pair.semantic_trace) == ()
+
+
+def test_parallel_wave_is_a_registered_runtime_event():
+    event = {
+        "schema_version": "uar.event.v1",
+        "type": "parallel_wave",
+        "run_id": "run-1",
+        "goal_id": "goal-1",
+        "timestamp": "2026-08-24T00:00:00Z",
+        "payload": {"wave_index": 0, "skills": ["left", "right"]},
+    }
+
+    assert validate_event(event) == []
+
+
+def test_parallel_output_arrival_order_does_not_change_semantic_result():
+    def trace(outputs):
+        events = (
+            {"type": "start", "payload": {}},
+            {
+                "type": "complete",
+                "payload": {
+                    "status": "completed",
+                    "outputs": outputs,
+                    "final_context": {
+                        "left": {"answer": 1},
+                        "right": {"answer": 2},
+                    },
+                },
+            },
+        )
+        return semantic_trace_from_events(observe_runtime_semantics(events))
+
+    left_then_right = trace(
+        [{"left": {"answer": 1}}, {"right": {"answer": 2}}]
+    )
+    right_then_left = trace(
+        [{"right": {"answer": 2}}, {"left": {"answer": 1}}]
+    )
+    changed_output = trace([{"right": {"answer": 3}}, {"left": {"answer": 1}}])
+
+    assert semantic_trace_hash(left_then_right) == semantic_trace_hash(
+        right_then_left
+    )
+    assert semantic_trace_hash(left_then_right) != semantic_trace_hash(
+        changed_output
+    )
 
 
 @patch("uar.core.executor.time.sleep", return_value=None)
