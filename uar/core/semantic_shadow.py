@@ -41,6 +41,23 @@ def _stable_id(prefix: str, value: Any) -> str:
     return f"{prefix}:{hashlib.sha256(payload).hexdigest()}"
 
 
+def _canonical_parallel_outputs(value: Any) -> Any:
+    """Erase harmless parallel completion order from final-result identity."""
+
+    if not isinstance(value, (list, tuple)):
+        return value
+    return sorted(
+        value,
+        key=lambda item: json.dumps(
+            item,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            default=str,
+        ),
+    )
+
+
 def _semantic_event(event_type: str, **payload: Any) -> RuntimeEvent:
     return {"type": event_type, "payload": payload}
 
@@ -231,7 +248,9 @@ def observe_runtime_semantics(
         if event_type == "complete":
             result_payload = {
                 "status": payload.get("status"),
-                "outputs": payload.get("outputs", []),
+                "outputs": _canonical_parallel_outputs(
+                    payload.get("outputs", [])
+                ),
                 "final_context": payload.get("final_context", {}),
             }
             shadow.append(
