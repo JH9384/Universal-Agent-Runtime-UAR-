@@ -6,6 +6,7 @@ import pytest
 import uar.core.executor as executor_module
 from uar.core.contracts import GoalSpec, StrategySpec
 from uar.core.exceptions import SkillExecutionError
+from uar.core.exceptions import ValidationError
 from uar.core.executor import Executor
 from uar.core.schema import validate_event
 from uar.core.semantic_shadow import (
@@ -247,6 +248,155 @@ def test_malformed_semantic_annotation_fails_closed():
 
     with pytest.raises(ValueError, match="invalid_semantic_state"):
         observe_runtime_semantics(events)
+
+
+def test_invocation_ids_correlate_repeated_skill_completions():
+    events = (
+        {"type": "start", "run_id": "r", "payload": {}},
+        {"type": "parallel_start", "run_id": "r", "payload": {}},
+        {
+            "type": "skill_start",
+            "run_id": "r",
+            "skill": "same",
+            "invocation_id": "first",
+            "payload": {},
+        },
+        {
+            "type": "skill_start",
+            "run_id": "r",
+            "skill": "same",
+            "invocation_id": "second",
+            "payload": {},
+        },
+        {
+            "type": "skill_complete",
+            "run_id": "r",
+            "skill": "same",
+            "invocation_id": "second",
+            "payload": {
+                "result": {
+                    "_uar_semantic": {"reason_code": "second-result"}
+                }
+            },
+        },
+        {
+            "type": "skill_complete",
+            "run_id": "r",
+            "skill": "same",
+            "invocation_id": "first",
+            "payload": {
+                "result": {
+                    "_uar_semantic": {"reason_code": "first-result"}
+                }
+            },
+        },
+        {
+            "type": "complete",
+            "run_id": "r",
+            "payload": {"status": "completed", "outputs": []},
+        },
+    )
+
+    trace = semantic_trace_from_events(observe_runtime_semantics(events))
+
+    assert trace.stages[0].decisions[0].reason_code == "first-result"
+    assert trace.stages[1].decisions[0].reason_code == "second-result"
+
+
+def test_mixed_or_duplicate_invocation_identity_fails_closed():
+    mixed = (
+        {
+            "type": "skill_start",
+            "skill": "same",
+            "invocation_id": "one",
+            "payload": {},
+        },
+        {"type": "skill_complete", "skill": "same", "payload": {}},
+    )
+    duplicate = (
+        {
+            "type": "skill_start",
+            "skill": "same",
+            "invocation_id": "one",
+            "payload": {},
+        },
+        {
+            "type": "skill_start",
+            "skill": "same",
+            "invocation_id": "one",
+            "payload": {},
+        },
+    )
+
+    with pytest.raises(ValueError, match="mixed_invocation_identity_mode"):
+        observe_runtime_semantics(mixed)
+    with pytest.raises(ValueError, match="duplicate_active_invocation_id"):
+        observe_runtime_semantics(duplicate)
+
+
+@patch("uar.core.executor.registry")
+def test_executor_emits_distinct_complete_invocation_lifecycles(mock_registry):
+    mock_registry.is_registered.return_value = True
+    mock_registry.get.return_value = lambda _: {"answer": 1}
+    goal = GoalSpec(
+        id="invocation-lifecycle",
+        user_intent="repeat one skill",
+        objective="preserve invocation identity",
+        metadata={"enable_cache": False, "enable_parallel": False},
+    )
+    strategy = StrategySpec(goal_id=goal.id, ordered_skills=["same", "same"])
+
+    events = tuple(
+        Executor().iter_events(
+            strategy,
+            goal,
+            timeout_seconds=1.0,
+            _run_id="invocation-lifecycle-run",
+        )
+    )
+    lifecycle = [
+        event
+        for event in events
+        if event["type"] in {"skill_start", "skill_complete"}
+    ]
+
+    assert len({event["invocation_id"] for event in lifecycle}) == 2
+    for invocation_id in {event["invocation_id"] for event in lifecycle}:
+        assert [
+            event["type"]
+            for event in lifecycle
+            if event["invocation_id"] == invocation_id
+        ] == ["skill_start", "skill_complete"]
+
+
+@patch("uar.core.executor.registry")
+def test_executor_rejects_duplicate_parallel_skill_names(mock_registry):
+    mock_registry.is_registered.return_value = True
+    mock_registry.get.return_value = lambda _: {"answer": 1}
+    goal = GoalSpec(
+        id="duplicate-parallel-skill",
+        user_intent="repeat one skill concurrently",
+        objective="reject ambiguous runtime identity",
+        metadata={"enable_cache": False, "enable_parallel": True},
+    )
+    strategy = StrategySpec(
+        goal_id=goal.id,
+        ordered_skills=["same", "same"],
+        waves=[["same", "same"]],
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="Parallel skill names must be unique",
+    ):
+        tuple(
+            Executor().iter_events(
+                strategy,
+                goal,
+                timeout_seconds=1.0,
+                _run_id="duplicate-parallel-skill-run",
+            )
+        )
 
 
 @patch("uar.core.executor.time.sleep", return_value=None)

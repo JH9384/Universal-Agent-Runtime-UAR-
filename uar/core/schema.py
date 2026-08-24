@@ -162,7 +162,7 @@ EVENT_SCHEMAS: Dict[str, List[str]] = {
 }
 
 # Optional fields that may appear
-OPTIONAL_FIELDS = ["correlation_id", "metadata"]
+OPTIONAL_FIELDS = ["correlation_id", "invocation_id", "metadata"]
 
 
 def validate_event(event: Dict[str, Any]) -> List[str]:

@@ -28,6 +28,7 @@ green synthetic campaign does not close a real-runtime or stochastic criterion.
 | Observation-loss injection and measured indeterminacy | PASS | identical and divergent latent-pair campaign | Real telemetry-loss rate remains open |
 | Semantic-distance distributions over real history | OPEN | `semantic_real_history_review.py` enforces observed-operational provenance, sanitization review, calibration/untouched-holdout separation, unique run and pair IDs, raw/preshadowed event authority, minimum cohort sizes, trace integrity, marginal thresholds, coupled per-case outcomes, telemetry-loss limits, and `PASS/HOLD/FAIL` verdicts. A trusted Ed25519 attestation now binds the source snapshot/window, code revision, review policy, complete run census, pairing/split/cohort/strata, and event/projection digests. Probability experiments and unsigned or tampered corpora are ineligible. | Supply the signed sanitized operational corpus and execute the untouched holdout |
 | Deterministic projected shadow equality | PASS | Seven real `Executor` scenarios cover sequential, DAG/parallel, retry, rejection, timeout, cancellation, and annotated MCP tool/defer/conflict paths. Same-stream projection is exact, and two independently executed clean-state runs produce identical normalized projection hashes. Normalization removes only timestamps, UOR envelope fields, and timing metrics; a non-envelope result mutation is detected. | Retain the independent-pair and drift-negative tests as permanent gates |
+| Runtime invocation identity | PASS | Stable invocation IDs join start/retry/terminal lifecycle events; reversed completion of repeated skill names is reconstructed correctly. Mixed/duplicate/orphan identity streams fail closed, and duplicate names in one skill-keyed parallel wave are explicitly rejected. | Retain identity and obstruction dual tests |
 | Concurrent/stochastic overhead envelope | PASS | Latest seed `8191` rerun: 800 paired runs across greedy-wide and DAG-diamond workloads at concurrency 1/4/16/32. Zero projection/result/integrity drift; worst p95 ratio 1.0016, p99 ratio 1.0283, throughput retention 0.9970, order JSD 0.0017 bits, and order TV 0.0250. | Retain the 100-sample-per-stratum confirmatory workflow gate |
 | Independent certificate verification | PASS | A real `Executor` decision carries an Ed25519 certificate reference. A public-key-only verifier requires an Ed25519 key and binds signature authenticity to the constraint, reason, evidence, commitment, causal stage context, final result, and full semantic-trace hash. Tampered-claim, causal-context, and wrong-key/algorithm controls are rejected. | Retain the signed certificate workflow gate and negative controls |
 | No Trust Spine weighting change | HOLD | PR introduces no weighting changes | Remain on hold until empirical validation closes |
@@ -78,7 +79,8 @@ Current lifecycle evidence:
    `uar.semantic-history-corpus.v1`, preserving the pre-declared calibration
    and untouched-holdout split, source window, code revision, and stable case
    coupling.
-2. Sign the generated census manifest with the designated Ed25519 attestor.
+2. Run `scripts/semantic_history_prepare.py` to freeze the policy and sign the
+   generated census manifest with the designated Ed25519 attestor.
    The reviewer must receive the public key through a separate trusted channel.
 3. Run `scripts/semantic_real_history_review.py` with the trusted key ID and
    public-key path. Retain only the aggregate report; do not publish raw events.

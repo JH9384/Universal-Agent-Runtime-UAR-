@@ -741,6 +741,7 @@ def make_executor_event(
     error=None,
     correlation_id: str = "",
     timestamp: float | None = None,
+    invocation_id: str | None = None,
 ):
     """Construct a canonical RuntimeEvent dict.
 
@@ -759,6 +760,8 @@ def make_executor_event(
         "payload": payload or {},
         "error": error,
     }
+    if invocation_id is not None:
+        event["invocation_id"] = invocation_id
     try:
         address, witness = address_with_witness(event)
         event["uor_address"] = address
@@ -786,6 +789,7 @@ def _event(
     error=None,
     correlation_id: str = "",
     timestamp: float | None = None,
+    invocation_id: str | None = None,
 ):
     """Legacy alias for :func:`make_executor_event`.
 
@@ -800,6 +804,7 @@ def _event(
         payload=payload,
         error=error,
         correlation_id=correlation_id,
+        invocation_id=invocation_id,
         timestamp=timestamp,
     )
 
@@ -933,7 +938,21 @@ class Executor:
         ctx_lock = threading.Lock()
 
         # Local helper so every event carries the correlation ID
-        def _ev(event_type: str, skill=None, payload=None, error=None):
+        invocation_index = 0
+
+        def _next_invocation_id(skill_name: str) -> str:
+            nonlocal invocation_index
+            value = f"{run_id}:invocation:{invocation_index:04d}:{skill_name}"
+            invocation_index += 1
+            return value
+
+        def _ev(
+            event_type: str,
+            skill=None,
+            payload=None,
+            error=None,
+            invocation_id=None,
+        ):
             nonlocal _metrics_event_count
             _metrics_event_count += 1
             return _event(
@@ -944,6 +963,7 @@ class Executor:
                 payload=payload,
                 error=error,
                 correlation_id=correlation_id,
+                invocation_id=invocation_id,
             )
 
         # Validate all skills exist before execution
@@ -1210,7 +1230,12 @@ class Executor:
             elif len(skill_group) == 1:
                 # Sequential execution for single skill
                 skill_name = skill_group[0]
-                yield _ev("skill_start", skill=skill_name)
+                invocation_id = _next_invocation_id(skill_name)
+                yield _ev(
+                    "skill_start",
+                    skill=skill_name,
+                    invocation_id=invocation_id,
+                )
 
                 # Input guardrails check
                 input_violations = _validate_input_guardrails(ctx, skill_name)
@@ -1227,6 +1252,7 @@ class Executor:
                         "skill_failed",
                         skill=skill_name,
                         error=error_msg,
+                        invocation_id=invocation_id,
                     )
                     _add_error("Skill execution failed")
                     if (
@@ -1275,6 +1301,7 @@ class Executor:
                         yield _ev(
                             "skill_complete",
                             skill=skill_name,
+                            invocation_id=invocation_id,
                             payload={
                                 "result": cached_result,
                                 "cached": True,
@@ -1364,6 +1391,7 @@ class Executor:
                                     yield _ev(
                                         "skill_complete",
                                         skill=skill_name,
+                                        invocation_id=invocation_id,
                                         payload={
                                             "result": result,
                                             "cached": True,
@@ -1449,6 +1477,7 @@ class Executor:
                             yield _ev(
                                 "skill_complete",
                                 skill=skill_name,
+                                invocation_id=invocation_id,
                                 payload={
                                     "result": result,
                                     "attempt": attempt + 1,
@@ -1464,6 +1493,7 @@ class Executor:
                                 "skill_cancelled",
                                 skill=skill_name,
                                 error="Skill execution cancelled",
+                                invocation_id=invocation_id,
                                 payload={"attempt": attempt + 1},
                             )
                             _add_error("Skill execution cancelled")
@@ -1481,6 +1511,7 @@ class Executor:
                                 yield _ev(
                                     "skill_retry",
                                     skill=skill_name,
+                                    invocation_id=invocation_id,
                                     payload={
                                         "attempt": attempt + 1,
                                         "max_retries": max_retries,
@@ -1493,6 +1524,7 @@ class Executor:
                                     "skill_failed",
                                     skill=skill_name,
                                     error=str(last_error),
+                                    invocation_id=invocation_id,
                                     payload={"attempts": attempt + 1},
                                 )
                                 get_metrics_collector().record_skill(
@@ -1523,6 +1555,7 @@ class Executor:
                                 "skill_failed",
                                 skill=skill_name,
                                 error="Skill execution failed",
+                                invocation_id=invocation_id,
                             )
                             _add_error("Skill execution failed")
                             if (
@@ -1543,6 +1576,15 @@ class Executor:
                             _release_coalesce_lock(_coalesce_key)
             else:
                 # Parallel execution for group of skills
+                if len(set(skill_group)) != len(skill_group):
+                    raise ValidationError(
+                        "Parallel skill names must be unique",
+                        field="skills",
+                    )
+                parallel_invocation_ids = {
+                    skill_name: _next_invocation_id(skill_name)
+                    for skill_name in skill_group
+                }
                 yield _ev("parallel_start", payload={"skills": skill_group})
 
                 # Check for fail_fast option in goal metadata
@@ -1558,6 +1600,12 @@ class Executor:
                 # execution. Note: cache.get() is thread-safe
                 # internally, no need for ctx_lock
                 for skill_name in skill_group:
+                    invocation_id = parallel_invocation_ids[skill_name]
+                    yield _ev(
+                        "skill_start",
+                        skill=skill_name,
+                        invocation_id=invocation_id,
+                    )
                     cached_result = None
                     cache_used = False
                     if enable_cache:
@@ -1589,6 +1637,7 @@ class Executor:
                             yield _ev(
                                 "skill_complete",
                                 skill=skill_name,
+                                invocation_id=invocation_id,
                                 payload={
                                     "result": cached_result,
                                     "cached": True,
@@ -1632,12 +1681,14 @@ class Executor:
                                 "skill_failed",
                                 skill=skill_name,
                                 error=error_msg,
+                                invocation_id=parallel_invocation_ids[
+                                    skill_name
+                                ],
                             )
                             if fail_fast:
                                 break
                             continue
 
-                        yield _ev("skill_start", skill=skill_name)
                         fn = registry.get(skill_name)
                         # Create isolated context copy for parallel
                         # execution to prevent race conditions.
@@ -1708,6 +1759,9 @@ class Executor:
                                     "skill_failed",
                                     skill=skill_name,
                                     error=error_msg,
+                                    invocation_id=parallel_invocation_ids[
+                                        skill_name
+                                    ],
                                 )
                                 _add_error("Skill execution failed")
                                 any_failed = True
@@ -1725,6 +1779,9 @@ class Executor:
                                 "skill_complete",
                                 skill=skill_name,
                                 payload={"result": result},
+                                invocation_id=parallel_invocation_ids[
+                                    skill_name
+                                ],
                             )
                         except (TimeoutError, SkillExecutionError) as exc:
                             logger.warning(
@@ -1734,6 +1791,9 @@ class Executor:
                                 "skill_failed",
                                 skill=skill_name,
                                 error="Skill execution failed",
+                                invocation_id=parallel_invocation_ids[
+                                    skill_name
+                                ],
                             )
                             _add_error("Skill execution failed")
                             any_failed = True
@@ -1747,6 +1807,9 @@ class Executor:
                                 "skill_failed",
                                 skill=skill_name,
                                 error="Skill execution failed",
+                                invocation_id=parallel_invocation_ids[
+                                    skill_name
+                                ],
                             )
                             _add_error("Skill execution failed")
                             any_failed = True
@@ -1952,7 +2015,12 @@ class Executor:
             and "sum_review" not in strategy.ordered_skills
         ):
             skill_name = "sum_review"
-            yield _ev("skill_start", skill=skill_name)
+            invocation_id = _next_invocation_id(skill_name)
+            yield _ev(
+                "skill_start",
+                skill=skill_name,
+                invocation_id=invocation_id,
+            )
             try:
                 _s0 = time.time()
                 summary = _run_with_timeout(
@@ -1966,6 +2034,7 @@ class Executor:
                     "skill_complete",
                     skill=skill_name,
                     payload={"result": summary},
+                    invocation_id=invocation_id,
                 )
             except Exception:
                 logger.exception("Review %s failed", skill_name)

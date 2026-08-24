@@ -10,8 +10,14 @@ from collections.abc import Mapping
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from cryptography.hazmat.primitives.serialization import load_pem_public_key
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.hazmat.primitives.serialization import (
+    load_pem_private_key,
+    load_pem_public_key,
+)
 
 ATTESTATION_SCHEMA = "uar.semantic-history-attestation.v1"
 
@@ -133,9 +139,33 @@ def verify_history_attestation(
     return True, ()
 
 
+def sign_history_attestation(
+    payload: Mapping[str, Any],
+    *,
+    key_id: str,
+    review_policy: Mapping[str, Any],
+    private_key_pem: bytes,
+) -> dict[str, Any]:
+    """Build and sign a corpus census with an Ed25519 private key."""
+
+    private_key = load_pem_private_key(private_key_pem, password=None)
+    if not isinstance(private_key, Ed25519PrivateKey):
+        raise ValueError("invalid_attestation_private_key_type")
+    manifest = build_history_attestation_manifest(
+        payload,
+        key_id=key_id,
+        review_policy=review_policy,
+    )
+    signature = base64.b64encode(
+        private_key.sign(canonical_json_bytes(manifest))
+    ).decode("ascii")
+    return {"manifest": manifest, "signature": signature}
+
+
 __all__ = [
     "ATTESTATION_SCHEMA",
     "build_history_attestation_manifest",
     "canonical_json_bytes",
+    "sign_history_attestation",
     "verify_history_attestation",
 ]

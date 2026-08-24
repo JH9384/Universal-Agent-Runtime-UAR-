@@ -327,6 +327,9 @@ artifacts from being mistaken for operational replay evidence. Its input uses
 - `baseline` or `candidate` cohort, task class, final-result class, and runtime
   events for every run.
 
+The exchange formats are defined under `schemas/semantic/` for the corpus,
+attestation, aggregate review, and decision certificate.
+
 Release-eligible corpora also carry
 `uar.semantic-history-attestation.v1`. The signed manifest binds the trusted
 key ID, source snapshot and capture window, code revision, complete run census,
@@ -364,11 +367,30 @@ The history verdict is three-valued:
 Example:
 
 ```bash
-python scripts/semantic_real_history_review.py sanitized-history.json \
+python scripts/semantic_history_prepare.py sanitized-history.json \
+  --key-id release-history-2026-08 \
+  --private-key release-history-ed25519.private.pem \
+  --output signed-history.json
+
+python scripts/semantic_real_history_review.py signed-history.json \
   --trusted-key-id release-history-2026-08 \
   --trusted-public-key release-history-ed25519.pub.pem \
   --output semantic-real-history-report.json
 ```
+
+The private signing key stays with the collector. The reviewer receives only
+the signed corpus and the independently distributed public trust anchor.
+
+### Runtime invocation identity
+
+Executor lifecycle events carry a stable `invocation_id` from `skill_start`
+through retry, completion, failure, or cancellation. The observer correlates
+by this identity, so completion order cannot swap the semantics of repeated
+skill names. Mixed identity modes, duplicate active IDs, and orphan retry or
+terminal events fail closed. A single parallel wave rejects duplicate skill
+names because the executor's result/context maps are skill-keyed; representing
+that unsupported shape as an explicit obstruction is safer than inventing an
+ambiguous correlation.
 
 The reviewer rejects non-finite, negative, or out-of-domain gate thresholds.
 Structural contradictions, witnessed paired semantic differences, duplicate

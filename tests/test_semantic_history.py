@@ -1,8 +1,10 @@
-import base64
 from copy import deepcopy
+import json
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from scripts.semantic_history_prepare import main as prepare_history_main
 
 from uar.core.semantic_history import (
     CORPUS_SCHEMA,
@@ -10,8 +12,7 @@ from uar.core.semantic_history import (
     review_semantic_history as _review_semantic_history,
 )
 from uar.core.semantic_history_attestation import (
-    build_history_attestation_manifest,
-    canonical_json_bytes,
+    sign_history_attestation,
 )
 from uar.core.semantic_shadow import observe_runtime_semantics
 from uar.core.semantic_trace import projected_event_hash
@@ -103,7 +104,12 @@ def _thresholds(**changes):
 
 
 def _attest(payload, thresholds):
-    manifest = build_history_attestation_manifest(
+    private_key = _ATTESTOR_PRIVATE_KEY.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    payload["attestation"] = sign_history_attestation(
         payload,
         key_id=_ATTESTOR_KEY_ID,
         review_policy={
@@ -117,13 +123,8 @@ def _attest(payload, thresholds):
                 thresholds.max_paired_indeterminate_rate
             ),
         },
+        private_key_pem=private_key,
     )
-    payload["attestation"] = {
-        "manifest": manifest,
-        "signature": base64.b64encode(
-            _ATTESTOR_PRIVATE_KEY.sign(canonical_json_bytes(manifest))
-        ).decode("ascii"),
-    }
 
 
 def _review(payload, *, thresholds):
@@ -498,3 +499,41 @@ def test_invalid_thresholds_fail_closed():
         report = _review(_corpus(), thresholds=thresholds)
         assert report["verdict"] == "FAIL"
         assert reason in report["eligibility_reasons"]
+
+
+def test_prepare_command_emits_verifiable_signed_corpus(tmp_path, monkeypatch):
+    source = tmp_path / "sanitized.json"
+    signed = tmp_path / "signed.json"
+    private_key_path = tmp_path / "attestor.pem"
+    source.write_text(json.dumps(_corpus()), encoding="utf-8")
+    private_key_path.write_bytes(
+        _ATTESTOR_PRIVATE_KEY.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "semantic_history_prepare.py",
+            str(source),
+            "--output",
+            str(signed),
+            "--key-id",
+            _ATTESTOR_KEY_ID,
+            "--private-key",
+            str(private_key_path),
+        ],
+    )
+
+    assert prepare_history_main() == 0
+    payload = json.loads(signed.read_text(encoding="utf-8"))
+    report = _review_semantic_history(
+        payload,
+        trusted_attestor_public_keys={
+            _ATTESTOR_KEY_ID: _ATTESTOR_PUBLIC_KEY
+        },
+    )
+    assert report["attestation_valid"] is True
+    assert report["verdict"] == "HOLD"

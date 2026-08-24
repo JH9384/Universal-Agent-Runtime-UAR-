@@ -102,6 +102,33 @@ def observe_runtime_semantics(
     as a dependency and later stages join all completed branches.
     """
 
+    source = tuple(events)
+    lifecycle_types = {
+        "skill_start",
+        "skill_retry",
+        "skill_complete",
+        "skill_failed",
+        "skill_cancelled",
+    }
+    lifecycle_events = [
+        event
+        for event in source
+        if str(event.get("type", "")) in lifecycle_types
+        and event.get("skill") is not None
+    ]
+    invocation_presence = {
+        event.get("invocation_id") is not None for event in lifecycle_events
+    }
+    if len(invocation_presence) > 1:
+        raise ValueError("mixed_invocation_identity_mode")
+    invocation_identity_mode = invocation_presence == {True}
+    if invocation_identity_mode and any(
+        not isinstance(event.get("invocation_id"), str)
+        or not event.get("invocation_id")
+        for event in lifecycle_events
+    ):
+        raise ValueError("invalid_invocation_id")
+
     shadow = []
     pending: dict[str, deque[tuple[str, str, tuple[str, ...]]]] = defaultdict(
         deque
@@ -110,11 +137,13 @@ def observe_runtime_semantics(
     stage_index = 0
     parallel_execution_seen = False
 
-    for event in events:
+    for event in source:
         shadow.append(event)
         event_type = str(event.get("type", ""))
         skill_value = event.get("skill")
         skill = str(skill_value) if skill_value is not None else ""
+        invocation_id = event.get("invocation_id")
+        pending_key = str(invocation_id) if invocation_identity_mode else skill
         payload = event.get("payload")
         payload = payload if isinstance(payload, Mapping) else {}
 
@@ -126,7 +155,11 @@ def observe_runtime_semantics(
             candidate_id = skill
             stage_index += 1
             dependencies = tuple(sorted(causal_frontier))
-            pending[skill].append((stage_id, candidate_id, dependencies))
+            if invocation_identity_mode and pending[pending_key]:
+                raise ValueError("duplicate_active_invocation_id")
+            pending[pending_key].append(
+                (stage_id, candidate_id, dependencies)
+            )
             shadow.append(
                 _semantic_event(
                     "semantic_stage",
@@ -143,8 +176,10 @@ def observe_runtime_semantics(
             )
             continue
 
-        if event_type == "skill_retry" and skill and pending[skill]:
-            stage_id, candidate_id, _ = pending[skill][0]
+        if event_type == "skill_retry" and skill:
+            if not pending[pending_key]:
+                raise ValueError("orphan_skill_retry_event")
+            stage_id, candidate_id, _ = pending[pending_key][0]
             attempt = int(payload.get("attempt", 0))
             shadow.append(
                 _semantic_event(
@@ -168,7 +203,7 @@ def observe_runtime_semantics(
             }
             and skill
         ):
-            if not pending[skill]:
+            if not pending[pending_key]:
                 # A cached parallel completion may not expose skill_start.
                 if not (
                     event_type == "skill_complete"
@@ -195,7 +230,9 @@ def observe_runtime_semantics(
                     )
                 )
             else:
-                stage_id, candidate_id, dependencies = pending[skill].popleft()
+                stage_id, candidate_id, dependencies = pending[
+                    pending_key
+                ].popleft()
 
             if event_type == "skill_complete":
                 annotation = _semantic_annotation(payload)

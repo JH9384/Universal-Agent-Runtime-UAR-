@@ -26,6 +26,8 @@ def main() -> int:
     parser.add_argument(
         "--max-telemetry-loss-delta", type=float, default=0.005
     )
+    parser.add_argument("--max-paired-different", type=float, default=0.0)
+    parser.add_argument("--max-paired-indeterminate", type=float, default=0.0)
     args = parser.parse_args()
 
     payload = json.loads(args.input.read_text(encoding="utf-8"))
@@ -37,6 +39,8 @@ def main() -> int:
             max_total_variation=args.max_tv,
             max_telemetry_loss_rate=args.max_telemetry_loss,
             max_telemetry_loss_delta=args.max_telemetry_loss_delta,
+            max_paired_different_rate=args.max_paired_different,
+            max_paired_indeterminate_rate=args.max_paired_indeterminate,
         ),
         trusted_attestor_public_keys={
             args.trusted_key_id: args.trusted_public_key.read_bytes()

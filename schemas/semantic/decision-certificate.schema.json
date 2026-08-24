@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uar.dev/schemas/semantic/decision-certificate.schema.json",
+  "title": "UAR Semantic Decision Certificate",
+  "type": "object",
+  "required": ["schema", "certificate_id", "stage_id", "candidate_id", "decision_state", "constraint_id", "reason_code", "evidence_refs", "committed_candidate_id", "stage_dependencies", "stage_terminal", "final_result", "semantic_trace_hash", "issuer", "issued_at"],
+  "properties": {
+    "schema": {"const": "uar.semantic-decision-certificate.v1"},
+    "certificate_id": {"type": "string", "minLength": 1},
+    "stage_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "decision_state": {"enum": ["ADMIT", "REJECT", "DEFER", "CONFLICT"]},
+    "constraint_id": {"type": ["string", "null"]},
+    "reason_code": {"type": ["string", "null"]},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "committed_candidate_id": {"type": ["string", "null"]},
+    "stage_dependencies": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "stage_terminal": {"type": "boolean"},
+    "final_result": {"type": ["string", "null"]},
+    "semantic_trace_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "issuer": {"type": "string", "minLength": 1},
+    "issued_at": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

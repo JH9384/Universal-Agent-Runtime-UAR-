@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uar.dev/schemas/semantic/history-corpus.schema.json",
+  "title": "UAR Semantic History Corpus",
+  "type": "object",
+  "required": ["schema", "provenance", "runs"],
+  "properties": {
+    "schema": {"const": "uar.semantic-history-corpus.v1"},
+    "provenance": {
+      "type": "object",
+      "required": ["source_kind", "model_generated", "sanitized", "sanitization", "code_revision", "capture_window"],
+      "properties": {
+        "source_kind": {"const": "observed_operational"},
+        "model_generated": {"const": false},
+        "sanitized": {"const": true},
+        "code_revision": {"type": "string", "minLength": 1},
+        "capture_window": {
+          "type": "object",
+          "required": ["start", "end"],
+          "properties": {"start": {"type": "string"}, "end": {"type": "string"}}
+        },
+        "sanitization": {
+          "type": "object",
+          "required": ["method", "reviewed_by", "source_snapshot"],
+          "properties": {
+            "method": {"type": "string", "minLength": 1},
+            "reviewed_by": {"type": "string", "minLength": 1},
+            "source_snapshot": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["run_id", "pair_id", "split", "cohort", "event_mode", "task_class", "final_result_class", "events"],
+        "properties": {
+          "run_id": {"type": "string", "minLength": 1},
+          "pair_id": {"type": "string", "minLength": 1},
+          "split": {"enum": ["calibration", "holdout"]},
+          "cohort": {"enum": ["baseline", "candidate"]},
+          "event_mode": {"enum": ["raw_runtime", "preshadowed"]},
+          "task_class": {"type": "string", "minLength": 1},
+          "final_result_class": {"type": "string", "minLength": 1},
+          "runtime_projection_hash": {"type": "string"},
+          "case_id": {"type": ["string", "null"]},
+          "seed": {"type": ["integer", "string", "null"]},
+          "events": {"type": "array", "minItems": 1, "items": {"type": "object"}}
+        }
+      }
+    },
+    "attestation": {"$ref": "history-attestation.schema.json"}
+  }
+}
