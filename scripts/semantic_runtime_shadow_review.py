@@ -75,6 +75,7 @@ def build_report(iterations: int) -> dict[str, Any]:
     _register("omega_shadow_left", lambda _: {"branch": "left"})
     _register("omega_shadow_right", lambda _: {"branch": "right"})
     _register("omega_shadow_join", lambda _: {"joined": True})
+
     def call_runtime_tool(_):
         result = _handle_tool_call("omega_shadow_identity", {"metadata": {}})
         return {
@@ -84,7 +85,9 @@ def build_report(iterations: int) -> dict[str, Any]:
                     {
                         "call_id": "runtime-review-call-1",
                         "tool": "omega_shadow_identity",
-                        "status": "error" if result.get("isError") else "completed",
+                        "status": "error"
+                        if result.get("isError")
+                        else "completed",
                     }
                 ]
             },
@@ -247,12 +250,15 @@ def build_report(iterations: int) -> dict[str, Any]:
     independent = pair_independent_runtime_with_shadow(
         execute_independently, execute_independently
     )
-    passed = all(
-        item["projected_events_equal"]
-        and not item["integrity_issues"]
-        and item["within_overhead_envelope"]
-        for item in reports
-    ) and independent.projected_events_equal
+    passed = (
+        all(
+            item["projected_events_equal"]
+            and not item["integrity_issues"]
+            and item["within_overhead_envelope"]
+            for item in reports
+        )
+        and independent.projected_events_equal
+    )
     return {
         "schema": "uar.semantic-shadow-runtime-review.v1",
         "iterations_per_scenario": iterations,
