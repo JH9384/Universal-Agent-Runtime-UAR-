@@ -23,12 +23,12 @@ green synthetic campaign does not close a real-runtime or stochastic criterion.
 | Stratified `G/A/E/K/P/O/NULL` mutation campaign | PASS | 14,000-case seeded workflow campaign | Continue reporting per family |
 | Expected outcome and localization accuracy | PASS | 100% per family on seeded corpus | Claim remains limited to sampled corpus |
 | Semantic-null false-positive control | PASS | `NULL` family: zero false positives | Continue as permanent regression gate |
-| Scheduler diamonds and evaluation strategies | PARTIAL | flat/non-flat local diamond tests and minimal antichain tests | Real sequential/greedy/DAG paired executions |
+| Scheduler diamonds and evaluation strategies | PARTIAL | flat/non-flat local diamonds plus real sequential and DAG/parallel `Executor` shadow pairs; parallel branches join through the full causal frontier | Add the greedy scheduler and broader production DAG histories |
 | At least 10,000 result-equivalent semantic mutations | PASS | 14,000-case campaign with result-equivalent semantic families | None for synthetic gate |
 | Observation-loss injection and measured indeterminacy | PASS | identical and divergent latent-pair campaign | Real telemetry-loss rate remains open |
 | Semantic-distance distributions over real history | OPEN | distributional review harness exists | Populate and execute real replay corpus |
-| Deterministic projected shadow equality | PARTIAL | `pair_runtime_with_shadow()` wraps a real `Executor` stream; success and rejection regressions require exact baseline recovery after semantic-event erasure | Expand beyond the first deterministic runtime pair into the declared representative corpus |
-| Concurrent/stochastic overhead envelope | OPEN | semantic/latency statistics module exists | Predeclare thresholds and measure real runs |
+| Deterministic projected shadow equality | PARTIAL | Real sequential, DAG/parallel, retry, rejection, and timeout `Executor` streams require exact baseline recovery after semantic-event erasure | Add cancellation, defer/conflict, tool-use, and independently executed baseline/shadow pairs |
+| Concurrent/stochastic overhead envelope | PARTIAL | Observer envelope is declared at p95 <= 250 microseconds per baseline event and <= 6x event expansion; five real runtime scenarios pass | Measure end-to-end latency and scheduler distributions under sustained concurrent/stochastic load |
 | Independent certificate verification | PARTIAL | verifier hook and separation from replay verdict | Exercise a real certificate family |
 | No Trust Spine weighting change | HOLD | PR introduces no weighting changes | Remain on hold until empirical validation closes |
 
@@ -51,17 +51,17 @@ Current lifecycle evidence:
 - UOR sandbox execution uses `spawn`, avoiding multithreaded `fork` deadlocks;
 - the module-level UOR auth override was removed and its fixture now restores
   prior shared-app state;
+- non-retryable exceptions now terminate after one `skill_failed` event rather
+  than silently repeating failures without `skill_retry` transitions;
 - the focused lifecycle/conformance/runtime-shadow slice passed 110/110 across
   random seeds `1`, `2`, `3`, `7`, and `42`.
 
 ## Next evidence tranche
 
 1. Re-run the full ordering-stress workflow after the sandbox/auth repairs.
-2. Expand the paired real-runtime corpus beyond the first deterministic
-   `Executor` pair, stratified by deterministic, DAG,
-   tool-use, rejection, defer, conflict, retry, cancellation, timeout, and
-   concurrent execution paths.
-3. Require exact projected-event equality for deterministic pairs.
-4. Predeclare and measure latency, scheduler, result, and semantic-trace
+2. Expand the paired real-runtime corpus with tool-use, defer, conflict, and
+   cancellation paths, plus independently executed baseline/shadow pairs.
+3. Continue requiring exact projected-event equality for deterministic pairs.
+4. Measure end-to-end latency, scheduler, result, and semantic-trace
    distribution thresholds for stochastic/concurrent pairs.
 5. Exercise at least one independently verifiable certificate family.
