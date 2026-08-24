@@ -26,7 +26,7 @@ green synthetic campaign does not close a real-runtime or stochastic criterion.
 | Scheduler diamonds and evaluation strategies | PASS | flat/non-flat local diamonds plus real greedy-wide and DAG-diamond `Executor` shadow pairs at concurrency 1/4/16/32; parallel branches join through the full causal frontier | Retain both scheduler shapes in the confirmatory gate |
 | At least 10,000 result-equivalent semantic mutations | PASS | 14,000-case campaign with result-equivalent semantic families | None for synthetic gate |
 | Observation-loss injection and measured indeterminacy | PASS | identical and divergent latent-pair campaign | Real telemetry-loss rate remains open |
-| Semantic-distance distributions over real history | OPEN | distributional review harness exists | Populate and execute real replay corpus |
+| Semantic-distance distributions over real history | OPEN | `semantic_real_history_review.py` now enforces observed-operational provenance, a recorded sanitization review, calibration/untouched-holdout separation, unique run IDs, minimum cohort sizes, trace integrity, distribution thresholds, and measured telemetry-loss limits. Probability experiments are explicitly ineligible to close this row. | Supply the sanitized operational corpus and execute the untouched holdout |
 | Deterministic projected shadow equality | PASS | Seven real `Executor` scenarios cover sequential, DAG/parallel, retry, rejection, timeout, cancellation, and annotated MCP tool/defer/conflict paths. Same-stream projection is exact, and two independently executed clean-state runs produce identical normalized projection hashes. Normalization removes only timestamps, UOR envelope fields, and timing metrics; a non-envelope result mutation is detected. | Retain the independent-pair and drift-negative tests as permanent gates |
 | Concurrent/stochastic overhead envelope | PASS | Seed `8191`: 800 paired runs across greedy-wide and DAG-diamond workloads at concurrency 1/4/16/32. Zero projection/result/integrity drift; worst p95 ratio 1.0096, p99 ratio 1.0046, throughput retention 0.9971, order JSD 0.0024 bits, and order TV 0.0167. | Retain the 100-sample-per-stratum confirmatory workflow gate |
 | Independent certificate verification | PASS | A real `Executor` decision carries an Ed25519 certificate reference. A public-key-only verifier checks both signature authenticity and exact semantic attachment; tampered-claim and wrong-key controls are rejected. | Retain the signed certificate workflow gate and both negative controls |
@@ -68,9 +68,15 @@ Current lifecycle evidence:
 
 ## Next evidence tranche
 
-1. Re-run the full ordering-stress workflow after the sandbox/auth/SQLite
-   lifecycle repairs.
-2. Populate and run replay distributions from broader production histories;
-   the synthetic greedy/DAG concurrent gate does not substitute for them.
-3. Continue requiring exact projected-event equality for deterministic pairs,
-   with shared runtime state explicitly isolated between executions.
+1. Export a sanitized operational corpus using
+   `uar.semantic-history-corpus.v1`, preserving the pre-declared calibration
+   and untouched-holdout split.
+2. Run `scripts/semantic_real_history_review.py` on that corpus and retain only
+   the aggregate report; do not publish raw operational events.
+3. Obtain an external review of the frozen semantic model, observer, and gate
+   evidence before the merge/no-merge decision.
+
+The current evidence inventory contains canonical fixtures, API audit entries,
+and generated probability/decision experiments. Those artifacts strengthen
+adversarial strata, but none carries the observed-operational provenance and
+sanitized UAR `RunRecord` event history required to close the real-history row.
