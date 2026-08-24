@@ -1,0 +1,8 @@
+# Default ownership for repository changes.
+* @JH9384
+
+# Governance and automation surfaces.
+/.github/ @JH9384
+/pyproject.toml @JH9384
+/VERSION @JH9384
+/CHANGELOG.md @JH9384
