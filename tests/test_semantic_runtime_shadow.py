@@ -69,7 +69,11 @@ def test_shadow_observer_covers_rejection_without_mutating_runtime_events():
         },
         {
             "type": "complete",
-            "payload": {"status": "failed", "outputs": [], "final_context": {}},
+            "payload": {
+                "status": "failed",
+                "outputs": [],
+                "final_context": {},
+            },
         },
     )
 
@@ -102,9 +106,10 @@ def test_nonretryable_runtime_rejection_emits_one_decision(mock_registry):
         )
     )
 
-    assert sum(
-        event["type"] == "skill_failed" for event in pair.baseline_events
-    ) == 1
+    assert (
+        sum(event["type"] == "skill_failed" for event in pair.baseline_events)
+        == 1
+    )
     assert len(pair.semantic_trace.stages) == 1
     assert len(pair.semantic_trace.stages[0].decisions) == 1
     assert pair.projected_events_equal is True
@@ -160,7 +165,9 @@ def test_runtime_retry_is_evidence_not_a_second_stage(
 ):
     skill = Mock(
         side_effect=[
-            SkillExecutionError("retry", original_error=RuntimeError("transient")),
+            SkillExecutionError(
+                "retry", original_error=RuntimeError("transient")
+            ),
             {"answer": 42},
         ]
     )
@@ -186,7 +193,9 @@ def test_runtime_retry_is_evidence_not_a_second_stage(
     assert len(pair.semantic_trace.stages) == 1
     decision = pair.semantic_trace.stages[0].decisions[0]
     assert len(decision.evidence_refs) == 2
-    assert any(ref.startswith("runtime-retry:") for ref in decision.evidence_refs)
+    assert any(
+        ref.startswith("runtime-retry:") for ref in decision.evidence_refs
+    )
     assert pair.projected_events_equal is True
 
 
@@ -220,7 +229,9 @@ def test_shadow_observer_overhead_stays_inside_predeclared_envelope():
 
 
 @patch("uar.core.executor.registry")
-def test_runtime_annotations_cover_tool_defer_and_conflict_duals(mock_registry):
+def test_runtime_annotations_cover_tool_defer_and_conflict_duals(
+    mock_registry,
+):
     skills = {
         "tool": lambda _: {
             "answer": 42,
