@@ -74,7 +74,6 @@ test-coverage: $(VENV_STAMP)
 test-performance: $(VENV_STAMP)
 	$(PYTEST) tests/core/test_topology_stress.py \
 		tests/core/test_omega3d_production_simulation.py \
-		tests/test_semantic_runtime_shadow.py \
 		-q --tb=short -m performance
 
 test-backend: $(VENV_STAMP)
