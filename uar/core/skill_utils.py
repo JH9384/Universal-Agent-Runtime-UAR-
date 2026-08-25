@@ -31,7 +31,9 @@ def normalize_skill_result(result: Any) -> Any:
         normalized = dict(result)
         normalized["status"] = "failed"
         if "error" not in normalized or normalized.get("error") is None:
-            normalized["error"] = errors[0] if isinstance(errors, list) else errors
+            normalized["error"] = (
+                errors[0] if isinstance(errors, list) else errors
+            )
         return normalized
     return result
 
@@ -72,6 +74,7 @@ def skill_guard(
         mod_logger = logging.getLogger(fn.__module__)
 
         if inspect.iscoroutinefunction(fn):
+
             @wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 try:
@@ -81,11 +84,13 @@ def skill_guard(
                     raise
                 except Exception as exc:
                     mod_logger.exception("%s failed", operation_name)
-                    return wrap_with_digest({
-                        "status": status,
-                        "error": f"{type(exc).__name__}: {exc}",
-                        "message": f"{operation_name} failed",
-                    })
+                    return wrap_with_digest(
+                        {
+                            "status": status,
+                            "error": f"{type(exc).__name__}: {exc}",
+                            "message": f"{operation_name} failed",
+                        }
+                    )
 
             return async_wrapper
 
@@ -98,11 +103,13 @@ def skill_guard(
                 raise
             except Exception as exc:
                 mod_logger.exception("%s failed", operation_name)
-                return wrap_with_digest({
-                    "status": status,
-                    "error": f"{type(exc).__name__}: {exc}",
-                    "message": f"{operation_name} failed",
-                })
+                return wrap_with_digest(
+                    {
+                        "status": status,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "message": f"{operation_name} failed",
+                    }
+                )
 
         return wrapper
 
@@ -132,7 +139,8 @@ def require_field(
 
 
 def require_env(
-    name: Union[str, List[str]], *,
+    name: Union[str, List[str]],
+    *,
     install_hint: Optional[str] = None,
     status: str = "failed",
 ) -> Optional[Dict[str, str]]:
@@ -146,7 +154,9 @@ def require_env(
     env_list = ", ".join(missing)
     return {
         "status": status,
-        "error": f"Missing required environment variable(s): {env_list}.{hint}".strip(),
+        "error": (
+            f"Missing required environment variable(s): {env_list}.{hint}"
+        ).strip(),
     }
 
 
@@ -170,16 +180,23 @@ def require_path(
     try:
         path = Path(os.fspath(value))
     except TypeError:
-        return {"status": status, "error": error_msg or f"{field} is not a valid path"}
+        return {
+            "status": status,
+            "error": error_msg or f"{field} is not a valid path",
+        }
 
     if not path.exists():
-        return {"status": status, "error": error_msg or f"{field} does not exist: {path}"}
+        return {
+            "status": status,
+            "error": error_msg or f"{field} does not exist: {path}",
+        }
 
     return None
 
 
 def require_package(
-    package: Union[str, List[str]], *,
+    package: Union[str, List[str]],
+    *,
     install_hint: Optional[str] = None,
 ) -> Optional[Dict[str, str]]:
     """Return an error dict if *package* is not importable, else ``None``."""
