@@ -1,4 +1,4 @@
-.PHONY: d5w-evidence-pack-api-smoke d5h-evidence-capture help install test test-fast test-coverage test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate d4d-status d4e-runtime-smoke api web dashboard up up-full up-all docker-up docker-up-full docker-smoke docker-down mcp-smoke mcp-server clean release version sync-version check-version
+.PHONY: d5w-evidence-pack-api-smoke d5h-evidence-capture help install test test-fast test-coverage test-performance test-backend test-frontend test-alignment test-regression lint lint-py lint-ts build-frontend validate validate-d4c d4c-result d4c-release-gate d4d-status d4e-runtime-smoke api web dashboard up up-full up-all docker-up docker-up-full docker-smoke docker-down mcp-smoke mcp-server clean release version sync-version check-version
 
 PYTHON ?= python3.12
 API_HOST ?= 127.0.0.1
@@ -18,6 +18,7 @@ help:
 	@echo "  make test             Run all Python tests"
 	@echo "  make test-fast        Run tests in parallel (pytest-xdist)"
 	@echo "  make test-coverage    Run tests with coverage report"
+	@echo "  make test-performance Run performance tests without coverage"
 	@echo "  make test-backend     Run backend tests (fast)"
 	@echo "  make test-frontend    Run frontend tests (Vitest)"
 	@echo "  make test-alignment   Run skill/feature/tips alignment tests"
@@ -66,11 +67,17 @@ test-fast: $(VENV_STAMP)
 	$(PYTEST) tests/ -q --tb=short -n auto
 
 test-coverage: $(VENV_STAMP)
-	$(PYTEST) tests/ -q --tb=short --cov=uar --cov-report=term-missing \
+	$(PYTEST) tests/ -q --tb=short -m 'not performance' \
+		--cov=uar --cov-report=term-missing \
 		--cov-report=html:htmlcov --junitxml=test-results.xml
 
+test-performance: $(VENV_STAMP)
+	$(PYTEST) tests/core/test_topology_stress.py \
+		tests/core/test_omega3d_production_simulation.py \
+		-q --tb=short -m performance
+
 test-backend: $(VENV_STAMP)
-	$(PYTEST) tests/ -q --tb=short
+	$(PYTEST) tests/ -q --tb=short -m 'not performance'
 
 test-frontend:
 	cd $(WEB_DIR) && npm run test:run
@@ -219,4 +226,3 @@ d5h-evidence-capture:
 
 d5w-evidence-pack-api-smoke:
 	bash scripts/evidence_pack/validate_evidence_pack_api_smoke.sh
-

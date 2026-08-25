@@ -14,11 +14,13 @@ def _client(monkeypatch) -> TestClient:
     monkeypatch.setenv("API_KEYS", "dev-key-12345:test-user:admin")
     monkeypatch.setenv("UAR_AUTH_MODE", "api_key")
 
-    # The auth middleware loads keys at import time in some paths, so update the
+    # Some paths load auth keys at import time, so update the
     # module globals used by the dependency for this isolated router test.
     import uar.api.middleware as middleware
 
-    middleware.API_KEYS = {"dev-key-12345": {"user": "test-user", "tier": "admin"}}
+    middleware.API_KEYS = {
+        "dev-key-12345": {"user": "test-user", "tier": "admin"}
+    }
 
     app = FastAPI()
     app.include_router(router)
@@ -36,7 +38,9 @@ def test_evidence_pack_router_requires_auth(monkeypatch):
 def test_evidence_pack_router_returns_minimal_pack(monkeypatch):
     client = _client(monkeypatch)
 
-    response = client.get("/api/uar/evidence-pack/run-123", headers=AUTH_HEADERS)
+    response = client.get(
+        "/api/uar/evidence-pack/run-123", headers=AUTH_HEADERS
+    )
 
     assert response.status_code == 200
     payload = response.json()

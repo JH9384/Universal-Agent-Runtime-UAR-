@@ -7,19 +7,44 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
+      - name: Diagnose workspace before install
+        run: |
+          echo "=== HEAD ==="
+          git rev-parse HEAD
+          echo "=== tracked scripts ==="
+          git ls-files 'scripts/**' | sort
+          echo "=== physical scripts before install ==="
+          find scripts -type f -print 2>/dev/null | sort || true
+          echo "=== status before install ==="
+          git status --short --untracked-files=all
       - name: Install package
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
+      - name: Diagnose workspace after install
+        run: |
+          echo "=== physical scripts after install ==="
+          find scripts -type f -print 2>/dev/null | sort || true
+          echo "=== status after install ==="
+          git status --short --untracked-files=all
+          echo "=== untracked candidates ==="
+          git clean -nd
       - name: Run ruff
         run: ruff check .
 
@@ -27,8 +52,8 @@ jobs:
     name: Unit warning-clean
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - name: Install package
@@ -48,8 +73,8 @@ jobs:
     name: API warning-clean
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - name: Install package
@@ -69,8 +94,8 @@ jobs:
     name: Integration warning-clean
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - name: Install package

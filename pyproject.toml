@@ -138,6 +138,7 @@ filterwarnings = [
 ]
 markers = [
     "schemathesis: OpenAPI fuzz tests (run separately)",
+    "performance: Wall-clock or large-scale performance tests (run without coverage instrumentation)",
 ]
 
 [tool.coverage.run]
@@ -234,3 +235,6 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 79
 extend-exclude = ["tests/bug_patterns/eval_files/"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F"]

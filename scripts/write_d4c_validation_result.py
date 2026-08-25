@@ -32,7 +32,9 @@ def main() -> int:
     branch = _cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     python_version = platform.python_version()
     node_version = _cmd(["node", "--version"])
-    operator = os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+    operator = (
+        os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+    )
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / f"d4c-validation-{now}.md"
     out_path.write_text(

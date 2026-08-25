@@ -47,7 +47,9 @@ def build_operator_daily_briefing(
         "unstable",
     }:
         priority = "critical"
-    if certification.get("level") and str(certification.get("level")).lower() in {
+    if certification.get("level") and str(
+        certification.get("level")
+    ).lower() in {
         "failed",
         "degraded",
     }:
@@ -75,7 +77,9 @@ def build_operator_daily_briefing(
                     "target": "replay",
                     "run_id": replay.get("run_id"),
                     "available": True,
-                    "reason": "Replay context is available from fleet linkage.",
+                    "reason": (
+                        "Replay context is available from fleet linkage."
+                    ),
                 }
             )
         recommendations = linkage.get("recommendations") or []
@@ -134,9 +138,11 @@ def build_operator_daily_briefing(
         "evidence_pack": {
             "available": evidence_pack is not None,
             "section_count": len(evidence_pack.get("sections", []))
-            if evidence_pack else 0,
+            if evidence_pack
+            else 0,
             "markdown_preview": evidence_pack.get("markdown", "")[:2000]
-            if evidence_pack else None,
+            if evidence_pack
+            else None,
         },
     }
 

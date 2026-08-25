@@ -172,7 +172,7 @@ def validate_email(email: str, field_name: str = "email") -> str:
 
 
 def validate_url(url: str, field_name: str = "url") -> str:
-    """Validate a URL and block private/reserved IP addresses (SSRF prevention).
+    """Validate a URL and block private or reserved IP addresses.
 
     Args:
         url: URL to validate
@@ -209,9 +209,16 @@ def validate_url(url: str, field_name: str = "url") -> str:
     # Block private/reserved IP addresses
     try:
         addr = ipaddress.ip_address(hostname)
-        if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local or addr.is_multicast:
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_reserved
+            or addr.is_link_local
+            or addr.is_multicast
+        ):
             raise ValidationError(
-                f"{field_name} must not point to private/reserved IP addresses",
+                f"{field_name} must not point to private or reserved IP "
+                "addresses",
                 field=field_name,
             )
     except ValueError:

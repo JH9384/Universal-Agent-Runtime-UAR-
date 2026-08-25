@@ -36,7 +36,7 @@ def _make_store() -> SqliteRunStore:
 
 
 def test_no_key_returns_plain_store():
-    """When UAR_ENCRYPTION_KEY is not set, maybe_encrypt_store is a pass-through."""
+    """Return the plain store when UAR_ENCRYPTION_KEY is not set."""
     os.environ.pop("UAR_ENCRYPTION_KEY", None)
     inner = _make_store()
     store = maybe_encrypt_store(inner)
@@ -135,7 +135,7 @@ def test_metadata_encryption():
 
 
 def test_metadata_backwards_compatible_plaintext():
-    """get_metadata returns plaintext values that were stored before encryption."""
+    """Return plaintext values that predate encryption."""
     key = _make_key()
     inner = _make_store()
     inner.put_metadata("legacy", {"old": True})

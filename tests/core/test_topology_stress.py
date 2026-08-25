@@ -27,10 +27,14 @@ import time
 import tracemalloc
 from typing import Any, Dict, List
 
+import pytest
+
 from uar.core.analytics_snapshot import (
     build_analytics_snapshot,
     extract_topology_hot_paths,
 )
+
+pytestmark = pytest.mark.performance
 
 
 def _make_topology_runs(

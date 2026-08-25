@@ -1,8 +1,8 @@
 """Read-only MCP tool helpers for UAR.
 
-These helpers are transport-agnostic: the stdio MCP shim can call them, tests can
-exercise them directly, and future protocol adapters can reuse them without
-reaching into API internals.
+These helpers are transport-agnostic: the stdio MCP shim can call them,
+tests can exercise them directly, and future protocol adapters can reuse them
+without reaching into API internals.
 """
 
 from __future__ import annotations
@@ -59,7 +59,9 @@ def _get_json(path: str) -> Dict[str, Any]:
     url = urljoin(_base_url(), path.lstrip("/"))
     request = Request(url, headers=_headers(), method="GET")
     try:
-        with urlopen(request, timeout=float(os.getenv("UAR_MCP_TIMEOUT", "5"))) as response:
+        with urlopen(
+            request, timeout=float(os.getenv("UAR_MCP_TIMEOUT", "5"))
+        ) as response:
             body = response.read().decode("utf-8")
             if not body:
                 return {"status": "empty", "url": url}
@@ -69,7 +71,9 @@ def _get_json(path: str) -> Dict[str, Any]:
             return {"items": decoded}
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise UARMCPError(f"GET {path} returned HTTP {exc.code}: {detail}") from exc
+        raise UARMCPError(
+            f"GET {path} returned HTTP {exc.code}: {detail}"
+        ) from exc
     except URLError as exc:
         raise UARMCPError(f"GET {path} failed: {exc.reason}") from exc
     except json.JSONDecodeError as exc:
@@ -135,36 +139,65 @@ def get_tools() -> Dict[str, MCPTool]:
     }
     limit_schema = {
         "type": "object",
-        "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}},
+        "properties": {
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+        },
         "additionalProperties": False,
     }
-    empty_schema = {"type": "object", "properties": {}, "additionalProperties": False}
+    empty_schema = {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+    }
 
     tools = {
-        "uar.health": MCPTool("uar.health", "Read UAR API health status.", empty_schema, _health),
-        "uar.mission_control": MCPTool(
-            "uar.mission_control", "Read Mission Control snapshot.", empty_schema, _mission_control
+        "uar.health": MCPTool(
+            "uar.health", "Read UAR API health status.", empty_schema, _health
         ),
-        "uar.list_runs": MCPTool("uar.list_runs", "List recent UAR runs.", limit_schema, _list_runs),
-        "uar.get_run": MCPTool("uar.get_run", "Read one UAR run by ID.", run_id_schema, _get_run),
+        "uar.mission_control": MCPTool(
+            "uar.mission_control",
+            "Read Mission Control snapshot.",
+            empty_schema,
+            _mission_control,
+        ),
+        "uar.list_runs": MCPTool(
+            "uar.list_runs", "List recent UAR runs.", limit_schema, _list_runs
+        ),
+        "uar.get_run": MCPTool(
+            "uar.get_run", "Read one UAR run by ID.", run_id_schema, _get_run
+        ),
         "uar.replay_summary": MCPTool(
-            "uar.replay_summary", "Read replay confidence for a run.", run_id_schema, _replay_summary
+            "uar.replay_summary",
+            "Read replay confidence for a run.",
+            run_id_schema,
+            _replay_summary,
         ),
         "uar.certification_status": MCPTool(
-            "uar.certification_status", "Read certification status.", empty_schema, _certification_status
+            "uar.certification_status",
+            "Read certification status.",
+            empty_schema,
+            _certification_status,
         ),
         "uar.burnin_history": MCPTool(
-            "uar.burnin_history", "Read burn-in history.", limit_schema, _burnin_history
+            "uar.burnin_history",
+            "Read burn-in history.",
+            limit_schema,
+            _burnin_history,
         ),
         "uar.failure_hotspots": MCPTool(
-            "uar.failure_hotspots", "Read failure hotspot analytics.", empty_schema, _failure_hotspots
+            "uar.failure_hotspots",
+            "Read failure hotspot analytics.",
+            empty_schema,
+            _failure_hotspots,
         ),
     }
     assert set(tools) == READ_ONLY_TOOL_NAMES
     return tools
 
 
-def call_tool(name: str, arguments: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+def call_tool(
+    name: str, arguments: Mapping[str, Any] | None = None
+) -> Dict[str, Any]:
     """Call an allowlisted read-only MCP tool by name."""
 
     tools = get_tools()

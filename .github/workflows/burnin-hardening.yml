@@ -13,23 +13,42 @@ on:
   schedule:
     - cron: '0 4 * * *'  # Daily at 04:00 UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   hardening:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
           cache: 'pip'
 
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
       - name: Install dependencies
         run: |
           make install PYTHON=python
+
+      - name: Install frontend dependencies for gate
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Audit frontend dependencies
+        working-directory: apps/web
+        run: npm audit
 
       - name: Run hardening tests
         run: |
@@ -40,8 +59,13 @@ jobs:
           for seed in 1 2 3 7 42; do
             echo "=== Randomly seed=$seed ==="
             .venv/bin/pytest tests/ --ignore=tests/conformance/test_invariants.py \
-              -q --tb=line --timeout=60 --randomly-seed=$seed || exit 1
+              -q --tb=line --timeout=60 -m 'not performance' \
+              --randomly-seed=$seed || exit 1
           done
+
+      - name: Run performance tests without coverage instrumentation
+        run: |
+          make test-performance PYTHON=python
 
       - name: Run gate target
         run: |
@@ -56,7 +80,7 @@ jobs:
 
       - name: Upload burn-in artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: burnin-artifacts
           path: artifacts/hardening

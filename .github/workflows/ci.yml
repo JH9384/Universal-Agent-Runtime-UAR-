@@ -8,7 +8,10 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for Sigstore OIDC token
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   python-tests:
@@ -19,10 +22,10 @@ jobs:
         python-version: ['3.10', '3.11', '3.12']
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -31,7 +34,7 @@ jobs:
         run: make test-coverage PYTHON=python
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: coverage-report-py${{ matrix.python-version }}
@@ -39,7 +42,7 @@ jobs:
           retention-days: 14
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: test-results-py${{ matrix.python-version }}
@@ -60,7 +63,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: benchmark-results-py${{ matrix.python-version }}
@@ -72,8 +75,24 @@ jobs:
           for seed in 1 7 42; do
             echo "=== Randomly seed=$seed ==="
             .venv/bin/pytest tests/ --ignore=tests/conformance/test_invariants.py \
-              -q --tb=line --timeout=60 --randomly-seed=$seed || exit 1
+              -q --tb=line --timeout=60 -m 'not performance' \
+              --randomly-seed=$seed || exit 1
           done
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Run performance tests without coverage instrumentation
+        run: make test-performance PYTHON=python
 
   optional-dependency-smoke:
     runs-on: ubuntu-latest
@@ -83,10 +102,10 @@ jobs:
         extra: ['advanced', 'doc-processing', 'agent-orchestration']
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -120,17 +139,20 @@ jobs:
         working-directory: apps/web
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit
 
       - name: Run tests
         run: npm run test:run
@@ -145,17 +167,20 @@ jobs:
         working-directory: apps/operator-dashboard
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: apps/operator-dashboard/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit
 
       - name: Run tests
         run: npx vitest run
@@ -170,17 +195,20 @@ jobs:
         working-directory: apps/web-svelte
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: apps/web-svelte/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit
 
       - name: Run tests
         run: npm run test:run
@@ -193,20 +221,20 @@ jobs:
 
   sign-uor-artifacts:
     runs-on: ubuntu-latest
-    needs: [python-tests, web-tests, operator-dashboard-tests, web-svelte-tests]
+    needs: [python-tests, performance-tests, web-tests, operator-dashboard-tests, web-svelte-tests]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
-      contents: write  # For uploading signatures
-      id-token: write  # For Sigstore OIDC
+      contents: read
+      id-token: write  # Sigstore OIDC is scoped only to this signing job.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install Sigstore
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -229,7 +257,7 @@ jobs:
           done
 
       - name: Upload signatures
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: uor-signatures
           path: |
