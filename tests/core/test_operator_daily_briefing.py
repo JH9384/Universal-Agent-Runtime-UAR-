@@ -21,7 +21,9 @@ def _mission_control(fleet_status="nominal", top_signal=None):
 
 
 def test_daily_briefing_nominal_adds_monitor_action():
-    briefing = build_operator_daily_briefing(_mission_control(), generated_at=1.0)
+    briefing = build_operator_daily_briefing(
+        _mission_control(), generated_at=1.0
+    )
 
     assert briefing["generated_at"] == 1.0
     assert briefing["summary"]["priority"] == "nominal"
@@ -69,7 +71,19 @@ def test_daily_briefing_from_records_includes_evidence_pack_preview():
     )
 
     assert briefing["evidence_pack"]["available"] is True
-    assert briefing["evidence_pack"]["section_count"] == 2
-    assert "Fleet Signal Evidence" in briefing["evidence_pack"]["markdown_preview"]
-    assert "Incident Intelligence Evidence" in briefing["evidence_pack"]["markdown_preview"]
-    assert any(a["id"] == "generate_evidence_pack" for a in briefing["next_actions"])
+    assert briefing["evidence_pack"]["section_count"] == 3
+    assert (
+        "Fleet Signal Evidence"
+        in briefing["evidence_pack"]["markdown_preview"]
+    )
+    assert (
+        "Incident Intelligence Evidence"
+        in briefing["evidence_pack"]["markdown_preview"]
+    )
+    assert (
+        "Recurrence Correlation Evidence"
+        in briefing["evidence_pack"]["markdown_preview"]
+    )
+    assert any(
+        a["id"] == "generate_evidence_pack" for a in briefing["next_actions"]
+    )
