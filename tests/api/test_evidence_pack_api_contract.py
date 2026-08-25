@@ -38,7 +38,9 @@ def test_evidence_pack_endpoint_requires_auth(monkeypatch):
 def test_evidence_pack_endpoint_returns_contract_shape(monkeypatch):
     client = _client(monkeypatch)
 
-    response = client.get("/api/uar/evidence-pack/run-123", headers=AUTH_HEADERS)
+    response = client.get(
+        "/api/uar/evidence-pack/run-123", headers=AUTH_HEADERS
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -112,7 +114,9 @@ def test_evidence_pack_endpoint_is_read_only(monkeypatch, tmp_path):
 
     before_reports_exists = tmp_path.joinpath("reports").exists()
 
-    response = client.get("/api/uar/evidence-pack/run-123", headers=AUTH_HEADERS)
+    response = client.get(
+        "/api/uar/evidence-pack/run-123", headers=AUTH_HEADERS
+    )
 
     assert response.status_code == 200
     payload = response.json()
