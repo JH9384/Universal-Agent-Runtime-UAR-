@@ -12,12 +12,20 @@ This package consolidates what was previously a separate FastAPI app at
   :func:`register_runtime_object`, :func:`execute_runtime`,
   :func:`workflow_run`) used by the FastAPI routers in
   :mod:`uar.api.routers`.
+- PSERA evidence emission and read-only evidence graph projections.
 
 Configuration is provided by :mod:`uar.objects.settings` (env-driven via
 ``pydantic-settings`` if available, otherwise plain env reads).
 """
 
 from .agents import AGENTS
+from .evidence import EVIDENCE_SCHEMA, emit_evidence, emit_execution_evidence
+from .evidence_graph import (
+    is_evidence_record,
+    iter_evidence,
+    mission_control_evidence_projection,
+    project_evidence_graph,
+)
 from .models import (
     BridgeReq,
     CompareReq,
@@ -60,6 +68,7 @@ __all__ = [
     "DEFAULT_MEMORY_MB",
     "DEFAULT_TIMEOUT_SECONDS",
     "DelegationReq",
+    "EVIDENCE_SCHEMA",
     "ExecuteReq",
     "InferenceReq",
     "ObjectStore",
@@ -73,8 +82,14 @@ __all__ = [
     "add_lineage",
     "canonical_digest",
     "create_record",
+    "emit_evidence",
+    "emit_execution_evidence",
     "execute_runtime",
     "get_default_store",
+    "is_evidence_record",
+    "iter_evidence",
+    "mission_control_evidence_projection",
+    "project_evidence_graph",
     "register_runtime_object",
     "run_code",
     "seed_standard_runtimes",
